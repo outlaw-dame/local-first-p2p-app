@@ -12,6 +12,12 @@ export type SigningKeypair = Readonly<{
   privateKey: string;
 }>;
 
+export type EncryptedKeyMaterial = Readonly<{
+  algorithm: 'aes-gcm-256';
+  iv: string;
+  ciphertext: string;
+}>;
+
 export function generateSigningKeypair(): SigningKeypair {
   const pair = nacl.sign.keyPair();
   return {
@@ -65,6 +71,48 @@ export function verifySignedEventEnvelope(event: SignedEventEnvelope): boolean {
   }
 }
 
+export async function generateNonExtractableAesGcmKey(): Promise<CryptoKey> {
+  return requireSubtleCrypto().generateKey({ name: 'AES-GCM', length: 256 }, false, [
+    'encrypt',
+    'decrypt'
+  ]);
+}
+
+export async function encryptKeyMaterial(
+  plaintext: string,
+  protectionKey: CryptoKey
+): Promise<EncryptedKeyMaterial> {
+  if (plaintext.length === 0) throw new Error('Cannot encrypt empty key material');
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(plaintext);
+  const ciphertext = await requireSubtleCrypto().encrypt({ name: 'AES-GCM', iv }, protectionKey, encoded);
+  return {
+    algorithm: 'aes-gcm-256',
+    iv: toBase64Url(iv),
+    ciphertext: toBase64Url(new Uint8Array(ciphertext))
+  };
+}
+
+export async function decryptKeyMaterial(
+  encrypted: EncryptedKeyMaterial,
+  protectionKey: CryptoKey
+): Promise<string> {
+  if (encrypted.algorithm !== 'aes-gcm-256') throw new Error('Unsupported key material algorithm');
+  const iv = fromBase64Url(encrypted.iv);
+  const ciphertext = fromBase64Url(encrypted.ciphertext);
+  const plaintext = await requireSubtleCrypto().decrypt(
+    { name: 'AES-GCM', iv },
+    protectionKey,
+    ciphertext
+  );
+  return new TextDecoder().decode(plaintext);
+}
+
+export async function sha256Base64Url(input: string): Promise<string> {
+  const digest = await requireSubtleCrypto().digest('SHA-256', new TextEncoder().encode(input));
+  return toBase64Url(new Uint8Array(digest));
+}
+
 export function toBase64Url(bytes: Uint8Array): string {
   const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '');
@@ -75,4 +123,10 @@ export function fromBase64Url(input: string): Uint8Array {
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
   const binary = atob(padded);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function requireSubtleCrypto(): SubtleCrypto {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) throw new Error('WebCrypto subtle crypto is required');
+  return subtle;
 }
