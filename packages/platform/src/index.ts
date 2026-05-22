@@ -33,6 +33,7 @@ export function detectPlatformCapabilities(): PlatformCapabilities {
     serviceWorker?: unknown;
     setAppBadge?: unknown;
     share?: unknown;
+    storage?: StorageManager & { getDirectory?: () => Promise<unknown> };
   };
 
   return {
@@ -45,7 +46,7 @@ export function detectPlatformCapabilities(): PlatformCapabilities {
     biometrics: 'PublicKeyCredential' in window,
     shareTarget: typeof nav.share === 'function',
     fileSystemAccess: 'showOpenFilePicker' in window,
-    opfs: typeof navigator.storage?.getDirectory === 'function',
+    opfs: typeof nav.storage?.getDirectory === 'function',
     webRtc: 'RTCPeerConnection' in window,
     safeAreaInsets: true
   };
