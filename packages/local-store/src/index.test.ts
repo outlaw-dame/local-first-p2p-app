@@ -2,11 +2,11 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { createUnsignedEvent } from '@lfp2p/protocol';
 import { signEventEnvelope, signingKeypairFromSeed } from '@lfp2p/crypto';
-import { createLocalFirstStore } from './index.js';
+import { createLocalFirstStore, type MutationOutboxEntry } from './index.js';
 
 describe('DexieLocalFirstStore', () => {
   it('stores signed events and pending outbox entries', async () => {
-    const store = createLocalFirstStore(`test-${crypto.randomUUID()}`);
+    const store = createLocalFirstStore(`test-${globalThis.crypto.randomUUID()}`);
     const keypair = signingKeypairFromSeed(new Uint8Array(32).fill(3));
     const signed = signEventEnvelope(
       createUnsignedEvent({
@@ -39,4 +39,56 @@ describe('DexieLocalFirstStore', () => {
     expect(await store.listPendingOutbox()).toHaveLength(0);
     await store.delete();
   });
+
+  it('claims only pending due outbox entries once', async () => {
+    const store = createLocalFirstStore(`claim-test-${globalThis.crypto.randomUUID()}`);
+    const entry = makeOutboxEntry({ idempotencyKey: 'idem-claim' });
+    await store.enqueueOutbox(entry);
+
+    expect(await store.listDueOutbox('2026-05-21T23:59:59.000Z')).toHaveLength(0);
+    expect(await store.listDueOutbox('2026-05-22T00:00:00.000Z')).toHaveLength(1);
+
+    const firstClaim = await store.claimOutboxEntry('idem-claim', '2026-05-22T00:00:01.000Z');
+    const secondClaim = await store.claimOutboxEntry('idem-claim', '2026-05-22T00:00:02.000Z');
+
+    expect(firstClaim?.status).toBe('syncing');
+    expect(secondClaim).toBeUndefined();
+    expect((await store.getOutboxEntry('idem-claim'))?.status).toBe('syncing');
+    await store.delete();
+  });
+
+  it('schedules retries as pending without treating terminal failures as due work', async () => {
+    const store = createLocalFirstStore(`retry-test-${globalThis.crypto.randomUUID()}`);
+    await store.enqueueOutbox(makeOutboxEntry({ idempotencyKey: 'idem-retry' }));
+    await store.scheduleOutboxRetry({
+      idempotencyKey: 'idem-retry',
+      retryCount: 1,
+      nextRetryAt: '2026-05-22T00:05:00.000Z',
+      lastError: 'temporary failure',
+      updatedAt: '2026-05-22T00:00:01.000Z'
+    });
+
+    expect(await store.listDueOutbox('2026-05-22T00:04:59.000Z')).toHaveLength(0);
+    expect(await store.listDueOutbox('2026-05-22T00:05:00.000Z')).toHaveLength(1);
+
+    await store.markOutboxFailed('idem-retry', 'retry budget exhausted', '2026-05-22T00:05:01.000Z');
+    expect(await store.listDueOutbox('2026-05-22T00:10:00.000Z')).toHaveLength(0);
+    expect((await store.countOutboxByStatus()).failed).toBe(1);
+    await store.delete();
+  });
 });
+
+function makeOutboxEntry(overrides: Partial<MutationOutboxEntry> = {}): MutationOutboxEntry {
+  const now = '2026-05-22T00:00:00.000Z';
+  return {
+    idempotencyKey: 'idem-default',
+    eventId: 'evt-default',
+    target: 'bridge:test',
+    status: 'pending',
+    retryCount: 0,
+    nextRetryAt: now,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides
+  };
+}
