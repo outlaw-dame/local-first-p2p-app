@@ -49,20 +49,20 @@ function HomePage(): JSX.Element {
   const [status, setStatus] = useState('Ready for local-first writes.');
 
   useEffect(() => {
-    void refreshLocalState();
-    return () => {
-      void store.close();
-    };
-
     async function refreshLocalState(): Promise<void> {
       setEvents(await store.listEventSummaries());
       setPendingCount((await store.listPendingOutbox()).length);
     }
+
+    void refreshLocalState();
+    return () => {
+      void store.close();
+    };
   }, [store]);
 
   async function createLocalEvent(): Promise<void> {
     const now = new Date().toISOString();
-    const eventId = `evt_${crypto.randomUUID()}`;
+    const eventId = `evt_${globalThis.crypto.randomUUID()}`;
     const unsigned = createUnsignedEvent({
       eventId,
       kind: 'outbox.test.created',
