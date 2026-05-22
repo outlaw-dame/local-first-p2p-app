@@ -55,9 +55,11 @@ function HomePage(): JSX.Element {
     let cancelled = false;
 
     async function refreshLocalState(): Promise<void> {
-      const session = await identityManager.getOrCreatePrimaryDeviceSession();
-      const eventSummaries = await store.listEventSummaries();
-      const outbox = await store.listPendingOutbox();
+      const [session, eventSummaries, outbox] = await Promise.all([
+        identityManager.getOrCreatePrimaryDeviceSession(),
+        store.listEventSummaries(),
+        store.listPendingOutbox()
+      ]);
       if (cancelled) return;
       setIdentity(session.identity);
       setKeypair(session.keypair);
