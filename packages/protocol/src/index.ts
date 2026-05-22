@@ -1,10 +1,14 @@
-export type EventKind =
-  | 'identity.device.created'
-  | 'contact.petname.set'
-  | 'note.created'
-  | 'outbox.test.created';
+const EVENT_KINDS = [
+  'identity.device.created',
+  'contact.petname.set',
+  'note.created',
+  'outbox.test.created'
+] as const;
 
-export type PrivacyScope = 'device-local' | 'self' | 'dm' | 'group' | 'public';
+const PRIVACY_SCOPES = ['device-local', 'self', 'dm', 'group', 'public'] as const;
+
+export type EventKind = (typeof EVENT_KINDS)[number];
+export type PrivacyScope = (typeof PRIVACY_SCOPES)[number];
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -56,12 +60,12 @@ export function createUnsignedEvent(input: CreateEventInput): UnsignedEventEnvel
   const event: UnsignedEventEnvelope = {
     version: 'lfp2p.event.v1',
     eventId: requireNonEmpty(input.eventId, 'eventId'),
-    kind: input.kind,
+    kind: requireEventKind(input.kind),
     author: requireNonEmpty(input.author, 'author'),
     deviceId: requireNonEmpty(input.deviceId, 'deviceId'),
     createdAt: requireIsoDate(input.createdAt),
     lamport: requireSafeNonNegativeInteger(input.lamport ?? 0, 'lamport'),
-    privacy: input.privacy,
+    privacy: requirePrivacyScope(input.privacy),
     schemaVersion: requireSafePositiveInteger(input.schemaVersion ?? 1, 'schemaVersion'),
     payload: assertJsonObject(input.payload, 'payload'),
     ...(input.refs === undefined ? {} : { refs: input.refs.map(validateSourceRef) })
@@ -74,12 +78,15 @@ export function createUnsignedEvent(input: CreateEventInput): UnsignedEventEnvel
 export function validateUnsignedEvent(event: UnsignedEventEnvelope): void {
   if (event.version !== 'lfp2p.event.v1') throw new Error('Unsupported event version');
   requireNonEmpty(event.eventId, 'eventId');
+  requireEventKind(event.kind);
   requireNonEmpty(event.author, 'author');
   requireNonEmpty(event.deviceId, 'deviceId');
   requireIsoDate(event.createdAt);
   requireSafeNonNegativeInteger(event.lamport, 'lamport');
+  requirePrivacyScope(event.privacy);
   requireSafePositiveInteger(event.schemaVersion, 'schemaVersion');
   assertJsonObject(event.payload, 'payload');
+  event.refs?.forEach(validateSourceRef);
 }
 
 export function validateSignedEvent(event: SignedEventEnvelope): void {
@@ -109,6 +116,14 @@ export function canonicalizeJson(value: JsonValue | UnsignedEventEnvelope): stri
   return JSON.stringify(toCanonical(value));
 }
 
+export function isEventKind(value: unknown): value is EventKind {
+  return typeof value === 'string' && EVENT_KINDS.includes(value as EventKind);
+}
+
+export function isPrivacyScope(value: unknown): value is PrivacyScope {
+  return typeof value === 'string' && PRIVACY_SCOPES.includes(value as PrivacyScope);
+}
+
 function toCanonical(value: unknown): unknown {
   if (value === null) return null;
   if (Array.isArray(value)) return value.map(toCanonical);
@@ -135,6 +150,16 @@ function validateSourceRef(ref: SourceRef): SourceRef {
   if (ref.sequence !== undefined) requireSafeNonNegativeInteger(ref.sequence, 'ref.sequence');
   if (ref.hash !== undefined) requireNonEmpty(ref.hash, 'ref.hash');
   return ref;
+}
+
+function requireEventKind(value: EventKind): EventKind {
+  if (!isEventKind(value)) throw new Error(`Unsupported event kind: ${String(value)}`);
+  return value;
+}
+
+function requirePrivacyScope(value: PrivacyScope): PrivacyScope {
+  if (!isPrivacyScope(value)) throw new Error(`Unsupported privacy scope: ${String(value)}`);
+  return value;
 }
 
 function assertJsonObject(value: JsonObject, label: string): JsonObject {
