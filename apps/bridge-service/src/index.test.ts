@@ -122,18 +122,18 @@ describe('JsonFileBridgeStore', () => {
       const secondService = new BridgeService({ store: new JsonFileBridgeStore({ filePath, initialSequence: 0, maxRecords: 10, ttlMs: 60_000 }) });
       const duplicate = await secondService.acceptDelivery(
         { idempotencyKey: 'idem-persisted', target: 'bridge:durable', event },
-        '1970-01-01T00:01:00.000Z'
+        '1970-01-01T00:00:30.000Z'
       );
       const next = await secondService.acceptDelivery(
         { idempotencyKey: 'idem-next', target: 'bridge:durable', event: makeSignedEvent({ eventId: 'evt_next', privacy: 'public' }) },
-        '1970-01-01T00:02:00.000Z'
+        '1970-01-01T00:00:40.000Z'
       );
 
       expect(accepted).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 1 });
       expect(duplicate).toMatchObject({ status: 'confirmed', duplicate: true, sequence: 1 });
       expect(next).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 2 });
-      await expect(secondService.getRecord('idem-persisted', '1970-01-01T00:01:00.000Z')).resolves.toMatchObject({ eventId: 'evt_persisted', sequence: 1 });
-      await expect(secondService.snapshot('1970-01-01T00:02:00.000Z')).resolves.toMatchObject({ storeKind: 'json-file', acceptedCount: 2, latestSequence: 2 });
+      await expect(secondService.getRecord('idem-persisted', '1970-01-01T00:00:30.000Z')).resolves.toMatchObject({ eventId: 'evt_persisted', sequence: 1 });
+      await expect(secondService.snapshot('1970-01-01T00:00:40.000Z')).resolves.toMatchObject({ storeKind: 'json-file', acceptedCount: 2, latestSequence: 2 });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
