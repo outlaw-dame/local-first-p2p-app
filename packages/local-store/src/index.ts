@@ -1,7 +1,9 @@
 import Dexie, { type Table } from 'dexie';
+import { type EncryptedKeyMaterial } from '@lfp2p/crypto';
 import { type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
+export type DeviceIdentityStatus = 'active' | 'revoked';
 
 export type StoredSignedEvent = Readonly<{
   eventId: string;
@@ -30,10 +32,31 @@ export type EventSummaryView = Readonly<{
   createdAt: string;
 }>;
 
+export type StoredDeviceIdentity = Readonly<{
+  recordType: 'local-device-identity.v1';
+  identityId: string;
+  deviceId: string;
+  publicKey: string;
+  encryptedPrivateKey: EncryptedKeyMaterial;
+  protectionKeyId: string;
+  status: DeviceIdentityStatus;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export type StoredLocalProtectionKey = Readonly<{
+  keyId: string;
+  algorithm: 'aes-gcm-256';
+  key: CryptoKey;
+  createdAt: string;
+}>;
+
 class LocalFirstP2PDatabase extends Dexie {
   signedEvents!: Table<StoredSignedEvent, string>;
   mutationOutbox!: Table<MutationOutboxEntry, string>;
   eventSummaries!: Table<EventSummaryView, string>;
+  deviceIdentities!: Table<StoredDeviceIdentity, string>;
+  localProtectionKeys!: Table<StoredLocalProtectionKey, string>;
 
   constructor(name: string) {
     super(name);
@@ -41,6 +64,13 @@ class LocalFirstP2PDatabase extends Dexie {
       signedEvents: 'eventId, kind, author, createdAt',
       mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt',
       eventSummaries: 'eventId, createdAt'
+    });
+    this.version(2).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt'
     });
   }
 }
@@ -90,6 +120,26 @@ export class DexieLocalFirstStore {
 
   async listEventSummaries(limit = 50): Promise<EventSummaryView[]> {
     return this.#db.eventSummaries.orderBy('createdAt').reverse().limit(limit).toArray();
+  }
+
+  async putDeviceIdentity(identity: StoredDeviceIdentity): Promise<void> {
+    if (identity.recordType !== 'local-device-identity.v1') {
+      throw new Error('Unsupported device identity record type');
+    }
+    await this.#db.deviceIdentities.put(identity);
+  }
+
+  async getActiveDeviceIdentity(): Promise<StoredDeviceIdentity | undefined> {
+    return this.#db.deviceIdentities.where('status').equals('active').first();
+  }
+
+  async putLocalProtectionKey(key: StoredLocalProtectionKey): Promise<void> {
+    if (key.algorithm !== 'aes-gcm-256') throw new Error('Unsupported protection key algorithm');
+    await this.#db.localProtectionKeys.put(key);
+  }
+
+  async getLocalProtectionKey(keyId: string): Promise<StoredLocalProtectionKey | undefined> {
+    return this.#db.localProtectionKeys.get(keyId);
   }
 
   async close(): Promise<void> {
