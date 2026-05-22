@@ -11,6 +11,7 @@
     { "path": "../../packages/design-tokens" },
     { "path": "../../packages/platform" },
     { "path": "../../packages/local-store" },
+    { "path": "../../packages/identity" },
     { "path": "../../packages/sync-client" },
     { "path": "../../packages/ui" }
   ],
