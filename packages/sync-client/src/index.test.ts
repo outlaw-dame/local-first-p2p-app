@@ -54,6 +54,29 @@ describe('processOutboxBatch', () => {
     await store.delete();
   });
 
+  it('does not retry an event when local confirmation persistence fails after transport success', async () => {
+    const store = createLocalFirstStore(`outbox-local-confirm-fail-${globalThis.crypto.randomUUID()}`);
+    await seedOutboxEntry(store, 'evt_confirm_local_failure');
+    let sent = 0;
+    const transport: OutboxTransport = {
+      async send() {
+        sent += 1;
+        await store.close();
+        return { status: 'confirmed', sequence: 1 };
+      }
+    };
+
+    await expect(
+      processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:00.000Z')
+      })
+    ).rejects.toThrow();
+
+    expect(sent).toBe(1);
+  });
+
   it('schedules retryable transport failures with exponential backoff', async () => {
     const store = createLocalFirstStore(`outbox-retry-${globalThis.crypto.randomUUID()}`);
     const entry = await seedOutboxEntry(store, 'evt_retry');
