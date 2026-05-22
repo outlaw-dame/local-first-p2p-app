@@ -14,7 +14,7 @@ describe('InMemoryBridgeService', () => {
         target: 'bridge:dev',
         event
       },
-      '2026-05-22T00:00:00.000Z'
+      '1970-01-01T00:00:00.000Z'
     );
 
     const second = bridge.acceptDelivery(
@@ -23,12 +23,12 @@ describe('InMemoryBridgeService', () => {
         target: 'bridge:dev',
         event
       },
-      '2026-05-22T00:01:00.000Z'
+      '1970-01-01T00:01:00.000Z'
     );
 
     expect(first).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 1 });
     expect(second).toMatchObject({ status: 'confirmed', duplicate: true, sequence: 1 });
-    expect(bridge.snapshot('2026-05-22T00:01:00.000Z')).toMatchObject({
+    expect(bridge.snapshot('1970-01-01T00:01:00.000Z')).toMatchObject({
       role: 'stateful-edge-actor',
       authoritativeForPrivateState: false,
       acceptedCount: 1,
@@ -119,12 +119,12 @@ describe('handleBridgeDeliveryRequest', () => {
     const first = await handleBridgeDeliveryRequest(
       bridge,
       makeRequest('idem-http', event),
-      '2026-05-22T00:00:00.000Z'
+      '1970-01-01T00:00:00.000Z'
     );
     const second = await handleBridgeDeliveryRequest(
       bridge,
       makeRequest('idem-http', event),
-      '2026-05-22T00:01:00.000Z'
+      '1970-01-01T00:01:00.000Z'
     );
 
     expect(first.status).toBe(202);
