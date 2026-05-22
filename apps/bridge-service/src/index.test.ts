@@ -5,32 +5,54 @@ import { handleBridgeDeliveryRequest, InMemoryBridgeService } from './index.js';
 
 describe('InMemoryBridgeService', () => {
   it('accepts valid signed bridge-safe events and deduplicates by idempotency key', () => {
-    const bridge = new InMemoryBridgeService();
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const event = makeSignedEvent({ eventId: 'evt_bridge_accept', privacy: 'public' });
 
-    const first = bridge.acceptDelivery({
-      idempotencyKey: 'idem-accept',
-      target: 'bridge:dev',
-      event
-    }, '2026-05-22T00:00:00.000Z');
+    const first = bridge.acceptDelivery(
+      {
+        idempotencyKey: 'idem-accept',
+        target: 'bridge:dev',
+        event
+      },
+      '2026-05-22T00:00:00.000Z'
+    );
 
-    const second = bridge.acceptDelivery({
-      idempotencyKey: 'idem-accept',
-      target: 'bridge:dev',
-      event
-    }, '2026-05-22T00:01:00.000Z');
+    const second = bridge.acceptDelivery(
+      {
+        idempotencyKey: 'idem-accept',
+        target: 'bridge:dev',
+        event
+      },
+      '2026-05-22T00:01:00.000Z'
+    );
 
     expect(first).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 1 });
     expect(second).toMatchObject({ status: 'confirmed', duplicate: true, sequence: 1 });
-    expect(bridge.snapshot()).toEqual({
+    expect(bridge.snapshot('2026-05-22T00:01:00.000Z')).toMatchObject({
       role: 'stateful-edge-actor',
       authoritativeForPrivateState: false,
-      acceptedCount: 1
+      acceptedCount: 1,
+      latestSequence: 1
     });
   });
 
+  it('bounds in-memory idempotency records by capacity and TTL', () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0, maxRecords: 2, ttlMs: 1_000 });
+    const first = makeSignedEvent({ eventId: 'evt_capacity_1', privacy: 'public' });
+    const second = makeSignedEvent({ eventId: 'evt_capacity_2', privacy: 'public' });
+    const third = makeSignedEvent({ eventId: 'evt_capacity_3', privacy: 'public' });
+
+    bridge.acceptDelivery({ idempotencyKey: 'idem-1', target: 'bridge:dev', event: first }, '2026-05-22T00:00:00.000Z');
+    bridge.acceptDelivery({ idempotencyKey: 'idem-2', target: 'bridge:dev', event: second }, '2026-05-22T00:00:00.100Z');
+    bridge.acceptDelivery({ idempotencyKey: 'idem-3', target: 'bridge:dev', event: third }, '2026-05-22T00:00:00.200Z');
+
+    expect(bridge.getRecord('idem-1', '2026-05-22T00:00:00.200Z')).toBeUndefined();
+    expect(bridge.snapshot('2026-05-22T00:00:00.200Z').acceptedCount).toBe(2);
+    expect(bridge.snapshot('2026-05-22T00:00:02.000Z').acceptedCount).toBe(0);
+  });
+
   it('rejects local-only privacy scopes', () => {
-    const bridge = new InMemoryBridgeService();
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const deviceLocal = bridge.acceptDelivery({
       idempotencyKey: 'idem-device-local',
       target: 'bridge:dev',
@@ -48,7 +70,7 @@ describe('InMemoryBridgeService', () => {
   });
 
   it('detects idempotency-key conflicts', () => {
-    const bridge = new InMemoryBridgeService();
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const first = makeSignedEvent({ eventId: 'evt_first', privacy: 'public' });
     const second = makeSignedEvent({ eventId: 'evt_second', privacy: 'public' });
 
@@ -59,15 +81,25 @@ describe('InMemoryBridgeService', () => {
       status: 'conflicted',
       existingEventId: 'evt_first'
     });
+    expect(bridge.acceptDelivery({ idempotencyKey: 'idem-conflict', target: 'bridge:other', event: first })).toMatchObject({
+      status: 'conflicted',
+      reason: 'Idempotency key already belongs to a different target'
+    });
   });
 
-  it('rejects tampered signatures', () => {
-    const bridge = new InMemoryBridgeService();
+  it('rejects tampered signatures before duplicate idempotency handling', () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const signed = makeSignedEvent({ eventId: 'evt_tampered', privacy: 'public' });
     const tampered = {
       ...signed,
       payload: { body: 'tampered after signing' }
     };
+
+    bridge.acceptDelivery({
+      idempotencyKey: 'idem-tampered',
+      target: 'bridge:dev',
+      event: signed
+    });
 
     expect(
       bridge.acceptDelivery({
@@ -81,11 +113,19 @@ describe('InMemoryBridgeService', () => {
 
 describe('handleBridgeDeliveryRequest', () => {
   it('maps new and duplicate accepted deliveries to HTTP responses', async () => {
-    const bridge = new InMemoryBridgeService();
-    const request = makeRequest('idem-http', makeSignedEvent({ eventId: 'evt_http', privacy: 'public' }));
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const event = makeSignedEvent({ eventId: 'evt_http', privacy: 'public' });
 
-    const first = await handleBridgeDeliveryRequest(bridge, request, '2026-05-22T00:00:00.000Z');
-    const second = await handleBridgeDeliveryRequest(bridge, request, '2026-05-22T00:01:00.000Z');
+    const first = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-http', event),
+      '2026-05-22T00:00:00.000Z'
+    );
+    const second = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-http', event),
+      '2026-05-22T00:01:00.000Z'
+    );
 
     expect(first.status).toBe(202);
     expect(await first.json()).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 1 });
@@ -94,7 +134,7 @@ describe('handleBridgeDeliveryRequest', () => {
   });
 
   it('rejects malformed or inconsistent HTTP delivery requests', async () => {
-    const bridge = new InMemoryBridgeService();
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const mismatched = await handleBridgeDeliveryRequest(
       bridge,
       makeRequest('idem-body', makeSignedEvent({ eventId: 'evt_http_mismatch', privacy: 'public' }), 'idem-header'),
