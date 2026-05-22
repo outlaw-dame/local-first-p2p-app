@@ -27,19 +27,55 @@ export class DeviceIdentityBootstrapError extends Error {
   }
 }
 
+type PreparedDeviceSession = Readonly<{
+  session: LocalDeviceSession;
+  record: StoredDeviceIdentity;
+  protectionKey: CryptoKey;
+}>;
+
 export class DeviceIdentityManager {
   readonly #store: DexieLocalFirstStore;
+  #bootstrapInFlight: Promise<LocalDeviceSession> | null = null;
 
   constructor(store: DexieLocalFirstStore) {
     this.#store = store;
   }
 
   async getOrCreatePrimaryDeviceSession(now = new Date().toISOString()): Promise<LocalDeviceSession> {
-    const existing = await this.#store.getActiveDeviceIdentity();
-    if (existing) {
-      return this.#restoreSession(existing);
-    }
+    this.#bootstrapInFlight ??= this.#getOrCreatePrimaryDeviceSession(now).finally(() => {
+      this.#bootstrapInFlight = null;
+    });
+    return this.#bootstrapInFlight;
+  }
 
+  async #getOrCreatePrimaryDeviceSession(now: string): Promise<LocalDeviceSession> {
+    const existing = await this.#store.getActiveDeviceIdentity();
+    if (existing) return this.#restoreSession(existing);
+
+    const prepared = await this.#prepareNewSession(now);
+
+    const committed = await this.#store.transaction(
+      'rw',
+      ['deviceIdentities', 'localProtectionKeys'],
+      async () => {
+        const active = await this.#store.getActiveDeviceIdentity();
+        if (active) return this.#restoreSession(active);
+
+        await this.#store.putLocalProtectionKey({
+          keyId: prepared.record.protectionKeyId,
+          algorithm: 'aes-gcm-256',
+          key: prepared.protectionKey,
+          createdAt: now
+        });
+        await this.#store.putDeviceIdentity(prepared.record);
+        return prepared.session;
+      }
+    );
+
+    return committed;
+  }
+
+  async #prepareNewSession(now: string): Promise<PreparedDeviceSession> {
     const keypair = generateSigningKeypair();
     const protectionKey = await generateNonExtractableAesGcmKey();
     const protectionKeyId = `local-protection:${globalThis.crypto.randomUUID()}`;
@@ -48,33 +84,27 @@ export class DeviceIdentityManager {
     const deviceId = `device:${publicKeyHash.slice(0, 32)}`;
     const encryptedPrivateKey = await encryptKeyMaterial(keypair.privateKey, protectionKey);
 
-    await this.#store.putLocalProtectionKey({
-      keyId: protectionKeyId,
-      algorithm: 'aes-gcm-256',
-      key: protectionKey,
-      createdAt: now
-    });
-
-    await this.#store.putDeviceIdentity({
-      recordType: 'local-device-identity.v1',
+    const identity: LocalDeviceIdentity = {
       identityId,
       deviceId,
       publicKey: keypair.publicKey,
-      encryptedPrivateKey,
-      protectionKeyId,
-      status: 'active',
-      createdAt: now,
-      updatedAt: now
-    });
+      createdAt: now
+    };
 
     return {
-      identity: {
+      session: { identity, keypair },
+      protectionKey,
+      record: {
+        recordType: 'local-device-identity.v1',
         identityId,
         deviceId,
         publicKey: keypair.publicKey,
-        createdAt: now
-      },
-      keypair
+        encryptedPrivateKey,
+        protectionKeyId,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now
+      }
     };
   }
 
