@@ -89,15 +89,9 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
 
     result.attempted += 1;
 
+    let transportResult: OutboxTransportResult;
     try {
-      const transportResult = await input.transport.send({ entry: claimed, event });
-      if (transportResult.status === 'confirmed') {
-        result.confirmed += 1;
-        await input.store.markOutboxConfirmed(claimed.idempotencyKey, nowIso);
-      } else {
-        result.conflicted += 1;
-        await input.store.markOutboxConflicted(claimed.idempotencyKey, transportResult.reason, nowIso);
-      }
+      transportResult = await input.transport.send({ entry: claimed, event });
     } catch (error) {
       const retryCount = claimed.retryCount + 1;
       const message = normalizeErrorMessage(error);
@@ -107,11 +101,12 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
         continue;
       }
 
-      const backoffInput: RetryPolicyInput = { attempt: retryCount };
-      if (input.baseDelayMs !== undefined) backoffInput.baseDelayMs = input.baseDelayMs;
-      if (input.maxDelayMs !== undefined) backoffInput.maxDelayMs = input.maxDelayMs;
-      if (input.random !== undefined) backoffInput.random = input.random;
-      const delayMs = computeBackoffDelayMs(backoffInput);
+      const delayMs = computeBackoffDelayMs({
+        attempt: retryCount,
+        ...(input.baseDelayMs !== undefined ? { baseDelayMs: input.baseDelayMs } : {}),
+        ...(input.maxDelayMs !== undefined ? { maxDelayMs: input.maxDelayMs } : {}),
+        ...(input.random !== undefined ? { random: input.random } : {})
+      });
       const nextRetryAt = new Date(now.getTime() + delayMs).toISOString();
       result.retried += 1;
       await input.store.scheduleOutboxRetry({
@@ -121,6 +116,15 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
         lastError: message,
         updatedAt: nowIso
       });
+      continue;
+    }
+
+    if (transportResult.status === 'confirmed') {
+      await input.store.markOutboxConfirmed(claimed.idempotencyKey, nowIso);
+      result.confirmed += 1;
+    } else {
+      await input.store.markOutboxConflicted(claimed.idempotencyKey, transportResult.reason, nowIso);
+      result.conflicted += 1;
     }
   }
 
