@@ -65,11 +65,15 @@ export class PgliteSearchProjection {
          created_at as "createdAt",
          1 as rank
        FROM search_projection
-       WHERE searchable_text LIKE $1
+       WHERE searchable_text LIKE $1 ESCAPE '\\'
        ORDER BY created_at DESC
        LIMIT $2;`,
-      [`%${sanitized.replaceAll('%', '\\%').replaceAll('_', '\\_')}%`, limit]
+      [`%${escapeLikePattern(sanitized)}%`, limit]
     );
     return result.rows;
   }
+}
+
+export function escapeLikePattern(input: string): string {
+  return input.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
 }
