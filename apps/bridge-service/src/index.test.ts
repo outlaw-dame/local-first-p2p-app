@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createUnsignedEvent, type PrivacyScope } from '@lfp2p/protocol';
-import { InMemoryBridgeService } from './index.js';
+import { handleBridgeDeliveryRequest, InMemoryBridgeService } from './index.js';
 
 describe('InMemoryBridgeService', () => {
   it('accepts valid signed bridge-safe events and deduplicates by idempotency key', () => {
@@ -78,6 +78,54 @@ describe('InMemoryBridgeService', () => {
     ).toMatchObject({ status: 'rejected', reason: 'Event signature verification failed' });
   });
 });
+
+describe('handleBridgeDeliveryRequest', () => {
+  it('maps new and duplicate accepted deliveries to HTTP responses', async () => {
+    const bridge = new InMemoryBridgeService();
+    const request = makeRequest('idem-http', makeSignedEvent({ eventId: 'evt_http', privacy: 'public' }));
+
+    const first = await handleBridgeDeliveryRequest(bridge, request, '2026-05-22T00:00:00.000Z');
+    const second = await handleBridgeDeliveryRequest(bridge, request, '2026-05-22T00:01:00.000Z');
+
+    expect(first.status).toBe(202);
+    expect(await first.json()).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 1 });
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ status: 'confirmed', duplicate: true, sequence: 1 });
+  });
+
+  it('rejects malformed or inconsistent HTTP delivery requests', async () => {
+    const bridge = new InMemoryBridgeService();
+    const mismatched = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-body', makeSignedEvent({ eventId: 'evt_http_mismatch', privacy: 'public' }), 'idem-header'),
+      '2026-05-22T00:00:00.000Z'
+    );
+    const wrongMethod = await handleBridgeDeliveryRequest(
+      bridge,
+      new Request('https://bridge.test/events', { method: 'GET' }),
+      '2026-05-22T00:00:00.000Z'
+    );
+
+    expect(mismatched.status).toBe(400);
+    expect(await mismatched.json()).toMatchObject({ status: 'rejected', reason: 'Idempotency header does not match request body' });
+    expect(wrongMethod.status).toBe(405);
+  });
+});
+
+function makeRequest(idempotencyKey: string, event: ReturnType<typeof makeSignedEvent>, headerKey = idempotencyKey): Request {
+  return new Request('https://bridge.test/events', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-lfp2p-idempotency-key': headerKey
+    },
+    body: JSON.stringify({
+      idempotencyKey,
+      target: 'bridge:dev',
+      event
+    })
+  });
+}
 
 function makeSignedEvent(input: { eventId: string; privacy: PrivacyScope }) {
   const keypair = generateSigningKeypair();
