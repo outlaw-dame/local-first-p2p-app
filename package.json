@@ -1,0 +1,17 @@
+{
+  "name": "local-first-p2p-app",
+  "version": "1.0.0",
+  "description": "Monorepo for Local-First P2P Application",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Manus AI",
+  "license": "ISC",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
