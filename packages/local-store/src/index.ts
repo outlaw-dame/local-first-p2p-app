@@ -61,7 +61,7 @@ export type StoredLocalProtectionKey = Readonly<{
 
 type OutboxStatusPatch = Readonly<{
   updatedAt?: string;
-  lastError?: string | undefined;
+  lastError?: string;
 }>;
 
 class LocalFirstP2PDatabase extends Dexie {
@@ -81,6 +81,13 @@ class LocalFirstP2PDatabase extends Dexie {
     this.version(2).stores({
       signedEvents: 'eventId, kind, author, createdAt',
       mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt'
+    });
+    this.version(3).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt'
@@ -131,9 +138,11 @@ export class DexieLocalFirstStore {
   async listDueOutbox(now = new Date().toISOString(), limit = 50): Promise<MutationOutboxEntry[]> {
     requireIsoDate(now, 'now');
     requirePositiveInteger(limit, 'limit');
-    const dueTime = Date.parse(now);
-    const candidates = await this.#db.mutationOutbox.where('status').equals('pending').sortBy('nextRetryAt');
-    return candidates.filter((entry) => Date.parse(entry.nextRetryAt) <= dueTime).slice(0, limit);
+    return this.#db.mutationOutbox
+      .where('[status+nextRetryAt]')
+      .between(['pending', ''], ['pending', now], true, true)
+      .limit(limit)
+      .toArray();
   }
 
   async claimOutboxEntry(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<MutationOutboxEntry | undefined> {
@@ -153,7 +162,23 @@ export class DexieLocalFirstStore {
   }
 
   async markOutboxConfirmed(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<void> {
-    await this.updateOutboxStatus(idempotencyKey, 'confirmed', { updatedAt, lastError: undefined });
+    requireNonEmpty(idempotencyKey, 'idempotencyKey');
+    requireIsoDate(updatedAt, 'updatedAt');
+    await this.transaction('rw', ['mutationOutbox'], async () => {
+      const entry = await this.#db.mutationOutbox.get(idempotencyKey);
+      if (!entry) return;
+      const confirmed: MutationOutboxEntry = {
+        idempotencyKey: entry.idempotencyKey,
+        eventId: entry.eventId,
+        target: entry.target,
+        status: 'confirmed',
+        retryCount: entry.retryCount,
+        nextRetryAt: entry.nextRetryAt,
+        createdAt: entry.createdAt,
+        updatedAt
+      };
+      await this.#db.mutationOutbox.put(confirmed);
+    });
   }
 
   async markOutboxConflicted(
@@ -195,16 +220,14 @@ export class DexieLocalFirstStore {
   }
 
   async countOutboxByStatus(): Promise<OutboxStatusCounts> {
-    const entries = await this.#db.mutationOutbox.toArray();
-    const counts: Record<OutboxStatus, number> = {
-      pending: 0,
-      syncing: 0,
-      confirmed: 0,
-      failed: 0,
-      conflicted: 0
-    };
-    for (const entry of entries) counts[entry.status] += 1;
-    return counts;
+    const [pending, syncing, confirmed, failed, conflicted] = await Promise.all([
+      this.#db.mutationOutbox.where('status').equals('pending').count(),
+      this.#db.mutationOutbox.where('status').equals('syncing').count(),
+      this.#db.mutationOutbox.where('status').equals('confirmed').count(),
+      this.#db.mutationOutbox.where('status').equals('failed').count(),
+      this.#db.mutationOutbox.where('status').equals('conflicted').count()
+    ]);
+    return { pending, syncing, confirmed, failed, conflicted };
   }
 
   async putEventSummary(summary: EventSummaryView): Promise<void> {
