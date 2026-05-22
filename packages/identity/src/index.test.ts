@@ -31,6 +31,23 @@ describe('DeviceIdentityManager', () => {
     await store.delete();
   });
 
+  it('deduplicates concurrent bootstrap calls in one runtime', async () => {
+    const store = createLocalFirstStore(`identity-concurrent-${globalThis.crypto.randomUUID()}`);
+    const manager = new DeviceIdentityManager(store);
+
+    const sessions = await Promise.all(
+      Array.from({ length: 8 }, () => manager.getOrCreatePrimaryDeviceSession('2026-05-22T00:00:00.000Z'))
+    );
+
+    const identityIds = new Set(sessions.map((session) => session.identity.identityId));
+    const publicKeys = new Set(sessions.map((session) => session.keypair.publicKey));
+
+    expect(identityIds.size).toBe(1);
+    expect(publicKeys.size).toBe(1);
+    expect((await store.getActiveDeviceIdentity())?.identityId).toBe(sessions[0]?.identity.identityId);
+    await store.delete();
+  });
+
   it('fails closed when the active identity cannot be restored', async () => {
     const store = createLocalFirstStore(`identity-missing-key-${globalThis.crypto.randomUUID()}`);
     await store.putDeviceIdentity({
