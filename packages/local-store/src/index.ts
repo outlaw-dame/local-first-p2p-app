@@ -127,10 +127,7 @@ export class DexieLocalFirstStore {
     requireIsoDate(now, 'now');
     requirePositiveInteger(limit, 'limit');
     const dueTime = Date.parse(now);
-    const candidates = await this.#db.mutationOutbox
-      .where('status')
-      .anyOf(['pending', 'failed'])
-      .sortBy('nextRetryAt');
+    const candidates = await this.#db.mutationOutbox.where('status').equals('pending').sortBy('nextRetryAt');
     return candidates.filter((entry) => Date.parse(entry.nextRetryAt) <= dueTime).slice(0, limit);
   }
 
@@ -139,7 +136,7 @@ export class DexieLocalFirstStore {
     requireIsoDate(updatedAt, 'updatedAt');
     return this.transaction('rw', ['mutationOutbox'], async () => {
       const entry = await this.#db.mutationOutbox.get(idempotencyKey);
-      if (!entry || (entry.status !== 'pending' && entry.status !== 'failed')) return undefined;
+      if (!entry || entry.status !== 'pending') return undefined;
       const claimed: MutationOutboxEntry = {
         ...entry,
         status: 'syncing',
@@ -184,7 +181,7 @@ export class DexieLocalFirstStore {
     const updatedAt = input.updatedAt ?? new Date().toISOString();
     requireIsoDate(updatedAt, 'updatedAt');
     await this.#db.mutationOutbox.update(input.idempotencyKey, {
-      status: 'failed',
+      status: 'pending',
       retryCount: input.retryCount,
       nextRetryAt: input.nextRetryAt,
       lastError: input.lastError,
