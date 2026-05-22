@@ -85,7 +85,11 @@ export async function encryptKeyMaterial(
   if (plaintext.length === 0) throw new Error('Cannot encrypt empty key material');
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(plaintext);
-  const ciphertext = await requireSubtleCrypto().encrypt({ name: 'AES-GCM', iv }, protectionKey, encoded);
+  const ciphertext = await requireSubtleCrypto().encrypt(
+    { name: 'AES-GCM', iv: toArrayBufferView(iv) },
+    protectionKey,
+    toArrayBufferView(encoded)
+  );
   return {
     algorithm: 'aes-gcm-256',
     iv: toBase64Url(iv),
@@ -101,9 +105,9 @@ export async function decryptKeyMaterial(
   const iv = fromBase64Url(encrypted.iv);
   const ciphertext = fromBase64Url(encrypted.ciphertext);
   const plaintext = await requireSubtleCrypto().decrypt(
-    { name: 'AES-GCM', iv },
+    { name: 'AES-GCM', iv: toArrayBufferView(iv) },
     protectionKey,
-    ciphertext
+    toArrayBufferView(ciphertext)
   );
   return new TextDecoder().decode(plaintext);
 }
@@ -123,6 +127,10 @@ export function fromBase64Url(input: string): Uint8Array {
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
   const binary = atob(padded);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function toArrayBufferView(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(Array.from(bytes));
 }
 
 function requireSubtleCrypto(): SubtleCrypto {
