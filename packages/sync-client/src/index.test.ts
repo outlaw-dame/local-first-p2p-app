@@ -5,6 +5,7 @@ import { createLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-st
 import { createUnsignedEvent } from '@lfp2p/protocol';
 import {
   computeBackoffDelayMs,
+  createHttpBridgeTransport,
   NonRetryableOutboxError,
   processOutboxBatch,
   StaleResponseGuard,
@@ -26,6 +27,73 @@ describe('sync retry and staleness helpers', () => {
     expect(guard.accept('feed:home', 10)).toBe(true);
     expect(guard.accept('feed:home', 9)).toBe(false);
     expect(guard.accept('feed:home', 11)).toBe(true);
+  });
+});
+
+describe('createHttpBridgeTransport', () => {
+  it('posts signed events with an idempotency header and maps confirmations', async () => {
+    const entry = makeOutboxEntry({ idempotencyKey: 'idem-http-confirm', eventId: 'evt_http_confirm' });
+    const event = makeSignedEvent('evt_http_confirm');
+    const requests: Request[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      return new Response(JSON.stringify({ status: 'confirmed', sequence: 7 }), {
+        status: 202,
+        headers: { 'content-type': 'application/json' }
+      });
+    };
+
+    const transport = createHttpBridgeTransport({ endpoint: 'https://bridge.test/events', fetch: fetchImpl, timeoutMs: 5_000 });
+    const result = await transport.send({ entry, event });
+    const body = JSON.parse(await requests[0]!.text()) as Record<string, unknown>;
+
+    expect(result).toEqual({ status: 'confirmed', sequence: 7 });
+    expect(requests[0]!.url).toBe('https://bridge.test/events');
+    expect(requests[0]!.method).toBe('POST');
+    expect(requests[0]!.headers.get('x-lfp2p-idempotency-key')).toBe('idem-http-confirm');
+    expect(body.idempotencyKey).toBe('idem-http-confirm');
+    expect(body.target).toBe('bridge:test');
+  });
+
+  it('maps bridge conflicts without retrying transport', async () => {
+    const transport = createHttpBridgeTransport({
+      endpoint: 'https://bridge.test/events',
+      fetch: async () => new Response(JSON.stringify({ status: 'conflicted', reason: 'duplicate idempotency key' }), { status: 409 })
+    });
+
+    await expect(transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_conflict_http') })).resolves.toEqual({
+      status: 'conflicted',
+      reason: 'duplicate idempotency key'
+    });
+  });
+
+  it('treats bridge JSON rejections as non-retryable errors', async () => {
+    const transport = createHttpBridgeTransport({
+      endpoint: 'https://bridge.test/events',
+      fetch: async () => new Response(JSON.stringify({ status: 'rejected', reason: 'local-only scope' }), { status: 422 })
+    });
+
+    await expect(transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_rejected_http') })).rejects.toBeInstanceOf(
+      NonRetryableOutboxError
+    );
+  });
+
+  it('treats non-json permanent 4xx responses as non-retryable errors', async () => {
+    const transport = createHttpBridgeTransport({
+      endpoint: 'https://bridge.test/events',
+      fetch: async () => new Response('<html>unprocessable</html>', { status: 422, statusText: 'Unprocessable Content' })
+    });
+
+    await expect(
+      transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_non_json_422') })
+    ).rejects.toBeInstanceOf(NonRetryableOutboxError);
+  });
+
+  it('rejects endpoints with embedded credentials', () => {
+    expect(() => createHttpBridgeTransport({ endpoint: 'https://user:pass@bridge.test/events' })).toThrow(
+      'Bridge endpoint must not include credentials'
+    );
   });
 });
 
@@ -178,28 +246,43 @@ describe('processOutboxBatch', () => {
 });
 
 async function seedOutboxEntry(store: ReturnType<typeof createLocalFirstStore>, eventId: string): Promise<MutationOutboxEntry> {
-  const now = '2026-05-22T00:00:00.000Z';
-  const keypair = generateSigningKeypair();
-  const event = createUnsignedEvent({
-    eventId,
-    kind: 'outbox.test.created',
-    author: `identity:${keypair.publicKey}`,
-    deviceId: `device:${keypair.publicKey.slice(0, 16)}`,
-    createdAt: now,
-    privacy: 'device-local',
-    payload: { body: eventId }
-  });
-  await store.putSignedEvent(signEventEnvelope(event, keypair));
-  const entry: MutationOutboxEntry = {
+  const event = makeSignedEvent(eventId);
+  await store.putSignedEvent(event);
+  const entry = makeOutboxEntry({
     idempotencyKey: `idem_${eventId}`,
-    eventId,
+    eventId
+  });
+  await store.enqueueOutbox(entry);
+  return entry;
+}
+
+function makeOutboxEntry(overrides: Partial<MutationOutboxEntry> = {}): MutationOutboxEntry {
+  const now = '2026-05-22T00:00:00.000Z';
+  return {
+    idempotencyKey: 'idem-default',
+    eventId: 'evt-default',
     target: 'bridge:test',
     status: 'pending',
     retryCount: 0,
     nextRetryAt: now,
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
+    ...overrides
   };
-  await store.enqueueOutbox(entry);
-  return entry;
+}
+
+function makeSignedEvent(eventId: string) {
+  const keypair = generateSigningKeypair();
+  return signEventEnvelope(
+    createUnsignedEvent({
+      eventId,
+      kind: 'outbox.test.created',
+      author: `identity:${keypair.publicKey}`,
+      deviceId: `device:${keypair.publicKey.slice(0, 16)}`,
+      createdAt: '2026-05-22T00:00:00.000Z',
+      privacy: 'dm',
+      payload: { body: eventId }
+    }),
+    keypair
+  );
 }

@@ -8,5 +8,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lfp2p/crypto": "workspace:*",
+    "@lfp2p/protocol": "workspace:*"
   }
 }
