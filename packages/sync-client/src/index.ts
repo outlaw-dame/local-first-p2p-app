@@ -107,12 +107,11 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
         continue;
       }
 
-      const delayMs = computeBackoffDelayMs({
-        attempt: retryCount,
-        baseDelayMs: input.baseDelayMs,
-        maxDelayMs: input.maxDelayMs,
-        random: input.random
-      });
+      const backoffInput: RetryPolicyInput = { attempt: retryCount };
+      if (input.baseDelayMs !== undefined) backoffInput.baseDelayMs = input.baseDelayMs;
+      if (input.maxDelayMs !== undefined) backoffInput.maxDelayMs = input.maxDelayMs;
+      if (input.random !== undefined) backoffInput.random = input.random;
+      const delayMs = computeBackoffDelayMs(backoffInput);
       const nextRetryAt = new Date(now.getTime() + delayMs).toISOString();
       result.retried += 1;
       await input.store.scheduleOutboxRetry({
