@@ -12,7 +12,8 @@ import {
   View
 } from 'framework7-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
+import { signEventEnvelope, type SigningKeypair } from '@lfp2p/crypto';
+import { DeviceIdentityManager, type LocalDeviceIdentity } from '@lfp2p/identity';
 import { createLocalFirstStore, type EventSummaryView } from '@lfp2p/local-store';
 import { detectPlatformCapabilities } from '@lfp2p/platform';
 import { createUnsignedEvent } from '@lfp2p/protocol';
@@ -43,31 +44,53 @@ export function RootApp(): JSX.Element {
 function HomePage(): JSX.Element {
   const capabilities = useMemo(() => detectPlatformCapabilities(), []);
   const store = useMemo(() => createLocalFirstStore('lfp2p-pwa-v1'), []);
-  const keypair = useMemo(() => generateSigningKeypair(), []);
+  const identityManager = useMemo(() => new DeviceIdentityManager(store), [store]);
+  const [identity, setIdentity] = useState<LocalDeviceIdentity | null>(null);
+  const [keypair, setKeypair] = useState<SigningKeypair | null>(null);
   const [events, setEvents] = useState<EventSummaryView[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
-  const [status, setStatus] = useState('Ready for local-first writes.');
+  const [status, setStatus] = useState('Bootstrapping local device identity.');
 
   useEffect(() => {
+    let cancelled = false;
+
     async function refreshLocalState(): Promise<void> {
-      setEvents(await store.listEventSummaries());
-      setPendingCount((await store.listPendingOutbox()).length);
+      const session = await identityManager.getOrCreatePrimaryDeviceSession();
+      const eventSummaries = await store.listEventSummaries();
+      const outbox = await store.listPendingOutbox();
+      if (cancelled) return;
+      setIdentity(session.identity);
+      setKeypair(session.keypair);
+      setEvents(eventSummaries);
+      setPendingCount(outbox.length);
+      setStatus('Ready for local-first writes.');
     }
 
-    void refreshLocalState();
+    void refreshLocalState().catch((error: unknown) => {
+      if (cancelled) return;
+      const message = error instanceof Error ? error.message : 'Unknown identity bootstrap failure';
+      setStatus(`Identity bootstrap failed: ${message}`);
+    });
+
     return () => {
+      cancelled = true;
       void store.close();
     };
-  }, [store]);
+  }, [identityManager, store]);
 
   async function createLocalEvent(): Promise<void> {
+    if (!identity || !keypair) {
+      setStatus('Local device identity is not ready yet.');
+      return;
+    }
+
     const now = new Date().toISOString();
     const eventId = `evt_${globalThis.crypto.randomUUID()}`;
     const unsigned = createUnsignedEvent({
       eventId,
       kind: 'outbox.test.created',
-      author: `identity:${keypair.publicKey}`,
-      deviceId: `device:${keypair.publicKey.slice(0, 16)}`,
+      author: identity.identityId,
+      deviceId: identity.deviceId,
       createdAt: now,
       privacy: 'device-local',
       payload: {
@@ -108,11 +131,17 @@ function HomePage(): JSX.Element {
             This PWA writes signed protocol events to local storage first, renders from local views,
             and syncs later through bridge infrastructure.
           </p>
-          <Button fill large onClick={() => void createLocalEvent()}>
+          <Button fill large disabled={!identity || !keypair} onClick={() => void createLocalEvent()}>
             Create signed local event
           </Button>
         </LocalFirstStatusCard>
       </Block>
+
+      <BlockTitle>Local device identity</BlockTitle>
+      <List inset strong>
+        <ListItem title="Identity" after={identity ? truncateMiddle(identity.identityId) : 'bootstrapping'} />
+        <ListItem title="Device" after={identity ? truncateMiddle(identity.deviceId) : 'bootstrapping'} />
+      </List>
 
       <BlockTitle>Runtime capability snapshot</BlockTitle>
       <List inset strong>
@@ -142,4 +171,10 @@ function HomePage(): JSX.Element {
       </List>
     </Page>
   );
+}
+
+function truncateMiddle(value: string, maxLength = 28): string {
+  if (value.length <= maxLength) return value;
+  const edge = Math.floor((maxLength - 1) / 2);
+  return `${value.slice(0, edge)}…${value.slice(-edge)}`;
 }
