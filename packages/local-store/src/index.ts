@@ -31,6 +31,8 @@ export type MutationOutboxEntry = Readonly<{
   lastError?: string;
 }>;
 
+export type OutboxStatusCounts = Readonly<Record<OutboxStatus, number>>;
+
 export type EventSummaryView = Readonly<{
   eventId: string;
   title: string;
@@ -108,16 +110,99 @@ export class DexieLocalFirstStore {
   }
 
   async enqueueOutbox(entry: MutationOutboxEntry): Promise<void> {
-    if (entry.idempotencyKey.trim().length === 0) throw new Error('idempotencyKey is required');
+    validateOutboxEntry(entry);
     await this.#db.mutationOutbox.put(entry);
+  }
+
+  async getOutboxEntry(idempotencyKey: string): Promise<MutationOutboxEntry | undefined> {
+    requireNonEmpty(idempotencyKey, 'idempotencyKey');
+    return this.#db.mutationOutbox.get(idempotencyKey);
   }
 
   async listPendingOutbox(limit = 50): Promise<MutationOutboxEntry[]> {
     return this.#db.mutationOutbox.where('status').equals('pending').limit(limit).toArray();
   }
 
+  async listDueOutbox(now = new Date().toISOString(), limit = 50): Promise<MutationOutboxEntry[]> {
+    requireIsoDate(now, 'now');
+    requirePositiveInteger(limit, 'limit');
+    const dueTime = Date.parse(now);
+    const candidates = await this.#db.mutationOutbox
+      .where('status')
+      .anyOf(['pending', 'failed'])
+      .sortBy('nextRetryAt');
+    return candidates.filter((entry) => Date.parse(entry.nextRetryAt) <= dueTime).slice(0, limit);
+  }
+
+  async claimOutboxEntry(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<MutationOutboxEntry | undefined> {
+    requireNonEmpty(idempotencyKey, 'idempotencyKey');
+    requireIsoDate(updatedAt, 'updatedAt');
+    return this.transaction('rw', ['mutationOutbox'], async () => {
+      const entry = await this.#db.mutationOutbox.get(idempotencyKey);
+      if (!entry || (entry.status !== 'pending' && entry.status !== 'failed')) return undefined;
+      const claimed: MutationOutboxEntry = {
+        ...entry,
+        status: 'syncing',
+        updatedAt
+      };
+      await this.#db.mutationOutbox.put(claimed);
+      return claimed;
+    });
+  }
+
   async markOutboxConfirmed(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<void> {
-    await this.#db.mutationOutbox.update(idempotencyKey, { status: 'confirmed', updatedAt });
+    await this.updateOutboxStatus(idempotencyKey, 'confirmed', { updatedAt, lastError: undefined });
+  }
+
+  async markOutboxConflicted(
+    idempotencyKey: string,
+    lastError: string,
+    updatedAt = new Date().toISOString()
+  ): Promise<void> {
+    await this.updateOutboxStatus(idempotencyKey, 'conflicted', { updatedAt, lastError });
+  }
+
+  async markOutboxFailed(
+    idempotencyKey: string,
+    lastError: string,
+    updatedAt = new Date().toISOString()
+  ): Promise<void> {
+    await this.updateOutboxStatus(idempotencyKey, 'failed', { updatedAt, lastError });
+  }
+
+  async scheduleOutboxRetry(input: {
+    idempotencyKey: string;
+    retryCount: number;
+    nextRetryAt: string;
+    lastError: string;
+    updatedAt?: string;
+  }): Promise<void> {
+    requireNonEmpty(input.idempotencyKey, 'idempotencyKey');
+    requireNonNegativeInteger(input.retryCount, 'retryCount');
+    requireIsoDate(input.nextRetryAt, 'nextRetryAt');
+    requireNonEmpty(input.lastError, 'lastError');
+    const updatedAt = input.updatedAt ?? new Date().toISOString();
+    requireIsoDate(updatedAt, 'updatedAt');
+    await this.#db.mutationOutbox.update(input.idempotencyKey, {
+      status: 'failed',
+      retryCount: input.retryCount,
+      nextRetryAt: input.nextRetryAt,
+      lastError: input.lastError,
+      updatedAt
+    });
+  }
+
+  async countOutboxByStatus(): Promise<OutboxStatusCounts> {
+    const entries = await this.#db.mutationOutbox.toArray();
+    const counts: Record<OutboxStatus, number> = {
+      pending: 0,
+      syncing: 0,
+      confirmed: 0,
+      failed: 0,
+      conflicted: 0
+    };
+    for (const entry of entries) counts[entry.status] += 1;
+    return counts;
   }
 
   async putEventSummary(summary: EventSummaryView): Promise<void> {
@@ -163,6 +248,17 @@ export class DexieLocalFirstStore {
     await this.#db.delete();
   }
 
+  async updateOutboxStatus(
+    idempotencyKey: string,
+    status: OutboxStatus,
+    patch: Partial<Pick<MutationOutboxEntry, 'updatedAt' | 'lastError'>>
+  ): Promise<void> {
+    requireNonEmpty(idempotencyKey, 'idempotencyKey');
+    if (patch.updatedAt !== undefined) requireIsoDate(patch.updatedAt, 'updatedAt');
+    if (patch.lastError !== undefined) requireNonEmpty(patch.lastError, 'lastError');
+    await this.#db.mutationOutbox.update(idempotencyKey, { status, ...patch });
+  }
+
   #resolveTable(table: LocalFirstTableName): Table {
     switch (table) {
       case 'signedEvents':
@@ -183,6 +279,17 @@ export function createLocalFirstStore(databaseName?: string): DexieLocalFirstSto
   return new DexieLocalFirstStore(databaseName);
 }
 
+function validateOutboxEntry(entry: MutationOutboxEntry): void {
+  requireNonEmpty(entry.idempotencyKey, 'idempotencyKey');
+  requireNonEmpty(entry.eventId, 'eventId');
+  requireNonEmpty(entry.target, 'target');
+  requireNonNegativeInteger(entry.retryCount, 'retryCount');
+  requireIsoDate(entry.nextRetryAt, 'nextRetryAt');
+  requireIsoDate(entry.createdAt, 'createdAt');
+  requireIsoDate(entry.updatedAt, 'updatedAt');
+  if (entry.lastError !== undefined) requireNonEmpty(entry.lastError, 'lastError');
+}
+
 function validateDeviceIdentity(identity: StoredDeviceIdentity): void {
   if (identity.recordType !== 'local-device-identity.v1') {
     throw new Error('Unsupported device identity record type');
@@ -196,4 +303,25 @@ function validateDeviceIdentity(identity: StoredDeviceIdentity): void {
 function validateLocalProtectionKey(key: StoredLocalProtectionKey): void {
   if (key.algorithm !== 'aes-gcm-256') throw new Error('Unsupported protection key algorithm');
   if (key.keyId.trim().length === 0) throw new Error('keyId is required');
+}
+
+function requireNonEmpty(value: string, label: string): string {
+  if (value.trim().length === 0) throw new Error(`${label} is required`);
+  return value;
+}
+
+function requireIsoDate(value: string, label: string): string {
+  requireNonEmpty(value, label);
+  if (!Number.isFinite(Date.parse(value))) throw new Error(`${label} must be an ISO date string`);
+  return value;
+}
+
+function requirePositiveInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be positive`);
+  return value;
+}
+
+function requireNonNegativeInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be non-negative`);
+  return value;
 }
