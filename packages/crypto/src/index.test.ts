@@ -35,4 +35,28 @@ describe('event signing', () => {
     const tampered = { ...signed, payload: { body: 'changed' } };
     expect(verifySignedEventEnvelope(tampered)).toBe(false);
   });
+
+  it('treats malformed signature encodings as failed verification instead of throwing', () => {
+    const event = createUnsignedEvent({
+      eventId: 'evt_signed_003',
+      kind: 'outbox.test.created',
+      author: 'identity:alice',
+      deviceId: 'device:alice-phone',
+      createdAt: '2026-05-22T00:00:00.000Z',
+      privacy: 'device-local',
+      payload: { body: 'hello' }
+    });
+
+    const signed = signEventEnvelope(event, keypair);
+    const malformed = {
+      ...signed,
+      signature: {
+        ...signed.signature,
+        value: '%%%not-base64url%%%'
+      }
+    };
+
+    expect(() => verifySignedEventEnvelope(malformed)).not.toThrow();
+    expect(verifySignedEventEnvelope(malformed)).toBe(false);
+  });
 });
