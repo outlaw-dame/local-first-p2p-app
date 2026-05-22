@@ -4,6 +4,12 @@ import { type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
 export type DeviceIdentityStatus = 'active' | 'revoked';
+export type LocalFirstTableName =
+  | 'signedEvents'
+  | 'mutationOutbox'
+  | 'eventSummaries'
+  | 'deviceIdentities'
+  | 'localProtectionKeys';
 
 export type StoredSignedEvent = Readonly<{
   eventId: string;
@@ -123,9 +129,7 @@ export class DexieLocalFirstStore {
   }
 
   async putDeviceIdentity(identity: StoredDeviceIdentity): Promise<void> {
-    if (identity.recordType !== 'local-device-identity.v1') {
-      throw new Error('Unsupported device identity record type');
-    }
+    validateDeviceIdentity(identity);
     await this.#db.deviceIdentities.put(identity);
   }
 
@@ -134,12 +138,21 @@ export class DexieLocalFirstStore {
   }
 
   async putLocalProtectionKey(key: StoredLocalProtectionKey): Promise<void> {
-    if (key.algorithm !== 'aes-gcm-256') throw new Error('Unsupported protection key algorithm');
+    validateLocalProtectionKey(key);
     await this.#db.localProtectionKeys.put(key);
   }
 
   async getLocalProtectionKey(keyId: string): Promise<StoredLocalProtectionKey | undefined> {
     return this.#db.localProtectionKeys.get(keyId);
+  }
+
+  async transaction<T>(
+    mode: 'r' | 'rw',
+    tables: readonly LocalFirstTableName[],
+    callback: () => Promise<T>
+  ): Promise<T> {
+    const resolvedTables = tables.map((table) => this.#resolveTable(table));
+    return this.#db.transaction(mode, resolvedTables, callback);
   }
 
   async close(): Promise<void> {
@@ -149,8 +162,38 @@ export class DexieLocalFirstStore {
   async delete(): Promise<void> {
     await this.#db.delete();
   }
+
+  #resolveTable(table: LocalFirstTableName): Table {
+    switch (table) {
+      case 'signedEvents':
+        return this.#db.signedEvents;
+      case 'mutationOutbox':
+        return this.#db.mutationOutbox;
+      case 'eventSummaries':
+        return this.#db.eventSummaries;
+      case 'deviceIdentities':
+        return this.#db.deviceIdentities;
+      case 'localProtectionKeys':
+        return this.#db.localProtectionKeys;
+    }
+  }
 }
 
 export function createLocalFirstStore(databaseName?: string): DexieLocalFirstStore {
   return new DexieLocalFirstStore(databaseName);
+}
+
+function validateDeviceIdentity(identity: StoredDeviceIdentity): void {
+  if (identity.recordType !== 'local-device-identity.v1') {
+    throw new Error('Unsupported device identity record type');
+  }
+  if (identity.identityId.trim().length === 0) throw new Error('identityId is required');
+  if (identity.deviceId.trim().length === 0) throw new Error('deviceId is required');
+  if (identity.publicKey.trim().length === 0) throw new Error('publicKey is required');
+  if (identity.protectionKeyId.trim().length === 0) throw new Error('protectionKeyId is required');
+}
+
+function validateLocalProtectionKey(key: StoredLocalProtectionKey): void {
+  if (key.algorithm !== 'aes-gcm-256') throw new Error('Unsupported protection key algorithm');
+  if (key.keyId.trim().length === 0) throw new Error('keyId is required');
 }
