@@ -10,11 +10,11 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@lfp2p/crypto": "workspace:*",
     "@lfp2p/protocol": "workspace:*",
     "dexie": "^4.0.0"
   },
   "devDependencies": {
-    "@lfp2p/crypto": "workspace:*",
     "fake-indexeddb": "latest"
   }
 }
