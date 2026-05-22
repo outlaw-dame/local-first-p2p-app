@@ -235,7 +235,6 @@ describe('processOutboxBatch', () => {
 });
 
 async function seedOutboxEntry(store: ReturnType<typeof createLocalFirstStore>, eventId: string): Promise<MutationOutboxEntry> {
-  const now = '2026-05-22T00:00:00.000Z';
   const event = makeSignedEvent(eventId);
   await store.putSignedEvent(event);
   const entry = makeOutboxEntry({
