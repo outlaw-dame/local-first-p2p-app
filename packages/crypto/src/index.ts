@@ -52,13 +52,17 @@ export function signEventEnvelope(
 }
 
 export function verifySignedEventEnvelope(event: SignedEventEnvelope): boolean {
-  validateSignedEvent(event);
-  const publicKey = fromBase64Url(event.signature.publicKey);
-  const signature = fromBase64Url(event.signature.value);
-  if (publicKey.byteLength !== nacl.sign.publicKeyLength) return false;
-  if (signature.byteLength !== nacl.sign.signatureLength) return false;
-  const message = new TextEncoder().encode(canonicalizeJson(unsignedProjection(event)));
-  return nacl.sign.detached.verify(message, signature, publicKey);
+  try {
+    validateSignedEvent(event);
+    const publicKey = fromBase64Url(event.signature.publicKey);
+    const signature = fromBase64Url(event.signature.value);
+    if (publicKey.byteLength !== nacl.sign.publicKeyLength) return false;
+    if (signature.byteLength !== nacl.sign.signatureLength) return false;
+    const message = new TextEncoder().encode(canonicalizeJson(unsignedProjection(event)));
+    return nacl.sign.detached.verify(message, signature, publicKey);
+  } catch {
+    return false;
+  }
 }
 
 export function toBase64Url(bytes: Uint8Array): string {
