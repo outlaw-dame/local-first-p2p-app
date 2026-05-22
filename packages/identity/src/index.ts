@@ -33,6 +33,10 @@ type PreparedDeviceSession = Readonly<{
   protectionKey: CryptoKey;
 }>;
 
+type CommitPreparedSessionResult =
+  | Readonly<{ kind: 'created'; session: LocalDeviceSession }>
+  | Readonly<{ kind: 'existing'; record: StoredDeviceIdentity }>;
+
 export class DeviceIdentityManager {
   readonly #store: DexieLocalFirstStore;
   #bootstrapInFlight: Promise<LocalDeviceSession> | null = null;
@@ -53,13 +57,12 @@ export class DeviceIdentityManager {
     if (existing) return this.#restoreSession(existing);
 
     const prepared = await this.#prepareNewSession(now);
-
     const committed = await this.#store.transaction(
       'rw',
       ['deviceIdentities', 'localProtectionKeys'],
-      async () => {
+      async (): Promise<CommitPreparedSessionResult> => {
         const active = await this.#store.getActiveDeviceIdentity();
-        if (active) return this.#restoreSession(active);
+        if (active) return { kind: 'existing', record: active };
 
         await this.#store.putLocalProtectionKey({
           keyId: prepared.record.protectionKeyId,
@@ -68,11 +71,11 @@ export class DeviceIdentityManager {
           createdAt: now
         });
         await this.#store.putDeviceIdentity(prepared.record);
-        return prepared.session;
+        return { kind: 'created', session: prepared.session };
       }
     );
 
-    return committed;
+    return committed.kind === 'created' ? committed.session : this.#restoreSession(committed.record);
   }
 
   async #prepareNewSession(now: string): Promise<PreparedDeviceSession> {

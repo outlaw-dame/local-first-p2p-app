@@ -31,6 +31,8 @@ export type MutationOutboxEntry = Readonly<{
   lastError?: string;
 }>;
 
+export type OutboxStatusCounts = Readonly<Record<OutboxStatus, number>>;
+
 export type EventSummaryView = Readonly<{
   eventId: string;
   title: string;
@@ -57,6 +59,11 @@ export type StoredLocalProtectionKey = Readonly<{
   createdAt: string;
 }>;
 
+type OutboxStatusPatch = Readonly<{
+  updatedAt?: string;
+  lastError?: string;
+}>;
+
 class LocalFirstP2PDatabase extends Dexie {
   signedEvents!: Table<StoredSignedEvent, string>;
   mutationOutbox!: Table<MutationOutboxEntry, string>;
@@ -74,6 +81,13 @@ class LocalFirstP2PDatabase extends Dexie {
     this.version(2).stores({
       signedEvents: 'eventId, kind, author, createdAt',
       mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt'
+    });
+    this.version(3).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt'
@@ -108,16 +122,112 @@ export class DexieLocalFirstStore {
   }
 
   async enqueueOutbox(entry: MutationOutboxEntry): Promise<void> {
-    if (entry.idempotencyKey.trim().length === 0) throw new Error('idempotencyKey is required');
+    validateOutboxEntry(entry);
     await this.#db.mutationOutbox.put(entry);
+  }
+
+  async getOutboxEntry(idempotencyKey: string): Promise<MutationOutboxEntry | undefined> {
+    requireNonEmpty(idempotencyKey, 'idempotencyKey');
+    return this.#db.mutationOutbox.get(idempotencyKey);
   }
 
   async listPendingOutbox(limit = 50): Promise<MutationOutboxEntry[]> {
     return this.#db.mutationOutbox.where('status').equals('pending').limit(limit).toArray();
   }
 
+  async listDueOutbox(now = new Date().toISOString(), limit = 50): Promise<MutationOutboxEntry[]> {
+    requireIsoDate(now, 'now');
+    requirePositiveInteger(limit, 'limit');
+    return this.#db.mutationOutbox
+      .where('[status+nextRetryAt]')
+      .between(['pending', ''], ['pending', now], true, true)
+      .limit(limit)
+      .toArray();
+  }
+
+  async claimOutboxEntry(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<MutationOutboxEntry | undefined> {
+    requireNonEmpty(idempotencyKey, 'idempotencyKey');
+    requireIsoDate(updatedAt, 'updatedAt');
+    return this.transaction('rw', ['mutationOutbox'], async () => {
+      const entry = await this.#db.mutationOutbox.get(idempotencyKey);
+      if (!entry || entry.status !== 'pending') return undefined;
+      const claimed: MutationOutboxEntry = {
+        ...entry,
+        status: 'syncing',
+        updatedAt
+      };
+      await this.#db.mutationOutbox.put(claimed);
+      return claimed;
+    });
+  }
+
   async markOutboxConfirmed(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<void> {
-    await this.#db.mutationOutbox.update(idempotencyKey, { status: 'confirmed', updatedAt });
+    requireNonEmpty(idempotencyKey, 'idempotencyKey');
+    requireIsoDate(updatedAt, 'updatedAt');
+    await this.transaction('rw', ['mutationOutbox'], async () => {
+      const entry = await this.#db.mutationOutbox.get(idempotencyKey);
+      if (!entry) return;
+      const confirmed: MutationOutboxEntry = {
+        idempotencyKey: entry.idempotencyKey,
+        eventId: entry.eventId,
+        target: entry.target,
+        status: 'confirmed',
+        retryCount: entry.retryCount,
+        nextRetryAt: entry.nextRetryAt,
+        createdAt: entry.createdAt,
+        updatedAt
+      };
+      await this.#db.mutationOutbox.put(confirmed);
+    });
+  }
+
+  async markOutboxConflicted(
+    idempotencyKey: string,
+    lastError: string,
+    updatedAt = new Date().toISOString()
+  ): Promise<void> {
+    await this.updateOutboxStatus(idempotencyKey, 'conflicted', { updatedAt, lastError });
+  }
+
+  async markOutboxFailed(
+    idempotencyKey: string,
+    lastError: string,
+    updatedAt = new Date().toISOString()
+  ): Promise<void> {
+    await this.updateOutboxStatus(idempotencyKey, 'failed', { updatedAt, lastError });
+  }
+
+  async scheduleOutboxRetry(input: {
+    idempotencyKey: string;
+    retryCount: number;
+    nextRetryAt: string;
+    lastError: string;
+    updatedAt?: string;
+  }): Promise<void> {
+    requireNonEmpty(input.idempotencyKey, 'idempotencyKey');
+    requireNonNegativeInteger(input.retryCount, 'retryCount');
+    requireIsoDate(input.nextRetryAt, 'nextRetryAt');
+    requireNonEmpty(input.lastError, 'lastError');
+    const updatedAt = input.updatedAt ?? new Date().toISOString();
+    requireIsoDate(updatedAt, 'updatedAt');
+    await this.#db.mutationOutbox.update(input.idempotencyKey, {
+      status: 'pending',
+      retryCount: input.retryCount,
+      nextRetryAt: input.nextRetryAt,
+      lastError: input.lastError,
+      updatedAt
+    });
+  }
+
+  async countOutboxByStatus(): Promise<OutboxStatusCounts> {
+    const [pending, syncing, confirmed, failed, conflicted] = await Promise.all([
+      this.#db.mutationOutbox.where('status').equals('pending').count(),
+      this.#db.mutationOutbox.where('status').equals('syncing').count(),
+      this.#db.mutationOutbox.where('status').equals('confirmed').count(),
+      this.#db.mutationOutbox.where('status').equals('failed').count(),
+      this.#db.mutationOutbox.where('status').equals('conflicted').count()
+    ]);
+    return { pending, syncing, confirmed, failed, conflicted };
   }
 
   async putEventSummary(summary: EventSummaryView): Promise<void> {
@@ -163,6 +273,13 @@ export class DexieLocalFirstStore {
     await this.#db.delete();
   }
 
+  async updateOutboxStatus(idempotencyKey: string, status: OutboxStatus, patch: OutboxStatusPatch): Promise<void> {
+    requireNonEmpty(idempotencyKey, 'idempotencyKey');
+    if (patch.updatedAt !== undefined) requireIsoDate(patch.updatedAt, 'updatedAt');
+    if (patch.lastError !== undefined) requireNonEmpty(patch.lastError, 'lastError');
+    await this.#db.mutationOutbox.update(idempotencyKey, { status, ...patch });
+  }
+
   #resolveTable(table: LocalFirstTableName): Table {
     switch (table) {
       case 'signedEvents':
@@ -183,6 +300,17 @@ export function createLocalFirstStore(databaseName?: string): DexieLocalFirstSto
   return new DexieLocalFirstStore(databaseName);
 }
 
+function validateOutboxEntry(entry: MutationOutboxEntry): void {
+  requireNonEmpty(entry.idempotencyKey, 'idempotencyKey');
+  requireNonEmpty(entry.eventId, 'eventId');
+  requireNonEmpty(entry.target, 'target');
+  requireNonNegativeInteger(entry.retryCount, 'retryCount');
+  requireIsoDate(entry.nextRetryAt, 'nextRetryAt');
+  requireIsoDate(entry.createdAt, 'createdAt');
+  requireIsoDate(entry.updatedAt, 'updatedAt');
+  if (entry.lastError !== undefined) requireNonEmpty(entry.lastError, 'lastError');
+}
+
 function validateDeviceIdentity(identity: StoredDeviceIdentity): void {
   if (identity.recordType !== 'local-device-identity.v1') {
     throw new Error('Unsupported device identity record type');
@@ -196,4 +324,25 @@ function validateDeviceIdentity(identity: StoredDeviceIdentity): void {
 function validateLocalProtectionKey(key: StoredLocalProtectionKey): void {
   if (key.algorithm !== 'aes-gcm-256') throw new Error('Unsupported protection key algorithm');
   if (key.keyId.trim().length === 0) throw new Error('keyId is required');
+}
+
+function requireNonEmpty(value: string, label: string): string {
+  if (value.trim().length === 0) throw new Error(`${label} is required`);
+  return value;
+}
+
+function requireIsoDate(value: string, label: string): string {
+  requireNonEmpty(value, label);
+  if (!Number.isFinite(Date.parse(value))) throw new Error(`${label} must be an ISO date string`);
+  return value;
+}
+
+function requirePositiveInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be positive`);
+  return value;
+}
+
+function requireNonNegativeInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be non-negative`);
+  return value;
 }

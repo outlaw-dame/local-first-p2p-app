@@ -1,9 +1,40 @@
+import { type DexieLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
+import { type SignedEventEnvelope } from '@lfp2p/protocol';
+
 export type RetryPolicyInput = Readonly<{
   attempt: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
   jitterRatio?: number;
   random?: () => number;
+}>;
+
+export type OutboxTransportResult =
+  | Readonly<{ status: 'confirmed'; sequence?: number }>
+  | Readonly<{ status: 'conflicted'; reason: string; sequence?: number }>;
+
+export type OutboxTransport = Readonly<{
+  send(input: Readonly<{ entry: MutationOutboxEntry; event: SignedEventEnvelope }>): Promise<OutboxTransportResult>;
+}>;
+
+export type ProcessOutboxInput = Readonly<{
+  store: DexieLocalFirstStore;
+  transport: OutboxTransport;
+  now?: Date;
+  batchSize?: number;
+  maxAttempts?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  random?: () => number;
+}>;
+
+export type ProcessOutboxResult = Readonly<{
+  attempted: number;
+  confirmed: number;
+  conflicted: number;
+  retried: number;
+  failed: number;
+  skipped: number;
 }>;
 
 export function computeBackoffDelayMs(input: RetryPolicyInput): number {
@@ -29,6 +60,84 @@ export function createIdempotencyKey(prefix = 'idem'): string {
   return `${prefix}_${globalThis.crypto.randomUUID()}`;
 }
 
+export async function processOutboxBatch(input: ProcessOutboxInput): Promise<ProcessOutboxResult> {
+  const now = input.now ?? new Date();
+  const nowIso = now.toISOString();
+  const batchSize = requirePositiveInteger(input.batchSize ?? 10, 'batchSize');
+  const maxAttempts = requirePositiveInteger(input.maxAttempts ?? 5, 'maxAttempts');
+  const result = mutableProcessResult();
+  const due = await input.store.listDueOutbox(nowIso, batchSize);
+
+  for (const candidate of due) {
+    const claimed = await input.store.claimOutboxEntry(candidate.idempotencyKey, nowIso);
+    if (!claimed) {
+      result.skipped += 1;
+      continue;
+    }
+
+    const event = await input.store.getSignedEvent(claimed.eventId);
+    if (!event) {
+      result.attempted += 1;
+      result.failed += 1;
+      await input.store.markOutboxFailed(
+        claimed.idempotencyKey,
+        `Missing signed event for outbox entry ${claimed.eventId}`,
+        nowIso
+      );
+      continue;
+    }
+
+    result.attempted += 1;
+
+    let transportResult: OutboxTransportResult;
+    try {
+      transportResult = await input.transport.send({ entry: claimed, event });
+    } catch (error) {
+      const retryCount = claimed.retryCount + 1;
+      const message = normalizeErrorMessage(error);
+      if (retryCount >= maxAttempts || isNonRetryableError(error)) {
+        result.failed += 1;
+        await input.store.markOutboxFailed(claimed.idempotencyKey, message, nowIso);
+        continue;
+      }
+
+      const delayMs = computeBackoffDelayMs({
+        attempt: retryCount,
+        ...(input.baseDelayMs !== undefined ? { baseDelayMs: input.baseDelayMs } : {}),
+        ...(input.maxDelayMs !== undefined ? { maxDelayMs: input.maxDelayMs } : {}),
+        ...(input.random !== undefined ? { random: input.random } : {})
+      });
+      const nextRetryAt = new Date(now.getTime() + delayMs).toISOString();
+      result.retried += 1;
+      await input.store.scheduleOutboxRetry({
+        idempotencyKey: claimed.idempotencyKey,
+        retryCount,
+        nextRetryAt,
+        lastError: message,
+        updatedAt: nowIso
+      });
+      continue;
+    }
+
+    if (transportResult.status === 'confirmed') {
+      await input.store.markOutboxConfirmed(claimed.idempotencyKey, nowIso);
+      result.confirmed += 1;
+    } else {
+      await input.store.markOutboxConflicted(claimed.idempotencyKey, transportResult.reason, nowIso);
+      result.conflicted += 1;
+    }
+  }
+
+  return result;
+}
+
+export class NonRetryableOutboxError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NonRetryableOutboxError';
+  }
+}
+
 export class StaleResponseGuard {
   readonly #latestSequence = new Map<string, number>();
 
@@ -44,6 +153,33 @@ export class StaleResponseGuard {
   latest(scope: string): number | undefined {
     return this.#latestSequence.get(scope);
   }
+}
+
+function mutableProcessResult(): {
+  attempted: number;
+  confirmed: number;
+  conflicted: number;
+  retried: number;
+  failed: number;
+  skipped: number;
+} {
+  return {
+    attempted: 0,
+    confirmed: 0,
+    conflicted: 0,
+    retried: 0,
+    failed: 0,
+    skipped: 0
+  };
+}
+
+function isNonRetryableError(error: unknown): boolean {
+  return error instanceof NonRetryableOutboxError;
+}
+
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) return error.message;
+  return 'Unknown outbox transport failure';
 }
 
 function requirePositiveInteger(value: number, label: string): number {
