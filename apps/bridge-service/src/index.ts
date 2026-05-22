@@ -142,13 +142,83 @@ export class InMemoryBridgeService {
   }
 }
 
+export async function handleBridgeDeliveryRequest(
+  service: InMemoryBridgeService,
+  request: Request,
+  now = new Date().toISOString()
+): Promise<Response> {
+  if (request.method !== 'POST') {
+    return jsonResponse({ status: 'rejected', idempotencyKey: 'unknown', reason: 'Method not allowed' }, 405);
+  }
+
+  const parsed = await parseDeliveryRequestJson(request);
+  if (parsed.status === 'invalid') {
+    return jsonResponse({ status: 'rejected', idempotencyKey: parsed.idempotencyKey, reason: parsed.reason }, 400);
+  }
+
+  const response = service.acceptDelivery(parsed.request, now);
+  return jsonResponse(response, statusCodeForBridgeResponse(response));
+}
+
 export const bridgeServicePlaceholder = {
   role: 'stateful-edge-actor' satisfies BridgeServiceRole,
   authoritativeForPrivateState: false
 };
 
+function statusCodeForBridgeResponse(response: BridgeDeliveryResponse): number {
+  if (response.status === 'confirmed') return response.duplicate ? 200 : 202;
+  if (response.status === 'conflicted') return 409;
+  return 422;
+}
+
+async function parseDeliveryRequestJson(
+  request: Request
+): Promise<
+  | Readonly<{ status: 'valid'; request: BridgeDeliveryRequest }>
+  | Readonly<{ status: 'invalid'; idempotencyKey: string; reason: string }>
+> {
+  try {
+    const parsed: unknown = await request.json();
+    if (!isRecord(parsed)) return invalid('unknown', 'Request body must be a JSON object');
+    const idempotencyKey = coerceString(parsed.idempotencyKey, 'idempotencyKey');
+    const target = coerceString(parsed.target, 'target');
+    if (!isRecord(parsed.event)) return invalid(idempotencyKey, 'event must be a JSON object');
+    const headerKey = request.headers.get('x-lfp2p-idempotency-key');
+    if (headerKey !== null && headerKey !== idempotencyKey) {
+      return invalid(idempotencyKey, 'Idempotency header does not match request body');
+    }
+    const bridgeRequest: BridgeDeliveryRequest = {
+      idempotencyKey,
+      target,
+      event: parsed.event as SignedEventEnvelope
+    };
+    return { status: 'valid', request: bridgeRequest };
+  } catch (error) {
+    return invalid('unknown', `Invalid request body: ${normalizeErrorMessage(error)}`);
+  }
+}
+
+function jsonResponse(body: BridgeDeliveryResponse, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store'
+    }
+  });
+}
+
+function invalid(idempotencyKey: string, reason: string): Readonly<{ status: 'invalid'; idempotencyKey: string; reason: string }> {
+  return { status: 'invalid', idempotencyKey, reason };
+}
+
 function rejected(idempotencyKey: string, reason: string): BridgeDeliveryResponse {
   return { status: 'rejected', idempotencyKey, reason };
+}
+
+function coerceString(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`${label} is required`);
+  return value;
 }
 
 function requireNonEmpty(value: string, label: string): string {
@@ -165,4 +235,8 @@ function requireIsoDate(value: string, label: string): string {
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) return error.message;
   return 'unknown validation error';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
