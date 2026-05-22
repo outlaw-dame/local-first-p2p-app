@@ -305,7 +305,7 @@ export class JsonFileBridgeStore implements BridgeStore {
     validateStoredBridgeRecord(record);
     return this.#withLock(async () => {
       const state = await this.#loadState();
-      let changed = pruneExpiredRecords(state, nowMs);
+      const changed = pruneExpiredRecords(state, nowMs);
       const existing = state.records.find((candidate) => candidate.idempotencyKey === record.idempotencyKey);
       if (existing) {
         if (changed) await this.#persistState(state);
@@ -313,7 +313,6 @@ export class JsonFileBridgeStore implements BridgeStore {
       }
       while (state.records.length >= this.maxRecords) {
         state.records.shift();
-        changed = true;
       }
       state.records.push(record);
       state.latestSequence = Math.max(state.latestSequence, record.sequence);
