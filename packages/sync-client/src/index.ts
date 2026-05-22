@@ -98,7 +98,9 @@ export function createHttpBridgeTransport(options: HttpBridgeTransportOptions): 
         });
         return await mapBridgeHttpResponse(response);
       } catch (error) {
-        if (isAbortError(error)) throw new Error(`Bridge request timed out after ${timeoutMs}ms`);
+        if (isAbortError(error)) {
+          throw new Error(`Bridge request timed out after ${timeoutMs}ms`, { cause: error });
+        }
         throw error;
       } finally {
         globalThis.clearTimeout(timeout);
