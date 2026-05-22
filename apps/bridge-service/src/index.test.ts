@@ -1,14 +1,17 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createUnsignedEvent, type PrivacyScope } from '@lfp2p/protocol';
-import { handleBridgeDeliveryRequest, InMemoryBridgeService } from './index.js';
+import { BridgeService, handleBridgeDeliveryRequest, InMemoryBridgeService, JsonFileBridgeStore } from './index.js';
 
 describe('InMemoryBridgeService', () => {
-  it('accepts valid signed bridge-safe events and deduplicates by idempotency key', () => {
+  it('accepts valid signed bridge-safe events and deduplicates by idempotency key', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const event = makeSignedEvent({ eventId: 'evt_bridge_accept', privacy: 'public' });
 
-    const first = bridge.acceptDelivery(
+    const first = await bridge.acceptDelivery(
       {
         idempotencyKey: 'idem-accept',
         target: 'bridge:dev',
@@ -17,7 +20,7 @@ describe('InMemoryBridgeService', () => {
       '1970-01-01T00:00:00.000Z'
     );
 
-    const second = bridge.acceptDelivery(
+    const second = await bridge.acceptDelivery(
       {
         idempotencyKey: 'idem-accept',
         target: 'bridge:dev',
@@ -28,37 +31,38 @@ describe('InMemoryBridgeService', () => {
 
     expect(first).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 1 });
     expect(second).toMatchObject({ status: 'confirmed', duplicate: true, sequence: 1 });
-    expect(bridge.snapshot('1970-01-01T00:01:00.000Z')).toMatchObject({
+    await expect(bridge.snapshot('1970-01-01T00:01:00.000Z')).resolves.toMatchObject({
       role: 'stateful-edge-actor',
       authoritativeForPrivateState: false,
+      storeKind: 'memory',
       acceptedCount: 1,
       latestSequence: 1
     });
   });
 
-  it('bounds in-memory idempotency records by capacity and TTL', () => {
+  it('bounds in-memory idempotency records by capacity and TTL', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0, maxRecords: 2, ttlMs: 1_000 });
     const first = makeSignedEvent({ eventId: 'evt_capacity_1', privacy: 'public' });
     const second = makeSignedEvent({ eventId: 'evt_capacity_2', privacy: 'public' });
     const third = makeSignedEvent({ eventId: 'evt_capacity_3', privacy: 'public' });
 
-    bridge.acceptDelivery({ idempotencyKey: 'idem-1', target: 'bridge:dev', event: first }, '2026-05-22T00:00:00.000Z');
-    bridge.acceptDelivery({ idempotencyKey: 'idem-2', target: 'bridge:dev', event: second }, '2026-05-22T00:00:00.100Z');
-    bridge.acceptDelivery({ idempotencyKey: 'idem-3', target: 'bridge:dev', event: third }, '2026-05-22T00:00:00.200Z');
+    await bridge.acceptDelivery({ idempotencyKey: 'idem-1', target: 'bridge:dev', event: first }, '2026-05-22T00:00:00.000Z');
+    await bridge.acceptDelivery({ idempotencyKey: 'idem-2', target: 'bridge:dev', event: second }, '2026-05-22T00:00:00.100Z');
+    await bridge.acceptDelivery({ idempotencyKey: 'idem-3', target: 'bridge:dev', event: third }, '2026-05-22T00:00:00.200Z');
 
-    expect(bridge.getRecord('idem-1', '2026-05-22T00:00:00.200Z')).toBeUndefined();
-    expect(bridge.snapshot('2026-05-22T00:00:00.200Z').acceptedCount).toBe(2);
-    expect(bridge.snapshot('2026-05-22T00:00:02.000Z').acceptedCount).toBe(0);
+    await expect(bridge.getRecord('idem-1', '2026-05-22T00:00:00.200Z')).resolves.toBeUndefined();
+    expect((await bridge.snapshot('2026-05-22T00:00:00.200Z')).acceptedCount).toBe(2);
+    expect((await bridge.snapshot('2026-05-22T00:00:02.000Z')).acceptedCount).toBe(0);
   });
 
-  it('rejects local-only privacy scopes', () => {
+  it('rejects local-only privacy scopes', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
-    const deviceLocal = bridge.acceptDelivery({
+    const deviceLocal = await bridge.acceptDelivery({
       idempotencyKey: 'idem-device-local',
       target: 'bridge:dev',
       event: makeSignedEvent({ eventId: 'evt_device_local', privacy: 'device-local' })
     });
-    const selfOnly = bridge.acceptDelivery({
+    const selfOnly = await bridge.acceptDelivery({
       idempotencyKey: 'idem-self',
       target: 'bridge:dev',
       event: makeSignedEvent({ eventId: 'evt_self', privacy: 'self' })
@@ -66,28 +70,28 @@ describe('InMemoryBridgeService', () => {
 
     expect(deviceLocal).toMatchObject({ status: 'rejected' });
     expect(selfOnly).toMatchObject({ status: 'rejected' });
-    expect(bridge.snapshot().acceptedCount).toBe(0);
+    expect((await bridge.snapshot()).acceptedCount).toBe(0);
   });
 
-  it('detects idempotency-key conflicts', () => {
+  it('detects idempotency-key conflicts', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const first = makeSignedEvent({ eventId: 'evt_first', privacy: 'public' });
     const second = makeSignedEvent({ eventId: 'evt_second', privacy: 'public' });
 
-    expect(bridge.acceptDelivery({ idempotencyKey: 'idem-conflict', target: 'bridge:dev', event: first })).toMatchObject({
+    await expect(bridge.acceptDelivery({ idempotencyKey: 'idem-conflict', target: 'bridge:dev', event: first })).resolves.toMatchObject({
       status: 'confirmed'
     });
-    expect(bridge.acceptDelivery({ idempotencyKey: 'idem-conflict', target: 'bridge:dev', event: second })).toMatchObject({
+    await expect(bridge.acceptDelivery({ idempotencyKey: 'idem-conflict', target: 'bridge:dev', event: second })).resolves.toMatchObject({
       status: 'conflicted',
       existingEventId: 'evt_first'
     });
-    expect(bridge.acceptDelivery({ idempotencyKey: 'idem-conflict', target: 'bridge:other', event: first })).toMatchObject({
+    await expect(bridge.acceptDelivery({ idempotencyKey: 'idem-conflict', target: 'bridge:other', event: first })).resolves.toMatchObject({
       status: 'conflicted',
       reason: 'Idempotency key already belongs to a different target'
     });
   });
 
-  it('rejects tampered signatures before duplicate idempotency handling', () => {
+  it('rejects tampered signatures before duplicate idempotency handling', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const signed = makeSignedEvent({ eventId: 'evt_tampered', privacy: 'public' });
     const tampered = {
@@ -95,19 +99,91 @@ describe('InMemoryBridgeService', () => {
       payload: { body: 'tampered after signing' }
     };
 
-    bridge.acceptDelivery({
+    await bridge.acceptDelivery({
       idempotencyKey: 'idem-tampered',
       target: 'bridge:dev',
       event: signed
     });
 
-    expect(
+    await expect(
       bridge.acceptDelivery({
         idempotencyKey: 'idem-tampered',
         target: 'bridge:dev',
         event: tampered
       })
-    ).toMatchObject({ status: 'rejected', reason: 'Event signature verification failed' });
+    ).resolves.toMatchObject({ status: 'rejected', reason: 'Event signature verification failed' });
+  });
+});
+
+describe('JsonFileBridgeStore', () => {
+  it('persists idempotency records and sequence state across service instances', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'lfp2p-bridge-store-'));
+    const filePath = join(dir, 'bridge-store.json');
+    try {
+      const firstService = new BridgeService({
+        store: new JsonFileBridgeStore({ filePath, initialSequence: 0, maxRecords: 10, ttlMs: 60_000 })
+      });
+      const event = makeSignedEvent({ eventId: 'evt_persisted', privacy: 'public' });
+
+      const accepted = await firstService.acceptDelivery(
+        { idempotencyKey: 'idem-persisted', target: 'bridge:durable', event },
+        '1970-01-01T00:00:00.000Z'
+      );
+
+      const secondService = new BridgeService({
+        store: new JsonFileBridgeStore({ filePath, initialSequence: 0, maxRecords: 10, ttlMs: 60_000 })
+      });
+      const duplicate = await secondService.acceptDelivery(
+        { idempotencyKey: 'idem-persisted', target: 'bridge:durable', event },
+        '1970-01-01T00:01:00.000Z'
+      );
+      const next = await secondService.acceptDelivery(
+        { idempotencyKey: 'idem-next', target: 'bridge:durable', event: makeSignedEvent({ eventId: 'evt_next', privacy: 'public' }) },
+        '1970-01-01T00:02:00.000Z'
+      );
+
+      expect(accepted).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 1 });
+      expect(duplicate).toMatchObject({ status: 'confirmed', duplicate: true, sequence: 1 });
+      expect(next).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 2 });
+      await expect(secondService.getRecord('idem-persisted', '1970-01-01T00:01:00.000Z')).resolves.toMatchObject({
+        eventId: 'evt_persisted',
+        sequence: 1
+      });
+      await expect(secondService.snapshot('1970-01-01T00:02:00.000Z')).resolves.toMatchObject({
+        storeKind: 'json-file',
+        acceptedCount: 2,
+        latestSequence: 2
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('writes a versioned JSON file and prunes expired durable records', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'lfp2p-bridge-store-'));
+    const filePath = join(dir, 'bridge-store.json');
+    try {
+      const service = new BridgeService({
+        store: new JsonFileBridgeStore({ filePath, initialSequence: 0, maxRecords: 10, ttlMs: 1_000 })
+      });
+      await service.acceptDelivery(
+        {
+          idempotencyKey: 'idem-expiring',
+          target: 'bridge:durable',
+          event: makeSignedEvent({ eventId: 'evt_expiring', privacy: 'public' })
+        },
+        '2026-05-22T00:00:00.000Z'
+      );
+
+      const beforePrune = JSON.parse(await readFile(filePath, 'utf8')) as Record<string, unknown>;
+      expect(beforePrune.recordType).toBe('lfp2p.bridge.store.v1');
+      expect(Array.isArray(beforePrune.records)).toBe(true);
+      expect((await service.snapshot('2026-05-22T00:00:02.000Z')).acceptedCount).toBe(0);
+      const afterPrune = JSON.parse(await readFile(filePath, 'utf8')) as { records: unknown[] };
+      expect(afterPrune.records).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 
