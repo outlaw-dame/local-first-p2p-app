@@ -90,8 +90,19 @@ export function validateSignedEvent(event: SignedEventEnvelope): void {
 }
 
 export function unsignedProjection(event: SignedEventEnvelope): UnsignedEventEnvelope {
-  const { signature: _signature, ...unsigned } = event;
-  return unsigned;
+  return {
+    version: event.version,
+    eventId: event.eventId,
+    kind: event.kind,
+    author: event.author,
+    deviceId: event.deviceId,
+    createdAt: event.createdAt,
+    lamport: event.lamport,
+    privacy: event.privacy,
+    schemaVersion: event.schemaVersion,
+    payload: event.payload,
+    ...(event.refs === undefined ? {} : { refs: event.refs })
+  };
 }
 
 export function canonicalizeJson(value: JsonValue | UnsignedEventEnvelope): string {
