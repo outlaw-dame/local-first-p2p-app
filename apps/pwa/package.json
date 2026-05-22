@@ -1,0 +1,30 @@
+{
+  "name": "@lfp2p/pwa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@lfp2p/crypto": "workspace:*",
+    "@lfp2p/design-tokens": "workspace:*",
+    "@lfp2p/local-store": "workspace:*",
+    "@lfp2p/platform": "workspace:*",
+    "@lfp2p/protocol": "workspace:*",
+    "@lfp2p/sync-client": "workspace:*",
+    "@lfp2p/ui": "workspace:*",
+    "@tanstack/react-query": "latest",
+    "framework7": "^8.3.0",
+    "framework7-react": "^8.3.0",
+    "framer-motion": "latest",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest"
+  }
+}

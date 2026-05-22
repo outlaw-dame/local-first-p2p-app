@@ -1,0 +1,19 @@
+{
+  "name": "@lfp2p/local-store",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lfp2p/protocol": "workspace:*",
+    "dexie": "^4.0.0"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "latest"
+  }
+}

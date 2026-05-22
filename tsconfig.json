@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/protocol" },
+    { "path": "packages/crypto" },
+    { "path": "packages/design-tokens" },
+    { "path": "packages/platform" },
+    { "path": "packages/local-store" },
+    { "path": "packages/sync-client" },
+    { "path": "packages/search" },
+    { "path": "packages/ui" },
+    { "path": "apps/bridge-service" },
+    { "path": "apps/pwa" }
+  ]
+}

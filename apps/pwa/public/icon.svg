@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Local P2P icon">
+  <rect width="1024" height="1024" rx="230" fill="#6d5dfc"/>
+  <circle cx="320" cy="512" r="92" fill="white" opacity="0.96"/>
+  <circle cx="704" cy="320" r="92" fill="white" opacity="0.96"/>
+  <circle cx="704" cy="704" r="92" fill="white" opacity="0.96"/>
+  <path d="M395 475 626 356M395 549 626 668" stroke="white" stroke-width="56" stroke-linecap="round" opacity="0.9"/>
+</svg>

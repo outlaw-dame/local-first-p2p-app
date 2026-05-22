@@ -1,0 +1,22 @@
+:root {
+  --lfp2p-color-background: #f5f5f7;
+  --lfp2p-color-elevated: rgba(255, 255, 255, 0.82);
+  --lfp2p-color-label: #111111;
+  --lfp2p-color-secondary-label: rgba(60, 60, 67, 0.7);
+  --lfp2p-color-accent: #6d5dfc;
+  --lfp2p-hairline: rgba(60, 60, 67, 0.22);
+  --lfp2p-card-radius: 20px;
+  --lfp2p-sheet-radius: 24px;
+  --lfp2p-min-touch-target: 44px;
+  --lfp2p-material-blur: saturate(180%) blur(20px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --lfp2p-color-background: #000000;
+    --lfp2p-color-elevated: rgba(28, 28, 30, 0.86);
+    --lfp2p-color-label: #f5f5f7;
+    --lfp2p-color-secondary-label: rgba(235, 235, 245, 0.62);
+    --lfp2p-hairline: rgba(84, 84, 88, 0.65);
+  }
+}

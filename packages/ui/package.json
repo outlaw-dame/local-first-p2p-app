@@ -1,0 +1,20 @@
+{
+  "name": "@lfp2p/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lfp2p/design-tokens": "workspace:*",
+    "framework7-react": "^8.3.0",
+    "react": "^18.3.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}
