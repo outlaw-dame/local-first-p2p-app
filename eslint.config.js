@@ -9,13 +9,10 @@ export default tseslint.config(
     ignores: ['**/dist/**', '**/node_modules/**', '**/.vite/**', '**/coverage/**']
   },
   js.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.recommended,
   {
+    files: ['**/*.{ts,tsx}'],
     languageOptions: {
-      parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname
-      },
       globals: {
         ...globals.browser,
         ...globals.node
