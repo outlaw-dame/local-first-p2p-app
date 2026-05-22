@@ -205,9 +205,10 @@ export class StaleResponseGuard {
 }
 
 async function mapBridgeHttpResponse(response: Response): Promise<OutboxTransportResult> {
-  const body = await parseBridgeJson(response);
+  const text = await response.text();
+  const body = parseOptionalBridgeJson(text);
   if (!response.ok) {
-    const reason = body?.reason ?? `Bridge HTTP ${response.status}`;
+    const reason = body?.reason ?? response.statusText.trim() || `Bridge HTTP ${response.status}`;
     if (response.status === 409) return { status: 'conflicted', reason };
     if (isNonRetryableHttpStatus(response.status)) throw new NonRetryableOutboxError(reason);
     throw new Error(reason);
@@ -225,11 +226,15 @@ async function mapBridgeHttpResponse(response: Response): Promise<OutboxTranspor
   throw new Error('Bridge returned an unsupported status');
 }
 
-async function parseBridgeJson(response: Response): Promise<BridgeHttpResponse | null> {
-  const text = await response.text();
+function parseOptionalBridgeJson(text: string): BridgeHttpResponse | null {
   if (text.trim().length === 0) return null;
-  const parsed: unknown = JSON.parse(text);
-  if (!isRecord(parsed)) throw new Error('Bridge response must be a JSON object');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed)) return null;
   const status = parsed.status;
   if (status === 'confirmed') {
     const sequence = parsed.sequence;
@@ -240,7 +245,7 @@ async function parseBridgeJson(response: Response): Promise<BridgeHttpResponse |
   }
   if (status === 'conflicted') return { status, reason: requireNonEmpty(String(parsed.reason ?? ''), 'reason') };
   if (status === 'rejected') return { status, reason: requireNonEmpty(String(parsed.reason ?? ''), 'reason') };
-  throw new Error('Bridge response status is unsupported');
+  return null;
 }
 
 function normalizeBridgeEndpoint(endpoint: string | URL): string {
@@ -255,7 +260,7 @@ function isNonRetryableHttpStatus(status: number): boolean {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 function mutableProcessResult(): {
