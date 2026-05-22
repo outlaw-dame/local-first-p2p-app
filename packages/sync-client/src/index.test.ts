@@ -68,7 +68,7 @@ describe('createHttpBridgeTransport', () => {
     });
   });
 
-  it('treats bridge rejections as non-retryable errors', async () => {
+  it('treats bridge JSON rejections as non-retryable errors', async () => {
     const transport = createHttpBridgeTransport({
       endpoint: 'https://bridge.test/events',
       fetch: async () => new Response(JSON.stringify({ status: 'rejected', reason: 'local-only scope' }), { status: 422 })
@@ -77,6 +77,17 @@ describe('createHttpBridgeTransport', () => {
     await expect(transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_rejected_http') })).rejects.toBeInstanceOf(
       NonRetryableOutboxError
     );
+  });
+
+  it('treats non-json permanent 4xx responses as non-retryable errors', async () => {
+    const transport = createHttpBridgeTransport({
+      endpoint: 'https://bridge.test/events',
+      fetch: async () => new Response('<html>unprocessable</html>', { status: 422, statusText: 'Unprocessable Content' })
+    });
+
+    await expect(
+      transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_non_json_422') })
+    ).rejects.toBeInstanceOf(NonRetryableOutboxError);
   });
 
   it('rejects endpoints with embedded credentials', () => {
