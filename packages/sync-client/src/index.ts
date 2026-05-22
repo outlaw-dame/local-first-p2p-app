@@ -208,7 +208,9 @@ async function mapBridgeHttpResponse(response: Response): Promise<OutboxTranspor
   const text = await response.text();
   const body = parseOptionalBridgeJson(text);
   if (!response.ok) {
-    const reason = body?.reason ?? response.statusText.trim() || `Bridge HTTP ${response.status}`;
+    const bodyReason = body?.status === 'conflicted' || body?.status === 'rejected' ? body.reason : undefined;
+    const statusReason = response.statusText.trim();
+    const reason = bodyReason ?? (statusReason.length > 0 ? statusReason : `Bridge HTTP ${response.status}`);
     if (response.status === 409) return { status: 'conflicted', reason };
     if (isNonRetryableHttpStatus(response.status)) throw new NonRetryableOutboxError(reason);
     throw new Error(reason);
