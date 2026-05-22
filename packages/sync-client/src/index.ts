@@ -17,6 +17,17 @@ export type OutboxTransport = Readonly<{
   send(input: Readonly<{ entry: MutationOutboxEntry; event: SignedEventEnvelope }>): Promise<OutboxTransportResult>;
 }>;
 
+export type HttpBridgeTransportOptions = Readonly<{
+  endpoint: string | URL;
+  fetch?: typeof fetch;
+  timeoutMs?: number;
+}>;
+
+type BridgeHttpResponse =
+  | Readonly<{ status: 'confirmed'; sequence?: number }>
+  | Readonly<{ status: 'conflicted'; reason: string; sequence?: number }>
+  | Readonly<{ status: 'rejected'; reason: string }>;
+
 export type ProcessOutboxInput = Readonly<{
   store: DexieLocalFirstStore;
   transport: OutboxTransport;
@@ -58,6 +69,42 @@ export function createIdempotencyKey(prefix = 'idem'): string {
     throw new Error('crypto.randomUUID is required to create idempotency keys');
   }
   return `${prefix}_${globalThis.crypto.randomUUID()}`;
+}
+
+export function createHttpBridgeTransport(options: HttpBridgeTransportOptions): OutboxTransport {
+  const endpoint = normalizeBridgeEndpoint(options.endpoint);
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  if (typeof fetchImpl !== 'function') throw new Error('A fetch implementation is required');
+  const timeoutMs = requirePositiveInteger(options.timeoutMs ?? 10_000, 'timeoutMs');
+
+  return {
+    async send(input) {
+      const controller = new AbortController();
+      const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetchImpl(endpoint, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-lfp2p-idempotency-key': input.entry.idempotencyKey
+          },
+          body: JSON.stringify({
+            idempotencyKey: input.entry.idempotencyKey,
+            target: input.entry.target,
+            event: input.event
+          }),
+          credentials: 'omit',
+          signal: controller.signal
+        });
+        return await mapBridgeHttpResponse(response);
+      } catch (error) {
+        if (isAbortError(error)) throw new Error(`Bridge request timed out after ${timeoutMs}ms`);
+        throw error;
+      } finally {
+        globalThis.clearTimeout(timeout);
+      }
+    }
+  };
 }
 
 export async function processOutboxBatch(input: ProcessOutboxInput): Promise<ProcessOutboxResult> {
@@ -155,6 +202,60 @@ export class StaleResponseGuard {
   }
 }
 
+async function mapBridgeHttpResponse(response: Response): Promise<OutboxTransportResult> {
+  const body = await parseBridgeJson(response);
+  if (!response.ok) {
+    const reason = body?.reason ?? `Bridge HTTP ${response.status}`;
+    if (response.status === 409) return { status: 'conflicted', reason };
+    if (isNonRetryableHttpStatus(response.status)) throw new NonRetryableOutboxError(reason);
+    throw new Error(reason);
+  }
+
+  if (!body) throw new Error('Bridge returned an empty response');
+  if (body.status === 'confirmed') {
+    return {
+      status: 'confirmed',
+      ...(body.sequence === undefined ? {} : { sequence: requireNonNegativeInteger(body.sequence, 'sequence') })
+    };
+  }
+  if (body.status === 'conflicted') return { status: 'conflicted', reason: requireNonEmpty(body.reason, 'reason') };
+  if (body.status === 'rejected') throw new NonRetryableOutboxError(requireNonEmpty(body.reason, 'reason'));
+  throw new Error('Bridge returned an unsupported status');
+}
+
+async function parseBridgeJson(response: Response): Promise<BridgeHttpResponse | null> {
+  const text = await response.text();
+  if (text.trim().length === 0) return null;
+  const parsed: unknown = JSON.parse(text);
+  if (!isRecord(parsed)) throw new Error('Bridge response must be a JSON object');
+  const status = parsed.status;
+  if (status === 'confirmed') {
+    const sequence = parsed.sequence;
+    return {
+      status,
+      ...(sequence === undefined ? {} : { sequence: requireNonNegativeInteger(Number(sequence), 'sequence') })
+    };
+  }
+  if (status === 'conflicted') return { status, reason: requireNonEmpty(String(parsed.reason ?? ''), 'reason') };
+  if (status === 'rejected') return { status, reason: requireNonEmpty(String(parsed.reason ?? ''), 'reason') };
+  throw new Error('Bridge response status is unsupported');
+}
+
+function normalizeBridgeEndpoint(endpoint: string | URL): string {
+  const url = endpoint instanceof URL ? new URL(endpoint.href) : new URL(endpoint);
+  if (url.username.length > 0 || url.password.length > 0) throw new Error('Bridge endpoint must not include credentials');
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('Bridge endpoint must use http or https');
+  return url.toString();
+}
+
+function isNonRetryableHttpStatus(status: number): boolean {
+  return status === 400 || status === 401 || status === 403 || status === 404 || status === 413 || status === 422;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
 function mutableProcessResult(): {
   attempted: number;
   confirmed: number;
@@ -180,6 +281,10 @@ function isNonRetryableError(error: unknown): boolean {
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) return error.message;
   return 'Unknown outbox transport failure';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function requirePositiveInteger(value: number, label: string): number {
