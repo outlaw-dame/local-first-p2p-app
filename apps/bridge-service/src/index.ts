@@ -8,7 +8,6 @@ export type BridgeDeliveryRequest = Readonly<{
   idempotencyKey: string;
   target: string;
   event: SignedEventEnvelope;
-  receivedAt?: string;
 }>;
 
 export type BridgeDeliveryResponse =
@@ -46,30 +45,65 @@ export type BridgeServiceSnapshot = Readonly<{
   role: BridgeServiceRole;
   authoritativeForPrivateState: false;
   acceptedCount: number;
+  maxRecords: number;
+  ttlMs: number;
+  latestSequence: number;
 }>;
 
+export type InMemoryBridgeServiceOptions = Readonly<{
+  role?: BridgeServiceRole;
+  maxRecords?: number;
+  ttlMs?: number;
+  initialSequence?: number;
+}>;
+
+type StoredBridgeRecord = BridgeRecord &
+  Readonly<{
+    expiresAt: string;
+  }>;
+
 const BRIDGE_ALLOWED_PRIVACY_SCOPES = new Set<PrivacyScope>(['dm', 'group', 'public']);
+const DEFAULT_MAX_RECORDS = 10_000;
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
 export class InMemoryBridgeService {
-  readonly #recordsByIdempotencyKey = new Map<string, BridgeRecord>();
-  #sequence = 0;
+  readonly #recordsByIdempotencyKey = new Map<string, StoredBridgeRecord>();
+  #sequence: number;
 
   readonly role: BridgeServiceRole;
   readonly authoritativeForPrivateState = false as const;
+  readonly maxRecords: number;
+  readonly ttlMs: number;
 
-  constructor(role: BridgeServiceRole = 'stateful-edge-actor') {
-    this.role = role;
+  constructor(options: BridgeServiceRole | InMemoryBridgeServiceOptions = 'stateful-edge-actor') {
+    const normalized = typeof options === 'string' ? { role: options } : options;
+    this.role = normalized.role ?? 'stateful-edge-actor';
+    this.maxRecords = requirePositiveInteger(normalized.maxRecords ?? DEFAULT_MAX_RECORDS, 'maxRecords');
+    this.ttlMs = requirePositiveInteger(normalized.ttlMs ?? DEFAULT_TTL_MS, 'ttlMs');
+    this.#sequence = requireSafeNonNegativeInteger(
+      normalized.initialSequence ?? Math.min(Date.now() * 1000, Number.MAX_SAFE_INTEGER - 1),
+      'initialSequence'
+    );
   }
 
   acceptDelivery(request: BridgeDeliveryRequest, now = new Date().toISOString()): BridgeDeliveryResponse {
     const idempotencyKey = requireNonEmpty(request.idempotencyKey, 'idempotencyKey');
     const target = requireNonEmpty(request.target, 'target');
-    requireIsoDate(now, 'now');
+    const nowMs = requireIsoDate(now, 'now');
+    this.#evictExpired(nowMs);
 
     try {
       validateSignedEvent(request.event);
     } catch (error) {
       return rejected(idempotencyKey, `Invalid signed event envelope: ${normalizeErrorMessage(error)}`);
+    }
+
+    if (!BRIDGE_ALLOWED_PRIVACY_SCOPES.has(request.event.privacy)) {
+      return rejected(idempotencyKey, `Bridge cannot accept ${request.event.privacy} scoped events`);
+    }
+
+    if (!verifySignedEventEnvelope(request.event)) {
+      return rejected(idempotencyKey, 'Event signature verification failed');
     }
 
     const existing = this.#recordsByIdempotencyKey.get(idempotencyKey);
@@ -79,6 +113,15 @@ export class InMemoryBridgeService {
           status: 'conflicted',
           idempotencyKey,
           reason: 'Idempotency key already belongs to a different event',
+          existingEventId: existing.eventId
+        };
+      }
+
+      if (existing.target !== target) {
+        return {
+          status: 'conflicted',
+          idempotencyKey,
+          reason: 'Idempotency key already belongs to a different target',
           existingEventId: existing.eventId
         };
       }
@@ -93,24 +136,16 @@ export class InMemoryBridgeService {
       };
     }
 
-    if (!BRIDGE_ALLOWED_PRIVACY_SCOPES.has(request.event.privacy)) {
-      return rejected(idempotencyKey, `Bridge cannot accept ${request.event.privacy} scoped events`);
-    }
-
-    if (!verifySignedEventEnvelope(request.event)) {
-      return rejected(idempotencyKey, 'Event signature verification failed');
-    }
-
-    const acceptedAt = request.receivedAt ?? now;
-    requireIsoDate(acceptedAt, 'receivedAt');
-    const record: BridgeRecord = {
+    this.#evictToCapacity();
+    const record: StoredBridgeRecord = {
       idempotencyKey,
       target,
       eventId: request.event.eventId,
       author: request.event.author,
       privacy: request.event.privacy,
-      sequence: this.#nextSequence(),
-      acceptedAt
+      sequence: this.#nextSequence(nowMs),
+      acceptedAt: now,
+      expiresAt: new Date(nowMs + this.ttlMs).toISOString()
     };
     this.#recordsByIdempotencyKey.set(idempotencyKey, record);
 
@@ -124,21 +159,44 @@ export class InMemoryBridgeService {
     };
   }
 
-  getRecord(idempotencyKey: string): BridgeRecord | undefined {
-    return this.#recordsByIdempotencyKey.get(idempotencyKey);
+  getRecord(idempotencyKey: string, now = new Date().toISOString()): BridgeRecord | undefined {
+    requireNonEmpty(idempotencyKey, 'idempotencyKey');
+    const nowMs = requireIsoDate(now, 'now');
+    this.#evictExpired(nowMs);
+    return withoutExpiry(this.#recordsByIdempotencyKey.get(idempotencyKey));
   }
 
-  snapshot(): BridgeServiceSnapshot {
+  snapshot(now = new Date().toISOString()): BridgeServiceSnapshot {
+    this.#evictExpired(requireIsoDate(now, 'now'));
     return {
       role: this.role,
       authoritativeForPrivateState: false,
-      acceptedCount: this.#recordsByIdempotencyKey.size
+      acceptedCount: this.#recordsByIdempotencyKey.size,
+      maxRecords: this.maxRecords,
+      ttlMs: this.ttlMs,
+      latestSequence: this.#sequence
     };
   }
 
-  #nextSequence(): number {
-    this.#sequence += 1;
+  #nextSequence(nowMs: number): number {
+    const wallClockFloor = Math.min(nowMs * 1000, Number.MAX_SAFE_INTEGER - 1);
+    this.#sequence = Math.max(this.#sequence + 1, wallClockFloor);
     return this.#sequence;
+  }
+
+  #evictExpired(nowMs: number): void {
+    for (const [idempotencyKey, record] of this.#recordsByIdempotencyKey) {
+      if (Date.parse(record.expiresAt) > nowMs) continue;
+      this.#recordsByIdempotencyKey.delete(idempotencyKey);
+    }
+  }
+
+  #evictToCapacity(): void {
+    while (this.#recordsByIdempotencyKey.size >= this.maxRecords) {
+      const oldestKey = this.#recordsByIdempotencyKey.keys().next().value as string | undefined;
+      if (oldestKey === undefined) return;
+      this.#recordsByIdempotencyKey.delete(oldestKey);
+    }
   }
 }
 
@@ -208,6 +266,19 @@ function jsonResponse(body: BridgeDeliveryResponse, status: number): Response {
   });
 }
 
+function withoutExpiry(record: StoredBridgeRecord | undefined): BridgeRecord | undefined {
+  if (!record) return undefined;
+  return {
+    idempotencyKey: record.idempotencyKey,
+    target: record.target,
+    eventId: record.eventId,
+    author: record.author,
+    privacy: record.privacy,
+    sequence: record.sequence,
+    acceptedAt: record.acceptedAt
+  };
+}
+
 function invalid(idempotencyKey: string, reason: string): Readonly<{ status: 'invalid'; idempotencyKey: string; reason: string }> {
   return { status: 'invalid', idempotencyKey, reason };
 }
@@ -226,9 +297,20 @@ function requireNonEmpty(value: string, label: string): string {
   return value;
 }
 
-function requireIsoDate(value: string, label: string): string {
+function requireIsoDate(value: string, label: string): number {
   requireNonEmpty(value, label);
-  if (!Number.isFinite(Date.parse(value))) throw new Error(`${label} must be an ISO date string`);
+  const millis = Date.parse(value);
+  if (!Number.isFinite(millis)) throw new Error(`${label} must be an ISO date string`);
+  return millis;
+}
+
+function requirePositiveInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be positive`);
+  return value;
+}
+
+function requireSafeNonNegativeInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be a safe non-negative integer`);
   return value;
 }
 
