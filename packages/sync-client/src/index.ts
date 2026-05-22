@@ -23,11 +23,10 @@ export function computeBackoffDelayMs(input: RetryPolicyInput): number {
 }
 
 export function createIdempotencyKey(prefix = 'idem'): string {
-  const randomUUID = globalThis.crypto?.randomUUID;
-  if (typeof randomUUID !== 'function') {
+  if (typeof globalThis.crypto?.randomUUID !== 'function') {
     throw new Error('crypto.randomUUID is required to create idempotency keys');
   }
-  return `${prefix}_${randomUUID.call(globalThis.crypto)}`;
+  return `${prefix}_${globalThis.crypto.randomUUID()}`;
 }
 
 export class StaleResponseGuard {
