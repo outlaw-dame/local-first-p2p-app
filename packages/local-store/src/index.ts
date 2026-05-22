@@ -59,6 +59,11 @@ export type StoredLocalProtectionKey = Readonly<{
   createdAt: string;
 }>;
 
+type OutboxStatusPatch = Readonly<{
+  updatedAt?: string;
+  lastError?: string | undefined;
+}>;
+
 class LocalFirstP2PDatabase extends Dexie {
   signedEvents!: Table<StoredSignedEvent, string>;
   mutationOutbox!: Table<MutationOutboxEntry, string>;
@@ -245,11 +250,7 @@ export class DexieLocalFirstStore {
     await this.#db.delete();
   }
 
-  async updateOutboxStatus(
-    idempotencyKey: string,
-    status: OutboxStatus,
-    patch: Partial<Pick<MutationOutboxEntry, 'updatedAt' | 'lastError'>>
-  ): Promise<void> {
+  async updateOutboxStatus(idempotencyKey: string, status: OutboxStatus, patch: OutboxStatusPatch): Promise<void> {
     requireNonEmpty(idempotencyKey, 'idempotencyKey');
     if (patch.updatedAt !== undefined) requireIsoDate(patch.updatedAt, 'updatedAt');
     if (patch.lastError !== undefined) requireNonEmpty(patch.lastError, 'lastError');
