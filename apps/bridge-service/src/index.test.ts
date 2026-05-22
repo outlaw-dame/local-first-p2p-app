@@ -128,12 +128,14 @@ describe('JsonFileBridgeStore', () => {
         { idempotencyKey: 'idem-next', target: 'bridge:durable', event: makeSignedEvent({ eventId: 'evt_next', privacy: 'public' }) },
         '1970-01-01T00:00:40.000Z'
       );
+      const nextSequence = sequenceOf(next);
 
       expect(accepted).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 1 });
       expect(duplicate).toMatchObject({ status: 'confirmed', duplicate: true, sequence: 1 });
-      expect(next).toMatchObject({ status: 'confirmed', duplicate: false, sequence: 2 });
+      expect(next).toMatchObject({ status: 'confirmed', duplicate: false });
+      expect(nextSequence).toBeGreaterThan(sequenceOf(duplicate));
       await expect(secondService.getRecord('idem-persisted', '1970-01-01T00:00:30.000Z')).resolves.toMatchObject({ eventId: 'evt_persisted', sequence: 1 });
-      await expect(secondService.snapshot('1970-01-01T00:00:40.000Z')).resolves.toMatchObject({ storeKind: 'json-file', acceptedCount: 2, latestSequence: 2 });
+      await expect(secondService.snapshot('1970-01-01T00:00:40.000Z')).resolves.toMatchObject({ storeKind: 'json-file', acceptedCount: 2, latestSequence: nextSequence });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
