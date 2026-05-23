@@ -132,6 +132,12 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
       continue;
     }
 
+    if (claimed.retryCount >= maxAttempts) {
+      result.failed += 1;
+      await input.store.markOutboxFailed(claimed.idempotencyKey, 'Outbox retry budget exhausted', nowIso);
+      continue;
+    }
+
     const event = await input.store.getSignedEvent(claimed.eventId);
     if (!event) {
       result.attempted += 1;
