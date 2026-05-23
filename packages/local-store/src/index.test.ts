@@ -64,6 +64,7 @@ describe('DexieLocalFirstStore', () => {
         makeOutboxEntry({
           idempotencyKey: 'idem-stale',
           status: 'syncing',
+          retryCount: 2,
           updatedAt: '2026-05-22T00:00:00.000Z'
         })
       );
@@ -71,6 +72,7 @@ describe('DexieLocalFirstStore', () => {
         makeOutboxEntry({
           idempotencyKey: 'idem-active',
           status: 'syncing',
+          retryCount: 3,
           updatedAt: '2026-05-22T00:10:00.000Z'
         })
       );
@@ -96,12 +98,14 @@ describe('DexieLocalFirstStore', () => {
       expect(await store.listDueOutbox('2026-05-22T00:06:00.000Z')).toHaveLength(1);
       expect(await store.getOutboxEntry('idem-stale')).toMatchObject({
         status: 'pending',
+        retryCount: 3,
         nextRetryAt: '2026-05-22T00:06:00.000Z',
         updatedAt: '2026-05-22T00:06:00.000Z',
         lastError: 'Recovered after interrupted sync'
       });
       expect(await store.getOutboxEntry('idem-active')).toMatchObject({
         status: 'syncing',
+        retryCount: 3,
         updatedAt: '2026-05-22T00:10:00.000Z'
       });
       expect(await store.getOutboxEntry('idem-terminal')).toMatchObject({
