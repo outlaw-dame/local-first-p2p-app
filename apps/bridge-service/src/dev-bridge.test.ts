@@ -10,9 +10,11 @@ describe('createDevBridgeService', () => {
     try {
       const service = createDevBridgeService({
         storeFilePath: join(dir, 'bridge-store.json'),
-        initialSequence: 0
+        initialSequence: 0,
+        role: 'persistent-availability-peer'
       });
       await expect(service.snapshot('1970-01-01T00:00:00.000Z')).resolves.toMatchObject({
+        role: 'persistent-availability-peer',
         storeKind: 'json-file',
         acceptedCount: 0
       });
