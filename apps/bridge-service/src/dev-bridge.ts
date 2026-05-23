@@ -9,6 +9,7 @@ export type DevBridgeOptions = Readonly<{
   maxRecords?: number;
   ttlMs?: number;
   initialSequence?: number;
+  tempFileSuffix?: string;
 }>;
 
 const DEFAULT_STORE_FILE = join('.lfp2p', 'bridge-store.json');
@@ -20,7 +21,8 @@ export function createDevBridgeService(options: DevBridgeOptions = {}): BridgeSe
       filePath: options.storeFilePath ?? DEFAULT_STORE_FILE,
       ...(options.maxRecords === undefined ? {} : { maxRecords: options.maxRecords }),
       ...(options.ttlMs === undefined ? {} : { ttlMs: options.ttlMs }),
-      ...(options.initialSequence === undefined ? {} : { initialSequence: options.initialSequence })
+      ...(options.initialSequence === undefined ? {} : { initialSequence: options.initialSequence }),
+      ...(options.tempFileSuffix === undefined ? {} : { tempFileSuffix: options.tempFileSuffix })
     })
   });
 }
