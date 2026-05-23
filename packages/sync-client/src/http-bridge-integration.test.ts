@@ -93,6 +93,61 @@ describe('HTTP bridge outbox integration', () => {
       await store.delete();
     }
   });
+
+  it('marks rejected bridge deliveries as terminal failed without retrying', async () => {
+    const store = createLocalFirstStore(`outbox-http-bridge-rejected-${globalThis.crypto.randomUUID()}`);
+    try {
+      const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+      const event = makeSignedEvent('evt_http_bridge_rejected');
+      const modifiedEvent = { ...event, payload: { body: 'changed after signing' } };
+      await store.putSignedEvent(modifiedEvent);
+      const entry: MutationOutboxEntry = {
+        idempotencyKey: 'idem_http_bridge_rejected',
+        eventId: 'evt_http_bridge_rejected',
+        target: 'bridge:test',
+        status: 'pending',
+        retryCount: 0,
+        nextRetryAt: '2026-05-22T00:00:00.000Z',
+        createdAt: '2026-05-22T00:00:00.000Z',
+        updatedAt: '2026-05-22T00:00:00.000Z'
+      };
+      await store.enqueueOutbox(entry);
+      let requestCount = 0;
+      const transport = createHttpBridgeTransport({
+        endpoint: 'https://bridge.test/events',
+        fetch: async (input, init) => {
+          requestCount += 1;
+          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:00.000Z');
+        }
+      });
+
+      const first = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:00.000Z')
+      });
+      const second = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:01.000Z')
+      });
+      const updated = await store.getOutboxEntry(entry.idempotencyKey);
+      const snapshot = await bridge.snapshot('2026-05-22T00:00:01.000Z');
+
+      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 0, failed: 1, skipped: 0 });
+      expect(second).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(requestCount).toBe(1);
+      expect(updated?.status).toBe('failed');
+      expect(updated?.retryCount).toBe(0);
+      expect(updated?.lastError).toBe('Event signature verification failed');
+      expect(snapshot).toMatchObject({
+        storeKind: 'memory',
+        acceptedCount: 0
+      });
+    } finally {
+      await store.delete();
+    }
+  });
 });
 
 async function seedOutboxEntry(
