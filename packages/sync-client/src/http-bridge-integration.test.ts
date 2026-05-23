@@ -46,13 +46,64 @@ describe('HTTP bridge outbox integration', () => {
       await store.delete();
     }
   });
+
+  it('marks a local outbox event conflicted when the bridge owns the idempotency key for another event', async () => {
+    const store = createLocalFirstStore(`outbox-http-bridge-conflict-${globalThis.crypto.randomUUID()}`);
+    try {
+      const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+      const idempotencyKey = 'idem_http_bridge_conflict';
+      const existingEvent = makeSignedEvent('evt_http_bridge_conflict_existing');
+      await bridge.acceptDelivery(
+        { idempotencyKey, target: 'bridge:test', event: existingEvent },
+        '2026-05-22T00:00:00.000Z'
+      );
+      const entry = await seedOutboxEntry(store, 'evt_http_bridge_conflict_local', idempotencyKey);
+      let requestCount = 0;
+      const transport = createHttpBridgeTransport({
+        endpoint: 'https://bridge.test/events',
+        fetch: async (input, init) => {
+          requestCount += 1;
+          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:01.000Z');
+        }
+      });
+
+      const first = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:01.000Z')
+      });
+      const second = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:02.000Z')
+      });
+      const updated = await store.getOutboxEntry(entry.idempotencyKey);
+      const snapshot = await bridge.snapshot('2026-05-22T00:00:02.000Z');
+
+      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 1, retried: 0, failed: 0, skipped: 0 });
+      expect(second).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(requestCount).toBe(1);
+      expect(updated?.status).toBe('conflicted');
+      expect(updated?.lastError).toBe('Idempotency key already belongs to a different event');
+      expect(snapshot).toMatchObject({
+        storeKind: 'memory',
+        acceptedCount: 1
+      });
+    } finally {
+      await store.delete();
+    }
+  });
 });
 
-async function seedOutboxEntry(store: ReturnType<typeof createLocalFirstStore>, eventId: string): Promise<MutationOutboxEntry> {
+async function seedOutboxEntry(
+  store: ReturnType<typeof createLocalFirstStore>,
+  eventId: string,
+  idempotencyKey = `idem_${eventId}`
+): Promise<MutationOutboxEntry> {
   const event = makeSignedEvent(eventId);
   await store.putSignedEvent(event);
   const entry: MutationOutboxEntry = {
-    idempotencyKey: `idem_${eventId}`,
+    idempotencyKey,
     eventId,
     target: 'bridge:test',
     status: 'pending',
