@@ -47,6 +47,74 @@ describe('HTTP bridge outbox integration', () => {
     }
   });
 
+  it('recovers an interrupted local confirmation and confirms idempotently on retry', async () => {
+    const store = createLocalFirstStore(`outbox-http-bridge-recovery-${globalThis.crypto.randomUUID()}`);
+    const originalMarkConfirmed = store.markOutboxConfirmed.bind(store);
+    let markAttempts = 0;
+    store.markOutboxConfirmed = async (...args) => {
+      markAttempts += 1;
+      if (markAttempts === 1) throw new Error('simulated local confirmation write failure');
+      return originalMarkConfirmed(...args);
+    };
+
+    try {
+      const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+      const entry = await seedOutboxEntry(store, 'evt_http_bridge_recovery');
+      let requestCount = 0;
+      const transport = createHttpBridgeTransport({
+        endpoint: 'https://bridge.test/events',
+        fetch: async (input, init) => {
+          requestCount += 1;
+          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:00.000Z');
+        }
+      });
+
+      await expect(
+        processOutboxBatch({
+          store,
+          transport,
+          now: new Date('2026-05-22T00:00:00.000Z'),
+          claimTimeoutMs: 30_000
+        })
+      ).rejects.toThrow('simulated local confirmation write failure');
+      const interrupted = await store.getOutboxEntry(entry.idempotencyKey);
+      const beforeRecovery = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:29.000Z'),
+        claimTimeoutMs: 30_000
+      });
+      const afterRecovery = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:30.000Z'),
+        claimTimeoutMs: 30_000
+      });
+      const confirmed = await store.getOutboxEntry(entry.idempotencyKey);
+      const snapshot = await bridge.snapshot('2026-05-22T00:00:30.000Z');
+
+      expect(interrupted).toMatchObject({
+        status: 'syncing',
+        retryCount: 0,
+        updatedAt: '2026-05-22T00:00:00.000Z'
+      });
+      expect(beforeRecovery).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(afterRecovery).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(requestCount).toBe(2);
+      expect(markAttempts).toBe(2);
+      expect(confirmed).toMatchObject({
+        status: 'confirmed',
+        retryCount: 0
+      });
+      expect(snapshot).toMatchObject({
+        storeKind: 'memory',
+        acceptedCount: 1
+      });
+    } finally {
+      await store.delete();
+    }
+  });
+
   it('retries transient HTTP failures after backoff and then confirms delivery', async () => {
     const store = createLocalFirstStore(`outbox-http-bridge-retry-${globalThis.crypto.randomUUID()}`);
     try {
