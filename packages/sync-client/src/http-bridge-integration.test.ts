@@ -104,11 +104,66 @@ describe('HTTP bridge outbox integration', () => {
       expect(markAttempts).toBe(2);
       expect(confirmed).toMatchObject({
         status: 'confirmed',
-        retryCount: 0
+        retryCount: 1
       });
       expect(snapshot).toMatchObject({
         storeKind: 'memory',
         acceptedCount: 1
+      });
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('fails recovered entries at the retry limit before resending', async () => {
+    const store = createLocalFirstStore(`outbox-http-bridge-recovered-limit-${globalThis.crypto.randomUUID()}`);
+    try {
+      const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+      const entry = await seedOutboxEntry(store, 'evt_http_bridge_recovered_limit');
+      await store.updateOutboxStatus(entry.idempotencyKey, 'syncing', {
+        updatedAt: '2026-05-22T00:00:00.000Z',
+        lastError: 'interrupted before completion'
+      });
+      await store.scheduleOutboxRetry({
+        idempotencyKey: entry.idempotencyKey,
+        retryCount: 1,
+        nextRetryAt: '2026-05-22T00:00:00.000Z',
+        lastError: 'previous retry',
+        updatedAt: '2026-05-22T00:00:00.000Z'
+      });
+      await store.updateOutboxStatus(entry.idempotencyKey, 'syncing', {
+        updatedAt: '2026-05-22T00:00:00.000Z',
+        lastError: 'interrupted before completion'
+      });
+      let requestCount = 0;
+      const transport = createHttpBridgeTransport({
+        endpoint: 'https://bridge.test/events',
+        fetch: async (input, init) => {
+          requestCount += 1;
+          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:30.000Z');
+        }
+      });
+
+      const result = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:30.000Z'),
+        claimTimeoutMs: 30_000,
+        maxAttempts: 2
+      });
+      const updated = await store.getOutboxEntry(entry.idempotencyKey);
+      const snapshot = await bridge.snapshot('2026-05-22T00:00:30.000Z');
+
+      expect(result).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 1, skipped: 0 });
+      expect(requestCount).toBe(0);
+      expect(updated).toMatchObject({
+        status: 'failed',
+        retryCount: 2,
+        lastError: 'Outbox retry budget exhausted'
+      });
+      expect(snapshot).toMatchObject({
+        storeKind: 'memory',
+        acceptedCount: 0
       });
     } finally {
       await store.delete();
