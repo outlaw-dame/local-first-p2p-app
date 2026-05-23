@@ -14,6 +14,7 @@
     "@lfp2p/protocol": "workspace:*"
   },
   "devDependencies": {
+    "@lfp2p/bridge-service": "workspace:*",
     "@lfp2p/crypto": "workspace:*",
     "fake-indexeddb": "latest"
   }
