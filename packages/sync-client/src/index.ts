@@ -37,6 +37,7 @@ export type ProcessOutboxInput = Readonly<{
   baseDelayMs?: number;
   maxDelayMs?: number;
   random?: () => number;
+  claimTimeoutMs?: number;
 }>;
 
 export type ProcessOutboxResult = Readonly<{
@@ -114,7 +115,14 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
   const nowIso = now.toISOString();
   const batchSize = requirePositiveInteger(input.batchSize ?? 10, 'batchSize');
   const maxAttempts = requirePositiveInteger(input.maxAttempts ?? 5, 'maxAttempts');
+  const claimTimeoutMs = requireNonNegativeInteger(input.claimTimeoutMs ?? 30_000, 'claimTimeoutMs');
   const result = mutableProcessResult();
+  await input.store.recoverStaleOutboxClaims({
+    staleBefore: new Date(now.getTime() - claimTimeoutMs).toISOString(),
+    nextRetryAt: nowIso,
+    updatedAt: nowIso,
+    limit: batchSize
+  });
   const due = await input.store.listDueOutbox(nowIso, batchSize);
 
   for (const candidate of due) {
