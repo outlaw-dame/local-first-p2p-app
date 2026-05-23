@@ -47,6 +47,71 @@ describe('HTTP bridge outbox integration', () => {
     }
   });
 
+  it('retries transient HTTP failures after backoff and then confirms delivery', async () => {
+    const store = createLocalFirstStore(`outbox-http-bridge-retry-${globalThis.crypto.randomUUID()}`);
+    try {
+      const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+      const entry = await seedOutboxEntry(store, 'evt_http_bridge_retry');
+      let requestCount = 0;
+      const transport = createHttpBridgeTransport({
+        endpoint: 'https://bridge.test/events',
+        fetch: async (input, init) => {
+          requestCount += 1;
+          if (requestCount === 1) {
+            return new Response('', { status: 503, statusText: 'Bridge unavailable' });
+          }
+          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:02.000Z');
+        }
+      });
+
+      const first = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:00.000Z'),
+        baseDelayMs: 1_000,
+        random: () => 0.5
+      });
+      const afterFailure = await store.getOutboxEntry(entry.idempotencyKey);
+      const beforeDue = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:01.000Z'),
+        baseDelayMs: 1_000,
+        random: () => 0.5
+      });
+      const afterRetry = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:02.000Z'),
+        baseDelayMs: 1_000,
+        random: () => 0.5
+      });
+      const confirmed = await store.getOutboxEntry(entry.idempotencyKey);
+      const snapshot = await bridge.snapshot('2026-05-22T00:00:02.000Z');
+
+      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 1, failed: 0, skipped: 0 });
+      expect(afterFailure).toMatchObject({
+        status: 'pending',
+        retryCount: 1,
+        nextRetryAt: '2026-05-22T00:00:02.000Z',
+        lastError: 'Bridge unavailable'
+      });
+      expect(beforeDue).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(afterRetry).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(requestCount).toBe(2);
+      expect(confirmed).toMatchObject({
+        status: 'confirmed',
+        retryCount: 1
+      });
+      expect(snapshot).toMatchObject({
+        storeKind: 'memory',
+        acceptedCount: 1
+      });
+    } finally {
+      await store.delete();
+    }
+  });
+
   it('marks a local outbox event conflicted when the bridge owns the idempotency key for another event', async () => {
     const store = createLocalFirstStore(`outbox-http-bridge-conflict-${globalThis.crypto.randomUUID()}`);
     try {
