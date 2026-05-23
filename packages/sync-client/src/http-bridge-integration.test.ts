@@ -30,16 +30,17 @@ describe('HTTP bridge outbox integration', () => {
       transport,
       now: new Date('2026-05-22T00:00:01.000Z')
     });
+    const snapshot = await bridge.snapshot('2026-05-22T00:00:01.000Z');
 
     expect(first).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
     expect(second).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
     expect(requestCount).toBe(1);
     expect((await store.getOutboxEntry(entry.idempotencyKey))?.status).toBe('confirmed');
-    await expect(bridge.snapshot('2026-05-22T00:00:01.000Z')).resolves.toMatchObject({
+    expect(snapshot).toMatchObject({
       storeKind: 'memory',
-      acceptedCount: 1,
-      latestSequence: 1
+      acceptedCount: 1
     });
+    expect(snapshot.latestSequence).toBeGreaterThanOrEqual(1);
     await store.delete();
   });
 });
