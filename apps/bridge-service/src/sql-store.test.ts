@@ -22,6 +22,29 @@ describe('PgliteBridgeStore', () => {
     });
   });
 
+  it('does not advance sequence state when idempotency conflicts are rejected', async () => {
+    const service = new BridgeService({ store: new PgliteBridgeStore({ initialSequence: 0, ttlMs: 60_000 }) });
+    const first = makeSignedEvent('evt_sql_conflict_first');
+    const second = makeSignedEvent('evt_sql_conflict_second');
+
+    await expect(
+      service.acceptDelivery({ idempotencyKey: 'idem-sql-conflict', target: 'bridge:sql', event: first }, '1970-01-01T00:00:00.000Z')
+    ).resolves.toMatchObject({ status: 'confirmed', sequence: 1 });
+
+    await expect(
+      service.acceptDelivery({ idempotencyKey: 'idem-sql-conflict', target: 'bridge:sql', event: second }, '1970-01-01T00:00:01.000Z')
+    ).resolves.toMatchObject({
+      status: 'conflicted',
+      existingEventId: 'evt_sql_conflict_first'
+    });
+
+    await expect(service.snapshot('1970-01-01T00:00:02.000Z')).resolves.toMatchObject({
+      storeKind: 'pglite',
+      acceptedCount: 1,
+      latestSequence: 1
+    });
+  });
+
   it('persists conflicts and evicts oldest records by capacity', async () => {
     const service = new BridgeService({ store: new PgliteBridgeStore({ initialSequence: 0, maxRecords: 1, ttlMs: 60_000 }) });
     const first = makeSignedEvent('evt_sql_first');
