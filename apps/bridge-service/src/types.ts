@@ -2,7 +2,7 @@ import { type PrivacyScope, type SignedEventEnvelope } from '@lfp2p/protocol';
 
 export type BridgeServiceRole = 'stateful-edge-actor' | 'persistent-availability-peer';
 export type BridgeDeliveryStatus = 'confirmed' | 'conflicted' | 'rejected';
-export type BridgeStoreKind = 'memory' | 'json-file';
+export type BridgeStoreKind = 'memory' | 'json-file' | 'pglite';
 
 export type BridgeDeliveryRequest = Readonly<{
   idempotencyKey: string;
@@ -95,6 +95,13 @@ export type JsonFileBridgeStoreOptions = Readonly<{
   ttlMs?: number;
   initialSequence?: number;
   tempFileSuffix?: string;
+}>;
+
+export type PgliteBridgeStoreOptions = Readonly<{
+  dataDir?: string;
+  maxRecords?: number;
+  ttlMs?: number;
+  initialSequence?: number;
 }>;
 
 export type JsonBridgeStoreState = Readonly<{
