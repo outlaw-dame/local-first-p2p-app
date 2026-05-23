@@ -251,6 +251,7 @@ export class DexieLocalFirstStore {
         staleEntries.map((entry) => ({
           ...entry,
           status: 'pending' as const,
+          retryCount: entry.retryCount + 1,
           nextRetryAt: input.nextRetryAt,
           updatedAt,
           lastError
@@ -289,7 +290,6 @@ export class DexieLocalFirstStore {
   }
 
   async putLocalProtectionKey(key: StoredLocalProtectionKey): Promise<void> {
-    validateLocalProtectionKey(key);
     await this.#db.localProtectionKeys.put(key);
   }
 
