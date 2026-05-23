@@ -31,6 +31,14 @@ export type MutationOutboxEntry = Readonly<{
   lastError?: string;
 }>;
 
+export type RecoverStaleOutboxClaimsInput = Readonly<{
+  staleBefore: string;
+  nextRetryAt: string;
+  updatedAt?: string;
+  lastError?: string;
+  limit?: number;
+}>;
+
 export type OutboxStatusCounts = Readonly<Record<OutboxStatus, number>>;
 
 export type EventSummaryView = Readonly<{
@@ -216,6 +224,39 @@ export class DexieLocalFirstStore {
       nextRetryAt: input.nextRetryAt,
       lastError: input.lastError,
       updatedAt
+    });
+  }
+
+  async recoverStaleOutboxClaims(input: RecoverStaleOutboxClaimsInput): Promise<number> {
+    requireIsoDate(input.staleBefore, 'staleBefore');
+    requireIsoDate(input.nextRetryAt, 'nextRetryAt');
+    const updatedAt = input.updatedAt ?? new Date().toISOString();
+    requireIsoDate(updatedAt, 'updatedAt');
+    const lastError = input.lastError ?? 'Recovered stale outbox claim';
+    requireNonEmpty(lastError, 'lastError');
+    const limit = input.limit === undefined ? 50 : requirePositiveInteger(input.limit, 'limit');
+    const staleBeforeMs = Date.parse(input.staleBefore);
+
+    return this.transaction('rw', ['mutationOutbox'], async () => {
+      const staleEntries = await this.#db.mutationOutbox
+        .where('status')
+        .equals('syncing')
+        .filter((entry) => Date.parse(entry.updatedAt) <= staleBeforeMs)
+        .limit(limit)
+        .toArray();
+
+      if (staleEntries.length === 0) return 0;
+
+      await this.#db.mutationOutbox.bulkPut(
+        staleEntries.map((entry) => ({
+          ...entry,
+          status: 'pending' as const,
+          nextRetryAt: input.nextRetryAt,
+          updatedAt,
+          lastError
+        }))
+      );
+      return staleEntries.length;
     });
   }
 
