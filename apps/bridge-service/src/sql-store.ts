@@ -32,6 +32,10 @@ type BridgeRecordRow = Readonly<{
 type CountRow = Readonly<{ count: number | string }>;
 type SequenceRow = Readonly<{ latest_sequence: number | string }>;
 
+type BridgeSqlExecutor = Readonly<{
+  query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
+}>;
+
 const SEQUENCE_ROW_ID = 'bridge';
 
 export class PgliteBridgeStore implements BridgeStore {
@@ -67,19 +71,15 @@ export class PgliteBridgeStore implements BridgeStore {
     validateStoredBridgeRecordDraft(record);
     return this.#withLock(async () => {
       await this.#init();
-      await this.#db.query('BEGIN;');
-      try {
-        await this.#pruneExpired(nowMs);
-        const existing = await this.#getRecord(record.idempotencyKey);
-        if (existing) {
-          await this.#db.query('COMMIT;');
-          return { status: 'existing', record: existing };
-        }
+      return this.#db.transaction(async (tx) => {
+        await this.#pruneExpired(nowMs, tx);
+        const existing = await this.#getRecord(record.idempotencyKey, tx);
+        if (existing) return { status: 'existing', record: existing };
 
-        await this.#evictToCapacity();
-        const sequence = await this.#reserveSequence(nowMs);
+        await this.#evictToCapacity(tx);
+        const sequence = await this.#reserveSequence(nowMs, tx);
         const stored = withAllocatedSequence(record, sequence);
-        await this.#db.query(
+        await tx.query(
           `INSERT INTO bridge_records (
              idempotency_key, target, event_id, author, privacy, sequence, accepted_at, expires_at
            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
@@ -94,12 +94,8 @@ export class PgliteBridgeStore implements BridgeStore {
             stored.expiresAt
           ]
         );
-        await this.#db.query('COMMIT;');
         return { status: 'inserted', record: stored };
-      } catch (error) {
-        await rollbackQuietly(this.#db);
-        throw error;
-      }
+      });
     });
   }
 
@@ -173,8 +169,11 @@ export class PgliteBridgeStore implements BridgeStore {
     this.#initialized = true;
   }
 
-  async #getRecord(idempotencyKey: string): Promise<StoredBridgeRecord | undefined> {
-    const result = await this.#db.query<BridgeRecordRow>(
+  async #getRecord(
+    idempotencyKey: string,
+    executor: BridgeSqlExecutor = this.#db
+  ): Promise<StoredBridgeRecord | undefined> {
+    const result = await executor.query<BridgeRecordRow>(
       `SELECT idempotency_key, target, event_id, author, privacy, sequence, accepted_at, expires_at
        FROM bridge_records
        WHERE idempotency_key = $1
@@ -185,16 +184,16 @@ export class PgliteBridgeStore implements BridgeStore {
     return row === undefined ? undefined : rowToRecord(row);
   }
 
-  async #pruneExpired(nowMs: number): Promise<void> {
-    await this.#db.query('DELETE FROM bridge_records WHERE expires_at <= $1;', [new Date(nowMs).toISOString()]);
+  async #pruneExpired(nowMs: number, executor: BridgeSqlExecutor = this.#db): Promise<void> {
+    await executor.query('DELETE FROM bridge_records WHERE expires_at <= $1;', [new Date(nowMs).toISOString()]);
   }
 
-  async #evictToCapacity(): Promise<void> {
-    const countResult = await this.#db.query<CountRow>('SELECT COUNT(*) AS count FROM bridge_records;');
+  async #evictToCapacity(executor: BridgeSqlExecutor = this.#db): Promise<void> {
+    const countResult = await executor.query<CountRow>('SELECT COUNT(*) AS count FROM bridge_records;');
     const count = Number(countResult.rows[0]?.count ?? 0);
     const deleteCount = count - (this.maxRecords - 1);
     if (deleteCount <= 0) return;
-    await this.#db.query(
+    await executor.query(
       `DELETE FROM bridge_records
        WHERE idempotency_key IN (
          SELECT idempotency_key
@@ -206,8 +205,8 @@ export class PgliteBridgeStore implements BridgeStore {
     );
   }
 
-  async #reserveSequence(nowMs: number): Promise<number> {
-    const currentResult = await this.#db.query<SequenceRow>(
+  async #reserveSequence(nowMs: number, executor: BridgeSqlExecutor = this.#db): Promise<number> {
+    const currentResult = await executor.query<SequenceRow>(
       'SELECT latest_sequence FROM bridge_sequence WHERE id = $1;',
       [SEQUENCE_ROW_ID]
     );
@@ -216,7 +215,7 @@ export class PgliteBridgeStore implements BridgeStore {
       'latestSequence'
     );
     const sequence = nextSequence(current, nowMs);
-    await this.#db.query('UPDATE bridge_sequence SET latest_sequence = $2 WHERE id = $1;', [SEQUENCE_ROW_ID, sequence]);
+    await executor.query('UPDATE bridge_sequence SET latest_sequence = $2 WHERE id = $1;', [SEQUENCE_ROW_ID, sequence]);
     return sequence;
   }
 }
@@ -232,12 +231,4 @@ function rowToRecord(row: BridgeRecordRow): StoredBridgeRecord {
     acceptedAt: row.accepted_at,
     expiresAt: row.expires_at
   };
-}
-
-async function rollbackQuietly(db: PGlite): Promise<void> {
-  try {
-    await db.query('ROLLBACK;');
-  } catch {
-    // Preserve the original transaction failure.
-  }
 }
