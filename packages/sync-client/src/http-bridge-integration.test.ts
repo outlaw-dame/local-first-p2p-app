@@ -98,20 +98,10 @@ describe('HTTP bridge outbox integration', () => {
     const store = createLocalFirstStore(`outbox-http-bridge-rejected-${globalThis.crypto.randomUUID()}`);
     try {
       const bridge = new InMemoryBridgeService({ initialSequence: 0 });
-      const event = makeSignedEvent('evt_http_bridge_rejected');
-      const modifiedEvent = { ...event, payload: { body: 'changed after signing' } };
-      await store.putSignedEvent(modifiedEvent);
-      const entry: MutationOutboxEntry = {
-        idempotencyKey: 'idem_http_bridge_rejected',
-        eventId: 'evt_http_bridge_rejected',
-        target: 'bridge:test',
-        status: 'pending',
-        retryCount: 0,
-        nextRetryAt: '2026-05-22T00:00:00.000Z',
-        createdAt: '2026-05-22T00:00:00.000Z',
-        updatedAt: '2026-05-22T00:00:00.000Z'
-      };
-      await store.enqueueOutbox(entry);
+      const entry = await seedOutboxEntry(store, 'evt_http_bridge_rejected');
+      const event = await store.getSignedEvent(entry.eventId);
+      if (!event) throw new Error('Expected seeded signed event');
+      await store.putSignedEvent({ ...event, payload: { body: 'changed after signing' } });
       let requestCount = 0;
       const transport = createHttpBridgeTransport({
         endpoint: 'https://bridge.test/events',
