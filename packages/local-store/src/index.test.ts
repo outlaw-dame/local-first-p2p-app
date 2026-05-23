@@ -57,6 +57,66 @@ describe('DexieLocalFirstStore', () => {
     await store.delete();
   });
 
+  it('recovers stale syncing outbox claims as pending due work', async () => {
+    const store = createLocalFirstStore(`recover-test-${globalThis.crypto.randomUUID()}`);
+    try {
+      await store.enqueueOutbox(
+        makeOutboxEntry({
+          idempotencyKey: 'idem-stale',
+          status: 'syncing',
+          updatedAt: '2026-05-22T00:00:00.000Z'
+        })
+      );
+      await store.enqueueOutbox(
+        makeOutboxEntry({
+          idempotencyKey: 'idem-active',
+          status: 'syncing',
+          updatedAt: '2026-05-22T00:10:00.000Z'
+        })
+      );
+      await store.enqueueOutbox(
+        makeOutboxEntry({
+          idempotencyKey: 'idem-terminal',
+          status: 'failed',
+          updatedAt: '2026-05-22T00:00:00.000Z',
+          lastError: 'terminal'
+        })
+      );
+
+      const recovered = await store.recoverStaleOutboxClaims({
+        staleBefore: '2026-05-22T00:05:00.000Z',
+        nextRetryAt: '2026-05-22T00:06:00.000Z',
+        updatedAt: '2026-05-22T00:06:00.000Z',
+        lastError: 'Recovered after interrupted sync',
+        limit: 10
+      });
+
+      expect(recovered).toBe(1);
+      expect(await store.listDueOutbox('2026-05-22T00:05:59.000Z')).toHaveLength(0);
+      expect(await store.listDueOutbox('2026-05-22T00:06:00.000Z')).toHaveLength(1);
+      expect(await store.getOutboxEntry('idem-stale')).toMatchObject({
+        status: 'pending',
+        nextRetryAt: '2026-05-22T00:06:00.000Z',
+        updatedAt: '2026-05-22T00:06:00.000Z',
+        lastError: 'Recovered after interrupted sync'
+      });
+      expect(await store.getOutboxEntry('idem-active')).toMatchObject({
+        status: 'syncing',
+        updatedAt: '2026-05-22T00:10:00.000Z'
+      });
+      expect(await store.getOutboxEntry('idem-terminal')).toMatchObject({
+        status: 'failed',
+        lastError: 'terminal'
+      });
+      expect(await store.recoverStaleOutboxClaims({
+        staleBefore: '2026-05-22T00:05:00.000Z',
+        nextRetryAt: '2026-05-22T00:06:00.000Z'
+      })).toBe(0);
+    } finally {
+      await store.delete();
+    }
+  });
+
   it('schedules retries as pending without treating terminal failures as due work', async () => {
     const store = createLocalFirstStore(`retry-test-${globalThis.crypto.randomUUID()}`);
     await store.enqueueOutbox(makeOutboxEntry({ idempotencyKey: 'idem-retry' }));
