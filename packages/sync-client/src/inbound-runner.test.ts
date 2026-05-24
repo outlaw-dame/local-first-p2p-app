@@ -4,6 +4,8 @@ import { signingKeypairFromSeed, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore } from '@lfp2p/local-store';
 import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
 import {
+  InboundSyncIdentityMismatchError,
+  InboundSyncLimitExceededError,
   pullAndProcessInboundSyncBatch,
   type InboundSyncPullInput,
   type InboundSyncRecord,
@@ -11,7 +13,7 @@ import {
 } from './index.js';
 
 describe('pullAndProcessInboundSyncBatch', () => {
-  it('pulls from the current checkpoint and applies returned records atomically', async () => {
+  it('pulls from the current checkpoint and applies one returned record', async () => {
     const store = createLocalFirstStore(`inbound-runner-empty-${globalThis.crypto.randomUUID()}`);
     const first = makeRecord('evt_inbound_runner_001', '1', 1);
     const capturedPulls: InboundSyncPullInput[] = [];
@@ -132,17 +134,54 @@ describe('pullAndProcessInboundSyncBatch', () => {
     const transport = transportFrom(async () => [valid, mismatched]);
 
     try {
-      await expect(
-        pullAndProcessInboundSyncBatch({
-          store,
-          transport,
-          sourceId: 'bridge:primary',
-          streamId: 'stream:inbox',
-          scope: 'identity:alice'
-        })
-      ).rejects.toThrow('Inbound sync record 1 checkpoint identity mismatch');
+      const promise = pullAndProcessInboundSyncBatch({
+        store,
+        transport,
+        sourceId: 'bridge:primary',
+        streamId: 'stream:inbox',
+        scope: 'identity:alice'
+      });
+
+      await expect(promise).rejects.toThrow(InboundSyncIdentityMismatchError);
+      await expect(promise).rejects.toMatchObject({
+        code: 'inbound-sync-identity-mismatch',
+        recordIndex: 1,
+        mismatchFields: ['scope']
+      });
+      await expect(promise).rejects.not.toThrow('identity:mallory');
 
       await expect(store.getSignedEvent('evt_inbound_runner_valid_before_mismatch')).resolves.toBeUndefined();
+      await expect(
+        store.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' })
+      ).resolves.toBeUndefined();
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('rejects over-limit transport responses before applying records', async () => {
+    const store = createLocalFirstStore(`inbound-runner-limit-exceeded-${globalThis.crypto.randomUUID()}`);
+    const first = makeRecord('evt_inbound_runner_limit_001', '1', 1);
+    const second = makeRecord('evt_inbound_runner_limit_002', '2', 2);
+    const transport = transportFrom(async () => [first, second]);
+
+    try {
+      const promise = pullAndProcessInboundSyncBatch({
+        store,
+        transport,
+        sourceId: 'bridge:primary',
+        streamId: 'stream:inbox',
+        scope: 'identity:alice',
+        limit: 1
+      });
+
+      await expect(promise).rejects.toThrow(InboundSyncLimitExceededError);
+      await expect(promise).rejects.toMatchObject({
+        code: 'inbound-sync-limit-exceeded',
+        limit: 1,
+        returned: 2
+      });
+      await expect(store.getSignedEvent('evt_inbound_runner_limit_001')).resolves.toBeUndefined();
       await expect(
         store.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' })
       ).resolves.toBeUndefined();
