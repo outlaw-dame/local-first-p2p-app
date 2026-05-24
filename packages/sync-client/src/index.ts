@@ -70,6 +70,8 @@ export type ProcessInboundSyncInput = Readonly<{
   records: readonly InboundSyncRecord[];
   now?: Date;
   allowRewind?: boolean;
+  expectedCheckpointKey?: SyncCheckpointKey;
+  includeCheckpointAfter?: boolean;
 }>;
 
 export type InboundSyncError = Readonly<{
@@ -84,6 +86,7 @@ export type ProcessInboundSyncResult = Readonly<{
   skipped: number;
   rejected: number;
   errors: readonly InboundSyncError[];
+  checkpointAfter?: StoredSyncCheckpoint;
 }>;
 
 export type PullAndProcessInboundSyncInput = SyncCheckpointKey &
@@ -99,7 +102,6 @@ export type PullAndProcessInboundSyncResult = ProcessInboundSyncResult &
   Readonly<{
     pulled: number;
     checkpointBefore?: StoredSyncCheckpoint;
-    checkpointAfter?: StoredSyncCheckpoint;
   }>;
 
 type BridgeHttpResponse =
@@ -181,6 +183,13 @@ export async function acceptSyncCheckpoint(input: AcceptSyncCheckpointInput): Pr
 export async function processInboundSyncBatch(input: ProcessInboundSyncInput): Promise<ProcessInboundSyncResult> {
   const nowIso = (input.now ?? new Date()).toISOString();
   const result = mutableInboundProcessResult();
+  const expectedCheckpointKey =
+    input.expectedCheckpointKey === undefined ? undefined : normalizeSyncCheckpointKey(input.expectedCheckpointKey);
+  let checkpointAfter: StoredSyncCheckpoint | undefined;
+
+  if (expectedCheckpointKey !== undefined) {
+    preflightInboundRecordsMatchCheckpointKey(input.records, expectedCheckpointKey);
+  }
 
   for (const [index, record] of input.records.entries()) {
     result.received += 1;
@@ -197,6 +206,7 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
           ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
         }
       });
+      checkpointAfter = stored.checkpoint;
       if (stored.status === 'stored') result.applied += 1;
       else result.skipped += 1;
     } catch (error) {
@@ -214,6 +224,9 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
     }
   }
 
+  if (input.includeCheckpointAfter === true && checkpointAfter !== undefined) {
+    return { ...result, checkpointAfter };
+  }
   return result;
 }
 
@@ -228,14 +241,15 @@ export async function pullAndProcessInboundSyncBatch(
     ...(checkpointBefore === undefined ? {} : { cursor: checkpointBefore.cursor }),
     ...(limit === undefined ? {} : { limit })
   });
-  assertInboundRecordsMatchCheckpointKey(records, checkpointKey);
   const processed = await processInboundSyncBatch({
     store: input.store,
     records,
+    expectedCheckpointKey: checkpointKey,
+    includeCheckpointAfter: true,
     ...(input.now === undefined ? {} : { now: input.now }),
     ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
   });
-  const checkpointAfter = await input.store.getSyncCheckpoint(checkpointKey);
+  const checkpointAfter = processed.checkpointAfter ?? checkpointBefore;
 
   return {
     ...processed,
@@ -527,7 +541,7 @@ function safeInboundEventId(record: unknown): { eventId: string } | Record<strin
   return typeof event.eventId === 'string' ? { eventId: event.eventId } : {};
 }
 
-function assertInboundRecordsMatchCheckpointKey(records: readonly InboundSyncRecord[], key: SyncCheckpointKey): void {
+function preflightInboundRecordsMatchCheckpointKey(records: readonly InboundSyncRecord[], key: SyncCheckpointKey): void {
   for (const [index, record] of records.entries()) {
     if (record.sourceId !== key.sourceId || record.streamId !== key.streamId || record.scope !== key.scope) {
       throw new Error(`Inbound sync record ${index} checkpoint identity mismatch`);
