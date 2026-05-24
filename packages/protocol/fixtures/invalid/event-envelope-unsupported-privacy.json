@@ -1,0 +1,17 @@
+{
+  "version": "lfp2p.event.v1",
+  "eventId": "evt_fixture_invalid_privacy",
+  "kind": "outbox.test.created",
+  "author": "identity:fixture-alice",
+  "deviceId": "device:fixture-alice-phone",
+  "createdAt": "2026-05-24T00:00:00.000Z",
+  "lamport": 1,
+  "privacy": "secret-scope",
+  "schemaVersion": 1,
+  "payload": {},
+  "signature": {
+    "algorithm": "ed25519",
+    "publicKey": "fixture-public-key",
+    "value": "fixture-signature"
+  }
+}
