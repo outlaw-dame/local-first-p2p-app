@@ -95,6 +95,13 @@ type OutboxStatusPatch = Readonly<{
   lastError?: string;
 }>;
 
+export class SyncCheckpointRejectedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SyncCheckpointRejectedError';
+  }
+}
+
 class LocalFirstP2PDatabase extends Dexie {
   signedEvents!: Table<StoredSignedEvent, string>;
   mutationOutbox!: Table<MutationOutboxEntry, string>;
@@ -130,7 +137,7 @@ class LocalFirstP2PDatabase extends Dexie {
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
-      syncCheckpoints: 'checkpointId, sourceId, streamId, scope, sequence, updatedAt, [sourceId+streamId+scope]'
+      syncCheckpoints: 'checkpointId'
     });
   }
 }
@@ -340,10 +347,13 @@ export class DexieLocalFirstStore {
     return this.transaction('rw', ['syncCheckpoints'], async () => {
       const existing = await this.#db.syncCheckpoints.get(next.checkpointId);
       if (existing && next.sequence < existing.sequence && input.allowRewind !== true) {
-        throw new Error('Sync checkpoint cannot move backwards without allowRewind');
+        throw new SyncCheckpointRejectedError('Sync checkpoint cannot move backwards without allowRewind');
       }
-      if (existing && next.sequence === existing.sequence && next.cursor === existing.cursor) {
-        return existing;
+      if (existing && next.sequence === existing.sequence) {
+        if (next.cursor === existing.cursor) return existing;
+        if (input.allowRewind !== true) {
+          throw new SyncCheckpointRejectedError('Sync checkpoint cursor mismatch at same sequence');
+        }
       }
       await this.#db.syncCheckpoints.put(next);
       return next;
