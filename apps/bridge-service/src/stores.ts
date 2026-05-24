@@ -67,10 +67,14 @@ export class InMemoryBridgeStore implements BridgeStore {
     const afterSequence = requireSafeNonNegativeInteger(input.afterSequence, 'afterSequence');
     const limit = requirePositiveInteger(input.limit, 'limit');
     this.#evictExpired(nowMs);
-    return [...this.#recordsByIdempotencyKey.values()]
-      .filter((record) => record.target === target && record.sequence > afterSequence && record.event !== undefined)
-      .sort((a, b) => a.sequence - b.sequence)
-      .slice(0, limit);
+
+    const records: StoredBridgeRecord[] = [];
+    for (const record of this.#recordsByIdempotencyKey.values()) {
+      if (record.target !== target || record.sequence <= afterSequence || record.event === undefined) continue;
+      records.push(record);
+      if (records.length >= limit) break;
+    }
+    return records;
   }
 
   async pruneExpired(nowMs: number): Promise<void> {
@@ -162,12 +166,16 @@ export class JsonFileBridgeStore implements BridgeStore {
     const afterSequence = requireSafeNonNegativeInteger(input.afterSequence, 'afterSequence');
     const limit = requirePositiveInteger(input.limit, 'limit');
     return this.#withLock(async () => {
-      const state = await this.#loadFreshState();
+      const state = await this.#loadCachedState();
       this.#pruneCachedStateOnly(state, nowMs);
-      return state.records
-        .filter((record) => record.target === target && record.sequence > afterSequence && record.event !== undefined)
-        .sort((a, b) => a.sequence - b.sequence)
-        .slice(0, limit);
+
+      const records: StoredBridgeRecord[] = [];
+      for (const record of state.records) {
+        if (record.target !== target || record.sequence <= afterSequence || record.event === undefined) continue;
+        records.push(record);
+        if (records.length >= limit) break;
+      }
+      return records;
     });
   }
 
