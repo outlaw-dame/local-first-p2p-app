@@ -83,7 +83,7 @@ export class ForegroundSyncController {
     this.#now = options.now ?? (() => new Date());
     this.#baseDelayMs = requirePositiveInteger(options.baseDelayMs ?? DEFAULT_BASE_DELAY_MS, 'baseDelayMs');
     this.#maxDelayMs = requirePositiveInteger(options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS, 'maxDelayMs');
-    this.#jitterRatio = options.jitterRatio;
+    this.#jitterRatio = requireOptionalJitterRatio(options.jitterRatio);
     this.#random = options.random;
   }
 
@@ -135,6 +135,7 @@ export class ForegroundSyncController {
       const message = normalizeSyncError(error);
       const name = error instanceof Error && error.name.trim().length > 0 ? error.name : undefined;
       this.#state = {
+        ...this.#state,
         status: 'backing-off',
         consecutiveFailures,
         lastStartedAt: requestedAtIso,
@@ -192,6 +193,12 @@ function isBackoffActive(nextRetryAt: string | undefined, now: Date): boolean {
 
 function requirePositiveInteger(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`);
+  return value;
+}
+
+function requireOptionalJitterRatio(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (value < 0 || value > 1) throw new Error('jitterRatio must be between 0 and 1');
   return value;
 }
 
