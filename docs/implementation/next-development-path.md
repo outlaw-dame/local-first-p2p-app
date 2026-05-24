@@ -15,6 +15,17 @@ Why this phase exists:
 - Some protocol primitives exist.
 - The doctrine requires fixtures, ADRs, threat models, and phase gates before larger feature surfaces.
 
+## Completed by this documentation cleanup
+
+This PR adds the initial process scaffolding that was previously listed as Step 1:
+
+- `docs/adr/000-template.md`
+- `docs/threat-model/template.md`
+- `docs/implementation/exit-report-template.md`
+- `docs/protocol/fixture-policy.md`
+
+Future work should use these templates rather than re-adding them.
+
 ## Non-goals for the next cycle
 
 Do not start these yet:
@@ -33,21 +44,7 @@ These are valid target features, but building them before the guardrails below r
 
 ## Ordered next steps
 
-### Step 1 - Add decision/process scaffolding
-
-Deliverables:
-
-- `docs/adr/000-template.md`
-- `docs/threat-model/template.md`
-- `docs/implementation/exit-report-template.md`
-- `docs/protocol/fixture-policy.md`
-
-Exit criteria:
-
-- Future protocol/storage/identity/bridge/search/media changes have a consistent documentation gate.
-- PR templates or review checklists can reference these docs later.
-
-### Step 2 - Record ADR-000 for runtime/product decision
+### Step 1 - Record ADR-000 for runtime/product decision
 
 Deliverable:
 
@@ -63,6 +60,25 @@ Decision to capture:
 Exit criteria:
 
 - No future PR needs to relitigate PWA-first versus native-first for the current phase.
+
+### Step 2 - Add explicit schema/storage versioning policy
+
+Deliverable:
+
+- `docs/implementation/schema-and-storage-versioning.md` or an ADR if the policy affects durable protocol semantics.
+
+Must cover:
+
+- protocol major/minor version rules,
+- unknown-version behavior,
+- local-store/Dexie migration expectations,
+- PGlite schema migration expectations,
+- fixture requirements for old/new object shapes,
+- compatibility expectations for future full-peer adapters.
+
+Exit criteria:
+
+- Future storage and protocol changes have a written versioning rule.
 
 ### Step 3 - Create initial protocol fixture pack
 
@@ -170,7 +186,7 @@ Exit criteria:
 
 ## First implementation slice after guardrails
 
-After steps 1-5, the safest implementation slice is:
+After steps 1-4, the safest implementation slice is:
 
 > **Sync offsets/checkpoints in `local-store` + sync-client offset contract tests**
 
