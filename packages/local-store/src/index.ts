@@ -9,7 +9,8 @@ export type LocalFirstTableName =
   | 'mutationOutbox'
   | 'eventSummaries'
   | 'deviceIdentities'
-  | 'localProtectionKeys';
+  | 'localProtectionKeys'
+  | 'syncCheckpoints';
 
 export type StoredSignedEvent = Readonly<{
   eventId: string;
@@ -67,10 +68,39 @@ export type StoredLocalProtectionKey = Readonly<{
   createdAt: string;
 }>;
 
+export type SyncCheckpointKey = Readonly<{
+  sourceId: string;
+  streamId: string;
+  scope: string;
+}>;
+
+export type StoredSyncCheckpoint = SyncCheckpointKey &
+  Readonly<{
+    checkpointId: string;
+    cursor: string;
+    sequence: number;
+    updatedAt: string;
+  }>;
+
+export type AdvanceSyncCheckpointInput = SyncCheckpointKey &
+  Readonly<{
+    cursor: string;
+    sequence: number;
+    updatedAt?: string;
+    allowRewind?: boolean;
+  }>;
+
 type OutboxStatusPatch = Readonly<{
   updatedAt?: string;
   lastError?: string;
 }>;
+
+export class SyncCheckpointRejectedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SyncCheckpointRejectedError';
+  }
+}
 
 class LocalFirstP2PDatabase extends Dexie {
   signedEvents!: Table<StoredSignedEvent, string>;
@@ -78,6 +108,7 @@ class LocalFirstP2PDatabase extends Dexie {
   eventSummaries!: Table<EventSummaryView, string>;
   deviceIdentities!: Table<StoredDeviceIdentity, string>;
   localProtectionKeys!: Table<StoredLocalProtectionKey, string>;
+  syncCheckpoints!: Table<StoredSyncCheckpoint, string>;
 
   constructor(name: string) {
     super(name);
@@ -99,6 +130,14 @@ class LocalFirstP2PDatabase extends Dexie {
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt'
+    });
+    this.version(4).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId'
     });
   }
 }
@@ -298,6 +337,29 @@ export class DexieLocalFirstStore {
     return this.#db.localProtectionKeys.get(keyId);
   }
 
+  async getSyncCheckpoint(key: SyncCheckpointKey): Promise<StoredSyncCheckpoint | undefined> {
+    const normalized = normalizeSyncCheckpointKey(key);
+    return this.#db.syncCheckpoints.get(syncCheckpointId(normalized));
+  }
+
+  async advanceSyncCheckpoint(input: AdvanceSyncCheckpointInput): Promise<StoredSyncCheckpoint> {
+    const next = validateAdvanceSyncCheckpointInput(input);
+    return this.transaction('rw', ['syncCheckpoints'], async () => {
+      const existing = await this.#db.syncCheckpoints.get(next.checkpointId);
+      if (existing && next.sequence < existing.sequence && input.allowRewind !== true) {
+        throw new SyncCheckpointRejectedError('Sync checkpoint cannot move backwards without allowRewind');
+      }
+      if (existing && next.sequence === existing.sequence) {
+        if (next.cursor === existing.cursor) return existing;
+        if (input.allowRewind !== true) {
+          throw new SyncCheckpointRejectedError('Sync checkpoint cursor mismatch at same sequence');
+        }
+      }
+      await this.#db.syncCheckpoints.put(next);
+      return next;
+    });
+  }
+
   async transaction<T>(
     mode: 'r' | 'rw',
     tables: readonly LocalFirstTableName[],
@@ -334,6 +396,8 @@ export class DexieLocalFirstStore {
         return this.#db.deviceIdentities;
       case 'localProtectionKeys':
         return this.#db.localProtectionKeys;
+      case 'syncCheckpoints':
+        return this.#db.syncCheckpoints;
     }
   }
 }
@@ -366,6 +430,33 @@ function validateDeviceIdentity(identity: StoredDeviceIdentity): void {
 function validateLocalProtectionKey(key: StoredLocalProtectionKey): void {
   if (key.algorithm !== 'aes-gcm-256') throw new Error('Unsupported protection key algorithm');
   if (key.keyId.trim().length === 0) throw new Error('keyId is required');
+}
+
+function validateAdvanceSyncCheckpointInput(input: AdvanceSyncCheckpointInput): StoredSyncCheckpoint {
+  const key = normalizeSyncCheckpointKey(input);
+  requireNonEmpty(input.cursor, 'cursor');
+  requireNonNegativeInteger(input.sequence, 'sequence');
+  const updatedAt = input.updatedAt ?? new Date().toISOString();
+  requireIsoDate(updatedAt, 'updatedAt');
+  return {
+    checkpointId: syncCheckpointId(key),
+    ...key,
+    cursor: input.cursor,
+    sequence: input.sequence,
+    updatedAt
+  };
+}
+
+function normalizeSyncCheckpointKey(key: SyncCheckpointKey): SyncCheckpointKey {
+  return {
+    sourceId: requireNonEmpty(key.sourceId, 'sourceId'),
+    streamId: requireNonEmpty(key.streamId, 'streamId'),
+    scope: requireNonEmpty(key.scope, 'scope')
+  };
+}
+
+function syncCheckpointId(key: SyncCheckpointKey): string {
+  return JSON.stringify([key.sourceId, key.streamId, key.scope]);
 }
 
 function requireNonEmpty(value: string, label: string): string {

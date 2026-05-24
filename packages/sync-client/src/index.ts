@@ -1,4 +1,9 @@
-import { type DexieLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
+import {
+  SyncCheckpointRejectedError,
+  type DexieLocalFirstStore,
+  type MutationOutboxEntry,
+  type SyncCheckpointKey
+} from '@lfp2p/local-store';
 import { type SignedEventEnvelope } from '@lfp2p/protocol';
 
 export type RetryPolicyInput = Readonly<{
@@ -22,6 +27,15 @@ export type HttpBridgeTransportOptions = Readonly<{
   fetch?: typeof fetch;
   timeoutMs?: number;
 }>;
+
+export type AcceptSyncCheckpointInput = SyncCheckpointKey &
+  Readonly<{
+    store: DexieLocalFirstStore;
+    cursor: string;
+    sequence: number;
+    updatedAt?: string;
+    allowRewind?: boolean;
+  }>;
 
 type BridgeHttpResponse =
   | Readonly<{ status: 'confirmed'; sequence?: number }>
@@ -79,6 +93,24 @@ export function createIdempotencyKey(prefix = 'idem'): string {
     throw new Error('crypto.randomUUID is required to create idempotency keys');
   }
   return `${prefix}_${globalThis.crypto.randomUUID()}`;
+}
+
+export async function acceptSyncCheckpoint(input: AcceptSyncCheckpointInput): Promise<boolean> {
+  try {
+    await input.store.advanceSyncCheckpoint({
+      sourceId: input.sourceId,
+      streamId: input.streamId,
+      scope: input.scope,
+      cursor: input.cursor,
+      sequence: input.sequence,
+      ...(input.updatedAt === undefined ? {} : { updatedAt: input.updatedAt }),
+      ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof SyncCheckpointRejectedError) return false;
+    throw error;
+  }
 }
 
 export function createHttpBridgeTransport(options: HttpBridgeTransportOptions): OutboxTransport {

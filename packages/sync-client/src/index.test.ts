@@ -4,6 +4,7 @@ import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
 import { createUnsignedEvent } from '@lfp2p/protocol';
 import {
+  acceptSyncCheckpoint,
   computeBackoffDelayMs,
   createHttpBridgeTransport,
   NonRetryableOutboxError,
@@ -27,6 +28,100 @@ describe('sync retry and staleness helpers', () => {
     expect(guard.accept('feed:home', 10)).toBe(true);
     expect(guard.accept('feed:home', 9)).toBe(false);
     expect(guard.accept('feed:home', 11)).toBe(true);
+  });
+
+  it('persists accepted sync checkpoints and rejects stale updates', async () => {
+    const store = createLocalFirstStore(`sync-checkpoint-helper-${globalThis.crypto.randomUUID()}`);
+    try {
+      const first = await acceptSyncCheckpoint({
+        store,
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice',
+        cursor: 'cursor-10',
+        sequence: 10,
+        updatedAt: '2026-05-22T00:00:00.000Z'
+      });
+      const stale = await acceptSyncCheckpoint({
+        store,
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice',
+        cursor: 'cursor-9',
+        sequence: 9,
+        updatedAt: '2026-05-22T00:01:00.000Z'
+      });
+      const sameSequenceDifferentCursor = await acceptSyncCheckpoint({
+        store,
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice',
+        cursor: 'cursor-10-other',
+        sequence: 10,
+        updatedAt: '2026-05-22T00:02:00.000Z'
+      });
+      const advanced = await acceptSyncCheckpoint({
+        store,
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice',
+        cursor: 'cursor-11',
+        sequence: 11,
+        updatedAt: '2026-05-22T00:03:00.000Z'
+      });
+
+      expect(first).toBe(true);
+      expect(stale).toBe(false);
+      expect(sameSequenceDifferentCursor).toBe(false);
+      expect(advanced).toBe(true);
+      await expect(
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
+      ).resolves.toMatchObject({ cursor: 'cursor-11', sequence: 11 });
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('allows explicit checkpoint rewinds for controlled resync', async () => {
+    const store = createLocalFirstStore(`sync-checkpoint-rewind-helper-${globalThis.crypto.randomUUID()}`);
+    try {
+      await expect(
+        acceptSyncCheckpoint({
+          store,
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice',
+          cursor: 'cursor-20',
+          sequence: 20,
+          updatedAt: '2026-05-22T00:00:00.000Z'
+        })
+      ).resolves.toBe(true);
+      await expect(
+        acceptSyncCheckpoint({
+          store,
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice',
+          cursor: 'cursor-15',
+          sequence: 15,
+          updatedAt: '2026-05-22T00:01:00.000Z',
+          allowRewind: true
+        })
+      ).resolves.toBe(true);
+      await expect(
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
+      ).resolves.toMatchObject({ cursor: 'cursor-15', sequence: 15 });
+    } finally {
+      await store.delete();
+    }
   });
 });
 
