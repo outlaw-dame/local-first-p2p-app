@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./foreground-sync": "./src/foreground-sync.ts",
     "./inbound-http": "./src/inbound-http.ts"
   },
   "scripts": {
