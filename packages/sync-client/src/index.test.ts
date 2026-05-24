@@ -90,6 +90,48 @@ describe('createHttpBridgeTransport', () => {
     ).rejects.toBeInstanceOf(NonRetryableOutboxError);
   });
 
+  it('treats malformed successful bridge responses as retryable transport errors', async () => {
+    const transport = createHttpBridgeTransport({
+      endpoint: 'https://bridge.test/events',
+      fetch: async () => new Response('{"status":', { status: 202, statusText: 'Accepted' })
+    });
+
+    await expect(
+      transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_malformed_success_response') })
+    ).rejects.toThrow('Bridge returned malformed JSON response');
+  });
+
+  it('rejects invalid successful bridge response shapes without coercion', async () => {
+    const invalidResponses: ReadonlyArray<Readonly<{ body: unknown; error: string; eventId: string }>> = [
+      {
+        body: { status: 'confirmed', sequence: '7' },
+        error: 'Bridge response sequence must be a non-negative integer',
+        eventId: 'evt_invalid_string_sequence'
+      },
+      {
+        body: { status: 'conflicted', reason: 123 },
+        error: 'Bridge response reason is required',
+        eventId: 'evt_invalid_numeric_reason'
+      },
+      {
+        body: { status: 'accepted' },
+        error: 'Bridge returned unsupported status',
+        eventId: 'evt_invalid_unsupported_status'
+      }
+    ];
+
+    for (const invalid of invalidResponses) {
+      const transport = createHttpBridgeTransport({
+        endpoint: 'https://bridge.test/events',
+        fetch: async () => new Response(JSON.stringify(invalid.body), { status: 202 })
+      });
+
+      await expect(transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent(invalid.eventId) })).rejects.toThrow(
+        invalid.error
+      );
+    }
+  });
+
   it('rejects endpoints with embedded credentials', () => {
     expect(() => createHttpBridgeTransport({ endpoint: 'https://user:pass@bridge.test/events' })).toThrow(
       'Bridge endpoint must not include credentials'
@@ -170,6 +212,63 @@ describe('processOutboxBatch', () => {
     expect(updated?.nextRetryAt).toBe('2026-05-22T00:00:02.000Z');
     expect(updated?.lastError).toBe('temporary relay unavailable');
     await store.delete();
+  });
+
+  it('schedules retry for malformed successful HTTP bridge responses without confirming locally', async () => {
+    const store = createLocalFirstStore(`outbox-malformed-bridge-response-${globalThis.crypto.randomUUID()}`);
+    try {
+      const entry = await seedOutboxEntry(store, 'evt_malformed_bridge_response');
+      let requestCount = 0;
+      const transport = createHttpBridgeTransport({
+        endpoint: 'https://bridge.test/events',
+        fetch: async () => {
+          requestCount += 1;
+          if (requestCount === 1) return new Response('{"status":', { status: 202, statusText: 'Accepted' });
+          return new Response(JSON.stringify({ status: 'confirmed', sequence: 4 }), { status: 202 });
+        }
+      });
+
+      const first = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:00.000Z'),
+        baseDelayMs: 1_000,
+        random: () => 0.5
+      });
+      const afterFailure = await store.getOutboxEntry(entry.idempotencyKey);
+      const beforeDue = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:01.000Z'),
+        baseDelayMs: 1_000,
+        random: () => 0.5
+      });
+      const afterRetry = await processOutboxBatch({
+        store,
+        transport,
+        now: new Date('2026-05-22T00:00:02.000Z'),
+        baseDelayMs: 1_000,
+        random: () => 0.5
+      });
+      const confirmed = await store.getOutboxEntry(entry.idempotencyKey);
+
+      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 1, failed: 0, skipped: 0 });
+      expect(afterFailure).toMatchObject({
+        status: 'pending',
+        retryCount: 1,
+        nextRetryAt: '2026-05-22T00:00:02.000Z',
+        lastError: 'Bridge returned malformed JSON response'
+      });
+      expect(beforeDue).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(afterRetry).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(requestCount).toBe(2);
+      expect(confirmed).toMatchObject({
+        status: 'confirmed',
+        retryCount: 1
+      });
+    } finally {
+      await store.delete();
+    }
   });
 
   it('marks non-retryable failures as terminal failed', async () => {
