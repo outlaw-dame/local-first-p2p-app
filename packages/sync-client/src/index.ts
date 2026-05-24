@@ -37,6 +37,35 @@ export type AcceptSyncCheckpointInput = SyncCheckpointKey &
     allowRewind?: boolean;
   }>;
 
+export type InboundSyncRecord = SyncCheckpointKey &
+  Readonly<{
+    event: SignedEventEnvelope;
+    cursor: string;
+    sequence: number;
+    receivedAt?: string;
+  }>;
+
+export type ProcessInboundSyncInput = Readonly<{
+  store: DexieLocalFirstStore;
+  records: readonly InboundSyncRecord[];
+  now?: Date;
+  allowRewind?: boolean;
+}>;
+
+export type InboundSyncError = Readonly<{
+  index: number;
+  eventId?: string;
+  reason: string;
+}>;
+
+export type ProcessInboundSyncResult = Readonly<{
+  received: number;
+  applied: number;
+  skipped: number;
+  rejected: number;
+  errors: readonly InboundSyncError[];
+}>;
+
 type BridgeHttpResponse =
   | Readonly<{ status: 'confirmed'; sequence?: number }>
   | Readonly<{ status: 'conflicted'; reason: string; sequence?: number }>
@@ -111,6 +140,45 @@ export async function acceptSyncCheckpoint(input: AcceptSyncCheckpointInput): Pr
     if (error instanceof SyncCheckpointRejectedError) return false;
     throw error;
   }
+}
+
+export async function processInboundSyncBatch(input: ProcessInboundSyncInput): Promise<ProcessInboundSyncResult> {
+  const nowIso = (input.now ?? new Date()).toISOString();
+  const result = mutableInboundProcessResult();
+
+  for (const [index, record] of input.records.entries()) {
+    result.received += 1;
+    try {
+      const stored = await input.store.putSignedEventWithSyncCheckpoint({
+        event: record.event,
+        checkpoint: {
+          sourceId: record.sourceId,
+          streamId: record.streamId,
+          scope: record.scope,
+          cursor: record.cursor,
+          sequence: record.sequence,
+          updatedAt: record.receivedAt ?? nowIso,
+          ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
+        }
+      });
+      if (stored.status === 'stored') result.applied += 1;
+      else result.skipped += 1;
+    } catch (error) {
+      if (error instanceof SyncCheckpointRejectedError && isStaleCheckpointRejection(error)) {
+        result.skipped += 1;
+        continue;
+      }
+      result.rejected += 1;
+      result.errors.push({
+        index,
+        ...(typeof record.event.eventId === 'string' ? { eventId: record.event.eventId } : {}),
+        reason: normalizeErrorMessage(error)
+      });
+      break;
+    }
+  }
+
+  return result;
 }
 
 export function createHttpBridgeTransport(options: HttpBridgeTransportOptions): OutboxTransport {
@@ -385,6 +453,26 @@ function mutableProcessResult(): {
     failed: 0,
     skipped: 0
   };
+}
+
+function mutableInboundProcessResult(): {
+  received: number;
+  applied: number;
+  skipped: number;
+  rejected: number;
+  errors: InboundSyncError[];
+} {
+  return {
+    received: 0,
+    applied: 0,
+    skipped: 0,
+    rejected: 0,
+    errors: []
+  };
+}
+
+function isStaleCheckpointRejection(error: SyncCheckpointRejectedError): boolean {
+  return error.message.includes('cannot move backwards');
 }
 
 function isNonRetryableError(error: unknown): boolean {
