@@ -76,6 +76,21 @@ describe('PgliteBridgeStore', () => {
       acceptedCount: 0
     });
   });
+
+  it('persists readable signed events for inbound reads', async () => {
+    const service = new BridgeService({ store: new PgliteBridgeStore({ initialSequence: 0, ttlMs: 60_000 }) });
+    const first = makeSignedEvent('evt_sql_read_first');
+    const second = makeSignedEvent('evt_sql_read_second');
+
+    await service.acceptDelivery({ idempotencyKey: 'idem-sql-read-1', target: 'bridge:sql', event: first }, '1970-01-01T00:00:00.000Z');
+    await service.acceptDelivery({ idempotencyKey: 'idem-sql-read-2', target: 'bridge:sql', event: second }, '1970-01-01T00:00:01.000Z');
+
+    await expect(
+      service.readInboundRecords({ sourceId: 'bridge:primary', streamId: 'bridge:sql', scope: 'identity:alice', cursor: '1' }, '1970-01-01T00:00:02.000Z')
+    ).resolves.toEqual({
+      records: [{ cursor: '2', sequence: 2, receivedAt: '1970-01-01T00:00:01.000Z', event: second }]
+    });
+  });
 });
 
 function makeSignedEvent(eventId: string) {
