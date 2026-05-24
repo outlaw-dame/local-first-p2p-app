@@ -74,16 +74,14 @@ async function mapBridgeInboundHttpResponse(
   request: NormalizedInboundPullInput
 ): Promise<readonly InboundSyncRecord[]> {
   const text = await response.text();
-  const parsed = parseBridgeInboundResponse(text, request.limit);
-  const reasonFromBody = parsed.parseStatus === 'invalid' ? parsed.reason : undefined;
 
   if (!response.ok) {
-    const statusReason = response.statusText.trim();
-    const reason = reasonFromBody ?? (statusReason.length > 0 ? statusReason : `Bridge HTTP ${response.status}`);
+    const reason = extractBridgeErrorReason(text) ?? fallbackHttpReason(response);
     if (isNonRetryableHttpStatus(response.status)) throw new NonRetryableInboundSyncError(reason);
     throw new Error(reason);
   }
 
+  const parsed = parseBridgeInboundResponse(text, request.limit);
   if (parsed.parseStatus === 'empty') throw new Error('Bridge returned an empty inbound response');
   if (parsed.parseStatus === 'invalid') throw new Error(parsed.reason);
 
@@ -180,6 +178,31 @@ function parseBridgeInboundRecord(
       ...(receivedAt === undefined ? {} : { receivedAt })
     }
   };
+}
+
+function extractBridgeErrorReason(text: string): string | undefined {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return undefined;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return undefined;
+  }
+
+  if (!isRecord(parsed)) return undefined;
+  for (const value of [parsed.reason, parsed.message, parsed.error]) {
+    if (typeof value !== 'string') continue;
+    const reason = value.trim();
+    if (reason.length > 0) return reason;
+  }
+  return undefined;
+}
+
+function fallbackHttpReason(response: Response): string {
+  const statusReason = response.statusText.trim();
+  return statusReason.length > 0 ? statusReason : `Bridge HTTP ${response.status}`;
 }
 
 function invalidBridgeInboundResponse(reason: string): ParsedBridgeInboundResponse {
