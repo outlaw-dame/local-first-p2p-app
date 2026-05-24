@@ -2,6 +2,7 @@ import {
   SyncCheckpointRejectedError,
   type DexieLocalFirstStore,
   type MutationOutboxEntry,
+  type StoredSyncCheckpoint,
   type SyncCheckpointKey
 } from '@lfp2p/local-store';
 import { type SignedEventEnvelope } from '@lfp2p/protocol';
@@ -54,11 +55,51 @@ export type InboundSyncRecord = SyncCheckpointKey &
     receivedAt?: string;
   }>;
 
+export type InboundSyncPullInput = SyncCheckpointKey &
+  Readonly<{
+    cursor?: string;
+    limit?: number;
+  }>;
+
+export type InboundSyncTransport = Readonly<{
+  pull(input: InboundSyncPullInput): Promise<readonly InboundSyncRecord[]>;
+}>;
+
+export type InboundSyncIdentityMismatchField = 'sourceId' | 'streamId' | 'scope';
+
+export class InboundSyncIdentityMismatchError extends Error {
+  readonly code = 'inbound-sync-identity-mismatch';
+  readonly recordIndex: number;
+  readonly mismatchFields: readonly InboundSyncIdentityMismatchField[];
+
+  constructor(input: Readonly<{ recordIndex: number; mismatchFields: readonly InboundSyncIdentityMismatchField[] }>) {
+    super(`Inbound sync record ${input.recordIndex} checkpoint identity mismatch`);
+    this.name = 'InboundSyncIdentityMismatchError';
+    this.recordIndex = input.recordIndex;
+    this.mismatchFields = [...input.mismatchFields];
+  }
+}
+
+export class InboundSyncLimitExceededError extends Error {
+  readonly code = 'inbound-sync-limit-exceeded';
+  readonly limit: number;
+  readonly returned: number;
+
+  constructor(input: Readonly<{ limit: number; returned: number }>) {
+    super(`Inbound sync transport returned ${input.returned} records, exceeding limit ${input.limit}`);
+    this.name = 'InboundSyncLimitExceededError';
+    this.limit = input.limit;
+    this.returned = input.returned;
+  }
+}
+
 export type ProcessInboundSyncInput = Readonly<{
   store: DexieLocalFirstStore;
   records: readonly InboundSyncRecord[];
   now?: Date;
   allowRewind?: boolean;
+  expectedCheckpointKey?: SyncCheckpointKey;
+  includeCheckpointAfter?: boolean;
 }>;
 
 export type InboundSyncError = Readonly<{
@@ -73,7 +114,23 @@ export type ProcessInboundSyncResult = Readonly<{
   skipped: number;
   rejected: number;
   errors: readonly InboundSyncError[];
+  checkpointAfter?: StoredSyncCheckpoint;
 }>;
+
+export type PullAndProcessInboundSyncInput = SyncCheckpointKey &
+  Readonly<{
+    store: DexieLocalFirstStore;
+    transport: InboundSyncTransport;
+    now?: Date;
+    limit?: number;
+    allowRewind?: boolean;
+  }>;
+
+export type PullAndProcessInboundSyncResult = ProcessInboundSyncResult &
+  Readonly<{
+    pulled: number;
+    checkpointBefore?: StoredSyncCheckpoint;
+  }>;
 
 type BridgeHttpResponse =
   | Readonly<{ status: 'confirmed'; sequence?: number }>
@@ -154,6 +211,13 @@ export async function acceptSyncCheckpoint(input: AcceptSyncCheckpointInput): Pr
 export async function processInboundSyncBatch(input: ProcessInboundSyncInput): Promise<ProcessInboundSyncResult> {
   const nowIso = (input.now ?? new Date()).toISOString();
   const result = mutableInboundProcessResult();
+  const expectedCheckpointKey =
+    input.expectedCheckpointKey === undefined ? undefined : normalizeSyncCheckpointKey(input.expectedCheckpointKey);
+  let checkpointAfter: StoredSyncCheckpoint | undefined;
+
+  if (expectedCheckpointKey !== undefined) {
+    preflightInboundRecordsMatchCheckpointKey(input.records, expectedCheckpointKey);
+  }
 
   for (const [index, record] of input.records.entries()) {
     result.received += 1;
@@ -170,6 +234,7 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
           ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
         }
       });
+      checkpointAfter = stored.checkpoint;
       if (stored.status === 'stored') result.applied += 1;
       else result.skipped += 1;
     } catch (error) {
@@ -187,7 +252,42 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
     }
   }
 
+  if (input.includeCheckpointAfter === true && checkpointAfter !== undefined) {
+    return { ...result, checkpointAfter };
+  }
   return result;
+}
+
+export async function pullAndProcessInboundSyncBatch(
+  input: PullAndProcessInboundSyncInput
+): Promise<PullAndProcessInboundSyncResult> {
+  const checkpointKey = normalizeSyncCheckpointKey(input);
+  const limit = input.limit === undefined ? undefined : requirePositiveInteger(input.limit, 'limit');
+  const checkpointBefore = await input.store.getSyncCheckpoint(checkpointKey);
+  const records = await input.transport.pull({
+    ...checkpointKey,
+    ...(checkpointBefore === undefined ? {} : { cursor: checkpointBefore.cursor }),
+    ...(limit === undefined ? {} : { limit })
+  });
+  if (limit !== undefined && records.length > limit) {
+    throw new InboundSyncLimitExceededError({ limit, returned: records.length });
+  }
+  const processed = await processInboundSyncBatch({
+    store: input.store,
+    records,
+    expectedCheckpointKey: checkpointKey,
+    includeCheckpointAfter: true,
+    ...(input.now === undefined ? {} : { now: input.now }),
+    ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
+  });
+  const checkpointAfter = processed.checkpointAfter ?? checkpointBefore;
+
+  return {
+    ...processed,
+    pulled: records.length,
+    ...(checkpointBefore === undefined ? {} : { checkpointBefore }),
+    ...(checkpointAfter === undefined ? {} : { checkpointAfter })
+  };
 }
 
 export function createHttpBridgeTransport(options: HttpBridgeTransportOptions): OutboxTransport {
@@ -470,6 +570,31 @@ function safeInboundEventId(record: unknown): { eventId: string } | Record<strin
   const event = record.event;
   if (!isRecord(event)) return {};
   return typeof event.eventId === 'string' ? { eventId: event.eventId } : {};
+}
+
+function preflightInboundRecordsMatchCheckpointKey(records: readonly InboundSyncRecord[], key: SyncCheckpointKey): void {
+  for (const [index, record] of records.entries()) {
+    const mismatchFields = checkpointKeyMismatchFields(record, key);
+    if (mismatchFields.length > 0) {
+      throw new InboundSyncIdentityMismatchError({ recordIndex: index, mismatchFields });
+    }
+  }
+}
+
+function checkpointKeyMismatchFields(record: SyncCheckpointKey, key: SyncCheckpointKey): InboundSyncIdentityMismatchField[] {
+  const mismatchFields: InboundSyncIdentityMismatchField[] = [];
+  if (record.sourceId !== key.sourceId) mismatchFields.push('sourceId');
+  if (record.streamId !== key.streamId) mismatchFields.push('streamId');
+  if (record.scope !== key.scope) mismatchFields.push('scope');
+  return mismatchFields;
+}
+
+function normalizeSyncCheckpointKey(key: SyncCheckpointKey): SyncCheckpointKey {
+  return {
+    sourceId: requireNonEmpty(key.sourceId, 'sourceId'),
+    streamId: requireNonEmpty(key.streamId, 'streamId'),
+    scope: requireNonEmpty(key.scope, 'scope')
+  };
 }
 
 function isNonRetryableError(error: unknown): boolean {
