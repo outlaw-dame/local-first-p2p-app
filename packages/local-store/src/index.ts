@@ -100,6 +100,8 @@ export type PutSignedEventWithSyncCheckpointResult = Readonly<{
   checkpoint: StoredSyncCheckpoint;
 }>;
 
+export type SyncCheckpointRejectedCode = 'stale-sequence' | 'cursor-mismatch';
+
 type OutboxStatusPatch = Readonly<{
   updatedAt?: string;
   lastError?: string;
@@ -108,9 +110,12 @@ type OutboxStatusPatch = Readonly<{
 type CheckpointAdvanceDecision = 'advance' | 'skip';
 
 export class SyncCheckpointRejectedError extends Error {
-  constructor(message: string) {
+  readonly code: SyncCheckpointRejectedCode;
+
+  constructor(code: SyncCheckpointRejectedCode, message: string) {
     super(message);
     this.name = 'SyncCheckpointRejectedError';
+    this.code = code;
   }
 }
 
@@ -438,11 +443,13 @@ function checkpointAdvanceDecision(
 ): CheckpointAdvanceDecision {
   if (!existing) return 'advance';
   if (next.sequence < existing.sequence && !allowRewind) {
-    throw new SyncCheckpointRejectedError('Sync checkpoint cannot move backwards without allowRewind');
+    throw new SyncCheckpointRejectedError('stale-sequence', 'Sync checkpoint cannot move backwards without allowRewind');
   }
   if (next.sequence === existing.sequence) {
     if (next.cursor === existing.cursor) return 'skip';
-    if (!allowRewind) throw new SyncCheckpointRejectedError('Sync checkpoint cursor mismatch at same sequence');
+    if (!allowRewind) {
+      throw new SyncCheckpointRejectedError('cursor-mismatch', 'Sync checkpoint cursor mismatch at same sequence');
+    }
   }
   return 'advance';
 }
