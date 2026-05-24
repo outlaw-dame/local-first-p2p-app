@@ -15,6 +15,7 @@ import {
   requireNonNegativeInteger,
   requirePositiveInteger
 } from './http-bridge-internals.js';
+import { resolveJitterRatio } from './retry-policy.js';
 
 export type RetryPolicyInput = Readonly<{
   attempt: number;
@@ -171,8 +172,7 @@ export function computeBackoffDelayMs(input: RetryPolicyInput): number {
   const attempt = requireNonNegativeInteger(input.attempt, 'attempt');
   const baseDelayMs = requirePositiveInteger(input.baseDelayMs ?? 500, 'baseDelayMs');
   const maxDelayMs = requirePositiveInteger(input.maxDelayMs ?? 30_000, 'maxDelayMs');
-  const jitterRatio = input.jitterRatio ?? 0.35;
-  if (jitterRatio < 0 || jitterRatio > 1) throw new Error('jitterRatio must be between 0 and 1');
+  const jitterRatio = resolveJitterRatio(input.jitterRatio);
 
   const exponent = Math.min(attempt, 12);
   const rawDelay = Math.min(baseDelayMs * 2 ** exponent, maxDelayMs);
