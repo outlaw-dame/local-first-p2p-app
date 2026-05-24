@@ -1,4 +1,4 @@
-import { type SignedEventEnvelope } from '@lfp2p/protocol';
+import { type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
 import {
   type BridgeDeliveryResponse,
   type BridgeRecord,
@@ -100,32 +100,26 @@ export function validateJsonBridgeStoreState(value: unknown, initialSequence: nu
 }
 
 export function validateStoredBridgeRecord(record: Partial<StoredBridgeRecord>): StoredBridgeRecord {
-  const draft = validateStoredBridgeRecordDraft(record);
-  return withAllocatedSequence(draft, requireSafeNonNegativeInteger(Number(record.sequence), 'record.sequence'));
+  const metadata = validateStoredBridgeRecordMetadata(record);
+  return {
+    ...metadata,
+    sequence: requireSafeNonNegativeInteger(Number(record.sequence), 'record.sequence'),
+    ...(record.event === undefined ? {} : { event: validateStoredEvent(record.event) })
+  };
 }
 
 export function validateStoredBridgeRecordDraft(record: Partial<StoredBridgeRecordDraft>): StoredBridgeRecordDraft {
-  const idempotencyKey = requireNonEmpty(String(record.idempotencyKey ?? ''), 'record.idempotencyKey');
-  const target = requireNonEmpty(String(record.target ?? ''), 'record.target');
-  const eventId = requireNonEmpty(String(record.eventId ?? ''), 'record.eventId');
-  const author = requireNonEmpty(String(record.author ?? ''), 'record.author');
-  const privacy = record.privacy;
-  if (privacy !== 'dm' && privacy !== 'group' && privacy !== 'public') {
-    throw new Error('record.privacy must be bridge-safe');
-  }
-  const acceptedAt = requireNonEmpty(String(record.acceptedAt ?? ''), 'record.acceptedAt');
-  requireIsoDate(acceptedAt, 'record.acceptedAt');
-  const expiresAt = requireNonEmpty(String(record.expiresAt ?? ''), 'record.expiresAt');
-  requireIsoDate(expiresAt, 'record.expiresAt');
-
-  return { idempotencyKey, target, eventId, author, privacy, acceptedAt, expiresAt };
+  return {
+    ...validateStoredBridgeRecordMetadata(record),
+    event: validateStoredEvent(record.event)
+  };
 }
 
 export function mutableState(state: JsonBridgeStoreState): MutableJsonBridgeStoreState {
   return {
     recordType: state.recordType,
     latestSequence: state.latestSequence,
-    records: [...state.records]
+    records: state.records.map((record) => ({ ...record }))
   };
 }
 
@@ -162,4 +156,27 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function isNotFoundError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
+function validateStoredBridgeRecordMetadata(record: Partial<StoredBridgeRecord>): Omit<StoredBridgeRecord, 'sequence' | 'event'> {
+  const idempotencyKey = requireNonEmpty(String(record.idempotencyKey ?? ''), 'record.idempotencyKey');
+  const target = requireNonEmpty(String(record.target ?? ''), 'record.target');
+  const eventId = requireNonEmpty(String(record.eventId ?? ''), 'record.eventId');
+  const author = requireNonEmpty(String(record.author ?? ''), 'record.author');
+  const privacy = record.privacy;
+  if (privacy !== 'dm' && privacy !== 'group' && privacy !== 'public') {
+    throw new Error('record.privacy must be bridge-safe');
+  }
+  const acceptedAt = requireNonEmpty(String(record.acceptedAt ?? ''), 'record.acceptedAt');
+  requireIsoDate(acceptedAt, 'record.acceptedAt');
+  const expiresAt = requireNonEmpty(String(record.expiresAt ?? ''), 'record.expiresAt');
+  requireIsoDate(expiresAt, 'record.expiresAt');
+
+  return { idempotencyKey, target, eventId, author, privacy, acceptedAt, expiresAt };
+}
+
+function validateStoredEvent(value: unknown): SignedEventEnvelope {
+  if (!isRecord(value)) throw new Error('record.event must be a JSON object');
+  validateSignedEvent(value);
+  return value as SignedEventEnvelope;
 }
