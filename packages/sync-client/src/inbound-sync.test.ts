@@ -106,6 +106,54 @@ describe('processInboundSyncBatch', () => {
     }
   });
 
+  it('does not crash while reporting an error for an inbound record without an event object', async () => {
+    const store = createLocalFirstStore(`inbound-sync-missing-event-${globalThis.crypto.randomUUID()}`);
+    const malformed = {
+      sourceId: 'bridge:primary',
+      streamId: 'durable-stream:inbox',
+      scope: 'identity:alice',
+      cursor: 'cursor-1',
+      sequence: 1,
+      receivedAt: '2026-05-24T00:00:00.000Z',
+      event: undefined
+    } as unknown as InboundSyncRecord;
+
+    try {
+      const result = await processInboundSyncBatch({ store, records: [malformed] });
+
+      expect(result.received).toBe(1);
+      expect(result.applied).toBe(0);
+      expect(result.skipped).toBe(0);
+      expect(result.rejected).toBe(1);
+      expect(result.errors).toEqual([{ index: 0, reason: 'Invalid signed event' }]);
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('uses an inbound-specific fallback for non-error failures', async () => {
+    const store = createLocalFirstStore(`inbound-sync-unknown-failure-${globalThis.crypto.randomUUID()}`);
+    const record = makeRecord('evt_inbound_unknown_failure', 'cursor-1', 1);
+    const failingStore = {
+      putSignedEventWithSyncCheckpoint: async () => {
+        throw undefined;
+      }
+    } as unknown as typeof store;
+
+    try {
+      const result = await processInboundSyncBatch({ store: failingStore, records: [record] });
+      expect(result).toEqual({
+        received: 1,
+        applied: 0,
+        skipped: 0,
+        rejected: 1,
+        errors: [{ index: 0, eventId: 'evt_inbound_unknown_failure', reason: 'Unknown inbound sync failure' }]
+      });
+    } finally {
+      await store.delete();
+    }
+  });
+
   it('treats same-sequence cursor conflicts as rejection and stops processing', async () => {
     const store = createLocalFirstStore(`inbound-sync-conflict-${globalThis.crypto.randomUUID()}`);
     const first = makeRecord('evt_inbound_conflict_first', 'cursor-10-a', 10);
