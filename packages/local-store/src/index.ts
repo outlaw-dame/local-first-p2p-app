@@ -290,6 +290,7 @@ export class DexieLocalFirstStore {
   }
 
   async putLocalProtectionKey(key: StoredLocalProtectionKey): Promise<void> {
+    validateLocalProtectionKey(key);
     await this.#db.localProtectionKeys.put(key);
   }
 
