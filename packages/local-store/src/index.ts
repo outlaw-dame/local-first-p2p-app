@@ -367,13 +367,13 @@ export class DexieLocalFirstStore {
   async putSignedEventWithSyncCheckpoint(
     input: PutSignedEventWithSyncCheckpointInput
   ): Promise<PutSignedEventWithSyncCheckpointResult> {
-    validateSignedEvent(input.event);
     const next = validateAdvanceSyncCheckpointInput(input.checkpoint);
     return this.transaction('rw', ['signedEvents', 'syncCheckpoints'], async () => {
       const existing = await this.#db.syncCheckpoints.get(next.checkpointId);
       const decision = checkpointAdvanceDecision(existing, next, input.checkpoint.allowRewind === true);
       if (decision === 'skip' && existing) return { status: 'skipped', checkpoint: existing };
 
+      validateSignedEvent(input.event);
       await this.#db.signedEvents.put(storedSignedEvent(input.event));
       await this.#db.syncCheckpoints.put(next);
       return { status: 'stored', checkpoint: next };
