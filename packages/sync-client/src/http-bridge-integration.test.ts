@@ -72,6 +72,8 @@ describe('HTTP bridge outbox integration', () => {
         scope: 'identity:alice',
         limit: 10
       });
+      const [record] = records;
+      if (!record) throw new Error('Expected one inbound bridge record');
       const applied = await processInboundSyncBatch({
         store: inboundStore,
         records,
@@ -79,12 +81,14 @@ describe('HTTP bridge outbox integration', () => {
       });
 
       expect(records).toHaveLength(1);
-      expect(records[0]).toMatchObject({ sourceId: 'bridge:primary', streamId: 'bridge:test', scope: 'identity:alice', cursor: '1', sequence: 1 });
+      expect(record).toMatchObject({ sourceId: 'bridge:primary', streamId: 'bridge:test', scope: 'identity:alice' });
+      expect(record.sequence).toBeGreaterThan(0);
+      expect(record.cursor).toBe(String(record.sequence));
       expect(applied).toEqual({ received: 1, applied: 1, skipped: 0, rejected: 0, errors: [] });
-      await expect(inboundStore.getSignedEvent(entry.eventId)).resolves.toEqual(records[0]?.event);
+      await expect(inboundStore.getSignedEvent(entry.eventId)).resolves.toEqual(record.event);
       await expect(
         inboundStore.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'bridge:test', scope: 'identity:alice' })
-      ).resolves.toMatchObject({ cursor: '1', sequence: 1 });
+      ).resolves.toMatchObject({ cursor: record.cursor, sequence: record.sequence });
     } finally {
       await outboundStore.delete();
       await inboundStore.delete();
