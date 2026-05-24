@@ -28,6 +28,15 @@ type BridgeHttpResponse =
   | Readonly<{ status: 'conflicted'; reason: string; sequence?: number }>
   | Readonly<{ status: 'rejected'; reason: string }>;
 
+type ParsedBridgeHttpResponse =
+  | Readonly<{ parseStatus: 'empty' }>
+  | Readonly<{ parseStatus: 'invalid'; reason: string }>
+  | Readonly<{ parseStatus: 'valid'; body: BridgeHttpResponse }>;
+
+type ParsedBridgeSequence =
+  | Readonly<{ parseStatus: 'valid'; value?: number }>
+  | Readonly<{ parseStatus: 'invalid'; reason: string }>;
+
 export type ProcessOutboxInput = Readonly<{
   store: DexieLocalFirstStore;
   transport: OutboxTransport;
@@ -220,9 +229,11 @@ export class StaleResponseGuard {
 
 async function mapBridgeHttpResponse(response: Response): Promise<OutboxTransportResult> {
   const text = await response.text();
-  const body = parseOptionalBridgeJson(text);
+  const parsed = parseOptionalBridgeJson(text);
+  const validBody = parsed.parseStatus === 'valid' ? parsed.body : undefined;
   if (!response.ok) {
-    const bodyReason = body?.status === 'conflicted' || body?.status === 'rejected' ? body.reason : undefined;
+    const bodyReason =
+      validBody && (validBody.status === 'conflicted' || validBody.status === 'rejected') ? validBody.reason : undefined;
     const statusReason = response.statusText.trim();
     const reason = bodyReason ?? (statusReason.length > 0 ? statusReason : `Bridge HTTP ${response.status}`);
     if (response.status === 409) return { status: 'conflicted', reason };
@@ -230,38 +241,85 @@ async function mapBridgeHttpResponse(response: Response): Promise<OutboxTranspor
     throw new Error(reason);
   }
 
-  if (!body) throw new Error('Bridge returned an empty response');
-  if (body.status === 'confirmed') {
-    return {
-      status: 'confirmed',
-      ...(body.sequence === undefined ? {} : { sequence: requireNonNegativeInteger(body.sequence, 'sequence') })
-    };
-  }
-  if (body.status === 'conflicted') return { status: 'conflicted', reason: requireNonEmpty(body.reason, 'reason') };
-  if (body.status === 'rejected') throw new NonRetryableOutboxError(requireNonEmpty(body.reason, 'reason'));
-  throw new Error('Bridge returned an unsupported status');
+  if (parsed.parseStatus === 'empty') throw new Error('Bridge returned an empty response');
+  if (parsed.parseStatus === 'invalid') throw new Error(parsed.reason);
+
+  const body = parsed.body;
+  if (body.status === 'confirmed') return body;
+  if (body.status === 'conflicted') return body;
+  throw new NonRetryableOutboxError(body.reason);
 }
 
-function parseOptionalBridgeJson(text: string): BridgeHttpResponse | null {
-  if (text.trim().length === 0) return null;
+function parseOptionalBridgeJson(text: string): ParsedBridgeHttpResponse {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return { parseStatus: 'empty' };
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(trimmed);
   } catch {
-    return null;
+    return invalidBridgeResponse('Bridge returned malformed JSON response');
   }
-  if (!isRecord(parsed)) return null;
+
+  if (!isRecord(parsed)) return invalidBridgeResponse('Bridge returned invalid response body');
+
   const status = parsed.status;
-  if (status === 'confirmed') {
-    const sequence = parsed.sequence;
-    return {
-      status,
-      ...(sequence === undefined ? {} : { sequence: requireNonNegativeInteger(Number(sequence), 'sequence') })
-    };
+  if (status === 'confirmed') return parseConfirmedBridgeResponse(parsed);
+  if (status === 'conflicted') return parseReasonedBridgeResponse('conflicted', parsed);
+  if (status === 'rejected') return parseReasonedBridgeResponse('rejected', parsed);
+  if (typeof status !== 'string' || status.trim().length === 0) {
+    return invalidBridgeResponse('Bridge response status is required');
   }
-  if (status === 'conflicted') return { status, reason: requireNonEmpty(String(parsed.reason ?? ''), 'reason') };
-  if (status === 'rejected') return { status, reason: requireNonEmpty(String(parsed.reason ?? ''), 'reason') };
-  return null;
+  return invalidBridgeResponse('Bridge returned unsupported status');
+}
+
+function parseConfirmedBridgeResponse(parsed: Record<string, unknown>): ParsedBridgeHttpResponse {
+  const sequence = parseOptionalBridgeSequence(parsed.sequence);
+  if (sequence.parseStatus === 'invalid') return invalidBridgeResponse(sequence.reason);
+  return {
+    parseStatus: 'valid',
+    body: {
+      status: 'confirmed',
+      ...(sequence.value === undefined ? {} : { sequence: sequence.value })
+    }
+  };
+}
+
+function parseReasonedBridgeResponse(
+  status: 'conflicted' | 'rejected',
+  parsed: Record<string, unknown>
+): ParsedBridgeHttpResponse {
+  const reason = parsed.reason;
+  if (typeof reason !== 'string' || reason.trim().length === 0) {
+    return invalidBridgeResponse('Bridge response reason is required');
+  }
+
+  if (status === 'rejected') {
+    return { parseStatus: 'valid', body: { status: 'rejected', reason } };
+  }
+
+  const sequence = parseOptionalBridgeSequence(parsed.sequence);
+  if (sequence.parseStatus === 'invalid') return invalidBridgeResponse(sequence.reason);
+  return {
+    parseStatus: 'valid',
+    body: {
+      status: 'conflicted',
+      reason,
+      ...(sequence.value === undefined ? {} : { sequence: sequence.value })
+    }
+  };
+}
+
+function parseOptionalBridgeSequence(value: unknown): ParsedBridgeSequence {
+  if (value === undefined) return { parseStatus: 'valid' };
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    return { parseStatus: 'invalid', reason: 'Bridge response sequence must be a non-negative integer' };
+  }
+  return { parseStatus: 'valid', value };
+}
+
+function invalidBridgeResponse(reason: string): ParsedBridgeHttpResponse {
+  return { parseStatus: 'invalid', reason };
 }
 
 function normalizeBridgeEndpoint(endpoint: string | URL): string {
