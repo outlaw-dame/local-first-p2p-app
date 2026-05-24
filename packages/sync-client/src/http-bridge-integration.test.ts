@@ -64,7 +64,7 @@ describe('HTTP bridge outbox integration', () => {
       });
 
       await expect(
-        processOutboxBatch({ outboundStore, store: outboundStore, transport: outboxTransport, now: new Date('2026-05-22T00:00:00.000Z') })
+        processOutboxBatch({ store: outboundStore, transport: outboxTransport, now: new Date('2026-05-22T00:00:00.000Z') })
       ).resolves.toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
       const records = await inboundTransport.pull({
         sourceId: 'bridge:primary',
