@@ -164,15 +164,15 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
       if (stored.status === 'stored') result.applied += 1;
       else result.skipped += 1;
     } catch (error) {
-      if (error instanceof SyncCheckpointRejectedError && isStaleCheckpointRejection(error)) {
+      if (error instanceof SyncCheckpointRejectedError && error.code === 'stale-sequence') {
         result.skipped += 1;
         continue;
       }
       result.rejected += 1;
       result.errors.push({
         index,
-        ...(typeof record.event.eventId === 'string' ? { eventId: record.event.eventId } : {}),
-        reason: normalizeErrorMessage(error)
+        ...safeInboundEventId(record),
+        reason: normalizeInboundSyncErrorMessage(error)
       });
       break;
     }
@@ -471,8 +471,11 @@ function mutableInboundProcessResult(): {
   };
 }
 
-function isStaleCheckpointRejection(error: SyncCheckpointRejectedError): boolean {
-  return error.message.includes('cannot move backwards');
+function safeInboundEventId(record: unknown): { eventId: string } | Record<string, never> {
+  if (!isRecord(record)) return {};
+  const event = record.event;
+  if (!isRecord(event)) return {};
+  return typeof event.eventId === 'string' ? { eventId: event.eventId } : {};
 }
 
 function isNonRetryableError(error: unknown): boolean {
@@ -482,6 +485,11 @@ function isNonRetryableError(error: unknown): boolean {
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) return error.message;
   return 'Unknown outbox transport failure';
+}
+
+function normalizeInboundSyncErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) return error.message;
+  return 'Unknown inbound sync failure';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
