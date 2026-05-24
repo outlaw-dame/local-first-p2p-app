@@ -4,7 +4,13 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createUnsignedEvent, type PrivacyScope } from '@lfp2p/protocol';
-import { BridgeService, handleBridgeInboundReadRequest, InMemoryBridgeService, JsonFileBridgeStore } from './index.js';
+import {
+  BridgeService,
+  type BridgeStore,
+  handleBridgeInboundReadRequest,
+  InMemoryBridgeService,
+  JsonFileBridgeStore
+} from './index.js';
 
 describe('Bridge inbound read support', () => {
   it('returns accepted signed events in sequence order for the requested bridge target', async () => {
@@ -25,7 +31,7 @@ describe('Bridge inbound read support', () => {
     ).resolves.toEqual({
       records: [
         { cursor: '1', sequence: 1, receivedAt: '1970-01-01T00:00:00.000Z', event: first },
-        { cursor: '3', sequence: 3, receivedAt: '1970-01-01T00:00:02.000Z', event: second }
+        { cursor: '2000000', sequence: 2_000_000, receivedAt: '1970-01-01T00:00:02.000Z', event: second }
       ]
     });
   });
@@ -46,7 +52,7 @@ describe('Bridge inbound read support', () => {
         '1970-01-01T00:00:03.000Z'
       )
     ).resolves.toEqual({
-      records: [{ cursor: '2', sequence: 2, receivedAt: '1970-01-01T00:00:01.000Z', event: second }]
+      records: [{ cursor: '1000000', sequence: 1_000_000, receivedAt: '1970-01-01T00:00:01.000Z', event: second }]
     });
   });
 
@@ -103,6 +109,37 @@ describe('Bridge inbound read support', () => {
     await expect(oversized.json()).resolves.toEqual({ reason: 'limit must be at most 500' });
     expect(badCursor.status).toBe(400);
     await expect(badCursor.json()).resolves.toEqual({ reason: 'cursor must be a non-negative integer string' });
+  });
+
+  it('returns retryable status for internal read failures', async () => {
+    const store = {
+      kind: 'memory',
+      maxRecords: 1,
+      ttlMs: 60_000,
+      get: async () => undefined,
+      putIfAbsent: async () => {
+        throw new Error('not used');
+      },
+      listAfter: async () => {
+        throw new Error('storage unavailable');
+      },
+      pruneExpired: async () => undefined,
+      snapshot: async () => ({ storeKind: 'memory', acceptedCount: 0, maxRecords: 1, ttlMs: 60_000, latestSequence: 0 })
+    } satisfies BridgeStore;
+    const bridge = new BridgeService({ store });
+
+    const response = await handleBridgeInboundReadRequest(
+      bridge,
+      new Request('https://bridge.test/inbound', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' })
+      }),
+      '1970-01-01T00:00:00.000Z'
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ reason: 'Bridge inbound read failed' });
   });
 
   it('persists readable event bodies in the JSON file store', async () => {
