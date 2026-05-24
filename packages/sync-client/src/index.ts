@@ -5,6 +5,15 @@ import {
   type SyncCheckpointKey
 } from '@lfp2p/local-store';
 import { type SignedEventEnvelope } from '@lfp2p/protocol';
+import {
+  isAbortError,
+  isNonRetryableHttpStatus,
+  isRecord,
+  normalizeBridgeEndpoint,
+  requireNonEmpty,
+  requireNonNegativeInteger,
+  requirePositiveInteger
+} from './http-bridge-internals.js';
 
 export type RetryPolicyInput = Readonly<{
   attempt: number;
@@ -422,21 +431,6 @@ function invalidBridgeResponse(reason: string): ParsedBridgeHttpResponse {
   return { parseStatus: 'invalid', reason };
 }
 
-function normalizeBridgeEndpoint(endpoint: string | URL): string {
-  const url = endpoint instanceof URL ? new URL(endpoint.href) : new URL(endpoint);
-  if (url.username.length > 0 || url.password.length > 0) throw new Error('Bridge endpoint must not include credentials');
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('Bridge endpoint must use http or https');
-  return url.toString();
-}
-
-function isNonRetryableHttpStatus(status: number): boolean {
-  return status === 400 || status === 401 || status === 403 || status === 404 || status === 413 || status === 422;
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
-}
-
 function mutableProcessResult(): {
   attempted: number;
   confirmed: number;
@@ -490,23 +484,4 @@ function normalizeErrorMessage(error: unknown): string {
 function normalizeInboundSyncErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) return error.message;
   return 'Unknown inbound sync failure';
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function requirePositiveInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be positive`);
-  return value;
-}
-
-function requireNonNegativeInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be non-negative`);
-  return value;
-}
-
-function requireNonEmpty(value: string, label: string): string {
-  if (value.trim().length === 0) throw new Error(`${label} is required`);
-  return value;
 }
