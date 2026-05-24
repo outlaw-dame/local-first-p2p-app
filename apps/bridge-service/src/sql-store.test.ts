@@ -88,7 +88,7 @@ describe('PgliteBridgeStore', () => {
     await expect(
       service.readInboundRecords({ sourceId: 'bridge:primary', streamId: 'bridge:sql', scope: 'identity:alice', cursor: '1' }, '1970-01-01T00:00:02.000Z')
     ).resolves.toEqual({
-      records: [{ cursor: '2', sequence: 2, receivedAt: '1970-01-01T00:00:01.000Z', event: second }]
+      records: [{ cursor: '1000000', sequence: 1_000_000, receivedAt: '1970-01-01T00:00:01.000Z', event: second }]
     });
   });
 });
