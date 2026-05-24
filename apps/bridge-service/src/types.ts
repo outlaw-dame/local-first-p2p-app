@@ -31,6 +31,25 @@ export type BridgeDeliveryResponse =
       reason: string;
     }>;
 
+export type BridgeInboundReadRequest = Readonly<{
+  sourceId: string;
+  streamId: string;
+  scope: string;
+  cursor?: string;
+  limit?: number;
+}>;
+
+export type BridgeInboundReadRecord = Readonly<{
+  cursor: string;
+  sequence: number;
+  event: SignedEventEnvelope;
+  receivedAt: string;
+}>;
+
+export type BridgeInboundReadResponse = Readonly<{
+  records: readonly BridgeInboundReadRecord[];
+}>;
+
 export type BridgeRecord = Readonly<{
   idempotencyKey: string;
   target: string;
@@ -42,8 +61,14 @@ export type BridgeRecord = Readonly<{
 }>;
 
 export type BridgeRecordDraft = Omit<BridgeRecord, 'sequence'>;
-export type StoredBridgeRecord = BridgeRecord & Readonly<{ expiresAt: string }>;
-export type StoredBridgeRecordDraft = BridgeRecordDraft & Readonly<{ expiresAt: string }>;
+export type StoredBridgeRecord = BridgeRecord & Readonly<{ expiresAt: string; event?: SignedEventEnvelope }>;
+export type StoredBridgeRecordDraft = BridgeRecordDraft & Readonly<{ expiresAt: string; event: SignedEventEnvelope }>;
+
+export type BridgeStoreListInput = Readonly<{
+  target: string;
+  afterSequence: number;
+  limit: number;
+}>;
 
 export type BridgeStoreSnapshot = Readonly<{
   storeKind: BridgeStoreKind;
@@ -69,6 +94,7 @@ export type BridgeStore = Readonly<{
   readonly ttlMs: number;
   get(idempotencyKey: string, nowMs: number): Promise<StoredBridgeRecord | undefined>;
   putIfAbsent(record: StoredBridgeRecordDraft, nowMs: number): Promise<BridgeStorePutResult>;
+  listAfter(input: BridgeStoreListInput, nowMs: number): Promise<readonly StoredBridgeRecord[]>;
   pruneExpired(nowMs: number): Promise<void>;
   snapshot(nowMs: number): Promise<BridgeStoreSnapshot>;
 }>;

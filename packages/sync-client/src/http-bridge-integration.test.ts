@@ -1,10 +1,11 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
-import { InMemoryBridgeService, handleBridgeDeliveryRequest } from '@lfp2p/bridge-service';
+import { InMemoryBridgeService, handleBridgeDeliveryRequest, handleBridgeInboundReadRequest } from '@lfp2p/bridge-service';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
 import { createUnsignedEvent } from '@lfp2p/protocol';
-import { createHttpBridgeTransport, processOutboxBatch } from './index.js';
+import { createHttpBridgeInboundTransport } from './inbound-http.js';
+import { createHttpBridgeTransport, processInboundSyncBatch, processOutboxBatch } from './index.js';
 
 describe('HTTP bridge outbox integration', () => {
   it('delivers a local outbox event through the bridge handler exactly once', async () => {
@@ -44,6 +45,53 @@ describe('HTTP bridge outbox integration', () => {
       expect(snapshot.latestSequence).toBeGreaterThanOrEqual(1);
     } finally {
       await store.delete();
+    }
+  });
+
+  it('pulls accepted bridge records through the inbound reader and applies them locally', async () => {
+    const outboundStore = createLocalFirstStore(`bridge-e2e-outbound-${globalThis.crypto.randomUUID()}`);
+    const inboundStore = createLocalFirstStore(`bridge-e2e-inbound-${globalThis.crypto.randomUUID()}`);
+    try {
+      const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+      const entry = await seedOutboxEntry(outboundStore, 'evt_http_bridge_inbound_read');
+      const outboxTransport = createHttpBridgeTransport({
+        endpoint: 'https://bridge.test/events',
+        fetch: async (input, init) => handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:00.000Z')
+      });
+      const inboundTransport = createHttpBridgeInboundTransport({
+        endpoint: 'https://bridge.test/inbound',
+        fetch: async (input, init) => handleBridgeInboundReadRequest(bridge, new Request(input, init), '2026-05-22T00:00:01.000Z')
+      });
+
+      await expect(
+        processOutboxBatch({ store: outboundStore, transport: outboxTransport, now: new Date('2026-05-22T00:00:00.000Z') })
+      ).resolves.toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      const records = await inboundTransport.pull({
+        sourceId: 'bridge:primary',
+        streamId: 'bridge:test',
+        scope: 'identity:alice',
+        limit: 10
+      });
+      const [record] = records;
+      if (!record) throw new Error('Expected one inbound bridge record');
+      const applied = await processInboundSyncBatch({
+        store: inboundStore,
+        records,
+        now: new Date('2026-05-22T00:00:01.000Z')
+      });
+
+      expect(records).toHaveLength(1);
+      expect(record).toMatchObject({ sourceId: 'bridge:primary', streamId: 'bridge:test', scope: 'identity:alice' });
+      expect(record.sequence).toBeGreaterThan(0);
+      expect(record.cursor).toBe(String(record.sequence));
+      expect(applied).toEqual({ received: 1, applied: 1, skipped: 0, rejected: 0, errors: [] });
+      await expect(inboundStore.getSignedEvent(entry.eventId)).resolves.toEqual(record.event);
+      await expect(
+        inboundStore.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'bridge:test', scope: 'identity:alice' })
+      ).resolves.toMatchObject({ cursor: record.cursor, sequence: record.sequence });
+    } finally {
+      await outboundStore.delete();
+      await inboundStore.delete();
     }
   });
 

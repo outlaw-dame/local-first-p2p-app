@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import {
   type BridgeStore,
+  type BridgeStoreListInput,
   type BridgeStorePutResult,
   type BridgeStoreSnapshot,
   type InMemoryBridgeStoreOptions,
@@ -59,6 +60,21 @@ export class InMemoryBridgeStore implements BridgeStore {
     const stored = withAllocatedSequence(record, this.#nextSequence(nowMs));
     this.#recordsByIdempotencyKey.set(stored.idempotencyKey, stored);
     return { status: 'inserted', record: stored };
+  }
+
+  async listAfter(input: BridgeStoreListInput, nowMs: number): Promise<readonly StoredBridgeRecord[]> {
+    const target = requireNonEmpty(input.target, 'target');
+    const afterSequence = requireSafeNonNegativeInteger(input.afterSequence, 'afterSequence');
+    const limit = requirePositiveInteger(input.limit, 'limit');
+    this.#evictExpired(nowMs);
+
+    const records: StoredBridgeRecord[] = [];
+    for (const record of this.#recordsByIdempotencyKey.values()) {
+      if (record.target !== target || record.sequence <= afterSequence || record.event === undefined) continue;
+      records.push(record);
+      if (records.length >= limit) break;
+    }
+    return records;
   }
 
   async pruneExpired(nowMs: number): Promise<void> {
@@ -145,6 +161,24 @@ export class JsonFileBridgeStore implements BridgeStore {
     });
   }
 
+  async listAfter(input: BridgeStoreListInput, nowMs: number): Promise<readonly StoredBridgeRecord[]> {
+    const target = requireNonEmpty(input.target, 'target');
+    const afterSequence = requireSafeNonNegativeInteger(input.afterSequence, 'afterSequence');
+    const limit = requirePositiveInteger(input.limit, 'limit');
+    return this.#withLock(async () => {
+      const state = await this.#loadCachedState();
+      this.#pruneCachedStateOnly(state, nowMs);
+
+      const records: StoredBridgeRecord[] = [];
+      for (const record of state.records) {
+        if (record.target !== target || record.sequence <= afterSequence || record.event === undefined) continue;
+        records.push(record);
+        if (records.length >= limit) break;
+      }
+      return records;
+    });
+  }
+
   async pruneExpired(nowMs: number): Promise<void> {
     await this.#withLock(async () => {
       const state = await this.#loadFreshState();
@@ -206,7 +240,7 @@ export class JsonFileBridgeStore implements BridgeStore {
     this.#state = {
       recordType: 'lfp2p.bridge.store.v1',
       latestSequence: state.latestSequence,
-      records: [...state.records]
+      records: state.records.map((record) => ({ ...record }))
     };
   }
 

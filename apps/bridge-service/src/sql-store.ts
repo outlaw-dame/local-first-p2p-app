@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import {
   type BridgeStore,
+  type BridgeStoreListInput,
   type BridgeStorePutResult,
   type BridgeStoreSnapshot,
   type PgliteBridgeStoreOptions,
@@ -14,6 +15,7 @@ import {
   requireNonEmpty,
   requirePositiveInteger,
   requireSafeNonNegativeInteger,
+  validateStoredBridgeRecord,
   validateStoredBridgeRecordDraft,
   withAllocatedSequence
 } from './utils.js';
@@ -27,10 +29,12 @@ type BridgeRecordRow = Readonly<{
   sequence: number | string;
   accepted_at: string;
   expires_at: string;
+  event_json: string | null;
 }>;
 
 type CountRow = Readonly<{ count: number | string }>;
 type SequenceRow = Readonly<{ latest_sequence: number | string }>;
+type StoredBridgeEvent = NonNullable<StoredBridgeRecord['event']>;
 
 type BridgeSqlExecutor = Readonly<{
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
@@ -81,8 +85,8 @@ export class PgliteBridgeStore implements BridgeStore {
         const stored = withAllocatedSequence(record, sequence);
         await tx.query(
           `INSERT INTO bridge_records (
-             idempotency_key, target, event_id, author, privacy, sequence, accepted_at, expires_at
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+             idempotency_key, target, event_id, author, privacy, sequence, accepted_at, expires_at, event_json
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
           [
             stored.idempotencyKey,
             stored.target,
@@ -91,11 +95,31 @@ export class PgliteBridgeStore implements BridgeStore {
             stored.privacy,
             stored.sequence,
             stored.acceptedAt,
-            stored.expiresAt
+            stored.expiresAt,
+            JSON.stringify(stored.event)
           ]
         );
         return { status: 'inserted', record: stored };
       });
+    });
+  }
+
+  async listAfter(input: BridgeStoreListInput, nowMs: number): Promise<readonly StoredBridgeRecord[]> {
+    const target = requireNonEmpty(input.target, 'target');
+    const afterSequence = requireSafeNonNegativeInteger(input.afterSequence, 'afterSequence');
+    const limit = requirePositiveInteger(input.limit, 'limit');
+    return this.#withLock(async () => {
+      await this.#init();
+      await this.#pruneExpired(nowMs);
+      const result = await this.#db.query<BridgeRecordRow>(
+        `SELECT idempotency_key, target, event_id, author, privacy, sequence, accepted_at, expires_at, event_json
+         FROM bridge_records
+         WHERE target = $1 AND sequence > $2 AND event_json IS NOT NULL
+         ORDER BY sequence ASC
+         LIMIT $3;`,
+        [target, afterSequence, limit]
+      );
+      return result.rows.map(rowToRecord);
     });
   }
 
@@ -157,8 +181,10 @@ export class PgliteBridgeStore implements BridgeStore {
         expires_at TEXT NOT NULL
       );
     `);
+    await this.#db.query('ALTER TABLE bridge_records ADD COLUMN IF NOT EXISTS event_json TEXT;');
     await this.#db.query('CREATE INDEX IF NOT EXISTS bridge_records_expires_at_idx ON bridge_records (expires_at);');
     await this.#db.query('CREATE INDEX IF NOT EXISTS bridge_records_sequence_idx ON bridge_records (sequence);');
+    await this.#db.query('CREATE INDEX IF NOT EXISTS bridge_records_target_sequence_idx ON bridge_records (target, sequence);');
     await this.#db.query(
       `INSERT INTO bridge_sequence (id, latest_sequence)
        VALUES ($1, $2)
@@ -174,7 +200,7 @@ export class PgliteBridgeStore implements BridgeStore {
     executor: BridgeSqlExecutor = this.#db
   ): Promise<StoredBridgeRecord | undefined> {
     const result = await executor.query<BridgeRecordRow>(
-      `SELECT idempotency_key, target, event_id, author, privacy, sequence, accepted_at, expires_at
+      `SELECT idempotency_key, target, event_id, author, privacy, sequence, accepted_at, expires_at, event_json
        FROM bridge_records
        WHERE idempotency_key = $1
        LIMIT 1;`,
@@ -221,7 +247,7 @@ export class PgliteBridgeStore implements BridgeStore {
 }
 
 function rowToRecord(row: BridgeRecordRow): StoredBridgeRecord {
-  return {
+  return validateStoredBridgeRecord({
     idempotencyKey: row.idempotency_key,
     target: row.target,
     eventId: row.event_id,
@@ -229,6 +255,7 @@ function rowToRecord(row: BridgeRecordRow): StoredBridgeRecord {
     privacy: row.privacy,
     sequence: requireSafeNonNegativeInteger(Number(row.sequence), 'record.sequence'),
     acceptedAt: row.accepted_at,
-    expiresAt: row.expires_at
-  };
+    expiresAt: row.expires_at,
+    ...(row.event_json === null ? {} : { event: JSON.parse(row.event_json) as StoredBridgeEvent })
+  });
 }
