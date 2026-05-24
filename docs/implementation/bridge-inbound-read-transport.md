@@ -28,7 +28,7 @@ The bridge returns a JSON object with a `records` array. Each record carries:
 - `cursor`: opaque cursor for the record,
 - `sequence`: non-negative monotonic reader sequence,
 - `event`: signed event envelope,
-- optional `receivedAt`: ISO timestamp.
+- optional `receivedAt`: canonical UTC ISO timestamp, matching `Date.prototype.toISOString()` output.
 
 Records must not include `sourceId`, `streamId`, or `scope`. Those checkpoint identity fields come from the caller request, not from the remote bridge response.
 
@@ -46,7 +46,7 @@ The reader rejects:
 - missing cursors,
 - invalid sequences,
 - non-object events,
-- invalid `receivedAt` timestamps,
+- invalid or non-canonical `receivedAt` timestamps,
 - endpoints with embedded credentials.
 
 ## Boundary with inbound apply
