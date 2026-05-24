@@ -1,0 +1,26 @@
+{
+  "version": "lfp2p.event.v1",
+  "eventId": "evt_fixture_valid_001",
+  "kind": "outbox.test.created",
+  "author": "identity:fixture-alice",
+  "deviceId": "device:fixture-alice-phone",
+  "createdAt": "2026-05-24T00:00:00.000Z",
+  "lamport": 1,
+  "privacy": "device-local",
+  "schemaVersion": 1,
+  "payload": {
+    "body": "fixture event"
+  },
+  "refs": [
+    {
+      "sourceId": "source:fixture-root",
+      "sequence": 0,
+      "hash": "hash:fixture-root"
+    }
+  ],
+  "signature": {
+    "algorithm": "ed25519",
+    "publicKey": "fixture-public-key",
+    "value": "fixture-signature"
+  }
+}
