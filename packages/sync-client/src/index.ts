@@ -65,6 +65,34 @@ export type InboundSyncTransport = Readonly<{
   pull(input: InboundSyncPullInput): Promise<readonly InboundSyncRecord[]>;
 }>;
 
+export type InboundSyncIdentityMismatchField = 'sourceId' | 'streamId' | 'scope';
+
+export class InboundSyncIdentityMismatchError extends Error {
+  readonly code = 'inbound-sync-identity-mismatch';
+  readonly recordIndex: number;
+  readonly mismatchFields: readonly InboundSyncIdentityMismatchField[];
+
+  constructor(input: Readonly<{ recordIndex: number; mismatchFields: readonly InboundSyncIdentityMismatchField[] }>) {
+    super(`Inbound sync record ${input.recordIndex} checkpoint identity mismatch`);
+    this.name = 'InboundSyncIdentityMismatchError';
+    this.recordIndex = input.recordIndex;
+    this.mismatchFields = [...input.mismatchFields];
+  }
+}
+
+export class InboundSyncLimitExceededError extends Error {
+  readonly code = 'inbound-sync-limit-exceeded';
+  readonly limit: number;
+  readonly returned: number;
+
+  constructor(input: Readonly<{ limit: number; returned: number }>) {
+    super(`Inbound sync transport returned ${input.returned} records, exceeding limit ${input.limit}`);
+    this.name = 'InboundSyncLimitExceededError';
+    this.limit = input.limit;
+    this.returned = input.returned;
+  }
+}
+
 export type ProcessInboundSyncInput = Readonly<{
   store: DexieLocalFirstStore;
   records: readonly InboundSyncRecord[];
@@ -241,6 +269,9 @@ export async function pullAndProcessInboundSyncBatch(
     ...(checkpointBefore === undefined ? {} : { cursor: checkpointBefore.cursor }),
     ...(limit === undefined ? {} : { limit })
   });
+  if (limit !== undefined && records.length > limit) {
+    throw new InboundSyncLimitExceededError({ limit, returned: records.length });
+  }
   const processed = await processInboundSyncBatch({
     store: input.store,
     records,
@@ -543,10 +574,19 @@ function safeInboundEventId(record: unknown): { eventId: string } | Record<strin
 
 function preflightInboundRecordsMatchCheckpointKey(records: readonly InboundSyncRecord[], key: SyncCheckpointKey): void {
   for (const [index, record] of records.entries()) {
-    if (record.sourceId !== key.sourceId || record.streamId !== key.streamId || record.scope !== key.scope) {
-      throw new Error(`Inbound sync record ${index} checkpoint identity mismatch`);
+    const mismatchFields = checkpointKeyMismatchFields(record, key);
+    if (mismatchFields.length > 0) {
+      throw new InboundSyncIdentityMismatchError({ recordIndex: index, mismatchFields });
     }
   }
+}
+
+function checkpointKeyMismatchFields(record: SyncCheckpointKey, key: SyncCheckpointKey): InboundSyncIdentityMismatchField[] {
+  const mismatchFields: InboundSyncIdentityMismatchField[] = [];
+  if (record.sourceId !== key.sourceId) mismatchFields.push('sourceId');
+  if (record.streamId !== key.streamId) mismatchFields.push('streamId');
+  if (record.scope !== key.scope) mismatchFields.push('scope');
+  return mismatchFields;
 }
 
 function normalizeSyncCheckpointKey(key: SyncCheckpointKey): SyncCheckpointKey {
