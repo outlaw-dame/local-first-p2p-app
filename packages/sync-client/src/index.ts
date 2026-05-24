@@ -228,6 +228,7 @@ export async function pullAndProcessInboundSyncBatch(
     ...(checkpointBefore === undefined ? {} : { cursor: checkpointBefore.cursor }),
     ...(limit === undefined ? {} : { limit })
   });
+  assertInboundRecordsMatchCheckpointKey(records, checkpointKey);
   const processed = await processInboundSyncBatch({
     store: input.store,
     records,
@@ -514,6 +515,7 @@ function mutableInboundProcessResult(): {
     received: 0,
     applied: 0,
     skipped: 0,
+    rejected: 0,
     errors: []
   };
 }
@@ -523,6 +525,14 @@ function safeInboundEventId(record: unknown): { eventId: string } | Record<strin
   const event = record.event;
   if (!isRecord(event)) return {};
   return typeof event.eventId === 'string' ? { eventId: event.eventId } : {};
+}
+
+function assertInboundRecordsMatchCheckpointKey(records: readonly InboundSyncRecord[], key: SyncCheckpointKey): void {
+  for (const [index, record] of records.entries()) {
+    if (record.sourceId !== key.sourceId || record.streamId !== key.streamId || record.scope !== key.scope) {
+      throw new Error(`Inbound sync record ${index} checkpoint identity mismatch`);
+    }
+  }
 }
 
 function normalizeSyncCheckpointKey(key: SyncCheckpointKey): SyncCheckpointKey {
