@@ -402,6 +402,7 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
 
     if (transportResult.status === 'confirmed') {
       await input.store.markOutboxConfirmed(claimed.idempotencyKey, nowIso);
+      result.confirmed += 1;
     } else {
       await input.store.markOutboxConflicted(claimed.idempotencyKey, transportResult.reason, nowIso);
       result.conflicted += 1;
@@ -432,10 +433,6 @@ export class StaleResponseGuard {
 
   latest(scope: string): number | undefined {
     return this.#latestSequence.get(scope);
-  }
-
-  clear(): void {
-    this.#latestSequence.clear();
   }
 }
 
