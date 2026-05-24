@@ -22,11 +22,13 @@ This keeps the bridge as delivery infrastructure. The bridge provides records an
 
 The runner reads the current local checkpoint for that exact key. If a checkpoint exists, its cursor is sent to the transport. If no checkpoint exists, the first pull omits a cursor.
 
+When a caller provides `limit`, the runner passes it to the transport and also enforces it locally. A transport response with more records than requested is rejected before any record is applied.
+
 The returned records are checked against the requested checkpoint key before any record is applied. A source, stream, or scope mismatch rejects the page before local state changes.
 
 ## Local apply boundary
 
-After transport records pass the key check, the runner delegates to `processInboundSyncBatch`.
+After transport records pass the hard runner checks, the runner delegates to `processInboundSyncBatch`.
 
 That means the existing local guarantees still apply:
 
@@ -50,9 +52,11 @@ These fields are local observability hints. They do not prove event validity and
 
 Transport failures propagate to the caller and do not mutate local event or checkpoint state.
 
-Checkpoint key mismatches are rejected before local apply begins. This is intentional: a transport must not be able to redirect records across source, stream, or scope boundaries.
+Checkpoint key mismatches throw `InboundSyncIdentityMismatchError` before local apply begins. The error exposes a stable code, failing record index, and mismatched field names for classification. It intentionally does not include raw expected or actual source, stream, or scope values in the message because those identifiers may become privacy-sensitive in logs or user-visible diagnostics.
 
-Retry scheduling is intentionally not embedded in the runner. The caller owns scheduling and can reuse the existing exponential-backoff policy used by outbound processing.
+Transport over-limit responses throw `InboundSyncLimitExceededError` before local apply begins. This makes `limit` a hard orchestration boundary rather than a best-effort transport hint.
+
+Retry scheduling is intentionally not embedded in the runner. The caller owns scheduling and can reuse the existing exponential-backoff policy used by outbound processing. Identity mismatch and over-limit errors should be treated as configuration or trust-boundary failures, not ordinary transient retry signals.
 
 ## Current boundaries
 
