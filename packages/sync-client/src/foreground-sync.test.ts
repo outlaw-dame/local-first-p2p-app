@@ -33,6 +33,23 @@ describe('ForegroundSyncController', () => {
     });
   });
 
+  it('validates jitter ratio at construction time', () => {
+    expect(
+      () =>
+        new ForegroundSyncController({
+          jitterRatio: 1.1,
+          run: async () => undefined
+        })
+    ).toThrow('jitterRatio must be between 0 and 1');
+    expect(
+      () =>
+        new ForegroundSyncController({
+          jitterRatio: -0.1,
+          run: async () => undefined
+        })
+    ).toThrow('jitterRatio must be between 0 and 1');
+  });
+
   it('does not start overlapping foreground sync runs', async () => {
     let releaseRun!: () => void;
     const controller = new ForegroundSyncController({
@@ -62,7 +79,7 @@ describe('ForegroundSyncController', () => {
       isOnline: () => false,
       now: () => new Date('2026-05-25T00:00:00.000Z'),
       run: async () => {
-        throw new Error('must not run');
+        throw new Error('unexpected sync run');
       }
     });
 
@@ -134,6 +151,37 @@ describe('ForegroundSyncController', () => {
       consecutiveFailures: 0,
       lastStartedAt: '2026-05-25T00:00:05.000Z',
       lastCompletedAt: '2026-05-25T00:00:05.000Z'
+    });
+  });
+
+  it('preserves the last successful completion timestamp after a later failed run', async () => {
+    let current = new Date('2026-05-25T00:00:00.000Z');
+    let failNext = false;
+    const controller = new ForegroundSyncController({
+      now: () => current,
+      baseDelayMs: 1_000,
+      jitterRatio: 0,
+      run: async () => {
+        if (failNext) throw new Error('transient sync error');
+        current = new Date('2026-05-25T00:00:01.000Z');
+        return undefined;
+      }
+    });
+
+    await expect(controller.requestSync('startup')).resolves.toMatchObject({ status: 'completed' });
+    failNext = true;
+    current = new Date('2026-05-25T00:05:00.000Z');
+    await expect(controller.requestSync('timer')).resolves.toMatchObject({
+      status: 'failed',
+      nextRetryAt: '2026-05-25T00:05:02.000Z'
+    });
+
+    expect(controller.getState()).toMatchObject({
+      status: 'backing-off',
+      consecutiveFailures: 1,
+      lastCompletedAt: '2026-05-25T00:00:01.000Z',
+      lastFailedAt: '2026-05-25T00:05:00.000Z',
+      lastError: 'transient sync error'
     });
   });
 });
