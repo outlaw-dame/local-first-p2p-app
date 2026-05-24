@@ -90,10 +90,22 @@ export type AdvanceSyncCheckpointInput = SyncCheckpointKey &
     allowRewind?: boolean;
   }>;
 
+export type PutSignedEventWithSyncCheckpointInput = Readonly<{
+  event: SignedEventEnvelope;
+  checkpoint: AdvanceSyncCheckpointInput;
+}>;
+
+export type PutSignedEventWithSyncCheckpointResult = Readonly<{
+  status: 'stored' | 'skipped';
+  checkpoint: StoredSyncCheckpoint;
+}>;
+
 type OutboxStatusPatch = Readonly<{
   updatedAt?: string;
   lastError?: string;
 }>;
+
+type CheckpointAdvanceDecision = 'advance' | 'skip';
 
 export class SyncCheckpointRejectedError extends Error {
   constructor(message: string) {
@@ -151,13 +163,7 @@ export class DexieLocalFirstStore {
 
   async putSignedEvent(event: SignedEventEnvelope): Promise<void> {
     validateSignedEvent(event);
-    await this.#db.signedEvents.put({
-      eventId: event.eventId,
-      kind: event.kind,
-      author: event.author,
-      createdAt: event.createdAt,
-      event
-    });
+    await this.#db.signedEvents.put(storedSignedEvent(event));
   }
 
   async getSignedEvent(eventId: string): Promise<SignedEventEnvelope | undefined> {
@@ -346,17 +352,26 @@ export class DexieLocalFirstStore {
     const next = validateAdvanceSyncCheckpointInput(input);
     return this.transaction('rw', ['syncCheckpoints'], async () => {
       const existing = await this.#db.syncCheckpoints.get(next.checkpointId);
-      if (existing && next.sequence < existing.sequence && input.allowRewind !== true) {
-        throw new SyncCheckpointRejectedError('Sync checkpoint cannot move backwards without allowRewind');
-      }
-      if (existing && next.sequence === existing.sequence) {
-        if (next.cursor === existing.cursor) return existing;
-        if (input.allowRewind !== true) {
-          throw new SyncCheckpointRejectedError('Sync checkpoint cursor mismatch at same sequence');
-        }
-      }
+      const decision = checkpointAdvanceDecision(existing, next, input.allowRewind === true);
+      if (decision === 'skip' && existing) return existing;
       await this.#db.syncCheckpoints.put(next);
       return next;
+    });
+  }
+
+  async putSignedEventWithSyncCheckpoint(
+    input: PutSignedEventWithSyncCheckpointInput
+  ): Promise<PutSignedEventWithSyncCheckpointResult> {
+    validateSignedEvent(input.event);
+    const next = validateAdvanceSyncCheckpointInput(input.checkpoint);
+    return this.transaction('rw', ['signedEvents', 'syncCheckpoints'], async () => {
+      const existing = await this.#db.syncCheckpoints.get(next.checkpointId);
+      const decision = checkpointAdvanceDecision(existing, next, input.checkpoint.allowRewind === true);
+      if (decision === 'skip' && existing) return { status: 'skipped', checkpoint: existing };
+
+      await this.#db.signedEvents.put(storedSignedEvent(input.event));
+      await this.#db.syncCheckpoints.put(next);
+      return { status: 'stored', checkpoint: next };
     });
   }
 
@@ -404,6 +419,32 @@ export class DexieLocalFirstStore {
 
 export function createLocalFirstStore(databaseName?: string): DexieLocalFirstStore {
   return new DexieLocalFirstStore(databaseName);
+}
+
+function storedSignedEvent(event: SignedEventEnvelope): StoredSignedEvent {
+  return {
+    eventId: event.eventId,
+    kind: event.kind,
+    author: event.author,
+    createdAt: event.createdAt,
+    event
+  };
+}
+
+function checkpointAdvanceDecision(
+  existing: StoredSyncCheckpoint | undefined,
+  next: StoredSyncCheckpoint,
+  allowRewind: boolean
+): CheckpointAdvanceDecision {
+  if (!existing) return 'advance';
+  if (next.sequence < existing.sequence && !allowRewind) {
+    throw new SyncCheckpointRejectedError('Sync checkpoint cannot move backwards without allowRewind');
+  }
+  if (next.sequence === existing.sequence) {
+    if (next.cursor === existing.cursor) return 'skip';
+    if (!allowRewind) throw new SyncCheckpointRejectedError('Sync checkpoint cursor mismatch at same sequence');
+  }
+  return 'advance';
 }
 
 function validateOutboxEntry(entry: MutationOutboxEntry): void {
