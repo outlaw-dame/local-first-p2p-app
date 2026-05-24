@@ -177,6 +177,7 @@ function validateStoredBridgeRecordMetadata(record: Partial<StoredBridgeRecord>)
 
 function validateStoredEvent(value: unknown): SignedEventEnvelope {
   if (!isRecord(value)) throw new Error('record.event must be a JSON object');
-  validateSignedEvent(value);
-  return value as SignedEventEnvelope;
+  const event = value as SignedEventEnvelope;
+  validateSignedEvent(event);
+  return event;
 }
