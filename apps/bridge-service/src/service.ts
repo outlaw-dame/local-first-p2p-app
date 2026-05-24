@@ -4,6 +4,8 @@ import { InMemoryBridgeStore } from './stores.js';
 import {
   type BridgeDeliveryRequest,
   type BridgeDeliveryResponse,
+  type BridgeInboundReadRequest,
+  type BridgeInboundReadResponse,
   type BridgeRecord,
   type BridgeServiceOptions,
   type BridgeServiceRole,
@@ -17,9 +19,14 @@ import {
   normalizeErrorMessage,
   requireIsoDate,
   requireNonEmpty,
+  requirePositiveInteger,
+  requireSafeNonNegativeInteger,
   responseForExistingRecord,
   withoutExpiry
 } from './utils.js';
+
+export const DEFAULT_BRIDGE_INBOUND_READ_LIMIT = 100;
+export const MAX_BRIDGE_INBOUND_READ_LIMIT = 500;
 
 export class BridgeService {
   readonly role: BridgeServiceRole;
@@ -61,12 +68,37 @@ export class BridgeService {
         author: request.event.author,
         privacy: request.event.privacy,
         acceptedAt: now,
-        expiresAt: new Date(nowMs + this.store.ttlMs).toISOString()
+        expiresAt: new Date(nowMs + this.store.ttlMs).toISOString(),
+        event: request.event
       },
       nowMs
     );
     if (result.status === 'existing') return responseForExistingRecord(result.record, idempotencyKey, target, request.event);
     return confirmed(result.record, false);
+  }
+
+  async readInboundRecords(
+    request: BridgeInboundReadRequest,
+    now = new Date().toISOString()
+  ): Promise<BridgeInboundReadResponse> {
+    requireNonEmpty(request.sourceId, 'sourceId');
+    const target = requireNonEmpty(request.streamId, 'streamId');
+    requireNonEmpty(request.scope, 'scope');
+    const afterSequence = request.cursor === undefined ? 0 : parseReadCursor(request.cursor);
+    const limit = normalizeReadLimit(request.limit);
+    const nowMs = requireIsoDate(now, 'now');
+    const records = await this.store.listAfter({ target, afterSequence, limit }, nowMs);
+
+    return {
+      records: records
+        .filter((record): record is StoredBridgeRecord & { event: SignedEventEnvelope } => record.event !== undefined)
+        .map((record) => ({
+          cursor: String(record.sequence),
+          sequence: record.sequence,
+          event: record.event,
+          receivedAt: record.acceptedAt
+        }))
+    };
   }
 
   async getRecord(idempotencyKey: string, now = new Date().toISOString()): Promise<BridgeRecord | undefined> {
@@ -116,6 +148,23 @@ export async function handleBridgeDeliveryRequest(
   return jsonResponse(response, statusCodeForBridgeResponse(response));
 }
 
+export async function handleBridgeInboundReadRequest(
+  service: BridgeService,
+  request: Request,
+  now = new Date().toISOString()
+): Promise<Response> {
+  if (request.method !== 'POST') return jsonResponse({ reason: 'Method not allowed' }, 405);
+
+  const parsed = await parseInboundReadRequestJson(request);
+  if (parsed.status === 'invalid') return jsonResponse({ reason: parsed.reason }, 400);
+
+  try {
+    return jsonResponse(await service.readInboundRecords(parsed.request, now), 200);
+  } catch (error) {
+    return jsonResponse({ reason: normalizeErrorMessage(error) }, 400);
+  }
+}
+
 export const bridgeServicePlaceholder = {
   role: 'stateful-edge-actor' satisfies BridgeServiceRole,
   authoritativeForPrivateState: false
@@ -149,7 +198,49 @@ async function parseDeliveryRequestJson(
   }
 }
 
-function jsonResponse(body: BridgeDeliveryResponse, status: number): Response {
+async function parseInboundReadRequestJson(
+  request: Request
+): Promise<
+  | Readonly<{ status: 'valid'; request: BridgeInboundReadRequest }>
+  | Readonly<{ status: 'invalid'; reason: string }>
+> {
+  try {
+    const parsed: unknown = await request.json();
+    if (!isRecord(parsed)) return invalidRead('Request body must be a JSON object');
+    const sourceId = coerceString(parsed.sourceId, 'sourceId');
+    const streamId = coerceString(parsed.streamId, 'streamId');
+    const scope = coerceString(parsed.scope, 'scope');
+    const cursor = parsed.cursor === undefined ? undefined : coerceString(parsed.cursor, 'cursor');
+    const limit = parsed.limit === undefined ? undefined : coercePositiveInteger(parsed.limit, 'limit');
+    return {
+      status: 'valid',
+      request: {
+        sourceId,
+        streamId,
+        scope,
+        ...(cursor === undefined ? {} : { cursor }),
+        ...(limit === undefined ? {} : { limit })
+      }
+    };
+  } catch (error) {
+    return invalidRead(`Invalid request body: ${normalizeErrorMessage(error)}`);
+  }
+}
+
+function parseReadCursor(cursor: string): number {
+  requireNonEmpty(cursor, 'cursor');
+  if (!/^\d+$/.test(cursor)) throw new Error('cursor must be a non-negative integer string');
+  return requireSafeNonNegativeInteger(Number(cursor), 'cursor');
+}
+
+function normalizeReadLimit(limit: number | undefined): number {
+  if (limit === undefined) return DEFAULT_BRIDGE_INBOUND_READ_LIMIT;
+  const normalized = requirePositiveInteger(limit, 'limit');
+  if (normalized > MAX_BRIDGE_INBOUND_READ_LIMIT) throw new Error(`limit must be at most ${MAX_BRIDGE_INBOUND_READ_LIMIT}`);
+  return normalized;
+}
+
+function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -163,12 +254,21 @@ function invalid(idempotencyKey: string, reason: string): Readonly<{ status: 'in
   return { status: 'invalid', idempotencyKey, reason };
 }
 
+function invalidRead(reason: string): Readonly<{ status: 'invalid'; reason: string }> {
+  return { status: 'invalid', reason };
+}
+
 function rejected(idempotencyKey: string, reason: string): BridgeDeliveryResponse {
   return { status: 'rejected', idempotencyKey, reason };
 }
 
 function coerceString(value: unknown, label: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`${label} is required`);
+  return value;
+}
+
+function coercePositiveInteger(value: unknown, label: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be positive`);
   return value;
 }
 
