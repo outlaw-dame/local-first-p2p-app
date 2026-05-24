@@ -160,8 +160,8 @@ export async function handleBridgeInboundReadRequest(
 
   try {
     return jsonResponse(await service.readInboundRecords(parsed.request, now), 200);
-  } catch (error) {
-    return jsonResponse({ reason: normalizeErrorMessage(error) }, 400);
+  } catch {
+    return jsonResponse({ reason: 'Bridge inbound read failed' }, 503);
   }
 }
 
@@ -211,7 +211,9 @@ async function parseInboundReadRequestJson(
     const streamId = coerceString(parsed.streamId, 'streamId');
     const scope = coerceString(parsed.scope, 'scope');
     const cursor = parsed.cursor === undefined ? undefined : coerceString(parsed.cursor, 'cursor');
+    if (cursor !== undefined) parseReadCursor(cursor);
     const limit = parsed.limit === undefined ? undefined : coercePositiveInteger(parsed.limit, 'limit');
+    if (limit !== undefined) normalizeReadLimit(limit);
     return {
       status: 'valid',
       request: {
@@ -223,7 +225,7 @@ async function parseInboundReadRequestJson(
       }
     };
   } catch (error) {
-    return invalidRead(`Invalid request body: ${normalizeErrorMessage(error)}`);
+    return invalidRead(normalizeErrorMessage(error));
   }
 }
 
