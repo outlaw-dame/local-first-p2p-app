@@ -246,7 +246,7 @@ export class PgliteBridgeStore implements BridgeStore {
 }
 
 function rowToRecord(row: BridgeRecordRow): StoredBridgeRecord {
-  const record: Partial<StoredBridgeRecord> = {
+  return validateStoredBridgeRecord({
     idempotencyKey: row.idempotency_key,
     target: row.target,
     eventId: row.event_id,
@@ -254,10 +254,7 @@ function rowToRecord(row: BridgeRecordRow): StoredBridgeRecord {
     privacy: row.privacy,
     sequence: requireSafeNonNegativeInteger(Number(row.sequence), 'record.sequence'),
     acceptedAt: row.accepted_at,
-    expiresAt: row.expires_at
-  };
-  if (row.event_json !== null) {
-    record.event = JSON.parse(row.event_json) as StoredBridgeRecord['event'];
-  }
-  return validateStoredBridgeRecord(record);
+    expiresAt: row.expires_at,
+    ...(row.event_json === null ? {} : { event: JSON.parse(row.event_json) as StoredBridgeRecord['event'] })
+  });
 }
