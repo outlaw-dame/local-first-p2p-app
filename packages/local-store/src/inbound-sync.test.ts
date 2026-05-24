@@ -119,6 +119,54 @@ describe('atomic inbound sync storage', () => {
     }
   });
 
+  it('rejects stale checkpoints before validating malformed stale events', async () => {
+    const store = createLocalFirstStore(`inbound-stale-malformed-${globalThis.crypto.randomUUID()}`);
+    const currentEvent = makeSignedEvent('evt_inbound_current_before_malformed');
+    const malformedStaleEvent = {
+      ...makeSignedEvent('evt_inbound_malformed_stale'),
+      payload: []
+    } as unknown as SignedEventEnvelope;
+
+    try {
+      await store.putSignedEventWithSyncCheckpoint({
+        event: currentEvent,
+        checkpoint: {
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice',
+          cursor: 'cursor-100',
+          sequence: 100,
+          updatedAt: '2026-05-24T00:00:00.000Z'
+        }
+      });
+
+      await expect(
+        store.putSignedEventWithSyncCheckpoint({
+          event: malformedStaleEvent,
+          checkpoint: {
+            sourceId: 'bridge:primary',
+            streamId: 'durable-stream:inbox',
+            scope: 'identity:alice',
+            cursor: 'cursor-90',
+            sequence: 90,
+            updatedAt: '2026-05-24T00:01:00.000Z'
+          }
+        })
+      ).rejects.toMatchObject({ code: 'stale-sequence' });
+
+      await expect(store.getSignedEvent('evt_inbound_malformed_stale')).resolves.toBeUndefined();
+      await expect(
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
+      ).resolves.toMatchObject({ cursor: 'cursor-100', sequence: 100 });
+    } finally {
+      await store.delete();
+    }
+  });
+
   it('does not advance a checkpoint when event validation fails', async () => {
     const store = createLocalFirstStore(`inbound-invalid-event-${globalThis.crypto.randomUUID()}`);
     const invalidEvent = {
