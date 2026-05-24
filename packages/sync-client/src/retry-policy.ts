@@ -5,11 +5,11 @@ export function requireJitterRatio(value: number, name = 'jitterRatio'): number 
   return value;
 }
 
-export function requireOptionalJitterRatio(value: number | undefined, name = 'jitterRatio'): number | undefined {
-  if (value === undefined) return undefined;
+export function requireOptionalJitterRatio(value: number | null | undefined, name = 'jitterRatio'): number | undefined {
+  if (value === undefined || value === null) return undefined;
   return requireJitterRatio(value, name);
 }
 
-export function resolveJitterRatio(value: number | undefined, name = 'jitterRatio'): number {
+export function resolveJitterRatio(value: number | null | undefined, name = 'jitterRatio'): number {
   return requireJitterRatio(value ?? DEFAULT_JITTER_RATIO, name);
 }
