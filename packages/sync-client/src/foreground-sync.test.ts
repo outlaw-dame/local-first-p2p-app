@@ -34,20 +34,15 @@ describe('ForegroundSyncController', () => {
   });
 
   it('validates jitter ratio at construction time', () => {
-    expect(
-      () =>
-        new ForegroundSyncController({
-          jitterRatio: 1.1,
-          run: async () => undefined
-        })
-    ).toThrow('jitterRatio must be between 0 and 1');
-    expect(
-      () =>
-        new ForegroundSyncController({
-          jitterRatio: -0.1,
-          run: async () => undefined
-        })
-    ).toThrow('jitterRatio must be between 0 and 1');
+    for (const jitterRatio of [1.1, -0.1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(
+        () =>
+          new ForegroundSyncController({
+            jitterRatio,
+            run: async () => undefined
+          })
+      ).toThrow('jitterRatio must be between 0 and 1');
+    }
   });
 
   it('does not start overlapping foreground sync runs', async () => {
