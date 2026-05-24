@@ -1,4 +1,3 @@
-import { type SyncCheckpointKey } from '@lfp2p/local-store';
 import { type SignedEventEnvelope } from '@lfp2p/protocol';
 import {
   isAbortError,
@@ -9,29 +8,19 @@ import {
   requireNonEmpty,
   requirePositiveInteger
 } from './http-bridge-internals.js';
-import { type InboundSyncRecord } from './index.js';
-
-export type InboundSyncPullInput = SyncCheckpointKey &
-  Readonly<{
-    cursor?: string;
-    limit?: number;
-  }>;
-
-export type InboundSyncTransport = Readonly<{
-  pull(input: InboundSyncPullInput): Promise<readonly InboundSyncRecord[]>;
-}>;
-
-export type HttpBridgeInboundTransportOptions = Readonly<{
-  endpoint: string | URL;
-  fetch?: typeof fetch;
-  timeoutMs?: number;
-}>;
+import { type InboundSyncPullInput, type InboundSyncRecord, type InboundSyncTransport } from './index.js';
 
 type BridgeInboundHttpRecord = Readonly<{
   cursor: string;
   sequence: number;
   event: SignedEventEnvelope;
   receivedAt?: string;
+}>;
+
+export type HttpBridgeInboundTransportOptions = Readonly<{
+  endpoint: string | URL;
+  fetch?: typeof fetch;
+  timeoutMs?: number;
 }>;
 
 type ParsedBridgeInboundResponse =
@@ -105,11 +94,7 @@ async function mapBridgeInboundHttpResponse(
   }));
 }
 
-type NormalizedInboundPullInput = SyncCheckpointKey &
-  Readonly<{
-    cursor?: string;
-    limit?: number;
-  }>;
+type NormalizedInboundPullInput = InboundSyncPullInput;
 
 function normalizeInboundPullInput(input: InboundSyncPullInput): NormalizedInboundPullInput {
   return {
