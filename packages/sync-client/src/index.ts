@@ -1,4 +1,9 @@
-import { type DexieLocalFirstStore, type MutationOutboxEntry, type SyncCheckpointKey } from '@lfp2p/local-store';
+import {
+  SyncCheckpointRejectedError,
+  type DexieLocalFirstStore,
+  type MutationOutboxEntry,
+  type SyncCheckpointKey
+} from '@lfp2p/local-store';
 import { type SignedEventEnvelope } from '@lfp2p/protocol';
 
 export type RetryPolicyInput = Readonly<{
@@ -91,22 +96,21 @@ export function createIdempotencyKey(prefix = 'idem'): string {
 }
 
 export async function acceptSyncCheckpoint(input: AcceptSyncCheckpointInput): Promise<boolean> {
-  const key: SyncCheckpointKey = {
-    sourceId: input.sourceId,
-    streamId: input.streamId,
-    scope: input.scope
-  };
-  const existing = await input.store.getSyncCheckpoint(key);
-  if (existing && input.sequence < existing.sequence && input.allowRewind !== true) return false;
-  if (existing && input.sequence === existing.sequence && existing.cursor !== input.cursor && input.allowRewind !== true) return false;
-  await input.store.advanceSyncCheckpoint({
-    ...key,
-    cursor: input.cursor,
-    sequence: input.sequence,
-    ...(input.updatedAt === undefined ? {} : { updatedAt: input.updatedAt }),
-    ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
-  });
-  return true;
+  try {
+    await input.store.advanceSyncCheckpoint({
+      sourceId: input.sourceId,
+      streamId: input.streamId,
+      scope: input.scope,
+      cursor: input.cursor,
+      sequence: input.sequence,
+      ...(input.updatedAt === undefined ? {} : { updatedAt: input.updatedAt }),
+      ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof SyncCheckpointRejectedError) return false;
+    throw error;
+  }
 }
 
 export function createHttpBridgeTransport(options: HttpBridgeTransportOptions): OutboxTransport {
