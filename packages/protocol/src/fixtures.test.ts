@@ -31,8 +31,48 @@ describe('protocol event fixtures', () => {
     ).toThrow(/payload must be a JSON object/);
   });
 
+  it('rejects invalid signature fields', () => {
+    const base = validSignedEventFixture as SignedEventEnvelope;
+
+    expect(() =>
+      validateSignedEvent({
+        ...base,
+        signature: { ...base.signature, algorithm: 'rsa' }
+      } as unknown as SignedEventEnvelope)
+    ).toThrow(/Unsupported signature algorithm/);
+
+    expect(() =>
+      validateSignedEvent({
+        ...base,
+        signature: { ...base.signature, publicKey: '' }
+      } as unknown as SignedEventEnvelope)
+    ).toThrow(/signature\.publicKey/);
+
+    expect(() =>
+      validateSignedEvent({
+        ...base,
+        signature: { ...base.signature, value: '   ' }
+      } as unknown as SignedEventEnvelope)
+    ).toThrow(/signature\.value/);
+  });
+
+  it('rejects invalid date formats', () => {
+    expect(() =>
+      validateSignedEvent({
+        ...validSignedEventFixture,
+        createdAt: 'not-a-date'
+      } as unknown as SignedEventEnvelope)
+    ).toThrow(/createdAt must be an ISO date string/);
+  });
+
   it('rejects non-finite JSON values before canonicalization', () => {
-    expect(() => canonicalizeJson({ score: Number.NaN } as never)).toThrow(
+    expect(() => canonicalizeJson({ nan: Number.NaN } as never)).toThrow(
+      /Cannot canonicalize non-finite number/
+    );
+    expect(() => canonicalizeJson({ inf: Number.POSITIVE_INFINITY } as never)).toThrow(
+      /Cannot canonicalize non-finite number/
+    );
+    expect(() => canonicalizeJson({ negInf: Number.NEGATIVE_INFINITY } as never)).toThrow(
       /Cannot canonicalize non-finite number/
     );
   });
