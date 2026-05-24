@@ -34,6 +34,7 @@ type BridgeRecordRow = Readonly<{
 
 type CountRow = Readonly<{ count: number | string }>;
 type SequenceRow = Readonly<{ latest_sequence: number | string }>;
+type StoredBridgeEvent = NonNullable<StoredBridgeRecord['event']>;
 
 type BridgeSqlExecutor = Readonly<{
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
@@ -255,6 +256,6 @@ function rowToRecord(row: BridgeRecordRow): StoredBridgeRecord {
     sequence: requireSafeNonNegativeInteger(Number(row.sequence), 'record.sequence'),
     acceptedAt: row.accepted_at,
     expiresAt: row.expires_at,
-    ...(row.event_json === null ? {} : { event: JSON.parse(row.event_json) as StoredBridgeRecord['event'] })
+    ...(row.event_json === null ? {} : { event: JSON.parse(row.event_json) as StoredBridgeEvent })
   });
 }
