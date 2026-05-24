@@ -16,8 +16,8 @@ The doctrine remains the target build-order authority. The code did not follow t
 
 | Doctrine phase | Current status | Evidence in current code | Gap before phase can be called complete |
 |---|---:|---|---|
-| Phase 0 - Doctrine, repo discipline, ADRs | Partial | Monorepo, CI, lint/typecheck/test/build, planning docs now being organized. | ADR template, threat-model template, protocol fixture policy, versioning policy, and exit-record habit. |
-| Phase 1 - Protocol primitives and canonical fixtures | Partial | `SignedEventEnvelope`, `UnsignedEventEnvelope`, `SourceRef`, canonical JSON helper, validation helpers. | Golden fixtures, independent hash/signature verification paths, unknown-version policy, negative fixture suite. |
+| Phase 0 - Doctrine, repo discipline, ADRs | Partial | Monorepo, CI, lint/typecheck/test/build, planning docs organized, ADR template, threat-model template, exit-report template, and protocol fixture policy added. | Explicit schema/storage versioning policy, ADR-000 runtime decision, and consistent use of exit reports on future phase claims. |
+| Phase 1 - Protocol primitives and canonical fixtures | Partial | `SignedEventEnvelope`, `UnsignedEventEnvelope`, `SourceRef`, canonical JSON helper, validation helpers, and protocol fixture policy. | Initial golden fixtures, independent hash/signature verification paths, unknown-version policy, negative fixture suite. |
 | Phase 2 - Identity control log v1 | Partial/early | Local device identity bootstrap exists with encrypted private-key material. | Root/controller identity, identity control log, device add/revoke/rotate, capabilities, epochs, contact card. Needs ADR. |
 | Phase 3 - PWA light peer foundation | Done for foundation | Framework7 PWA shell, Dexie store, local signing, local event append, local view summary, mutation outbox. | Service worker, privacy-safe logging policy, local view rebuild tests, resume/network retry wiring. |
 | Phase 4 - Bridge and infrastructure classes v1 | Partial | Bridge service primitives, request handler, signature verification, bridge-safe scope checks, in-memory/JSON/PGlite stores, HTTP sync-client transport. | Production bridge runtime, auth/rate limiting, encrypted mailbox/resumable stream, offsets/cursors, bridge compromise threat model. |
@@ -36,7 +36,8 @@ The doctrine remains the target build-order authority. The code did not follow t
 
 The repository is effectively between:
 
-- **Phase 1 partial**: protocol primitives exist but fixture discipline is incomplete.
+- **Phase 0 partial**: process scaffolding now exists, but ADR-000 and explicit versioning policy still need to be written.
+- **Phase 1 partial**: protocol primitives exist but initial fixture discipline is not yet implemented in tests.
 - **Phase 3 foundation complete enough**: the PWA can create signed local events and queue outbox writes.
 - **Phase 4 partial**: bridge transport and bridge stores exist, but production infrastructure and sync offsets do not.
 
@@ -46,16 +47,17 @@ Use this working label for the next development cycle:
 
 > **Phase 1.5 / 3.5 - Doctrine alignment and protocol hardening before feature expansion**
 
-This cycle should complete the missing guardrails before adding chat/media/search breadth.
+This cycle should use the newly added scaffolding and complete the remaining guardrails before adding chat/media/search breadth.
 
 ## Next required gates
 
-1. Add ADR template and record ADR-000 for runtime/product decision.
-2. Add protocol fixture policy and initial event fixtures.
-3. Add current bridge compromise threat-model note.
-4. Add sync offset/checkpoint design before implementing Durable Streams/WebSocket readers.
-5. Add identity-control ADR before expanding `packages/identity` beyond local device bootstrap.
-6. Add payload encryption ADR before user-facing private chat or DM/group data can ship.
+1. Record ADR-000 for the runtime/product decision.
+2. Add an explicit schema/storage versioning policy.
+3. Add initial protocol event fixtures and tests under the fixture policy.
+4. Add current bridge compromise threat-model note.
+5. Add sync offset/checkpoint design before implementing Durable Streams/WebSocket readers.
+6. Add identity-control ADR before expanding `packages/identity` beyond local device bootstrap.
+7. Add payload encryption ADR before user-facing private chat or DM/group data can ship.
 
 ## Development warning
 
