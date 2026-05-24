@@ -198,7 +198,7 @@ function requirePositiveInteger(value: number, name: string): number {
 
 function requireOptionalJitterRatio(value: number | undefined): number | undefined {
   if (value === undefined) return undefined;
-  if (value < 0 || value > 1) throw new Error('jitterRatio must be between 0 and 1');
+  if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error('jitterRatio must be between 0 and 1');
   return value;
 }
 
