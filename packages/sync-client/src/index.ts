@@ -2,6 +2,7 @@ import {
   SyncCheckpointRejectedError,
   type DexieLocalFirstStore,
   type MutationOutboxEntry,
+  type StoredSyncCheckpoint,
   type SyncCheckpointKey
 } from '@lfp2p/local-store';
 import { type SignedEventEnvelope } from '@lfp2p/protocol';
@@ -54,6 +55,16 @@ export type InboundSyncRecord = SyncCheckpointKey &
     receivedAt?: string;
   }>;
 
+export type InboundSyncPullInput = SyncCheckpointKey &
+  Readonly<{
+    cursor?: string;
+    limit?: number;
+  }>;
+
+export type InboundSyncTransport = Readonly<{
+  pull(input: InboundSyncPullInput): Promise<readonly InboundSyncRecord[]>;
+}>;
+
 export type ProcessInboundSyncInput = Readonly<{
   store: DexieLocalFirstStore;
   records: readonly InboundSyncRecord[];
@@ -74,6 +85,22 @@ export type ProcessInboundSyncResult = Readonly<{
   rejected: number;
   errors: readonly InboundSyncError[];
 }>;
+
+export type PullAndProcessInboundSyncInput = SyncCheckpointKey &
+  Readonly<{
+    store: DexieLocalFirstStore;
+    transport: InboundSyncTransport;
+    now?: Date;
+    limit?: number;
+    allowRewind?: boolean;
+  }>;
+
+export type PullAndProcessInboundSyncResult = ProcessInboundSyncResult &
+  Readonly<{
+    pulled: number;
+    checkpointBefore?: StoredSyncCheckpoint;
+    checkpointAfter?: StoredSyncCheckpoint;
+  }>;
 
 type BridgeHttpResponse =
   | Readonly<{ status: 'confirmed'; sequence?: number }>
@@ -188,6 +215,33 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
   }
 
   return result;
+}
+
+export async function pullAndProcessInboundSyncBatch(
+  input: PullAndProcessInboundSyncInput
+): Promise<PullAndProcessInboundSyncResult> {
+  const checkpointKey = normalizeSyncCheckpointKey(input);
+  const limit = input.limit === undefined ? undefined : requirePositiveInteger(input.limit, 'limit');
+  const checkpointBefore = await input.store.getSyncCheckpoint(checkpointKey);
+  const records = await input.transport.pull({
+    ...checkpointKey,
+    ...(checkpointBefore === undefined ? {} : { cursor: checkpointBefore.cursor }),
+    ...(limit === undefined ? {} : { limit })
+  });
+  const processed = await processInboundSyncBatch({
+    store: input.store,
+    records,
+    ...(input.now === undefined ? {} : { now: input.now }),
+    ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
+  });
+  const checkpointAfter = await input.store.getSyncCheckpoint(checkpointKey);
+
+  return {
+    ...processed,
+    pulled: records.length,
+    ...(checkpointBefore === undefined ? {} : { checkpointBefore }),
+    ...(checkpointAfter === undefined ? {} : { checkpointAfter })
+  };
 }
 
 export function createHttpBridgeTransport(options: HttpBridgeTransportOptions): OutboxTransport {
@@ -460,7 +514,6 @@ function mutableInboundProcessResult(): {
     received: 0,
     applied: 0,
     skipped: 0,
-    rejected: 0,
     errors: []
   };
 }
@@ -470,6 +523,14 @@ function safeInboundEventId(record: unknown): { eventId: string } | Record<strin
   const event = record.event;
   if (!isRecord(event)) return {};
   return typeof event.eventId === 'string' ? { eventId: event.eventId } : {};
+}
+
+function normalizeSyncCheckpointKey(key: SyncCheckpointKey): SyncCheckpointKey {
+  return {
+    sourceId: requireNonEmpty(key.sourceId, 'sourceId'),
+    streamId: requireNonEmpty(key.streamId, 'streamId'),
+    scope: requireNonEmpty(key.scope, 'scope')
+  };
 }
 
 function isNonRetryableError(error: unknown): boolean {
