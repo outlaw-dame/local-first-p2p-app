@@ -1,5 +1,14 @@
 import { type SyncCheckpointKey } from '@lfp2p/local-store';
 import { type SignedEventEnvelope } from '@lfp2p/protocol';
+import {
+  isAbortError,
+  isCanonicalIsoDateString,
+  isNonRetryableHttpStatus,
+  isRecord,
+  normalizeBridgeEndpoint,
+  requireNonEmpty,
+  requirePositiveInteger
+} from './http-bridge-internals.js';
 import { type InboundSyncRecord } from './index.js';
 
 export type InboundSyncPullInput = SyncCheckpointKey &
@@ -164,8 +173,8 @@ function parseBridgeInboundRecord(
 
   const receivedAt = value.receivedAt;
   if (receivedAt !== undefined) {
-    if (typeof receivedAt !== 'string' || !Number.isFinite(Date.parse(receivedAt))) {
-      return { parseStatus: 'invalid', reason: `Bridge inbound record ${index} receivedAt must be an ISO date string` };
+    if (typeof receivedAt !== 'string' || !isCanonicalIsoDateString(receivedAt)) {
+      return { parseStatus: 'invalid', reason: `Bridge inbound record ${index} receivedAt must be a canonical ISO date string` };
     }
   }
 
@@ -207,33 +216,4 @@ function fallbackHttpReason(response: Response): string {
 
 function invalidBridgeInboundResponse(reason: string): ParsedBridgeInboundResponse {
   return { parseStatus: 'invalid', reason };
-}
-
-function normalizeBridgeEndpoint(endpoint: string | URL): string {
-  const url = endpoint instanceof URL ? new URL(endpoint.href) : new URL(endpoint);
-  if (url.username.length > 0 || url.password.length > 0) throw new Error('Bridge endpoint must not include credentials');
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('Bridge endpoint must use http or https');
-  return url.toString();
-}
-
-function isNonRetryableHttpStatus(status: number): boolean {
-  return status === 400 || status === 401 || status === 403 || status === 404 || status === 413 || status === 422;
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function requirePositiveInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be positive`);
-  return value;
-}
-
-function requireNonEmpty(value: string, label: string): string {
-  if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`${label} is required`);
-  return value;
 }
