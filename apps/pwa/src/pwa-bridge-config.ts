@@ -54,7 +54,6 @@ const MAX_TIMEOUT_MS = 60_000;
 const MAX_TARGET_LENGTH = 120;
 const MAX_AUTH_TOKEN_LENGTH = 4_096;
 const TARGET_PATTERN = /^[A-Za-z0-9][A-Za-z0-9:._-]*$/u;
-const AUTH_TOKEN_UNSAFE_PATTERN = /[\u0000-\u0020\u007f]/u;
 
 export function resolvePwaBridgeConfig(env: PwaBridgeConfigEnv = importMetaEnv()): PwaBridgeConfig {
   if (!isExplicitlyEnabled(env[ENABLED_KEY])) {
@@ -156,13 +155,21 @@ function parseBridgeAuth(env: PwaBridgeConfigEnv): PwaBridgeInvalidConfig | Vali
   if (env.DEV !== true) {
     return invalid('auth-token-requires-dev-mode', `${AUTH_TOKEN_KEY} is only accepted when import.meta.env.DEV is true.`);
   }
-  if (raw !== raw.trim() || raw.length > MAX_AUTH_TOKEN_LENGTH || AUTH_TOKEN_UNSAFE_PATTERN.test(raw)) {
+  if (raw !== raw.trim() || raw.length > MAX_AUTH_TOKEN_LENGTH || hasBridgeAuthUnsafeCharacter(raw)) {
     return invalid(
       'invalid-auth-token',
       `${AUTH_TOKEN_KEY} must be ${MAX_AUTH_TOKEN_LENGTH} characters or fewer and must not contain whitespace or control characters.`
     );
   }
   return { status: 'valid', auth: { scheme: 'bearer', token: raw } };
+}
+
+function hasBridgeAuthUnsafeCharacter(value: string): boolean {
+  for (const char of value) {
+    const codePoint = char.codePointAt(0);
+    if (codePoint === undefined || codePoint <= 32 || codePoint === 127) return true;
+  }
+  return false;
 }
 
 function stringEnv(value: unknown): string | undefined {
