@@ -1,6 +1,6 @@
 # PWA bridge config boundary
 
-The PWA has a guarded bridge configuration boundary for future sync transport work. This slice only parses and displays configuration state. It does not send pending outbox entries, pull inbound records, create a bridge transport, or attach credentials.
+The PWA has a guarded bridge configuration boundary for future sync transport work. This slice parses configuration state and can prepare a transport object behind an explicit guard. It still does not send pending outbox entries, pull inbound records, attach credentials, or wire transport into foreground sync.
 
 ## Environment variables
 
@@ -20,7 +20,7 @@ The PWA has a guarded bridge configuration boundary for future sync transport wo
 
 ## Safety boundaries
 
-- Configuration parsing is not transport wiring.
+- Configuration parsing and transport preparation are not delivery wiring.
 - The resolved config reports `transportWired: false` when configured.
 - Secrets must not be placed in endpoint URLs.
 - Query strings and fragments are rejected to avoid accidental token leakage.
