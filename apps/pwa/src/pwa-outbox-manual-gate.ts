@@ -63,6 +63,10 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
   return { status: 'delivered', batchSize, result, message: formatManualOutboxDeliveryResult(result) };
 }
 
+export function manualOutboxDeliveryActionEnabled(env: ManualOutboxDeliveryEnv = importMetaEnv()): boolean {
+  return isDevMode(env) && manualDeliveryEnabled(env);
+}
+
 export function formatManualOutboxDeliveryResult(result: ProcessOutboxResult): string {
   return `Manual outbox delivery attempted ${result.attempted}, confirmed ${result.confirmed}, conflicted ${result.conflicted}, retried ${result.retried}, failed ${result.failed}, skipped ${result.skipped}.`;
 }
