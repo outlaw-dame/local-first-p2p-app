@@ -23,7 +23,9 @@ import {
   attachPwaForegroundSyncTriggers,
   createPwaForegroundSyncController,
   formatPwaForegroundSyncResult,
-  requestPwaForegroundSync
+  formatPwaSyncStatusText,
+  requestPwaForegroundSync,
+  type PwaForegroundSyncController
 } from './pwa-sync-lifecycle.js';
 
 const queryClient = new QueryClient({
@@ -36,7 +38,9 @@ const queryClient = new QueryClient({
 });
 
 type LocalRefreshSnapshot = Readonly<{
-  eventCount: number;
+  identity: LocalDeviceIdentity;
+  keypair: SigningKeypair;
+  events: EventSummaryView[];
   pendingOutboxCount: number;
 }>;
 
@@ -63,63 +67,77 @@ function HomePage(): JSX.Element {
   const [pendingCount, setPendingCount] = useState(0);
   const [status, setStatus] = useState('Bootstrapping local device identity.');
   const [syncStatus, setSyncStatus] = useState('Foreground sync idle.');
+  const [syncController, setSyncController] = useState<PwaForegroundSyncController | null>(null);
 
-  const refreshLocalState = useCallback(
-    async (readyStatus = 'Ready for local-first writes.'): Promise<LocalRefreshSnapshot> => {
-      const [session, eventSummaries, outbox] = await Promise.all([
-        identityManager.getOrCreatePrimaryDeviceSession(),
-        store.listEventSummaries(),
-        store.listPendingOutbox()
-      ]);
-      if (mountedRef.current) {
-        setIdentity(session.identity);
-        setKeypair(session.keypair);
-        setEvents(eventSummaries);
-        setPendingCount(outbox.length);
-        setStatus(readyStatus);
-      }
-      return { eventCount: eventSummaries.length, pendingOutboxCount: outbox.length };
-    },
-    [identityManager, store]
-  );
+  const loadLocalState = useCallback(async (): Promise<LocalRefreshSnapshot> => {
+    const [session, eventSummaries, outbox] = await Promise.all([
+      identityManager.getOrCreatePrimaryDeviceSession(),
+      store.listEventSummaries(),
+      store.listPendingOutbox()
+    ]);
+    return {
+      identity: session.identity,
+      keypair: session.keypair,
+      events: eventSummaries,
+      pendingOutboxCount: outbox.length
+    };
+  }, [identityManager, store]);
 
-  const syncController = useMemo(
-    () =>
-      createPwaForegroundSyncController({
-        async run() {
-          return refreshLocalState('Foreground sync refreshed local state.');
-        }
-      }),
-    [refreshLocalState]
-  );
+  const applyLocalStateSnapshot = useCallback((snapshot: LocalRefreshSnapshot, readyStatus: string): void => {
+    setIdentity(snapshot.identity);
+    setKeypair(snapshot.keypair);
+    setEvents(snapshot.events);
+    setPendingCount(snapshot.pendingOutboxCount);
+    setStatus(readyStatus);
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
     mountedRef.current = true;
-    void refreshLocalState().catch((error: unknown) => {
-      if (!mountedRef.current) return;
-      setStatus(`Identity bootstrap failed: ${formatUiError(error)}`);
-    });
+    void loadLocalState().then(
+      (snapshot) => {
+        if (!cancelled) applyLocalStateSnapshot(snapshot, 'Ready for local-first writes.');
+      },
+      (error: unknown) => {
+        if (!cancelled) setStatus(`Identity bootstrap failed: ${formatUiError(error)}`);
+      }
+    );
 
     return () => {
+      cancelled = true;
       mountedRef.current = false;
       void store.close();
     };
-  }, [refreshLocalState, store]);
+  }, [applyLocalStateSnapshot, loadLocalState, store]);
 
   useEffect(() => {
+    let cancelled = false;
+    const controller = createPwaForegroundSyncController({
+      async run() {
+        const snapshot = await loadLocalState();
+        if (!cancelled) applyLocalStateSnapshot(snapshot, 'Foreground sync refreshed local state.');
+        return { eventCount: snapshot.events.length, pendingOutboxCount: snapshot.pendingOutboxCount };
+      }
+    });
+    setSyncController(controller);
+
     const updateSyncStatus = (message: string): void => {
-      if (mountedRef.current) setSyncStatus(message);
+      if (!cancelled) setSyncStatus(message);
     };
     const dispose = attachPwaForegroundSyncTriggers({
-      controller: syncController,
-      onResult: (result) => updateSyncStatus(formatPwaForegroundSyncResult(result))
+      controller,
+      onResult: (result) => updateSyncStatus(formatPwaForegroundSyncResult(result)),
+      onUnexpectedError: (error) => updateSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`)
     });
-    void requestPwaForegroundSync(syncController, 'startup', (result) => {
+    void requestPwaForegroundSync(controller, 'startup', (result) => {
       updateSyncStatus(formatPwaForegroundSyncResult(result));
     }).catch((error: unknown) => updateSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`));
 
-    return dispose;
-  }, [syncController]);
+    return () => {
+      cancelled = true;
+      dispose();
+    };
+  }, [applyLocalStateSnapshot, loadLocalState]);
 
   async function createLocalEvent(): Promise<void> {
     if (!identity || !keypair) {
@@ -159,15 +177,19 @@ function HomePage(): JSX.Element {
       createdAt: now,
       updatedAt: now
     });
-    await refreshLocalState('Local event created and queued without waiting for the network.');
+    applyLocalStateSnapshot(await loadLocalState(), 'Local event created and queued without waiting for the network.');
   }
 
   async function runManualForegroundSync(): Promise<void> {
+    if (syncController === null) {
+      setSyncStatus('Foreground sync controller is not ready yet.');
+      return;
+    }
     try {
       const result = await requestPwaForegroundSync(syncController, 'manual');
-      setSyncStatus(formatPwaForegroundSyncResult(result));
+      if (mountedRef.current) setSyncStatus(formatPwaForegroundSyncResult(result));
     } catch (error: unknown) {
-      setSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`);
+      if (mountedRef.current) setSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`);
     }
   }
 
@@ -205,7 +227,7 @@ function HomePage(): JSX.Element {
       <BlockTitle>Foreground sync lifecycle</BlockTitle>
       <Block inset strong>
         <p>{syncStatus}</p>
-        <Button outline onClick={() => void runManualForegroundSync()}>
+        <Button outline disabled={syncController === null} onClick={() => void runManualForegroundSync()}>
           Refresh foreground sync state
         </Button>
       </Block>
@@ -238,6 +260,5 @@ function truncateMiddle(value: string, maxLength = 28): string {
 }
 
 function formatUiError(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) return error.message.replace(/\s+/g, ' ').trim();
-  return 'Unknown error';
+  return formatPwaSyncStatusText(error, 'Unknown error');
 }
