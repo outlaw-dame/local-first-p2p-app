@@ -19,6 +19,7 @@ import { detectPlatformCapabilities } from '@lfp2p/platform';
 import { createUnsignedEvent } from '@lfp2p/protocol';
 import { createIdempotencyKey } from '@lfp2p/sync-client';
 import { LocalFirstStatusCard } from '@lfp2p/ui';
+import { formatPwaBridgeConfigStatus, resolvePwaBridgeConfig } from './pwa-bridge-config.js';
 import {
   attachPwaForegroundSyncTriggers,
   createPwaForegroundSyncController,
@@ -58,6 +59,7 @@ export function RootApp(): JSX.Element {
 
 function HomePage(): JSX.Element {
   const capabilities = useMemo(() => detectPlatformCapabilities(), []);
+  const bridgeConfig = useMemo(() => resolvePwaBridgeConfig(), []);
   const store = useMemo(() => createLocalFirstStore('lfp2p-pwa-v1'), []);
   const identityManager = useMemo(() => new DeviceIdentityManager(store), [store]);
   const mountedRef = useRef(false);
@@ -225,6 +227,11 @@ function HomePage(): JSX.Element {
         <ListItem title="OPFS" after={capabilities.opfs ? 'available' : 'unavailable'} />
         <ListItem title="WebRTC" after={capabilities.webRtc ? 'available' : 'unavailable'} />
       </List>
+
+      <BlockTitle>Bridge sync boundary</BlockTitle>
+      <Block inset strong>
+        <p>{formatPwaBridgeConfigStatus(bridgeConfig)}</p>
+      </Block>
 
       <BlockTitle>Foreground sync lifecycle</BlockTitle>
       <Block inset strong>
