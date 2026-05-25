@@ -21,7 +21,7 @@ export type RetryPolicyInput = Readonly<{
   attempt: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
-  jitterRatio?: number;
+  jitterRatio?: number | null;
   random?: () => number;
 }>;
 
