@@ -33,6 +33,7 @@ type PwaBridgeInvalidConfig = Readonly<{
     | 'insecure-remote-endpoint'
     | 'invalid-timeout'
     | 'invalid-target'
+    | 'auth-token-requires-dev-mode'
     | 'invalid-auth-token';
   message: string;
 }>;
@@ -78,7 +79,7 @@ export function resolvePwaBridgeConfig(env: PwaBridgeConfigEnv = importMetaEnv()
   const timeoutMs = parseBridgeTimeoutMs(env[TIMEOUT_KEY]);
   if (timeoutMs.status === 'invalid') return timeoutMs;
 
-  const auth = parseBridgeAuth(env[AUTH_TOKEN_KEY]);
+  const auth = parseBridgeAuth(env);
   if (auth.status === 'invalid') return auth;
 
   return {
@@ -95,7 +96,7 @@ export function resolvePwaBridgeConfig(env: PwaBridgeConfigEnv = importMetaEnv()
 export function formatPwaBridgeConfigStatus(config: PwaBridgeConfig): string {
   if (config.status === 'configured') {
     const host = new URL(config.endpoint).host;
-    const authStatus = config.auth === undefined ? 'no auth token configured' : 'bearer auth token configured';
+    const authStatus = config.auth === undefined ? 'no auth token configured' : 'dev bearer auth token configured';
     return `Bridge config ready for future transport: ${host} (${config.target}; ${authStatus}).`;
   }
   if (config.status === 'disabled') return config.message;
@@ -147,9 +148,12 @@ function parseBridgeTimeoutMs(value: unknown): PwaBridgeInvalidConfig | ValidTim
   return { status: 'valid', timeoutMs: parsed };
 }
 
-function parseBridgeAuth(value: unknown): PwaBridgeInvalidConfig | ValidAuth {
-  const token = stringEnv(value);
+function parseBridgeAuth(env: PwaBridgeConfigEnv): PwaBridgeInvalidConfig | ValidAuth {
+  const token = stringEnv(env[AUTH_TOKEN_KEY]);
   if (token === undefined) return { status: 'valid' };
+  if (env.DEV !== true) {
+    return invalid('auth-token-requires-dev-mode', `${AUTH_TOKEN_KEY} is only accepted when import.meta.env.DEV is true.`);
+  }
   if (token.length > MAX_AUTH_TOKEN_LENGTH || AUTH_TOKEN_UNSAFE_PATTERN.test(token)) {
     return invalid(
       'invalid-auth-token',
