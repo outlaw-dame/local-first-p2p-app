@@ -20,6 +20,7 @@ import { createUnsignedEvent } from '@lfp2p/protocol';
 import { createIdempotencyKey } from '@lfp2p/sync-client';
 import { LocalFirstStatusCard } from '@lfp2p/ui';
 import { formatPwaBridgeConfigStatus, resolvePwaBridgeConfig } from './pwa-bridge-config.js';
+import { manualOutboxDeliveryActionEnabled, runManualOutboxDelivery } from './pwa-outbox-manual-gate.js';
 import { createPwaOutboxDeliveryPlan, formatPwaOutboxDeliveryPlan } from './pwa-outbox-delivery-plan.js';
 import {
   attachPwaForegroundSyncTriggers,
@@ -61,6 +62,7 @@ export function RootApp(): JSX.Element {
 function HomePage(): JSX.Element {
   const capabilities = useMemo(() => detectPlatformCapabilities(), []);
   const bridgeConfig = useMemo(() => resolvePwaBridgeConfig(), []);
+  const manualDeliveryEnabled = useMemo(() => manualOutboxDeliveryActionEnabled(), []);
   const store = useMemo(() => createLocalFirstStore('lfp2p-pwa-v1'), []);
   const identityManager = useMemo(() => new DeviceIdentityManager(store), [store]);
   const mountedRef = useRef(false);
@@ -71,6 +73,7 @@ function HomePage(): JSX.Element {
   const [pendingCount, setPendingCount] = useState(0);
   const [status, setStatus] = useState('Bootstrapping local device identity.');
   const [syncStatus, setSyncStatus] = useState('Foreground sync idle.');
+  const [manualDeliveryStatus, setManualDeliveryStatus] = useState('Manual outbox delivery is disabled.');
   const outboxDeliveryPlan = useMemo(
     () => createPwaOutboxDeliveryPlan({ pendingOutboxCount: pendingCount }),
     [pendingCount]
@@ -202,6 +205,20 @@ function HomePage(): JSX.Element {
     }
   }
 
+  async function runManualOutboxDeliveryOnce(): Promise<void> {
+    setManualDeliveryStatus('Manual outbox delivery running.');
+    try {
+      const result = await runManualOutboxDelivery({ store, batchSize: 1 });
+      const snapshot = await loadLocalState();
+      if (mountedRef.current) {
+        setManualDeliveryStatus(result.message);
+        applyLocalStateSnapshot(snapshot, 'Manual outbox delivery action completed.');
+      }
+    } catch (error: unknown) {
+      if (mountedRef.current) setManualDeliveryStatus(`Manual outbox delivery failed: ${formatUiError(error)}.`);
+    }
+  }
+
   return (
     <Page name="home">
       <Navbar title="Local P2P" large transparent />
@@ -249,6 +266,14 @@ function HomePage(): JSX.Element {
       <BlockTitle>Outbox delivery dry run</BlockTitle>
       <Block inset strong>
         <p>{formatPwaOutboxDeliveryPlan(outboxDeliveryPlan)}</p>
+      </Block>
+
+      <BlockTitle>Manual outbox delivery</BlockTitle>
+      <Block inset strong>
+        <p>{manualDeliveryStatus}</p>
+        <Button outline disabled={!manualDeliveryEnabled} onClick={() => void runManualOutboxDeliveryOnce()}>
+          Deliver one outbox entry
+        </Button>
       </Block>
 
       <BlockTitle>
