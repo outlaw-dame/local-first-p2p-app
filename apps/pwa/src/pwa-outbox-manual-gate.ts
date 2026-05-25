@@ -19,7 +19,7 @@ export type RunManualOutboxDeliveryInput = PreparePwaBridgeTransportInput &
 export type ManualOutboxDeliveryResult =
   | Readonly<{
       status: 'disabled';
-      reason: 'manual-delivery-disabled';
+      reason: 'manual-delivery-disabled' | 'not-dev-mode';
       message: string;
     }>
   | Readonly<{
@@ -35,22 +35,22 @@ export type ManualOutboxDeliveryResult =
     }>;
 
 export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInput): Promise<ManualOutboxDeliveryResult> {
-  if (!manualDeliveryEnabled(input.env)) {
+  const env = input.env ?? importMetaEnv();
+  if (!isDevMode(env)) {
+    return { status: 'disabled', reason: 'not-dev-mode', message: 'Manual outbox delivery is unavailable outside dev mode.' };
+  }
+  if (!manualDeliveryEnabled(env)) {
     return {
       status: 'disabled',
       reason: 'manual-delivery-disabled',
-      message: `Manual outbox delivery is disabled. Set ${MANUAL_DELIVERY_ENABLED_KEY}=true in development to enable the explicit action.`
+      message: `Manual outbox delivery is disabled. Set ${MANUAL_DELIVERY_ENABLED_KEY}=true in dev mode to enable the explicit action.`
     };
   }
 
   const batchSize = normalizeBatchSize(input.batchSize);
   const bridgeTransport = preparePwaBridgeTransport(input);
   if (bridgeTransport.status !== 'prepared') {
-    return {
-      status: 'blocked',
-      reason: bridgeTransport.reason,
-      message: `Manual outbox delivery blocked: ${bridgeTransport.message}`
-    };
+    return { status: 'blocked', reason: bridgeTransport.reason, message: `Manual outbox delivery blocked: ${bridgeTransport.message}` };
   }
 
   const result = await processOutboxBatch({
@@ -60,19 +60,18 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
     ...(input.now === undefined ? {} : { now: input.now })
   });
 
-  return {
-    status: 'delivered',
-    batchSize,
-    result,
-    message: formatManualOutboxDeliveryResult(result)
-  };
+  return { status: 'delivered', batchSize, result, message: formatManualOutboxDeliveryResult(result) };
 }
 
 export function formatManualOutboxDeliveryResult(result: ProcessOutboxResult): string {
   return `Manual outbox delivery attempted ${result.attempted}, confirmed ${result.confirmed}, conflicted ${result.conflicted}, retried ${result.retried}, failed ${result.failed}, skipped ${result.skipped}.`;
 }
 
-function manualDeliveryEnabled(env: ManualOutboxDeliveryEnv = importMetaEnv()): boolean {
+function isDevMode(env: ManualOutboxDeliveryEnv): boolean {
+  return env.DEV === true || stringEnv(env.MODE) === 'development';
+}
+
+function manualDeliveryEnabled(env: ManualOutboxDeliveryEnv): boolean {
   const normalized = stringEnv(env[MANUAL_DELIVERY_ENABLED_KEY])?.toLowerCase();
   return normalized === 'true' || normalized === '1' || normalized === 'yes';
 }
