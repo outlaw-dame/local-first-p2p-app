@@ -3,6 +3,7 @@ import {
   type PreparePwaBridgeTransportInput,
   type PwaBridgeTransportPreparation
 } from './pwa-bridge-transport.js';
+import type { OutboxTransport } from '@lfp2p/sync-client';
 
 export type PwaOutboxBridgeTransportStatus = 'disabled' | 'invalid' | 'fetch-unavailable' | 'prepared';
 
@@ -19,9 +20,18 @@ export type PwaOutboxDeliveryPlan = Readonly<{
   message: string;
 }>;
 
+const DRY_RUN_TRANSPORT: OutboxTransport = {
+  async send(): Promise<never> {
+    throw new Error('Dry-run outbox delivery planning must not send transport entries.');
+  }
+};
+
 export function createPwaOutboxDeliveryPlan(input: CreatePwaOutboxDeliveryPlanInput): PwaOutboxDeliveryPlan {
   const pendingOutboxCount = normalizePendingOutboxCount(input.pendingOutboxCount);
-  const bridgeTransport = preparePwaBridgeTransport(input);
+  const bridgeTransport = preparePwaBridgeTransport({
+    ...input,
+    createTransport: input.createTransport ?? createDryRunTransport
+  });
   const bridgeTransportStatus = bridgeTransportStatusFromPreparation(bridgeTransport);
 
   return {
@@ -37,6 +47,10 @@ export function createPwaOutboxDeliveryPlan(input: CreatePwaOutboxDeliveryPlanIn
 
 export function formatPwaOutboxDeliveryPlan(plan: PwaOutboxDeliveryPlan): string {
   return plan.message;
+}
+
+function createDryRunTransport(): OutboxTransport {
+  return DRY_RUN_TRANSPORT;
 }
 
 function bridgeTransportStatusFromPreparation(
