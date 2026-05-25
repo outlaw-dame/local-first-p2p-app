@@ -5,6 +5,7 @@ import {
   browserIsOnline,
   createPwaForegroundSyncController,
   formatPwaForegroundSyncResult,
+  formatPwaSyncStatusText,
   requestPwaForegroundSync,
   type EventSubscriptionTarget,
   type PwaForegroundSyncController,
@@ -64,6 +65,48 @@ describe('PWA foreground sync lifecycle helpers', () => {
     expect(requests).toEqual(['online', 'visible']);
   });
 
+  it('does not treat missing visibility state as a visible foreground transition', async () => {
+    const documentTarget = new FakeVisibleTarget(undefined);
+    const requests: ForegroundSyncTrigger[] = [];
+    const controller: PwaForegroundSyncController = {
+      getState: () => ({ status: 'idle', consecutiveFailures: 0 }),
+      async requestSync(trigger) {
+        requests.push(trigger);
+        return completed(trigger);
+      }
+    };
+
+    attachPwaForegroundSyncTriggers({ controller, windowTarget: null, documentTarget });
+    documentTarget.dispatch('visibilitychange');
+    await Promise.resolve();
+
+    expect(requests).toEqual([]);
+  });
+
+  it('routes unexpected trigger rejections to the error callback', async () => {
+    const windowTarget = new FakeTarget();
+    const errors: { error: unknown; trigger: ForegroundSyncTrigger }[] = [];
+    const controller: PwaForegroundSyncController = {
+      getState: () => ({ status: 'idle', consecutiveFailures: 0 }),
+      async requestSync() {
+        throw new Error('unexpected listener failure');
+      }
+    };
+
+    attachPwaForegroundSyncTriggers({
+      controller,
+      windowTarget,
+      documentTarget: null,
+      onUnexpectedError: (error, trigger) => errors.push({ error, trigger })
+    });
+    windowTarget.dispatch('online');
+    await Promise.resolve();
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.trigger).toBe('online');
+    expect(errors[0]?.error).toBeInstanceOf(Error);
+  });
+
   it('reports manual foreground sync results', async () => {
     const expected = completed('manual');
     const seen: ForegroundSyncResult[] = [];
@@ -91,6 +134,21 @@ describe('PWA foreground sync lifecycle helpers', () => {
         nextRetryAt: '2026-05-25T00:00:02.000Z'
       })
     ).toBe('Foreground sync failed from online: temporary relay failed.');
+    expect(
+      formatPwaForegroundSyncResult({
+        status: 'skipped',
+        trigger: 'visible',
+        skippedAt: '2026-05-25T00:00:00.000Z',
+        reason: 'backoff',
+        nextRetryAt: '2026-05-25T00:01:00.000Z'
+      })
+    ).toMatch(/^Foreground sync skipped from visible: backing off until .+\.$/u);
+  });
+
+  it('normalizes and truncates status text consistently', () => {
+    expect(formatPwaSyncStatusText(new Error('temporary\nrelay\tfailed'))).toBe('temporary relay failed');
+    expect(formatPwaSyncStatusText('')).toBe('Unknown foreground sync failure');
+    expect(formatPwaSyncStatusText('a'.repeat(240))).toHaveLength(180);
   });
 });
 
@@ -116,7 +174,7 @@ class FakeTarget implements EventSubscriptionTarget {
 }
 
 class FakeVisibleTarget extends FakeTarget implements VisibilitySubscriptionTarget {
-  constructor(public visibilityState: DocumentVisibilityState) {
+  constructor(public visibilityState: DocumentVisibilityState | undefined) {
     super();
   }
 }
