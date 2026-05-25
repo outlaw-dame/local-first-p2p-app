@@ -67,6 +67,7 @@ function HomePage(): JSX.Element {
   const identityManager = useMemo(() => new DeviceIdentityManager(store), [store]);
   const mountedRef = useRef(false);
   const syncControllerRef = useRef<PwaForegroundSyncController | null>(null);
+  const manualDeliveryRunningRef = useRef(false);
   const [identity, setIdentity] = useState<LocalDeviceIdentity | null>(null);
   const [keypair, setKeypair] = useState<SigningKeypair | null>(null);
   const [events, setEvents] = useState<EventSummaryView[]>([]);
@@ -74,6 +75,7 @@ function HomePage(): JSX.Element {
   const [status, setStatus] = useState('Bootstrapping local device identity.');
   const [syncStatus, setSyncStatus] = useState('Foreground sync idle.');
   const [manualDeliveryStatus, setManualDeliveryStatus] = useState('Manual outbox delivery is disabled.');
+  const [manualDeliveryRunning, setManualDeliveryRunning] = useState(false);
   const outboxDeliveryPlan = useMemo(
     () => createPwaOutboxDeliveryPlan({ pendingOutboxCount: pendingCount }),
     [pendingCount]
@@ -206,6 +208,9 @@ function HomePage(): JSX.Element {
   }
 
   async function runManualOutboxDeliveryOnce(): Promise<void> {
+    if (manualDeliveryRunningRef.current) return;
+    manualDeliveryRunningRef.current = true;
+    setManualDeliveryRunning(true);
     setManualDeliveryStatus('Manual outbox delivery running.');
     try {
       const result = await runManualOutboxDelivery({ store, batchSize: 1 });
@@ -216,6 +221,9 @@ function HomePage(): JSX.Element {
       }
     } catch (error: unknown) {
       if (mountedRef.current) setManualDeliveryStatus(`Manual outbox delivery failed: ${formatUiError(error)}.`);
+    } finally {
+      manualDeliveryRunningRef.current = false;
+      if (mountedRef.current) setManualDeliveryRunning(false);
     }
   }
 
@@ -271,7 +279,11 @@ function HomePage(): JSX.Element {
       <BlockTitle>Manual outbox delivery</BlockTitle>
       <Block inset strong>
         <p>{manualDeliveryStatus}</p>
-        <Button outline disabled={!manualDeliveryEnabled} onClick={() => void runManualOutboxDeliveryOnce()}>
+        <Button
+          outline
+          disabled={!manualDeliveryEnabled || pendingCount === 0 || manualDeliveryRunning}
+          onClick={() => void runManualOutboxDeliveryOnce()}
+        >
           Deliver one outbox entry
         </Button>
       </Block>
