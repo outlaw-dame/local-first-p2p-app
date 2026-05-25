@@ -13,7 +13,7 @@ The PWA has a guarded bridge configuration boundary for future sync transport wo
   - Must not include username, password, query string, or fragment.
 - `VITE_LFP2P_BRIDGE_TARGET`
   - Optional. Defaults to `bridge:development`.
-  - Limited to letters, numbers, colon, dot, underscore, and dash.
+  - Limited to letters, numbers, colon, dot, underscore, and dash. Must start with a letter or number.
 - `VITE_LFP2P_BRIDGE_TIMEOUT_MS`
   - Optional. Defaults to `10000`.
   - Must be a positive integer no greater than `60000`.
