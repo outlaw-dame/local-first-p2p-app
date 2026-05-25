@@ -61,13 +61,13 @@ function HomePage(): JSX.Element {
   const store = useMemo(() => createLocalFirstStore('lfp2p-pwa-v1'), []);
   const identityManager = useMemo(() => new DeviceIdentityManager(store), [store]);
   const mountedRef = useRef(false);
+  const syncControllerRef = useRef<PwaForegroundSyncController | null>(null);
   const [identity, setIdentity] = useState<LocalDeviceIdentity | null>(null);
   const [keypair, setKeypair] = useState<SigningKeypair | null>(null);
   const [events, setEvents] = useState<EventSummaryView[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [status, setStatus] = useState('Bootstrapping local device identity.');
   const [syncStatus, setSyncStatus] = useState('Foreground sync idle.');
-  const [syncController, setSyncController] = useState<PwaForegroundSyncController | null>(null);
 
   const loadLocalState = useCallback(async (): Promise<LocalRefreshSnapshot> => {
     const [session, eventSummaries, outbox] = await Promise.all([
@@ -119,7 +119,7 @@ function HomePage(): JSX.Element {
         return { eventCount: snapshot.events.length, pendingOutboxCount: snapshot.pendingOutboxCount };
       }
     });
-    setSyncController(controller);
+    syncControllerRef.current = controller;
 
     const updateSyncStatus = (message: string): void => {
       if (!cancelled) setSyncStatus(message);
@@ -135,6 +135,7 @@ function HomePage(): JSX.Element {
 
     return () => {
       cancelled = true;
+      if (syncControllerRef.current === controller) syncControllerRef.current = null;
       dispose();
     };
   }, [applyLocalStateSnapshot, loadLocalState]);
@@ -181,6 +182,7 @@ function HomePage(): JSX.Element {
   }
 
   async function runManualForegroundSync(): Promise<void> {
+    const syncController = syncControllerRef.current;
     if (syncController === null) {
       setSyncStatus('Foreground sync controller is not ready yet.');
       return;
@@ -227,7 +229,7 @@ function HomePage(): JSX.Element {
       <BlockTitle>Foreground sync lifecycle</BlockTitle>
       <Block inset strong>
         <p>{syncStatus}</p>
-        <Button outline disabled={syncController === null} onClick={() => void runManualForegroundSync()}>
+        <Button outline onClick={() => void runManualForegroundSync()}>
           Refresh foreground sync state
         </Button>
       </Block>
