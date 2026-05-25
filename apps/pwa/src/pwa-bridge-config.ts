@@ -113,7 +113,10 @@ function parseBridgeEndpoint(value: string): PwaBridgeInvalidConfig | ValidEndpo
 function parseBridgeTarget(value: unknown): PwaBridgeInvalidConfig | ValidTarget {
   const target = stringEnv(value) ?? DEFAULT_TARGET;
   if (target.length > MAX_TARGET_LENGTH || !TARGET_PATTERN.test(target)) {
-    return invalid('invalid-target', `${TARGET_KEY} must be ${MAX_TARGET_LENGTH} characters or fewer and contain only letters, numbers, colon, dot, underscore, or dash.`);
+    return invalid(
+      'invalid-target',
+      `${TARGET_KEY} must be ${MAX_TARGET_LENGTH} characters or fewer, start with a letter or number, and contain only letters, numbers, colon, dot, underscore, or dash.`
+    );
   }
   return { status: 'valid', target };
 }
@@ -149,5 +152,6 @@ function invalid(reason: PwaBridgeInvalidConfig['reason'], message: string): Pwa
 }
 
 function importMetaEnv(): PwaBridgeConfigEnv {
-  return (import.meta as unknown as { env?: PwaBridgeConfigEnv }).env ?? {};
+  if (typeof import.meta === 'undefined') return {};
+  return (import.meta as ImportMeta & { env?: PwaBridgeConfigEnv }).env ?? {};
 }
