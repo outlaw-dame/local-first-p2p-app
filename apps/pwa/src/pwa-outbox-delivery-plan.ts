@@ -21,7 +21,7 @@ export type PwaOutboxDeliveryPlan = Readonly<{
 
 export function createPwaOutboxDeliveryPlan(input: CreatePwaOutboxDeliveryPlanInput): PwaOutboxDeliveryPlan {
   const pendingOutboxCount = normalizePendingOutboxCount(input.pendingOutboxCount);
-  const bridgeTransport = preparePwaBridgeTransport(bridgeTransportInput(input));
+  const bridgeTransport = preparePwaBridgeTransport(input);
   const bridgeTransportStatus = bridgeTransportStatusFromPreparation(bridgeTransport);
 
   return {
@@ -37,14 +37,6 @@ export function createPwaOutboxDeliveryPlan(input: CreatePwaOutboxDeliveryPlanIn
 
 export function formatPwaOutboxDeliveryPlan(plan: PwaOutboxDeliveryPlan): string {
   return plan.message;
-}
-
-function bridgeTransportInput(input: CreatePwaOutboxDeliveryPlanInput): PreparePwaBridgeTransportInput {
-  const transportInput: PreparePwaBridgeTransportInput = {};
-  if (input.env !== undefined) transportInput.env = input.env;
-  if (input.fetch !== undefined) transportInput.fetch = input.fetch;
-  if (input.createTransport !== undefined) transportInput.createTransport = input.createTransport;
-  return transportInput;
 }
 
 function bridgeTransportStatusFromPreparation(
