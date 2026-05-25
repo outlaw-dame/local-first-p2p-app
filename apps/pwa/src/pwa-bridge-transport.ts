@@ -3,7 +3,12 @@ import {
   type HttpBridgeTransportOptions,
   type OutboxTransport
 } from '@lfp2p/sync-client';
-import { resolvePwaBridgeConfig, type PwaBridgeConfig, type PwaBridgeConfigEnv } from './pwa-bridge-config.js';
+import {
+  resolvePwaBridgeConfig,
+  type PwaBridgeAuthConfig,
+  type PwaBridgeConfig,
+  type PwaBridgeConfigEnv
+} from './pwa-bridge-config.js';
 
 type ConfiguredPwaBridgeConfig = Extract<PwaBridgeConfig, { status: 'configured' }>;
 type DisabledPwaBridgeConfig = Extract<PwaBridgeConfig, { status: 'disabled' }>;
@@ -72,11 +77,12 @@ export function preparePwaBridgeTransport(input: PreparePwaBridgeTransportInput 
     };
   }
 
+  const transportFetch = config.auth === undefined ? fetchImpl : createAuthenticatedFetch(fetchImpl, config.auth);
   const createTransport = input.createTransport ?? createHttpBridgeTransport;
   const transport = createTransport({
     endpoint: config.endpoint,
     timeoutMs: config.timeoutMs,
-    fetch: fetchImpl
+    fetch: transportFetch
   });
 
   return {
@@ -84,5 +90,13 @@ export function preparePwaBridgeTransport(input: PreparePwaBridgeTransportInput 
     config,
     transport,
     message: 'Bridge transport prepared but not attached to foreground sync or outbox delivery in this slice.'
+  };
+}
+
+function createAuthenticatedFetch(fetchImpl: typeof fetch, auth: PwaBridgeAuthConfig): typeof fetch {
+  return async (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set('authorization', ['Bearer', auth.token].join(' '));
+    return fetchImpl(input, { ...init, headers });
   };
 }
