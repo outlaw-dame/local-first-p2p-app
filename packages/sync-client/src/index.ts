@@ -155,6 +155,7 @@ export type ProcessOutboxInput = Readonly<{
   maxAttempts?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
+  jitterRatio?: number | null;
   random?: () => number;
   claimTimeoutMs?: number;
 }>;
@@ -386,6 +387,7 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
         attempt: retryCount,
         ...(input.baseDelayMs !== undefined ? { baseDelayMs: input.baseDelayMs } : {}),
         ...(input.maxDelayMs !== undefined ? { maxDelayMs: input.maxDelayMs } : {}),
+        ...(input.jitterRatio !== undefined ? { jitterRatio: input.jitterRatio } : {}),
         ...(input.random !== undefined ? { random: input.random } : {})
       });
       const nextRetryAt = new Date(now.getTime() + delayMs).toISOString();
