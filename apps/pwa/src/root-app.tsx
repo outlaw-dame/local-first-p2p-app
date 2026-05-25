@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   App as Framework7App,
   Badge,
@@ -19,6 +19,14 @@ import { detectPlatformCapabilities } from '@lfp2p/platform';
 import { createUnsignedEvent } from '@lfp2p/protocol';
 import { createIdempotencyKey } from '@lfp2p/sync-client';
 import { LocalFirstStatusCard } from '@lfp2p/ui';
+import {
+  attachPwaForegroundSyncTriggers,
+  createPwaForegroundSyncController,
+  formatPwaForegroundSyncResult,
+  formatPwaSyncStatusText,
+  requestPwaForegroundSync,
+  type PwaForegroundSyncController
+} from './pwa-sync-lifecycle.js';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +36,13 @@ const queryClient = new QueryClient({
     }
   }
 });
+
+type LocalRefreshSnapshot = Readonly<{
+  identity: LocalDeviceIdentity;
+  keypair: SigningKeypair;
+  events: EventSummaryView[];
+  pendingOutboxCount: number;
+}>;
 
 export function RootApp(): JSX.Element {
   return (
@@ -45,40 +60,85 @@ function HomePage(): JSX.Element {
   const capabilities = useMemo(() => detectPlatformCapabilities(), []);
   const store = useMemo(() => createLocalFirstStore('lfp2p-pwa-v1'), []);
   const identityManager = useMemo(() => new DeviceIdentityManager(store), [store]);
+  const mountedRef = useRef(false);
+  const syncControllerRef = useRef<PwaForegroundSyncController | null>(null);
   const [identity, setIdentity] = useState<LocalDeviceIdentity | null>(null);
   const [keypair, setKeypair] = useState<SigningKeypair | null>(null);
   const [events, setEvents] = useState<EventSummaryView[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [status, setStatus] = useState('Bootstrapping local device identity.');
+  const [syncStatus, setSyncStatus] = useState('Foreground sync idle.');
+
+  const loadLocalState = useCallback(async (): Promise<LocalRefreshSnapshot> => {
+    const [session, eventSummaries, outbox] = await Promise.all([
+      identityManager.getOrCreatePrimaryDeviceSession(),
+      store.listEventSummaries(),
+      store.listPendingOutbox()
+    ]);
+    return {
+      identity: session.identity,
+      keypair: session.keypair,
+      events: eventSummaries,
+      pendingOutboxCount: outbox.length
+    };
+  }, [identityManager, store]);
+
+  const applyLocalStateSnapshot = useCallback((snapshot: LocalRefreshSnapshot, readyStatus: string): void => {
+    setIdentity(snapshot.identity);
+    setKeypair(snapshot.keypair);
+    setEvents(snapshot.events);
+    setPendingCount(snapshot.pendingOutboxCount);
+    setStatus(readyStatus);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-
-    async function refreshLocalState(): Promise<void> {
-      const [session, eventSummaries, outbox] = await Promise.all([
-        identityManager.getOrCreatePrimaryDeviceSession(),
-        store.listEventSummaries(),
-        store.listPendingOutbox()
-      ]);
-      if (cancelled) return;
-      setIdentity(session.identity);
-      setKeypair(session.keypair);
-      setEvents(eventSummaries);
-      setPendingCount(outbox.length);
-      setStatus('Ready for local-first writes.');
-    }
-
-    void refreshLocalState().catch((error: unknown) => {
-      if (cancelled) return;
-      const message = error instanceof Error ? error.message : 'Unknown identity bootstrap failure';
-      setStatus(`Identity bootstrap failed: ${message}`);
-    });
+    mountedRef.current = true;
+    void loadLocalState().then(
+      (snapshot) => {
+        if (!cancelled) applyLocalStateSnapshot(snapshot, 'Ready for local-first writes.');
+      },
+      (error: unknown) => {
+        if (!cancelled) setStatus(`Identity bootstrap failed: ${formatUiError(error)}`);
+      }
+    );
 
     return () => {
       cancelled = true;
+      mountedRef.current = false;
       void store.close();
     };
-  }, [identityManager, store]);
+  }, [applyLocalStateSnapshot, loadLocalState, store]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = createPwaForegroundSyncController({
+      async run() {
+        const snapshot = await loadLocalState();
+        if (!cancelled) applyLocalStateSnapshot(snapshot, 'Foreground sync refreshed local state.');
+        return { eventCount: snapshot.events.length, pendingOutboxCount: snapshot.pendingOutboxCount };
+      }
+    });
+    syncControllerRef.current = controller;
+
+    const updateSyncStatus = (message: string): void => {
+      if (!cancelled) setSyncStatus(message);
+    };
+    const dispose = attachPwaForegroundSyncTriggers({
+      controller,
+      onResult: (result) => updateSyncStatus(formatPwaForegroundSyncResult(result)),
+      onUnexpectedError: (error) => updateSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`)
+    });
+    void requestPwaForegroundSync(controller, 'startup', (result) => {
+      updateSyncStatus(formatPwaForegroundSyncResult(result));
+    }).catch((error: unknown) => updateSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`));
+
+    return () => {
+      cancelled = true;
+      if (syncControllerRef.current === controller) syncControllerRef.current = null;
+      dispose();
+    };
+  }, [applyLocalStateSnapshot, loadLocalState]);
 
   async function createLocalEvent(): Promise<void> {
     if (!identity || !keypair) {
@@ -118,9 +178,21 @@ function HomePage(): JSX.Element {
       createdAt: now,
       updatedAt: now
     });
-    setEvents(await store.listEventSummaries());
-    setPendingCount((await store.listPendingOutbox()).length);
-    setStatus('Local event created and queued without waiting for the network.');
+    applyLocalStateSnapshot(await loadLocalState(), 'Local event created and queued without waiting for the network.');
+  }
+
+  async function runManualForegroundSync(): Promise<void> {
+    const syncController = syncControllerRef.current;
+    if (syncController === null) {
+      setSyncStatus('Foreground sync controller is not ready yet.');
+      return;
+    }
+    try {
+      const result = await requestPwaForegroundSync(syncController, 'manual');
+      if (mountedRef.current) setSyncStatus(formatPwaForegroundSyncResult(result));
+    } catch (error: unknown) {
+      if (mountedRef.current) setSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`);
+    }
   }
 
   return (
@@ -154,6 +226,14 @@ function HomePage(): JSX.Element {
         <ListItem title="WebRTC" after={capabilities.webRtc ? 'available' : 'unavailable'} />
       </List>
 
+      <BlockTitle>Foreground sync lifecycle</BlockTitle>
+      <Block inset strong>
+        <p>{syncStatus}</p>
+        <Button outline onClick={() => void runManualForegroundSync()}>
+          Refresh foreground sync state
+        </Button>
+      </Block>
+
       <BlockTitle>
         Local outbox <Badge color={pendingCount > 0 ? 'orange' : 'green'}>{pendingCount}</Badge>
       </BlockTitle>
@@ -179,4 +259,8 @@ function truncateMiddle(value: string, maxLength = 28): string {
   if (value.length <= maxLength) return value;
   const edge = Math.floor((maxLength - 1) / 2);
   return `${value.slice(0, edge)}…${value.slice(-edge)}`;
+}
+
+function formatUiError(error: unknown): string {
+  return formatPwaSyncStatusText(error, 'Unknown error');
 }
