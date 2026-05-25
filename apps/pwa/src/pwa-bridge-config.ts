@@ -6,19 +6,7 @@ export type PwaBridgeConfig =
       reason: 'not-enabled';
       message: string;
     }>
-  | Readonly<{
-      status: 'invalid';
-      reason:
-        | 'missing-endpoint'
-        | 'invalid-endpoint'
-        | 'unsupported-protocol'
-        | 'embedded-credentials'
-        | 'query-or-fragment'
-        | 'insecure-remote-endpoint'
-        | 'invalid-timeout'
-        | 'invalid-target';
-      message: string;
-    }>
+  | PwaBridgeInvalidConfig
   | Readonly<{
       status: 'configured';
       endpoint: string;
@@ -27,6 +15,24 @@ export type PwaBridgeConfig =
       transportWired: false;
       message: string;
     }>;
+
+type PwaBridgeInvalidConfig = Readonly<{
+  status: 'invalid';
+  reason:
+    | 'missing-endpoint'
+    | 'invalid-endpoint'
+    | 'unsupported-protocol'
+    | 'embedded-credentials'
+    | 'query-or-fragment'
+    | 'insecure-remote-endpoint'
+    | 'invalid-timeout'
+    | 'invalid-target';
+  message: string;
+}>;
+
+type ValidEndpoint = Readonly<{ status: 'valid'; endpoint: string }>;
+type ValidTarget = Readonly<{ status: 'valid'; target: string }>;
+type ValidTimeout = Readonly<{ status: 'valid'; timeoutMs: number }>;
 
 const ENABLED_KEY = 'VITE_LFP2P_BRIDGE_SYNC_ENABLED';
 const ENDPOINT_KEY = 'VITE_LFP2P_BRIDGE_ENDPOINT';
@@ -80,7 +86,7 @@ export function formatPwaBridgeConfigStatus(config: PwaBridgeConfig): string {
   return `Bridge config invalid: ${config.message}`;
 }
 
-function parseBridgeEndpoint(value: string): PwaBridgeConfig | Readonly<{ status: 'valid'; endpoint: string }> {
+function parseBridgeEndpoint(value: string): PwaBridgeInvalidConfig | ValidEndpoint {
   let url: URL;
   try {
     url = new URL(value);
@@ -104,7 +110,7 @@ function parseBridgeEndpoint(value: string): PwaBridgeConfig | Readonly<{ status
   return { status: 'valid', endpoint: url.href };
 }
 
-function parseBridgeTarget(value: unknown): PwaBridgeConfig | Readonly<{ status: 'valid'; target: string }> {
+function parseBridgeTarget(value: unknown): PwaBridgeInvalidConfig | ValidTarget {
   const target = stringEnv(value) ?? DEFAULT_TARGET;
   if (target.length > MAX_TARGET_LENGTH || !TARGET_PATTERN.test(target)) {
     return invalid('invalid-target', `${TARGET_KEY} must be ${MAX_TARGET_LENGTH} characters or fewer and contain only letters, numbers, colon, dot, underscore, or dash.`);
@@ -112,7 +118,7 @@ function parseBridgeTarget(value: unknown): PwaBridgeConfig | Readonly<{ status:
   return { status: 'valid', target };
 }
 
-function parseBridgeTimeoutMs(value: unknown): PwaBridgeConfig | Readonly<{ status: 'valid'; timeoutMs: number }> {
+function parseBridgeTimeoutMs(value: unknown): PwaBridgeInvalidConfig | ValidTimeout {
   const raw = stringEnv(value);
   if (raw === undefined) return { status: 'valid', timeoutMs: DEFAULT_TIMEOUT_MS };
   const parsed = Number(raw);
@@ -138,7 +144,7 @@ function isLocalBridgeHost(hostname: string): boolean {
   return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '[::1]' || normalized === '::1';
 }
 
-function invalid(reason: Extract<PwaBridgeConfig, { status: 'invalid' }>['reason'], message: string): PwaBridgeConfig {
+function invalid(reason: PwaBridgeInvalidConfig['reason'], message: string): PwaBridgeInvalidConfig {
   return { status: 'invalid', reason, message };
 }
 
