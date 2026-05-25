@@ -6,13 +6,15 @@ The PWA manual outbox delivery gate is a development-only, explicit-click delive
 
 Manual delivery only runs when all of these are true:
 
-- Vite dev mode is active through `import.meta.env.DEV === true` or `MODE=development`.
+- Vite dev runtime is active through `import.meta.env.DEV === true`.
 - `VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED=true` is set.
 - The bridge config boundary is valid and transport preparation succeeds.
 - The user explicitly clicks the manual delivery button.
 - The requested batch size is a positive safe integer no greater than `5`.
 
 The PWA UI currently calls the manual gate with a batch size of `1`.
+
+`MODE=development` is not sufficient because a production build can be created with that mode while `import.meta.env.DEV` remains false.
 
 ## Safety boundaries
 
