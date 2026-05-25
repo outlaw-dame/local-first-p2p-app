@@ -95,8 +95,22 @@ export function preparePwaBridgeTransport(input: PreparePwaBridgeTransportInput 
 
 function createAuthenticatedFetch(fetchImpl: typeof fetch, auth: PwaBridgeAuthConfig): typeof fetch {
   return async (input, init) => {
+    if (input instanceof Request) {
+      const headers = mergeHeaders(input.headers, init?.headers);
+      headers.set('authorization', ['Bearer', auth.token].join(' '));
+      return fetchImpl(new Request(input, { ...init, headers }));
+    }
+
     const headers = new Headers(init?.headers);
     headers.set('authorization', ['Bearer', auth.token].join(' '));
     return fetchImpl(input, { ...init, headers });
   };
+}
+
+function mergeHeaders(base: HeadersInit, override: HeadersInit | undefined): Headers {
+  const headers = new Headers(base);
+  if (override !== undefined) {
+    new Headers(override).forEach((value, key) => headers.set(key, value));
+  }
+  return headers;
 }
