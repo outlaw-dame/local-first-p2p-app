@@ -20,6 +20,7 @@ import { createUnsignedEvent } from '@lfp2p/protocol';
 import { createIdempotencyKey } from '@lfp2p/sync-client';
 import { LocalFirstStatusCard } from '@lfp2p/ui';
 import { formatPwaBridgeConfigStatus, resolvePwaBridgeConfig } from './pwa-bridge-config.js';
+import { createPwaOutboxDeliveryPlan, formatPwaOutboxDeliveryPlan } from './pwa-outbox-delivery-plan.js';
 import {
   attachPwaForegroundSyncTriggers,
   createPwaForegroundSyncController,
@@ -70,6 +71,10 @@ function HomePage(): JSX.Element {
   const [pendingCount, setPendingCount] = useState(0);
   const [status, setStatus] = useState('Bootstrapping local device identity.');
   const [syncStatus, setSyncStatus] = useState('Foreground sync idle.');
+  const outboxDeliveryPlan = useMemo(
+    () => createPwaOutboxDeliveryPlan({ pendingOutboxCount: pendingCount }),
+    [pendingCount]
+  );
 
   const loadLocalState = useCallback(async (): Promise<LocalRefreshSnapshot> => {
     const [session, eventSummaries, outbox] = await Promise.all([
@@ -239,6 +244,11 @@ function HomePage(): JSX.Element {
         <Button outline onClick={() => void runManualForegroundSync()}>
           Refresh foreground sync state
         </Button>
+      </Block>
+
+      <BlockTitle>Outbox delivery dry run</BlockTitle>
+      <Block inset strong>
+        <p>{formatPwaOutboxDeliveryPlan(outboxDeliveryPlan)}</p>
       </Block>
 
       <BlockTitle>
