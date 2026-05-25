@@ -6,6 +6,8 @@ import {
 import { resolvePwaBridgeConfig, type PwaBridgeConfig, type PwaBridgeConfigEnv } from './pwa-bridge-config.js';
 
 type ConfiguredPwaBridgeConfig = Extract<PwaBridgeConfig, { status: 'configured' }>;
+type DisabledPwaBridgeConfig = Extract<PwaBridgeConfig, { status: 'disabled' }>;
+type InvalidPwaBridgeConfig = Extract<PwaBridgeConfig, { status: 'invalid' }>;
 
 type PwaBridgeTransportFactory = (options: HttpBridgeTransportOptions) => OutboxTransport;
 
@@ -24,8 +26,20 @@ export type PwaBridgeTransportPreparation =
     }>
   | Readonly<{
       status: 'unavailable';
-      reason: 'bridge-config-disabled' | 'bridge-config-invalid' | 'fetch-unavailable';
-      config: PwaBridgeConfig;
+      reason: 'bridge-config-disabled';
+      config: DisabledPwaBridgeConfig;
+      message: string;
+    }>
+  | Readonly<{
+      status: 'unavailable';
+      reason: 'bridge-config-invalid';
+      config: InvalidPwaBridgeConfig;
+      message: string;
+    }>
+  | Readonly<{
+      status: 'unavailable';
+      reason: 'fetch-unavailable';
+      config: ConfiguredPwaBridgeConfig;
       message: string;
     }>;
 
