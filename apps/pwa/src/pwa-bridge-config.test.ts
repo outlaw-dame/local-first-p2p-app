@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { formatPwaBridgeConfigStatus, resolvePwaBridgeConfig } from './pwa-bridge-config.js';
 
 const ENABLED_ENV = { VITE_LFP2P_BRIDGE_SYNC_ENABLED: 'true' } as const;
+const CONFIGURED_ENV = {
+  ...ENABLED_ENV,
+  VITE_LFP2P_BRIDGE_ENDPOINT: 'https://bridge.example.test/events'
+} as const;
+const SAMPLE_AUTH_VALUE = 'opaque-dev-value-123';
 
 describe('PWA bridge config boundary', () => {
   it('is disabled unless explicitly enabled', () => {
@@ -32,7 +37,44 @@ describe('PWA bridge config boundary', () => {
       transportWired: false,
       message: 'Bridge endpoint is configured, but PWA bridge transport is not wired in this slice.'
     });
-    expect(formatPwaBridgeConfigStatus(config)).toBe('Bridge config ready for future transport: bridge.example.test (bridge:primary).');
+    expect(formatPwaBridgeConfigStatus(config)).toBe(
+      'Bridge config ready for future transport: bridge.example.test (bridge:primary; no auth token configured).'
+    );
+  });
+
+  it('accepts dev-only bridge auth without exposing the value in status text', () => {
+    const config = resolvePwaBridgeConfig({
+      ...CONFIGURED_ENV,
+      DEV: true,
+      VITE_LFP2P_BRIDGE_AUTH_BEARER_TOKEN: SAMPLE_AUTH_VALUE
+    });
+
+    expect(config).toMatchObject({
+      status: 'configured',
+      auth: { scheme: 'bearer', token: SAMPLE_AUTH_VALUE }
+    });
+    expect(formatPwaBridgeConfigStatus(config)).toBe(
+      'Bridge config ready for future transport: bridge.example.test (bridge:development; dev bearer auth token configured).'
+    );
+    expect(formatPwaBridgeConfigStatus(config)).not.toContain(SAMPLE_AUTH_VALUE);
+  });
+
+  it('rejects bridge auth outside Vite dev runtime', () => {
+    expect(
+      resolvePwaBridgeConfig({ ...CONFIGURED_ENV, VITE_LFP2P_BRIDGE_AUTH_BEARER_TOKEN: SAMPLE_AUTH_VALUE })
+    ).toMatchObject({ status: 'invalid', reason: 'auth-token-requires-dev-mode' });
+    expect(
+      resolvePwaBridgeConfig({ ...CONFIGURED_ENV, DEV: false, VITE_LFP2P_BRIDGE_AUTH_BEARER_TOKEN: SAMPLE_AUTH_VALUE })
+    ).toMatchObject({ status: 'invalid', reason: 'auth-token-requires-dev-mode' });
+  });
+
+  it('rejects unsafe bridge auth material', () => {
+    expect(
+      resolvePwaBridgeConfig({ ...CONFIGURED_ENV, DEV: true, VITE_LFP2P_BRIDGE_AUTH_BEARER_TOKEN: 'value with spaces' })
+    ).toMatchObject({ status: 'invalid', reason: 'invalid-auth-token' });
+    expect(
+      resolvePwaBridgeConfig({ ...CONFIGURED_ENV, DEV: true, VITE_LFP2P_BRIDGE_AUTH_BEARER_TOKEN: 'value\nnewline' })
+    ).toMatchObject({ status: 'invalid', reason: 'invalid-auth-token' });
   });
 
   it('allows local http endpoints for development only', () => {
