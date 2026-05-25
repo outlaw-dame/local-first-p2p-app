@@ -6,17 +6,34 @@ import { createUnsignedEvent } from '@lfp2p/protocol';
 import type { OutboxTransport } from '@lfp2p/sync-client';
 import { runManualOutboxDelivery } from './pwa-outbox-manual-gate.js';
 
-const MANUAL_ENABLED_ENV = { VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' } as const;
+const DEV_ENV = { DEV: true } as const;
+const MANUAL_ENABLED_ENV = { ...DEV_ENV, VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' } as const;
 const BRIDGE_ENABLED_ENV = {
   VITE_LFP2P_BRIDGE_SYNC_ENABLED: 'true',
   VITE_LFP2P_BRIDGE_ENDPOINT: 'https://bridge.example.test/events'
 } as const;
 
 describe('runManualOutboxDelivery', () => {
-  it('is off by default', async () => {
+  it('is unavailable outside dev mode', async () => {
     let factoryCalls = 0;
     const result = await runManualOutboxDelivery({
       store: fakeStore(),
+      env: { VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' },
+      createTransport: () => {
+        factoryCalls += 1;
+        throw new Error('unexpected factory call');
+      }
+    });
+
+    expect(result).toMatchObject({ status: 'disabled', reason: 'not-dev-mode' });
+    expect(factoryCalls).toBe(0);
+  });
+
+  it('is off by default in dev mode', async () => {
+    let factoryCalls = 0;
+    const result = await runManualOutboxDelivery({
+      store: fakeStore(),
+      env: DEV_ENV,
       createTransport: () => {
         factoryCalls += 1;
         throw new Error('unexpected factory call');
