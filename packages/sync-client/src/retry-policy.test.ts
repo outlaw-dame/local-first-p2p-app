@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { computeBackoffDelayMs } from './index.js';
-import { requireJitterRatio, requireOptionalJitterRatio, resolveJitterRatio } from './retry-policy.js';
+import {
+  DEFAULT_JITTER_RATIO,
+  requireJitterRatio,
+  requireOptionalJitterRatio,
+  resolveJitterRatio
+} from './retry-policy.js';
 
 const INVALID_JITTER_RATIOS = [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -0.1, 1.1] as const;
 
@@ -14,8 +19,8 @@ describe('retry policy jitter validation', () => {
   it('treats nullish optional jitter ratios consistently', () => {
     expect(requireOptionalJitterRatio(undefined)).toBeUndefined();
     expect(requireOptionalJitterRatio(null)).toBeUndefined();
-    expect(resolveJitterRatio(undefined)).toBe(0.35);
-    expect(resolveJitterRatio(null)).toBe(0.35);
+    expect(resolveJitterRatio(undefined)).toBe(DEFAULT_JITTER_RATIO);
+    expect(resolveJitterRatio(null)).toBe(DEFAULT_JITTER_RATIO);
     expect(computeBackoffDelayMs({ attempt: 1, jitterRatio: undefined, random: () => 0.5 })).toBe(1_000);
     expect(computeBackoffDelayMs({ attempt: 1, jitterRatio: null, random: () => 0.5 })).toBe(1_000);
   });
