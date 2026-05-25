@@ -66,7 +66,7 @@ describe('PWA foreground sync lifecycle helpers', () => {
   });
 
   it('does not treat missing visibility state as a visible foreground transition', async () => {
-    const documentTarget = new FakeVisibleTarget(undefined);
+    const documentTarget = new FakeTarget();
     const requests: ForegroundSyncTrigger[] = [];
     const controller: PwaForegroundSyncController = {
       getState: () => ({ status: 'idle', consecutiveFailures: 0 }),
@@ -174,7 +174,7 @@ class FakeTarget implements EventSubscriptionTarget {
 }
 
 class FakeVisibleTarget extends FakeTarget implements VisibilitySubscriptionTarget {
-  constructor(public visibilityState: DocumentVisibilityState | undefined) {
+  constructor(public visibilityState: DocumentVisibilityState) {
     super();
   }
 }
