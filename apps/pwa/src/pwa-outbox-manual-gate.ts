@@ -1,1 +1,97 @@
-export {};
+import type { DexieLocalFirstStore } from '@lfp2p/local-store';
+import { processOutboxBatch, type ProcessOutboxResult } from '@lfp2p/sync-client';
+import { preparePwaBridgeTransport, type PreparePwaBridgeTransportInput } from './pwa-bridge-transport.js';
+
+const MANUAL_DELIVERY_ENABLED_KEY = 'VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED';
+const DEFAULT_BATCH_SIZE = 1;
+const MAX_BATCH_SIZE = 5;
+
+export type ManualOutboxDeliveryEnv = Readonly<Record<string, unknown>>;
+
+export type RunManualOutboxDeliveryInput = PreparePwaBridgeTransportInput &
+  Readonly<{
+    store: DexieLocalFirstStore;
+    env?: ManualOutboxDeliveryEnv;
+    now?: Date;
+    batchSize?: number;
+  }>;
+
+export type ManualOutboxDeliveryResult =
+  | Readonly<{
+      status: 'disabled';
+      reason: 'manual-delivery-disabled';
+      message: string;
+    }>
+  | Readonly<{
+      status: 'blocked';
+      reason: 'bridge-config-disabled' | 'bridge-config-invalid' | 'fetch-unavailable';
+      message: string;
+    }>
+  | Readonly<{
+      status: 'delivered';
+      batchSize: number;
+      result: ProcessOutboxResult;
+      message: string;
+    }>;
+
+export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInput): Promise<ManualOutboxDeliveryResult> {
+  if (!manualDeliveryEnabled(input.env)) {
+    return {
+      status: 'disabled',
+      reason: 'manual-delivery-disabled',
+      message: `Manual outbox delivery is disabled. Set ${MANUAL_DELIVERY_ENABLED_KEY}=true in development to enable the explicit action.`
+    };
+  }
+
+  const batchSize = normalizeBatchSize(input.batchSize);
+  const bridgeTransport = preparePwaBridgeTransport(input);
+  if (bridgeTransport.status !== 'prepared') {
+    return {
+      status: 'blocked',
+      reason: bridgeTransport.reason,
+      message: `Manual outbox delivery blocked: ${bridgeTransport.message}`
+    };
+  }
+
+  const result = await processOutboxBatch({
+    store: input.store,
+    transport: bridgeTransport.transport,
+    batchSize,
+    ...(input.now === undefined ? {} : { now: input.now })
+  });
+
+  return {
+    status: 'delivered',
+    batchSize,
+    result,
+    message: formatManualOutboxDeliveryResult(result)
+  };
+}
+
+export function formatManualOutboxDeliveryResult(result: ProcessOutboxResult): string {
+  return `Manual outbox delivery attempted ${result.attempted}, confirmed ${result.confirmed}, conflicted ${result.conflicted}, retried ${result.retried}, failed ${result.failed}, skipped ${result.skipped}.`;
+}
+
+function manualDeliveryEnabled(env: ManualOutboxDeliveryEnv = importMetaEnv()): boolean {
+  const normalized = stringEnv(env[MANUAL_DELIVERY_ENABLED_KEY])?.toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
+
+function normalizeBatchSize(value: number | undefined): number {
+  const batchSize = value ?? DEFAULT_BATCH_SIZE;
+  if (!Number.isSafeInteger(batchSize) || batchSize <= 0 || batchSize > MAX_BATCH_SIZE) {
+    throw new TypeError(`manual outbox delivery batchSize must be a positive safe integer no greater than ${MAX_BATCH_SIZE}.`);
+  }
+  return batchSize;
+}
+
+function stringEnv(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function importMetaEnv(): ManualOutboxDeliveryEnv {
+  if (typeof import.meta === 'undefined') return {};
+  return (import.meta as ImportMeta & { env?: ManualOutboxDeliveryEnv }).env ?? {};
+}
