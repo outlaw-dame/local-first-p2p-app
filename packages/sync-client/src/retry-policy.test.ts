@@ -11,12 +11,19 @@ describe('retry policy jitter validation', () => {
     }
   });
 
+  it('treats nullish optional jitter ratios consistently', () => {
+    expect(requireOptionalJitterRatio(undefined)).toBeUndefined();
+    expect(requireOptionalJitterRatio(null)).toBeUndefined();
+    expect(resolveJitterRatio(undefined)).toBe(0.35);
+    expect(resolveJitterRatio(null)).toBe(0.35);
+    expect(computeBackoffDelayMs({ attempt: 1, jitterRatio: undefined, random: () => 0.5 })).toBe(1_000);
+    expect(computeBackoffDelayMs({ attempt: 1, jitterRatio: null, random: () => 0.5 })).toBe(1_000);
+  });
+
   it('centralizes required, optional, and default jitter validation', () => {
     expect(requireJitterRatio(0)).toBe(0);
     expect(requireJitterRatio(1)).toBe(1);
-    expect(requireOptionalJitterRatio(undefined)).toBeUndefined();
     expect(requireOptionalJitterRatio(0.5)).toBe(0.5);
-    expect(resolveJitterRatio(undefined)).toBe(0.35);
     expect(resolveJitterRatio(0.2)).toBe(0.2);
 
     for (const jitterRatio of INVALID_JITTER_RATIOS) {
