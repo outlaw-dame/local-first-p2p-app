@@ -48,7 +48,11 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
   }
 
   const batchSize = normalizeBatchSize(input.batchSize);
-  const bridgeTransport = preparePwaBridgeTransport(input);
+  const bridgeTransport = preparePwaBridgeTransport({
+    env,
+    ...(input.fetch === undefined ? {} : { fetch: input.fetch }),
+    ...(input.createTransport === undefined ? {} : { createTransport: input.createTransport })
+  });
   if (bridgeTransport.status !== 'prepared') {
     return { status: 'blocked', reason: bridgeTransport.reason, message: `Manual outbox delivery blocked: ${bridgeTransport.message}` };
   }
@@ -72,7 +76,7 @@ export function formatManualOutboxDeliveryResult(result: ProcessOutboxResult): s
 }
 
 function isDevMode(env: ManualOutboxDeliveryEnv): boolean {
-  return env.DEV === true || stringEnv(env.MODE) === 'development';
+  return env.DEV === true;
 }
 
 function manualDeliveryEnabled(env: ManualOutboxDeliveryEnv): boolean {

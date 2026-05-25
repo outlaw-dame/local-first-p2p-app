@@ -4,7 +4,7 @@ import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore, type DexieLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
 import { createUnsignedEvent } from '@lfp2p/protocol';
 import type { OutboxTransport } from '@lfp2p/sync-client';
-import { runManualOutboxDelivery } from './pwa-outbox-manual-gate.js';
+import { manualOutboxDeliveryActionEnabled, runManualOutboxDelivery } from './pwa-outbox-manual-gate.js';
 
 const DEV_ENV = { DEV: true } as const;
 const MANUAL_ENABLED_ENV = { ...DEV_ENV, VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' } as const;
@@ -13,12 +13,21 @@ const BRIDGE_ENABLED_ENV = {
   VITE_LFP2P_BRIDGE_ENDPOINT: 'https://bridge.example.test/events'
 } as const;
 
+describe('manualOutboxDeliveryActionEnabled', () => {
+  it('requires true DEV and the explicit flag', () => {
+    expect(manualOutboxDeliveryActionEnabled({ ...MANUAL_ENABLED_ENV })).toBe(true);
+    expect(manualOutboxDeliveryActionEnabled({ MODE: 'development', VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' })).toBe(false);
+    expect(manualOutboxDeliveryActionEnabled({ DEV: false, VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' })).toBe(false);
+    expect(manualOutboxDeliveryActionEnabled(DEV_ENV)).toBe(false);
+  });
+});
+
 describe('runManualOutboxDelivery', () => {
   it('is unavailable outside dev mode', async () => {
     let factoryCalls = 0;
     const result = await runManualOutboxDelivery({
       store: fakeStore(),
-      env: { VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' },
+      env: { MODE: 'development', VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' },
       createTransport: () => {
         factoryCalls += 1;
         throw new Error('unexpected factory call');
@@ -44,7 +53,7 @@ describe('runManualOutboxDelivery', () => {
     expect(factoryCalls).toBe(0);
   });
 
-  it('blocks unavailable bridge states', async () => {
+  it('blocks unavailable bridge states using the resolved env', async () => {
     const disabledBridge = await runManualOutboxDelivery({ store: fakeStore(), env: MANUAL_ENABLED_ENV });
     const invalidBridge = await runManualOutboxDelivery({
       store: fakeStore(),
