@@ -149,18 +149,20 @@ function parseBridgeTimeoutMs(value: unknown): PwaBridgeInvalidConfig | ValidTim
 }
 
 function parseBridgeAuth(env: PwaBridgeConfigEnv): PwaBridgeInvalidConfig | ValidAuth {
-  const token = stringEnv(env[AUTH_TOKEN_KEY]);
-  if (token === undefined) return { status: 'valid' };
+  const raw = env[AUTH_TOKEN_KEY];
+  if (raw === undefined) return { status: 'valid' };
+  if (typeof raw !== 'string') return { status: 'valid' };
+  if (raw.length === 0) return { status: 'valid' };
   if (env.DEV !== true) {
     return invalid('auth-token-requires-dev-mode', `${AUTH_TOKEN_KEY} is only accepted when import.meta.env.DEV is true.`);
   }
-  if (token.length > MAX_AUTH_TOKEN_LENGTH || AUTH_TOKEN_UNSAFE_PATTERN.test(token)) {
+  if (raw !== raw.trim() || raw.length > MAX_AUTH_TOKEN_LENGTH || AUTH_TOKEN_UNSAFE_PATTERN.test(raw)) {
     return invalid(
       'invalid-auth-token',
       `${AUTH_TOKEN_KEY} must be ${MAX_AUTH_TOKEN_LENGTH} characters or fewer and must not contain whitespace or control characters.`
     );
   }
-  return { status: 'valid', auth: { scheme: 'bearer', token } };
+  return { status: 'valid', auth: { scheme: 'bearer', token: raw } };
 }
 
 function stringEnv(value: unknown): string | undefined {
