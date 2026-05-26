@@ -2,7 +2,9 @@
 
 The PWA has a guarded bridge configuration boundary for future sync transport work. This boundary parses configuration state and can prepare a transport object behind explicit guards. It can also attach a development-only bearer value to bridge requests when manually enabled.
 
-This still does not add automatic outbox delivery, inbound pulls, service worker sync, background sync, push delivery, production credential storage, or server-side authorization enforcement.
+The bridge service now also exposes an optional server-side HTTP bearer-auth boundary for delivery and inbound-read handlers. That boundary is still a shared-token development/testing gate, not production credential issuance, device-bound authorization, revocation, or abuse protection.
+
+This still does not add automatic outbox delivery, inbound pulls, service worker sync, background sync, push delivery, production credential storage, production authorization, rate limiting, or token lifecycle management.
 
 ## Environment variables
 
@@ -20,11 +22,36 @@ This still does not add automatic outbox delivery, inbound pulls, service worker
   - Optional. Defaults to `10000`.
   - Must be a positive integer no greater than `60000`.
 - `VITE_LFP2P_BRIDGE_AUTH_BEARER_TOKEN`
-  - Optional development-only bridge auth value.
+  - Optional development-only bridge auth value used by the PWA transport wrapper.
   - Accepted only when `import.meta.env.DEV === true`.
   - Rejected outside true Vite dev runtime, even when `MODE=development`.
   - Must not contain whitespace or control characters.
   - Must be 4096 characters or fewer.
+
+## Bridge-service HTTP auth boundary
+
+Bridge-service HTTP handlers accept an optional `BridgeHttpHandlerOptions` argument:
+
+```ts
+await handleBridgeDeliveryRequest(service, request, now, {
+  auth: { scheme: 'bearer', token: process.env.LFP2P_BRIDGE_AUTH_BEARER_TOKEN }
+});
+
+await handleBridgeInboundReadRequest(service, request, now, {
+  auth: { scheme: 'bearer', token: process.env.LFP2P_BRIDGE_AUTH_BEARER_TOKEN }
+});
+```
+
+When auth is configured:
+
+- `Authorization: Bearer <token>` is required for `POST` delivery and inbound-read requests.
+- Missing, malformed, unsafe, or incorrect credentials return `401` before JSON body parsing.
+- Invalid server-side auth configuration returns `503` with a generic reason.
+- Response bodies do not echo the configured token or presented token.
+- The token must be non-empty, trimmed, free of whitespace/control characters, and no longer than 4096 characters.
+- The comparison avoids early exit across token bytes, but the shared token itself is still only a development/testing boundary.
+
+When auth is omitted, handlers preserve existing local/dev behavior and remain unauthenticated. Do not expose an unauthenticated bridge service beyond local development.
 
 ## Safety boundaries
 
@@ -37,7 +64,8 @@ This still does not add automatic outbox delivery, inbound pulls, service worker
 - The bearer value is attached only as a request header during explicit transport sends.
 - Fetch still uses `credentials: 'omit'`; cookies are not introduced.
 - Client-side Vite env values are not production secrets. This boundary is for local/dev bridge validation only.
+- Server-side shared-token auth is not a substitute for production issuance, rotation, revocation, device-bound grants, request budgets, or abuse controls.
 
 ## Future transport requirements
 
-Before production bridge transport is enabled, the implementation must add server-side authorization checks, token issuance/rotation/revocation, client delivery budgets, rate limits, retry/error surfaces, privacy boundaries, and observability. Outbox delivery and inbound pull should remain separate from this parser so configuration validation can stay small, deterministic, and independently tested.
+Before production bridge transport is enabled, the implementation must add production authorization, token issuance/rotation/revocation, client delivery budgets, rate limits, retry/error surfaces, privacy boundaries, and observability. Outbox delivery and inbound pull should remain separate from this parser so configuration validation can stay small, deterministic, and independently tested.
