@@ -196,21 +196,23 @@ function statusCodeForBridgeResponse(response: BridgeDeliveryResponse): number {
 
 function authorizeBridgeHttpRequest(
   request: Request,
-  options: BridgeHttpHandlerOptions
+  options: unknown
 ): Readonly<{ status: 'authorized' | 'unauthorized' | 'misconfigured' }> {
-  if (options.auth === undefined) return { status: 'authorized' };
-  if (!isValidBridgeHttpAuthConfig(options.auth)) return { status: 'misconfigured' };
+  if (!isRecord(options)) return { status: 'misconfigured' };
+  const auth = options.auth;
+  if (auth === undefined) return { status: 'authorized' };
+  if (!isValidBridgeHttpAuthConfig(auth)) return { status: 'misconfigured' };
 
   const header = request.headers.get(AUTHORIZATION_HEADER);
   if (header === null || !header.startsWith(BEARER_AUTH_PREFIX)) return { status: 'unauthorized' };
 
   const presented = header.slice(BEARER_AUTH_PREFIX.length);
   if (!isValidBridgeAuthToken(presented)) return { status: 'unauthorized' };
-  return constantTimeEqual(presented, options.auth.token) ? { status: 'authorized' } : { status: 'unauthorized' };
+  return constantTimeEqual(presented, auth.token) ? { status: 'authorized' } : { status: 'unauthorized' };
 }
 
-function isValidBridgeHttpAuthConfig(auth: BridgeHttpAuthConfig): boolean {
-  return auth.scheme === 'bearer' && isValidBridgeAuthToken(auth.token);
+function isValidBridgeHttpAuthConfig(auth: unknown): auth is BridgeHttpAuthConfig {
+  return isRecord(auth) && auth.scheme === 'bearer' && typeof auth.token === 'string' && isValidBridgeAuthToken(auth.token);
 }
 
 function isValidBridgeAuthToken(token: string): boolean {
@@ -230,10 +232,11 @@ function constantTimeEqual(left: string, right: string): boolean {
   const encoder = new TextEncoder();
   const leftBytes = encoder.encode(left);
   const rightBytes = encoder.encode(right);
-  const maxLength = Math.max(leftBytes.length, rightBytes.length);
-  let difference = leftBytes.length ^ rightBytes.length;
-  for (let index = 0; index < maxLength; index += 1) {
-    difference |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
+  if (leftBytes.length !== rightBytes.length) return false;
+
+  let difference = 0;
+  for (let index = 0; index < leftBytes.length; index += 1) {
+    difference |= leftBytes[index] ^ rightBytes[index];
   }
   return difference === 0;
 }
