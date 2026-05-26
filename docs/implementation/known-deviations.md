@@ -42,7 +42,7 @@ Guardrails:
 
 ### D2 - Identity implementation currently means local device bootstrap, not root/controller identity
 
-Status: **Temporary / Needs ADR before expansion**
+Status: **Temporary / ADR recorded, implementation pending**
 
 The planning docs define a root/controller identity that delegates scoped authority to device keys through an identity control log. The current code implements local device identity bootstrap and encrypted local private-key storage.
 
@@ -57,7 +57,7 @@ Risk:
 
 Required before expansion:
 
-- ADR for root/controller identity model.
+- ADR for root/controller identity model (completed in ADR-001).
 - Identity control log protocol objects and fixtures.
 - Device add/revoke/rotate semantics.
 - Capability grant/revoke model.
@@ -119,7 +119,7 @@ Required before expanding search:
 
 ### D6 - Private payload encryption is a doctrine rule but not yet a user-facing feature
 
-Status: **Risk / needs ADR before private chat**
+Status: **Risk / ADR recorded, implementation pending**
 
 The doctrine requires private payloads to be encrypted before untrusted storage. Current code encrypts local private key material, but it does not yet implement general private event payload encryption.
 
@@ -130,7 +130,7 @@ Why acceptable now:
 
 Required before user-facing private sync:
 
-- Payload encryption ADR.
+- Payload encryption ADR (completed in ADR-002).
 - Encryption envelope object and fixtures.
 - Metadata-leak note.
 - Tests proving bridge/seed peers see only ciphertext for private payloads.

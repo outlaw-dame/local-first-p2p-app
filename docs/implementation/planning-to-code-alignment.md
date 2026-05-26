@@ -14,7 +14,7 @@ This document compares the original planning documents with the current implemen
 | Signed durable events | Implemented foundation | Strong/partial | Event envelopes are signed. Protocol fixture discipline is still missing. |
 | Source references | Implemented basic type | Partial | `SourceRef` exists, but broader source provenance model is not yet integrated through search/media/bridge. |
 | Local device identity | Implemented early slice | Partial | Device bootstrap and encrypted local private-key material exist. Root/controller identity and identity-control log do not. |
-| Identity control log | Not started | Deferred | Needs ADR and protocol fixtures before code. |
+| Identity control log | Planned with ADR | Deferred | ADR-001 defines the model; protocol fixtures and projection code are not implemented yet. |
 | Capability delegation | Not started | Deferred | Needs identity-control model first. |
 | Revocation epochs/checkpoints | Not started | Deferred | Must not be approximated by wall-clock-only logic. |
 | Bridge as non-authoritative infrastructure | Implemented foundation | Strong | Bridge verifies signatures, handles idempotency, and does not define private source-of-truth state. |
@@ -31,7 +31,7 @@ This document compares the original planning documents with the current implemen
 | Local intelligence/hybrid search | Implemented early search seed | Partial | PGlite package is a seed; no permission-aware SearchObject, vectors, or fusion yet. |
 | Compression/chunking/dedupe | Not started | Deferred | Needs CompressionDescriptor and safety policy. |
 | Service worker/offline shell | Not started | Deferred | PWA is local-first at app-store level, but offline shell caching policy is not implemented. |
-| ADR/threat-model discipline | Not started | Gap | Templates added in this docs cleanup; actual ADR-000 and threat models still need to be written. |
+| ADR/threat-model discipline | Implemented partial discipline | Partial | ADR-000, ADR-001, and ADR-002 now exist. Additional threat-model coverage and implementation follow-through are still required. |
 
 ## Important distinctions
 

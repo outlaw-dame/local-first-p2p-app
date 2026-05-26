@@ -165,6 +165,10 @@ Exit criteria:
 
 - Future identity code extends the doctrine model instead of hardening the current local device bootstrap into the wrong abstraction.
 
+Status update (2026-05-26):
+
+- Completed by `docs/adr/001-identity-control-log-v1.md`.
+
 ### Step 7 - Payload encryption design before private chat
 
 Deliverable:
@@ -184,11 +188,19 @@ Exit criteria:
 
 - No private user-facing chat/social payload leaves the device without an explicit encryption contract.
 
+Status update (2026-05-26):
+
+- Completed by `docs/adr/002-private-payload-encryption-envelope-v1.md`.
+
 ## First implementation slice after guardrails
 
-After steps 1-4, the safest implementation slice is:
+After steps 1-7, the safest implementation slice is:
 
 > **Sync offsets/checkpoints in `local-store` + sync-client offset contract tests**
+
+Next incremental slice after checkpoints:
+
+> **Identity control event schemas + fixture pack + projection seed (without chat/media feature expansion)**
 
 Why this slice:
 
