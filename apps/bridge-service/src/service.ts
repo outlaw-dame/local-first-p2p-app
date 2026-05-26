@@ -4,6 +4,8 @@ import { InMemoryBridgeStore } from './stores.js';
 import {
   type BridgeDeliveryRequest,
   type BridgeDeliveryResponse,
+  type BridgeHttpAuthConfig,
+  type BridgeHttpHandlerOptions,
   type BridgeInboundReadRequest,
   type BridgeInboundReadResponse,
   type BridgeRecord,
@@ -27,6 +29,10 @@ import {
 
 export const DEFAULT_BRIDGE_INBOUND_READ_LIMIT = 100;
 export const MAX_BRIDGE_INBOUND_READ_LIMIT = 500;
+
+const AUTHORIZATION_HEADER = 'authorization';
+const BEARER_AUTH_PREFIX = 'Bearer ';
+const MAX_BRIDGE_AUTH_TOKEN_LENGTH = 4_096;
 
 export class BridgeService {
   readonly role: BridgeServiceRole;
@@ -133,11 +139,16 @@ export class InMemoryBridgeService extends BridgeService {
 export async function handleBridgeDeliveryRequest(
   service: BridgeService,
   request: Request,
-  now = new Date().toISOString()
+  now = new Date().toISOString(),
+  options: BridgeHttpHandlerOptions = {}
 ): Promise<Response> {
   if (request.method !== 'POST') {
     return jsonResponse({ status: 'rejected', idempotencyKey: 'unknown', reason: 'Method not allowed' }, 405);
   }
+
+  const auth = authorizeBridgeHttpRequest(request, options);
+  if (auth.status === 'misconfigured') return bridgeAuthMisconfiguredResponse();
+  if (auth.status === 'unauthorized') return bridgeDeliveryUnauthorizedResponse();
 
   const parsed = await parseDeliveryRequestJson(request);
   if (parsed.status === 'invalid') {
@@ -151,9 +162,14 @@ export async function handleBridgeDeliveryRequest(
 export async function handleBridgeInboundReadRequest(
   service: BridgeService,
   request: Request,
-  now = new Date().toISOString()
+  now = new Date().toISOString(),
+  options: BridgeHttpHandlerOptions = {}
 ): Promise<Response> {
   if (request.method !== 'POST') return jsonResponse({ reason: 'Method not allowed' }, 405);
+
+  const auth = authorizeBridgeHttpRequest(request, options);
+  if (auth.status === 'misconfigured') return bridgeAuthMisconfiguredResponse();
+  if (auth.status === 'unauthorized') return bridgeReadUnauthorizedResponse();
 
   const parsed = await parseInboundReadRequestJson(request);
   if (parsed.status === 'invalid') return jsonResponse({ reason: parsed.reason }, 400);
@@ -174,6 +190,50 @@ function statusCodeForBridgeResponse(response: BridgeDeliveryResponse): number {
   if (response.status === 'confirmed') return response.duplicate ? 200 : 202;
   if (response.status === 'conflicted') return 409;
   return 422;
+}
+
+function authorizeBridgeHttpRequest(
+  request: Request,
+  options: BridgeHttpHandlerOptions
+): Readonly<{ status: 'authorized' | 'unauthorized' | 'misconfigured' }> {
+  if (options.auth === undefined) return { status: 'authorized' };
+  if (!isValidBridgeHttpAuthConfig(options.auth)) return { status: 'misconfigured' };
+
+  const header = request.headers.get(AUTHORIZATION_HEADER);
+  if (header === null || !header.startsWith(BEARER_AUTH_PREFIX)) return { status: 'unauthorized' };
+
+  const presented = header.slice(BEARER_AUTH_PREFIX.length);
+  if (!isValidBridgeAuthToken(presented)) return { status: 'unauthorized' };
+  return constantTimeEqual(presented, options.auth.token) ? { status: 'authorized' } : { status: 'unauthorized' };
+}
+
+function isValidBridgeHttpAuthConfig(auth: BridgeHttpAuthConfig): boolean {
+  return auth.scheme === 'bearer' && isValidBridgeAuthToken(auth.token);
+}
+
+function isValidBridgeAuthToken(token: string): boolean {
+  if (token.length === 0 || token.length > MAX_BRIDGE_AUTH_TOKEN_LENGTH || token !== token.trim()) return false;
+  return !hasBridgeAuthUnsafeCharacter(token);
+}
+
+function hasBridgeAuthUnsafeCharacter(value: string): boolean {
+  for (const char of value) {
+    const codePoint = char.codePointAt(0);
+    if (codePoint === undefined || codePoint <= 32 || codePoint === 127) return true;
+  }
+  return false;
+}
+
+function constantTimeEqual(left: string, right: string): boolean {
+  const encoder = new TextEncoder();
+  const leftBytes = encoder.encode(left);
+  const rightBytes = encoder.encode(right);
+  const maxLength = Math.max(leftBytes.length, rightBytes.length);
+  let difference = leftBytes.length ^ rightBytes.length;
+  for (let index = 0; index < maxLength; index += 1) {
+    difference |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
+  }
+  return difference === 0;
 }
 
 async function parseDeliveryRequestJson(
@@ -242,14 +302,35 @@ function normalizeReadLimit(limit: number | undefined): number {
   return normalized;
 }
 
-function jsonResponse(body: unknown, status: number): Response {
+function jsonResponse(body: unknown, status: number, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store'
+      'cache-control': 'no-store',
+      ...headers
     }
   });
+}
+
+function bridgeDeliveryUnauthorizedResponse(): Response {
+  return jsonResponse(
+    { status: 'rejected', idempotencyKey: 'unknown', reason: 'Unauthorized' },
+    401,
+    bridgeUnauthorizedHeaders()
+  );
+}
+
+function bridgeReadUnauthorizedResponse(): Response {
+  return jsonResponse({ reason: 'Unauthorized' }, 401, bridgeUnauthorizedHeaders());
+}
+
+function bridgeAuthMisconfiguredResponse(): Response {
+  return jsonResponse({ reason: 'Bridge auth misconfigured' }, 503);
+}
+
+function bridgeUnauthorizedHeaders(): HeadersInit {
+  return { 'www-authenticate': 'Bearer realm="lfp2p-bridge"' };
 }
 
 function invalid(idempotencyKey: string, reason: string): Readonly<{ status: 'invalid'; idempotencyKey: string; reason: string }> {
