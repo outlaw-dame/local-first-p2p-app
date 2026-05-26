@@ -12,6 +12,9 @@ import {
   JsonFileBridgeStore
 } from './index.js';
 
+const BRIDGE_AUTH_TOKEN = 'opaque-dev-value-123';
+const BRIDGE_AUTH = { scheme: 'bearer', token: BRIDGE_AUTH_TOKEN } as const;
+
 describe('Bridge inbound read support', () => {
   it('returns accepted signed events in sequence order for the requested bridge target', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
@@ -63,11 +66,7 @@ describe('Bridge inbound read support', () => {
 
     const response = await handleBridgeInboundReadRequest(
       bridge,
-      new Request('https://bridge.test/inbound', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', limit: 10 })
-      }),
+      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', limit: 10 }),
       '1970-01-01T00:00:01.000Z'
     );
 
@@ -76,6 +75,55 @@ describe('Bridge inbound read support', () => {
     await expect(response.json()).resolves.toEqual({
       records: [{ cursor: '1', sequence: 1, receivedAt: '1970-01-01T00:00:00.000Z', event }]
     });
+  });
+
+  it('enforces optional HTTP auth before parsing inbound read bodies', async () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const missing = await handleBridgeInboundReadRequest(
+      bridge,
+      new Request('https://bridge.test/inbound', { method: 'POST', body: 'not json' }),
+      '1970-01-01T00:00:00.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+    const wrong = await handleBridgeInboundReadRequest(
+      bridge,
+      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' }, 'wrong-value'),
+      '1970-01-01T00:00:00.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+
+    expect(missing.status).toBe(401);
+    expect(missing.headers.get('www-authenticate')).toBe('Bearer realm="lfp2p-bridge"');
+    await expect(missing.json()).resolves.toEqual({ reason: 'Unauthorized' });
+    expect(wrong.status).toBe(401);
+  });
+
+  it('accepts authorized inbound reads without leaking server auth config', async () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const event = makeSignedEvent({ eventId: 'evt_http_auth_read', privacy: 'public' });
+    await bridge.acceptDelivery({ idempotencyKey: 'idem-http-auth-read', target: 'stream:inbox', event }, '1970-01-01T00:00:00.000Z');
+
+    const authorized = await handleBridgeInboundReadRequest(
+      bridge,
+      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' }, BRIDGE_AUTH_TOKEN),
+      '1970-01-01T00:00:01.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+    const misconfigured = await handleBridgeInboundReadRequest(
+      bridge,
+      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' }, BRIDGE_AUTH_TOKEN),
+      '1970-01-01T00:00:01.000Z',
+      { auth: { scheme: 'bearer', token: 'bad config value' } }
+    );
+
+    expect(authorized.status).toBe(200);
+    await expect(authorized.json()).resolves.toEqual({
+      records: [{ cursor: '1', sequence: 1, receivedAt: '1970-01-01T00:00:00.000Z', event }]
+    });
+    expect(misconfigured.status).toBe(503);
+    const body = await misconfigured.json();
+    expect(body).toEqual({ reason: 'Bridge auth misconfigured' });
+    expect(JSON.stringify(body)).not.toContain('bad config value');
   });
 
   it('rejects malformed read requests and oversized limits', async () => {
@@ -87,20 +135,12 @@ describe('Bridge inbound read support', () => {
     );
     const oversized = await handleBridgeInboundReadRequest(
       bridge,
-      new Request('https://bridge.test/inbound', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', limit: 501 })
-      }),
+      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', limit: 501 }),
       '1970-01-01T00:00:00.000Z'
     );
     const badCursor = await handleBridgeInboundReadRequest(
       bridge,
-      new Request('https://bridge.test/inbound', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', cursor: 'cursor-1' })
-      }),
+      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', cursor: 'cursor-1' }),
       '1970-01-01T00:00:00.000Z'
     );
 
@@ -130,11 +170,7 @@ describe('Bridge inbound read support', () => {
 
     const response = await handleBridgeInboundReadRequest(
       bridge,
-      new Request('https://bridge.test/inbound', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' })
-      }),
+      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' }),
       '1970-01-01T00:00:00.000Z'
     );
 
@@ -162,6 +198,17 @@ describe('Bridge inbound read support', () => {
     }
   });
 });
+
+function makeReadRequest(body: Record<string, unknown>, authToken?: string): Request {
+  return new Request('https://bridge.test/inbound', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(authToken === undefined ? {} : { authorization: `Bearer ${authToken}` })
+    },
+    body: JSON.stringify(body)
+  });
+}
 
 function makeSignedEvent(input: { eventId: string; privacy: PrivacyScope }) {
   const keypair = generateSigningKeypair();
