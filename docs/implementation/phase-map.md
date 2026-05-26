@@ -4,6 +4,18 @@ This document reconciles the original Implementation Doctrine with what has actu
 
 The doctrine remains the target build-order authority. The code did not follow the doctrine order exactly because the repository first established a PWA/local-store/outbox/bridge foundation. That is acceptable as long as the deviation is explicit and future phases add the missing doctrine gates instead of drifting further.
 
+## Update addendum (2026-05-26)
+
+The table below remains valid as the original reconciliation snapshot. Since then, additional controlled slices landed and should be considered when planning the next cycle:
+
+- Phase 3/4 boundary progressed with a dev-only manual outbox delivery gate in PWA.
+- Phase 3/4 boundary progressed with a client-side send budget guard for manual delivery attempts.
+- Phase 4 boundary progressed with optional HTTP bearer-auth boundaries in bridge request handlers and corresponding PWA dev-auth config/transport support.
+- UI-system work progressed with Apple-first Phase A token hardening.
+- Phase 0 governance progressed with an explicit schema/storage versioning policy doc.
+
+These do not change the main recommendation that the next highest-leverage work remains doctrine guardrails plus sync offsets/checkpoints before broader feature expansion.
+
 ## Status legend
 
 - **Done for foundation**: enough exists for the current early foundation.

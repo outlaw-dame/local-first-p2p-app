@@ -2,6 +2,25 @@
 
 This document is the implementation truth layer for the repository. It describes what the code currently does after PR #19 merged, not the complete target architecture.
 
+## Update addendum (2026-05-26)
+
+This addendum preserves the original baseline notes while recording meaningful changes landed after the PR #19 snapshot.
+
+Notable changes since the baseline section above:
+
+- PWA bridge config/transport boundary now includes a dev-only bearer-auth config boundary and transport header injection path under explicit guard.
+- PWA now has a read-only outbox delivery planner and a dev-only manual outbox delivery action gate.
+- Manual outbox delivery includes a client-side send budget boundary (window, run count, entry reservations, and minimum interval).
+- Bridge service primitives now include an optional HTTP bearer-auth boundary for delivery and inbound read handlers.
+- A schema and storage versioning policy document now exists at `docs/implementation/schema-and-storage-versioning.md`.
+- Apple-first frontend rollout planning and Phase A token hardening are documented and implemented as initial UI-system progress.
+
+Scope reminder:
+
+- These slices improve guardrails and observability.
+- They do not enable production automation by themselves.
+- They do not replace missing doctrine-level gates such as identity-control ADRs, payload-encryption contracts, and sync checkpoint persistence.
+
 ## Current baseline
 
 - Default branch: `master`.

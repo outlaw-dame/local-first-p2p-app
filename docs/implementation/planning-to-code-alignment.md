@@ -2,6 +2,19 @@
 
 This document compares the original planning documents with the current implementation. The planning docs are not wrong because they describe future architecture. This matrix exists to show where code already follows the plan, where it implements a first slice, and where work is intentionally deferred.
 
+## Update addendum (2026-05-26)
+
+The matrix below is preserved as the original alignment snapshot. Since then, additional alignment-relevant slices landed:
+
+- Bridge auth boundary: optional bearer-auth checks now exist in bridge HTTP request handling (delivery and inbound read paths).
+- PWA dev-only bridge auth: guarded config/transport support exists for development-only manual delivery paths.
+- PWA manual outbox delivery: explicit user-triggered, dev-only gate exists (not automatic delivery).
+- PWA send budget: manual delivery now includes client-side window/runs/entries/min-interval budget enforcement.
+- Schema/storage policy: versioning policy documentation now exists and should be treated as active guidance.
+- Apple-first UI progression: token system has moved beyond initial seed with semantic expansion and shell wiring.
+
+These additions improve guardrails and operator control, but they do not close doctrine-level deferred areas such as identity-control architecture, private payload encryption contracts, durable sync checkpoint persistence, or production bridge posture.
+
 ## Alignment summary
 
 | Planned area | Current implementation state | Alignment | Notes |
