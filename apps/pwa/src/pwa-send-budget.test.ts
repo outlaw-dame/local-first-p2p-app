@@ -47,10 +47,13 @@ describe('PwaSendBudget', () => {
   it('rejects invalid configuration and reservation inputs', () => {
     expect(() => createPwaSendBudget({ windowMs: 0 })).toThrow('send budget windowMs must be a positive safe integer.');
     expect(() => createPwaSendBudget({ minIntervalMs: -1 })).toThrow('send budget minIntervalMs must be a non-negative safe integer.');
-    const budget = createPwaSendBudget();
+    const budget = createPwaSendBudget({ maxEntries: 2 });
     expect(() => budget.reserve({ now: new Date('invalid'), entries: 1 })).toThrow('send budget now must be a valid Date.');
     expect(() => budget.reserve({ now: new Date('2026-05-26T00:00:00.000Z'), entries: 0 })).toThrow(
       'send budget entries must be a positive safe integer.'
+    );
+    expect(() => budget.reserve({ now: new Date('2026-05-26T00:00:00.000Z'), entries: 3 })).toThrow(
+      'send budget entries must not exceed the configured maxEntries value of 2.'
     );
   });
 });
