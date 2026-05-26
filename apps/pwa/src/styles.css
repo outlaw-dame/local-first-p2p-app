@@ -5,7 +5,26 @@ body,
   margin: 0;
   background: var(--lfp2p-color-background);
   color: var(--lfp2p-color-label);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--lfp2p-font-family-system);
+  font-size: var(--lfp2p-font-size-body);
+  line-height: var(--lfp2p-line-height-body);
+}
+
+:root {
+  --f7-font-family: var(--lfp2p-font-family-system);
+  --f7-theme-color: var(--lfp2p-color-accent);
+  --f7-page-bg-color: var(--lfp2p-color-background);
+  --f7-navbar-bg-color: color-mix(in srgb, var(--lfp2p-color-elevated) 90%, transparent);
+  --f7-navbar-border-color: var(--lfp2p-hairline);
+  --f7-navbar-height: var(--lfp2p-nav-bar-height);
+  --f7-list-inset-border-radius: var(--lfp2p-list-inset-radius);
+  --f7-list-item-min-height: var(--lfp2p-min-touch-target);
+  --f7-button-height: var(--lfp2p-min-touch-target);
+  --f7-block-padding-horizontal: var(--lfp2p-page-horizontal-padding);
+}
+
+.page-content {
+  padding-bottom: var(--lfp2p-space-6);
 }
 
 .lfp2p-status-card {
@@ -14,17 +33,19 @@ body,
   background: var(--lfp2p-color-elevated);
   -webkit-backdrop-filter: var(--lfp2p-material-blur);
   backdrop-filter: var(--lfp2p-material-blur);
-  padding: 18px;
+  padding: var(--lfp2p-space-5);
 }
 
 .lfp2p-status-card h1 {
-  margin: 0 0 8px;
-  font-size: 28px;
+  margin: 0 0 var(--lfp2p-space-2);
+  font-size: var(--lfp2p-font-size-title-2);
+  line-height: var(--lfp2p-line-height-tight);
+  font-weight: var(--lfp2p-font-weight-semibold);
   letter-spacing: -0.03em;
 }
 
 .lfp2p-status-card p {
   color: var(--lfp2p-color-secondary-label);
-  font-size: 16px;
-  line-height: 1.45;
+  font-size: var(--lfp2p-font-size-body);
+  line-height: var(--lfp2p-line-height-body);
 }

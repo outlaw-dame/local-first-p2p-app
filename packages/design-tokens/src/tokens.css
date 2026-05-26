@@ -3,9 +3,34 @@
   --lfp2p-color-elevated: rgba(255, 255, 255, 0.82);
   --lfp2p-color-label: #111111;
   --lfp2p-color-secondary-label: rgba(60, 60, 67, 0.7);
-  --lfp2p-color-accent: #6d5dfc;
+  --lfp2p-color-accent: #0a84ff;
   --lfp2p-hairline: rgba(60, 60, 67, 0.22);
+
+  --lfp2p-font-family-system: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  --lfp2p-font-size-caption: 12px;
+  --lfp2p-font-size-footnote: 13px;
+  --lfp2p-font-size-body: 17px;
+  --lfp2p-font-size-title-3: 20px;
+  --lfp2p-font-size-title-2: 28px;
+  --lfp2p-font-size-title-1: 34px;
+  --lfp2p-font-weight-regular: 400;
+  --lfp2p-font-weight-medium: 500;
+  --lfp2p-font-weight-semibold: 600;
+  --lfp2p-line-height-tight: 1.2;
+  --lfp2p-line-height-body: 1.45;
+
+  --lfp2p-space-1: 4px;
+  --lfp2p-space-2: 8px;
+  --lfp2p-space-3: 12px;
+  --lfp2p-space-4: 16px;
+  --lfp2p-space-5: 20px;
+  --lfp2p-space-6: 24px;
+
+  --lfp2p-nav-bar-height: 44px;
+  --lfp2p-tab-bar-height: 49px;
+  --lfp2p-page-horizontal-padding: 16px;
   --lfp2p-card-radius: 20px;
+  --lfp2p-list-inset-radius: 14px;
   --lfp2p-sheet-radius: 24px;
   --lfp2p-min-touch-target: 44px;
   --lfp2p-material-blur: saturate(180%) blur(20px);
