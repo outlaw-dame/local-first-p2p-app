@@ -282,6 +282,7 @@ describe('handleBridgeDeliveryRequest', () => {
 
   it('treats malformed runtime auth options as generic server misconfiguration', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const nonAsciiAuthToken = ['caf', String.fromCodePoint(0xe9)].join('');
     const nonStringToken = await handleBridgeDeliveryRequest(
       bridge,
       makeRequest('idem-auth-non-string', makeSignedEvent({ eventId: 'evt_auth_non_string', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
@@ -292,7 +293,7 @@ describe('handleBridgeDeliveryRequest', () => {
       bridge,
       makeRequest('idem-auth-non-ascii', makeSignedEvent({ eventId: 'evt_auth_non_ascii', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
       '2026-05-22T00:00:00.000Z',
-      { auth: { scheme: 'bearer', token: 'caf 00e9' } } as unknown as Parameters<typeof handleBridgeDeliveryRequest>[3]
+      { auth: { scheme: 'bearer', token: nonAsciiAuthToken } } as unknown as Parameters<typeof handleBridgeDeliveryRequest>[3]
     );
     const nullOptions = await handleBridgeDeliveryRequest(
       bridge,
