@@ -1,5 +1,10 @@
 export type PwaBridgeConfigEnv = Readonly<Record<string, unknown>>;
 
+export type PwaBridgeAuthConfig = Readonly<{
+  scheme: 'bearer';
+  token: string;
+}>;
+
 export type PwaBridgeConfig =
   | Readonly<{
       status: 'disabled';
@@ -12,6 +17,7 @@ export type PwaBridgeConfig =
       endpoint: string;
       target: string;
       timeoutMs: number;
+      auth?: PwaBridgeAuthConfig;
       transportWired: false;
       message: string;
     }>;
@@ -26,22 +32,27 @@ type PwaBridgeInvalidConfig = Readonly<{
     | 'query-or-fragment'
     | 'insecure-remote-endpoint'
     | 'invalid-timeout'
-    | 'invalid-target';
+    | 'invalid-target'
+    | 'auth-token-requires-dev-mode'
+    | 'invalid-auth-token';
   message: string;
 }>;
 
 type ValidEndpoint = Readonly<{ status: 'valid'; endpoint: string }>;
 type ValidTarget = Readonly<{ status: 'valid'; target: string }>;
 type ValidTimeout = Readonly<{ status: 'valid'; timeoutMs: number }>;
+type ValidAuth = Readonly<{ status: 'valid'; auth?: PwaBridgeAuthConfig }>;
 
 const ENABLED_KEY = 'VITE_LFP2P_BRIDGE_SYNC_ENABLED';
 const ENDPOINT_KEY = 'VITE_LFP2P_BRIDGE_ENDPOINT';
 const TARGET_KEY = 'VITE_LFP2P_BRIDGE_TARGET';
 const TIMEOUT_KEY = 'VITE_LFP2P_BRIDGE_TIMEOUT_MS';
+const AUTH_TOKEN_KEY = 'VITE_LFP2P_BRIDGE_AUTH_BEARER_TOKEN';
 const DEFAULT_TARGET = 'bridge:development';
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_TIMEOUT_MS = 60_000;
 const MAX_TARGET_LENGTH = 120;
+const MAX_AUTH_TOKEN_LENGTH = 4_096;
 const TARGET_PATTERN = /^[A-Za-z0-9][A-Za-z0-9:._-]*$/u;
 
 export function resolvePwaBridgeConfig(env: PwaBridgeConfigEnv = importMetaEnv()): PwaBridgeConfig {
@@ -67,11 +78,15 @@ export function resolvePwaBridgeConfig(env: PwaBridgeConfigEnv = importMetaEnv()
   const timeoutMs = parseBridgeTimeoutMs(env[TIMEOUT_KEY]);
   if (timeoutMs.status === 'invalid') return timeoutMs;
 
+  const auth = parseBridgeAuth(env);
+  if (auth.status === 'invalid') return auth;
+
   return {
     status: 'configured',
     endpoint: endpoint.endpoint,
     target: target.target,
     timeoutMs: timeoutMs.timeoutMs,
+    ...(auth.auth === undefined ? {} : { auth: auth.auth }),
     transportWired: false,
     message: 'Bridge endpoint is configured, but PWA bridge transport is not wired in this slice.'
   };
@@ -80,7 +95,8 @@ export function resolvePwaBridgeConfig(env: PwaBridgeConfigEnv = importMetaEnv()
 export function formatPwaBridgeConfigStatus(config: PwaBridgeConfig): string {
   if (config.status === 'configured') {
     const host = new URL(config.endpoint).host;
-    return `Bridge config ready for future transport: ${host} (${config.target}).`;
+    const authStatus = config.auth === undefined ? 'no auth token configured' : 'dev bearer auth token configured';
+    return `Bridge config ready for future transport: ${host} (${config.target}; ${authStatus}).`;
   }
   if (config.status === 'disabled') return config.message;
   return `Bridge config invalid: ${config.message}`;
@@ -129,6 +145,31 @@ function parseBridgeTimeoutMs(value: unknown): PwaBridgeInvalidConfig | ValidTim
     return invalid('invalid-timeout', `${TIMEOUT_KEY} must be a positive integer no greater than ${MAX_TIMEOUT_MS}.`);
   }
   return { status: 'valid', timeoutMs: parsed };
+}
+
+function parseBridgeAuth(env: PwaBridgeConfigEnv): PwaBridgeInvalidConfig | ValidAuth {
+  const raw = env[AUTH_TOKEN_KEY];
+  if (raw === undefined) return { status: 'valid' };
+  if (typeof raw !== 'string') return { status: 'valid' };
+  if (raw.length === 0) return { status: 'valid' };
+  if (env.DEV !== true) {
+    return invalid('auth-token-requires-dev-mode', `${AUTH_TOKEN_KEY} is only accepted when import.meta.env.DEV is true.`);
+  }
+  if (raw !== raw.trim() || raw.length > MAX_AUTH_TOKEN_LENGTH || hasBridgeAuthUnsafeCharacter(raw)) {
+    return invalid(
+      'invalid-auth-token',
+      `${AUTH_TOKEN_KEY} must be ${MAX_AUTH_TOKEN_LENGTH} characters or fewer and must not contain whitespace or control characters.`
+    );
+  }
+  return { status: 'valid', auth: { scheme: 'bearer', token: raw } };
+}
+
+function hasBridgeAuthUnsafeCharacter(value: string): boolean {
+  for (const char of value) {
+    const codePoint = char.codePointAt(0);
+    if (codePoint === undefined || codePoint <= 32 || codePoint === 127) return true;
+  }
+  return false;
 }
 
 function stringEnv(value: unknown): string | undefined {

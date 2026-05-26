@@ -3,7 +3,12 @@ import {
   type HttpBridgeTransportOptions,
   type OutboxTransport
 } from '@lfp2p/sync-client';
-import { resolvePwaBridgeConfig, type PwaBridgeConfig, type PwaBridgeConfigEnv } from './pwa-bridge-config.js';
+import {
+  resolvePwaBridgeConfig,
+  type PwaBridgeAuthConfig,
+  type PwaBridgeConfig,
+  type PwaBridgeConfigEnv
+} from './pwa-bridge-config.js';
 
 type ConfiguredPwaBridgeConfig = Extract<PwaBridgeConfig, { status: 'configured' }>;
 type DisabledPwaBridgeConfig = Extract<PwaBridgeConfig, { status: 'disabled' }>;
@@ -72,11 +77,12 @@ export function preparePwaBridgeTransport(input: PreparePwaBridgeTransportInput 
     };
   }
 
+  const transportFetch = config.auth === undefined ? fetchImpl : createAuthenticatedFetch(fetchImpl, config.auth);
   const createTransport = input.createTransport ?? createHttpBridgeTransport;
   const transport = createTransport({
     endpoint: config.endpoint,
     timeoutMs: config.timeoutMs,
-    fetch: fetchImpl
+    fetch: transportFetch
   });
 
   return {
@@ -85,4 +91,26 @@ export function preparePwaBridgeTransport(input: PreparePwaBridgeTransportInput 
     transport,
     message: 'Bridge transport prepared but not attached to foreground sync or outbox delivery in this slice.'
   };
+}
+
+function createAuthenticatedFetch(fetchImpl: typeof fetch, auth: PwaBridgeAuthConfig): typeof fetch {
+  return async (input, init) => {
+    if (input instanceof Request) {
+      const headers = mergeHeaders(input.headers, init?.headers);
+      headers.set('authorization', ['Bearer', auth.token].join(' '));
+      return fetchImpl(new Request(input, { ...init, headers }));
+    }
+
+    const headers = new Headers(init?.headers);
+    headers.set('authorization', ['Bearer', auth.token].join(' '));
+    return fetchImpl(input, { ...init, headers });
+  };
+}
+
+function mergeHeaders(base: HeadersInit, override: HeadersInit | undefined): Headers {
+  const headers = new Headers(base);
+  if (override !== undefined) {
+    new Headers(override).forEach((value, key) => headers.set(key, value));
+  }
+  return headers;
 }

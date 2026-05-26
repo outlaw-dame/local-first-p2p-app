@@ -5,6 +5,7 @@ const ENABLED_CONFIG_ENV = {
   VITE_LFP2P_BRIDGE_SYNC_ENABLED: 'true',
   VITE_LFP2P_BRIDGE_ENDPOINT: 'https://bridge.example.test/events'
 } as const;
+const AUTH_VALUE = 'opaque-dev-value-123';
 
 describe('preparePwaBridgeTransport', () => {
   it('does not create a transport when bridge config is disabled or invalid', () => {
@@ -68,5 +69,89 @@ describe('preparePwaBridgeTransport', () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds configured bridge auth only when send is invoked', async () => {
+    const requests: Request[] = [];
+    const fetchSpy: typeof fetch = async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      return new Response(JSON.stringify({ status: 'confirmed' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    };
+
+    const result = preparePwaBridgeTransport({
+      env: {
+        ...ENABLED_CONFIG_ENV,
+        DEV: true,
+        VITE_LFP2P_BRIDGE_AUTH_BEARER_TOKEN: AUTH_VALUE
+      },
+      fetch: fetchSpy
+    });
+
+    expect(result.status).toBe('prepared');
+    expect(requests).toEqual([]);
+    if (result.status !== 'prepared') throw new Error('Expected prepared bridge transport');
+
+    await result.transport.send({
+      entry: {
+        idempotencyKey: 'idem_transport_auth_test',
+        target: result.config.target
+      } as never,
+      event: {
+        event: {
+          eventId: 'evt_transport_auth_test'
+        }
+      } as never
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.headers.get('authorization')).toBe(`Bearer ${AUTH_VALUE}`);
+    expect(requests[0]?.headers.get('x-lfp2p-idempotency-key')).toBe('idem_transport_auth_test');
+  });
+
+  it('preserves request headers when adding configured bridge auth', async () => {
+    const requests: Request[] = [];
+    const fetchSpy: typeof fetch = async (input, init) => {
+      requests.push(new Request(input, init));
+      return new Response(JSON.stringify({ status: 'confirmed' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    };
+    const result = preparePwaBridgeTransport({
+      env: {
+        ...ENABLED_CONFIG_ENV,
+        DEV: true,
+        VITE_LFP2P_BRIDGE_AUTH_BEARER_TOKEN: AUTH_VALUE
+      },
+      fetch: fetchSpy,
+      createTransport: (options) => ({
+        async send() {
+          await options.fetch?.(
+            new Request(options.endpoint, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', 'x-request-header': 'request-value' },
+              body: JSON.stringify({ ok: true })
+            }),
+            { headers: { 'x-init-header': 'init-value' } }
+          );
+          return { status: 'confirmed' };
+        }
+      })
+    });
+
+    expect(result.status).toBe('prepared');
+    if (result.status !== 'prepared') throw new Error('Expected prepared bridge transport');
+
+    await result.transport.send({ entry: {} as never, event: {} as never });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.headers.get('content-type')).toBe('application/json');
+    expect(requests[0]?.headers.get('x-request-header')).toBe('request-value');
+    expect(requests[0]?.headers.get('x-init-header')).toBe('init-value');
+    expect(requests[0]?.headers.get('authorization')).toBe(`Bearer ${AUTH_VALUE}`);
   });
 });
