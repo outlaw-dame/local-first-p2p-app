@@ -4,6 +4,15 @@ export type BridgeServiceRole = 'stateful-edge-actor' | 'persistent-availability
 export type BridgeDeliveryStatus = 'confirmed' | 'conflicted' | 'rejected';
 export type BridgeStoreKind = 'memory' | 'json-file' | 'pglite';
 
+export type BridgeHttpAuthConfig = Readonly<{
+  scheme: 'bearer';
+  token: string;
+}>;
+
+export type BridgeHttpHandlerOptions = Readonly<{
+  auth?: BridgeHttpAuthConfig;
+}>;
+
 export type BridgeDeliveryRequest = Readonly<{
   idempotencyKey: string;
   target: string;
