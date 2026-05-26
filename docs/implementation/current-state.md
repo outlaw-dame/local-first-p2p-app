@@ -245,8 +245,10 @@ Important limitations:
 - User-facing private payload encryption is not implemented yet.
 - Bridge runtime is not production-hardened.
 - Identity revocation/capability semantics are not implemented yet.
-- There is no complete threat model document yet for bridge compromise, payload encryption, identity recovery, or search privacy.
+- Threat model coverage is still incomplete for payload encryption, identity recovery, and search privacy.
 
 ## Current development posture
 
 The repository is in a strong early foundation state, but it is not ready for private chat, production bridge deployment, or public beta. The next work should focus on doctrine alignment, protocol fixtures, identity-control planning, sync offsets, and explicit privacy/security gates before expanding feature surfaces.
+
+Identity-control planning and private payload envelope planning are now recorded by ADR-001 and ADR-002. The next implementation work is to convert those decisions into protocol schemas, fixture packs, and enforcement logic.
