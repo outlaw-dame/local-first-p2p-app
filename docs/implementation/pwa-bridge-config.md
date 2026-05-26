@@ -30,16 +30,15 @@ This still does not add automatic outbox delivery, inbound pulls, service worker
 
 ## Bridge-service HTTP auth boundary
 
-Bridge-service HTTP handlers accept an optional `BridgeHttpHandlerOptions` argument:
+Bridge-service HTTP handlers accept an optional `BridgeHttpHandlerOptions` argument. Build this option only after resolving the server-side secret value:
 
 ```ts
-await handleBridgeDeliveryRequest(service, request, now, {
-  auth: { scheme: 'bearer', token: process.env.LFP2P_BRIDGE_AUTH_BEARER_TOKEN }
-});
+const bridgeAuthToken = process.env.LFP2P_BRIDGE_AUTH_BEARER_TOKEN;
+const bridgeHandlerOptions =
+  bridgeAuthToken === undefined ? {} : { auth: { scheme: 'bearer' as const, token: bridgeAuthToken } };
 
-await handleBridgeInboundReadRequest(service, request, now, {
-  auth: { scheme: 'bearer', token: process.env.LFP2P_BRIDGE_AUTH_BEARER_TOKEN }
-});
+await handleBridgeDeliveryRequest(service, request, now, bridgeHandlerOptions);
+await handleBridgeInboundReadRequest(service, request, now, bridgeHandlerOptions);
 ```
 
 When auth is configured:
