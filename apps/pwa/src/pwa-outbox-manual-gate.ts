@@ -76,6 +76,13 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
     ...(input.now === undefined ? {} : { now: input.now })
   });
 
+  const refundedEntries = Math.max(0, batchSize - result.attempted);
+  if (result.attempted === 0) {
+    (input.sendBudget ?? defaultSendBudget).refund({ runs: 1, entries: refundedEntries });
+  } else if (refundedEntries > 0) {
+    (input.sendBudget ?? defaultSendBudget).refund({ entries: refundedEntries });
+  }
+
   return { status: 'delivered', batchSize, result, message: formatManualOutboxDeliveryResult(result) };
 }
 

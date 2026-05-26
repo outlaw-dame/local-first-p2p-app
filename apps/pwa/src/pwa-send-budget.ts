@@ -36,6 +36,11 @@ export type PwaSendBudgetSnapshot = Readonly<{
   minIntervalMs: number;
 }>;
 
+export type PwaSendBudgetRefundInput = Readonly<{
+  runs?: number;
+  entries?: number;
+}>;
+
 export class PwaSendBudget {
   readonly #options: Required<PwaSendBudgetOptions>;
   #windowStartedAtMs: number | undefined;
@@ -81,6 +86,20 @@ export class PwaSendBudget {
     };
   }
 
+  refund(input: PwaSendBudgetRefundInput): void {
+    const runs = input.runs === undefined ? 0 : nonNegativeInteger(input.runs, 'refund.runs');
+    const entries = input.entries === undefined ? 0 : nonNegativeInteger(input.entries, 'refund.entries');
+    if (runs === 0 && entries === 0) return;
+    if (runs > this.#runs) throw new RangeError('send budget refund.runs exceeds current reserved runs.');
+    if (entries > this.#entries) throw new RangeError('send budget refund.entries exceeds current reserved entries.');
+
+    this.#runs -= runs;
+    this.#entries -= entries;
+    if (this.#runs === 0 && this.#entries === 0) {
+      this.#lastAcceptedAtMs = undefined;
+    }
+  }
+
   snapshot(now: Date = new Date()): PwaSendBudgetSnapshot {
     const nowMs = normalizeNowMs(now);
     this.#rollWindow(nowMs);
@@ -95,6 +114,10 @@ export class PwaSendBudget {
 
   reset(now: Date = new Date()): void {
     const nowMs = normalizeNowMs(now);
+    this.#resetMs(nowMs);
+  }
+
+  #resetMs(nowMs: number): void {
     this.#windowStartedAtMs = nowMs;
     this.#lastAcceptedAtMs = undefined;
     this.#runs = 0;
@@ -103,11 +126,11 @@ export class PwaSendBudget {
 
   #rollWindow(nowMs: number): void {
     if (this.#windowStartedAtMs === undefined || nowMs < this.#windowStartedAtMs) {
-      this.reset(new Date(nowMs));
+      this.#resetMs(nowMs);
       return;
     }
     if (nowMs - this.#windowStartedAtMs >= this.#options.windowMs) {
-      this.reset(new Date(nowMs));
+      this.#resetMs(nowMs);
     }
   }
 }

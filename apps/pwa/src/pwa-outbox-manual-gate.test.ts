@@ -111,6 +111,49 @@ describe('runManualOutboxDelivery', () => {
       await store.delete();
     }
   });
+
+  it('refunds send budget reservations when no outbox attempts are made', async () => {
+    const store = createLocalFirstStore(`manual-outbox-delivery-refund-${globalThis.crypto.randomUUID()}`);
+    const sendBudget = createPwaSendBudget({ maxRuns: 1, maxEntries: 1, minIntervalMs: 0 });
+
+    try {
+      const first = await runManualOutboxDelivery({
+        store,
+        env: { ...MANUAL_ENABLED_ENV, ...BRIDGE_ENABLED_ENV },
+        createTransport: () => ({
+          async send() {
+            throw new Error('unexpected send call');
+          }
+        }),
+        now: new Date('2026-05-25T00:00:00.000Z'),
+        batchSize: 1,
+        sendBudget
+      });
+
+      expect(first).toMatchObject({ status: 'delivered', batchSize: 1 });
+      if (first.status !== 'delivered') throw new Error('Expected delivered result');
+      expect(first.result).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+
+      const second = await runManualOutboxDelivery({
+        store,
+        env: { ...MANUAL_ENABLED_ENV, ...BRIDGE_ENABLED_ENV },
+        createTransport: () => ({
+          async send() {
+            throw new Error('unexpected send call');
+          }
+        }),
+        now: new Date('2026-05-25T00:00:00.100Z'),
+        batchSize: 1,
+        sendBudget
+      });
+
+      expect(second).toMatchObject({ status: 'delivered', batchSize: 1 });
+      if (second.status !== 'delivered') throw new Error('Expected delivered result');
+      expect(second.result).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+    } finally {
+      await store.delete();
+    }
+  });
 });
 
 function fakeStore(): DexieLocalFirstStore {

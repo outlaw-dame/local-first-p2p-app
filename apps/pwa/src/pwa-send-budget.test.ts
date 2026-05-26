@@ -56,4 +56,18 @@ describe('PwaSendBudget', () => {
       'send budget entries must not exceed the configured maxEntries value of 2.'
     );
   });
+
+  it('supports refunding unused reservations safely', () => {
+    const budget = createPwaSendBudget({ windowMs: 10_000, maxRuns: 2, maxEntries: 4, minIntervalMs: 0 });
+
+    expect(budget.reserve({ now: new Date('2026-05-26T00:00:00.000Z'), entries: 3 }).status).toBe('accepted');
+    budget.refund({ entries: 2 });
+    expect(budget.snapshot(new Date('2026-05-26T00:00:00.500Z'))).toMatchObject({ runs: 1, entries: 1 });
+
+    budget.refund({ runs: 1, entries: 1 });
+    expect(budget.snapshot(new Date('2026-05-26T00:00:01.000Z'))).toMatchObject({ runs: 0, entries: 0 });
+
+    expect(() => budget.refund({ runs: 1 })).toThrow('send budget refund.runs exceeds current reserved runs.');
+    expect(() => budget.refund({ entries: 1 })).toThrow('send budget refund.entries exceeds current reserved entries.');
+  });
 });
