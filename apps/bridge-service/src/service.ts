@@ -236,7 +236,7 @@ function constantTimeEqual(left: string, right: string): boolean {
 
   let difference = 0;
   for (let index = 0; index < leftBytes.length; index += 1) {
-    difference |= leftBytes[index] ^ rightBytes[index];
+    difference |= leftBytes[index]! ^ rightBytes[index]!;
   }
   return difference === 0;
 }
