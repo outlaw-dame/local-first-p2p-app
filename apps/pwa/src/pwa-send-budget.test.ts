@@ -34,4 +34,23 @@ describe('PwaSendBudget', () => {
       retryAfterMs: 9_000
     });
   });
+
+  it('resets after the configured window and after clock rollback', () => {
+    const budget = createPwaSendBudget({ windowMs: 1_000, maxRuns: 1, maxEntries: 1, minIntervalMs: 0 });
+
+    expect(budget.reserve({ now: new Date('2026-05-26T00:00:01.000Z'), entries: 1 }).status).toBe('accepted');
+    expect(budget.reserve({ now: new Date('2026-05-26T00:00:02.000Z'), entries: 1 }).status).toBe('accepted');
+    expect(budget.reserve({ now: new Date('2026-05-25T23:59:59.000Z'), entries: 1 }).status).toBe('accepted');
+    expect(budget.snapshot(new Date('2026-05-25T23:59:59.000Z'))).toMatchObject({ runs: 1, entries: 1 });
+  });
+
+  it('rejects invalid configuration and reservation inputs', () => {
+    expect(() => createPwaSendBudget({ windowMs: 0 })).toThrow('send budget windowMs must be a positive safe integer.');
+    expect(() => createPwaSendBudget({ minIntervalMs: -1 })).toThrow('send budget minIntervalMs must be a non-negative safe integer.');
+    const budget = createPwaSendBudget();
+    expect(() => budget.reserve({ now: new Date('invalid'), entries: 1 })).toThrow('send budget now must be a valid Date.');
+    expect(() => budget.reserve({ now: new Date('2026-05-26T00:00:00.000Z'), entries: 0 })).toThrow(
+      'send budget entries must be a positive safe integer.'
+    );
+  });
 });
