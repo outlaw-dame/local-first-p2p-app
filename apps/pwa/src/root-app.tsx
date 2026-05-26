@@ -67,7 +67,7 @@ function HomePage(): JSX.Element {
   const identityManager = useMemo(() => new DeviceIdentityManager(store), [store]);
   const mountedRef = useRef(false);
   const syncControllerRef = useRef<PwaForegroundSyncController | null>(null);
-  const manualDeliveryRunningRef = useRef(false);
+  const controlledDeliveryControllerRef = useRef<PwaForegroundSyncController | null>(null);
   const [identity, setIdentity] = useState<LocalDeviceIdentity | null>(null);
   const [keypair, setKeypair] = useState<SigningKeypair | null>(null);
   const [events, setEvents] = useState<EventSummaryView[]>([]);
@@ -152,6 +152,31 @@ function HomePage(): JSX.Element {
     };
   }, [applyLocalStateSnapshot, loadLocalState]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const controller = createPwaForegroundSyncController({
+      async run() {
+        const delivery = await runManualOutboxDelivery({ store, batchSize: 1 });
+        const snapshot = await loadLocalState();
+        if (!cancelled) {
+          setManualDeliveryStatus(delivery.message);
+          applyLocalStateSnapshot(snapshot, 'Manual outbox delivery action completed.');
+        }
+        return {
+          deliveryStatus: delivery.status,
+          eventCount: snapshot.events.length,
+          pendingOutboxCount: snapshot.pendingOutboxCount
+        };
+      }
+    });
+    controlledDeliveryControllerRef.current = controller;
+
+    return () => {
+      cancelled = true;
+      if (controlledDeliveryControllerRef.current === controller) controlledDeliveryControllerRef.current = null;
+    };
+  }, [applyLocalStateSnapshot, loadLocalState, store]);
+
   async function createLocalEvent(): Promise<void> {
     if (!identity || !keypair) {
       setStatus('Local device identity is not ready yet.');
@@ -208,21 +233,27 @@ function HomePage(): JSX.Element {
   }
 
   async function runManualOutboxDeliveryOnce(): Promise<void> {
-    if (manualDeliveryRunningRef.current) return;
-    manualDeliveryRunningRef.current = true;
+    if (manualDeliveryRunning) return;
+    const controller = controlledDeliveryControllerRef.current;
+    if (controller === null) {
+      setManualDeliveryStatus('Manual outbox delivery controller is not ready yet.');
+      return;
+    }
+
     setManualDeliveryRunning(true);
     setManualDeliveryStatus('Manual outbox delivery running.');
     try {
-      const result = await runManualOutboxDelivery({ store, batchSize: 1 });
-      const snapshot = await loadLocalState();
+      const result = await requestPwaForegroundSync(controller, 'manual');
       if (mountedRef.current) {
-        setManualDeliveryStatus(result.message);
-        applyLocalStateSnapshot(snapshot, 'Manual outbox delivery action completed.');
+        if (result.status === 'failed') {
+          setManualDeliveryStatus(`Manual outbox delivery failed: ${formatPwaSyncStatusText(result.error)}.`);
+        } else if (result.status === 'skipped') {
+          setManualDeliveryStatus(`Manual outbox delivery skipped: ${result.reason}.`);
+        }
       }
     } catch (error: unknown) {
       if (mountedRef.current) setManualDeliveryStatus(`Manual outbox delivery failed: ${formatUiError(error)}.`);
     } finally {
-      manualDeliveryRunningRef.current = false;
       if (mountedRef.current) setManualDeliveryRunning(false);
     }
   }

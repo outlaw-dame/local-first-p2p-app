@@ -20,7 +20,9 @@ The PWA UI currently calls the manual gate with a batch size of `1`.
 
 This slice does not add automatic delivery. It does not attach delivery to startup, online events, visibility changes, foreground sync, service workers, background sync, push, or timers.
 
-The UI action is single-flight guarded so repeated taps cannot overlap delivery attempts. The button is disabled when the gate is closed, there are no pending entries, or a manual attempt is already running.
+The UI action is routed through a dedicated foreground controller so repeated taps cannot overlap delivery attempts (single-flight). The same path uses explicit browser online gating before any delivery reservation is consumed.
+
+The button is disabled when the gate is closed, there are no pending entries, or a manual attempt is already running.
 
 ## Still missing before production delivery
 
@@ -30,5 +32,4 @@ Before automatic or production delivery is enabled, the project still needs:
 - client delivery budgets and rate limits,
 - production-safe auth token handling,
 - stronger operator/error visibility,
-- foreground sync delivery integration with single-flight and online checks,
 - clear retry-budget and terminal failure surfaces.
