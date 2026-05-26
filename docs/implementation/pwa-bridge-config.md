@@ -25,8 +25,8 @@ This still does not add automatic outbox delivery, inbound pulls, service worker
   - Optional development-only bridge auth value used by the PWA transport wrapper.
   - Accepted only when `import.meta.env.DEV === true`.
   - Rejected outside true Vite dev runtime, even when `MODE=development`.
-  - Must not contain whitespace or control characters.
-  - Must be 4096 characters or fewer.
+  - The PWA parser rejects whitespace/control characters and values longer than 4096 characters.
+  - For bridge-service compatibility, use printable ASCII non-space values only.
 
 ## Bridge-service HTTP auth boundary
 
@@ -44,11 +44,13 @@ await handleBridgeInboundReadRequest(service, request, now, bridgeHandlerOptions
 When auth is configured:
 
 - `Authorization: Bearer <token>` is required for `POST` delivery and inbound-read requests.
+- The authorization scheme is accepted case-insensitively.
 - Missing, malformed, unsafe, or incorrect credentials return `401` before JSON body parsing.
 - Invalid server-side auth configuration returns `503` with a generic reason.
 - Response bodies do not echo the configured token or presented token.
-- The token must be non-empty, trimmed, free of whitespace/control characters, and no longer than 4096 characters.
-- The comparison avoids early exit across token bytes, but the shared token itself is still only a development/testing boundary.
+- The token must be non-empty, printable ASCII only, contain no spaces/control/non-ASCII characters, and be no longer than 4096 characters.
+- For equal-length tokens, the comparison avoids early content exit across token bytes; unequal byte lengths fail before the comparison loop.
+- The shared token itself is still only a development/testing boundary.
 
 When auth is omitted, handlers preserve existing local/dev behavior and remain unauthenticated. Do not expose an unauthenticated bridge service beyond local development.
 
