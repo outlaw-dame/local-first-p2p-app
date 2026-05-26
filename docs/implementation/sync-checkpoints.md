@@ -2,6 +2,7 @@
 
 - Status: Implemented first slice
 - Date: 2026-05-24
+- ADR: `docs/adr/001-sync-offsets-and-checkpoints.md`
 
 ## Scope
 

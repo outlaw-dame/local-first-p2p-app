@@ -83,4 +83,115 @@ describe('acceptSyncCheckpoint', () => {
       await store.delete();
     }
   });
+
+  it('isolates checkpoints by source stream and scope tuples', async () => {
+    const store = createLocalFirstStore(`sync-checkpoint-isolation-${globalThis.crypto.randomUUID()}`);
+    try {
+      await expect(
+        acceptSyncCheckpoint({
+          store,
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice',
+          cursor: 'alice-primary-inbox-10',
+          sequence: 10,
+          updatedAt: '2026-05-22T00:00:00.000Z'
+        })
+      ).resolves.toBe(true);
+      await expect(
+        acceptSyncCheckpoint({
+          store,
+          sourceId: 'bridge:secondary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice',
+          cursor: 'alice-secondary-inbox-2',
+          sequence: 2,
+          updatedAt: '2026-05-22T00:00:00.000Z'
+        })
+      ).resolves.toBe(true);
+      await expect(
+        acceptSyncCheckpoint({
+          store,
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:public',
+          scope: 'identity:alice',
+          cursor: 'alice-primary-public-5',
+          sequence: 5,
+          updatedAt: '2026-05-22T00:00:00.000Z'
+        })
+      ).resolves.toBe(true);
+      await expect(
+        acceptSyncCheckpoint({
+          store,
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:bob',
+          cursor: 'bob-primary-inbox-1',
+          sequence: 1,
+          updatedAt: '2026-05-22T00:00:00.000Z'
+        })
+      ).resolves.toBe(true);
+
+      await expect(
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
+      ).resolves.toMatchObject({ cursor: 'alice-primary-inbox-10', sequence: 10 });
+      await expect(
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:secondary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
+      ).resolves.toMatchObject({ cursor: 'alice-secondary-inbox-2', sequence: 2 });
+      await expect(
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:public',
+          scope: 'identity:alice'
+        })
+      ).resolves.toMatchObject({ cursor: 'alice-primary-public-5', sequence: 5 });
+      await expect(
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:bob'
+        })
+      ).resolves.toMatchObject({ cursor: 'bob-primary-inbox-1', sequence: 1 });
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('persists accepted checkpoints across store reopen', async () => {
+    const dbName = `sync-checkpoint-persist-${globalThis.crypto.randomUUID()}`;
+    const first = createLocalFirstStore(dbName);
+    await expect(
+      acceptSyncCheckpoint({
+        store: first,
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice',
+        cursor: 'cursor-42',
+        sequence: 42,
+        updatedAt: '2026-05-22T00:00:00.000Z'
+      })
+    ).resolves.toBe(true);
+    await first.close();
+
+    const reopened = createLocalFirstStore(dbName);
+    try {
+      await expect(
+        reopened.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
+      ).resolves.toMatchObject({ cursor: 'cursor-42', sequence: 42 });
+    } finally {
+      await reopened.delete();
+    }
+  });
 });
