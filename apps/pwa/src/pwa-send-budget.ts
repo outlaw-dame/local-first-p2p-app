@@ -50,6 +50,11 @@ export class PwaSendBudget {
   reserve(input: Readonly<{ now?: Date; entries: number }>): PwaSendBudgetDecision {
     const nowMs = normalizeNowMs(input.now);
     const entries = positiveInteger(input.entries, 'entries');
+    if (entries > this.#options.maxEntries) {
+      throw new RangeError(
+        `send budget entries must not exceed the configured maxEntries value of ${this.#options.maxEntries}.`
+      );
+    }
     this.#rollWindow(nowMs);
 
     if (this.#lastAcceptedAtMs !== undefined) {
@@ -59,7 +64,7 @@ export class PwaSendBudget {
       }
     }
 
-    const windowStartMs = this.#windowStartedAtMs ?? nowMs;
+    const windowStartMs = this.#windowStartedAtMs!;
     const retryAfterMs = Math.max(1, windowStartMs + this.#options.windowMs - nowMs);
     if (this.#runs + 1 > this.#options.maxRuns || this.#entries + entries > this.#options.maxEntries) {
       return deferred('window-limit', retryAfterMs);
