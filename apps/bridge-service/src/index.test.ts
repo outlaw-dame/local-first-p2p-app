@@ -266,6 +266,28 @@ describe('handleBridgeDeliveryRequest', () => {
     expect(body).toEqual({ reason: 'Bridge auth misconfigured' });
     expect(JSON.stringify(body)).not.toContain('bad config value');
   });
+
+  it('treats malformed runtime auth options as generic server misconfiguration', async () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const nonStringToken = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-non-string', makeSignedEvent({ eventId: 'evt_auth_non_string', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
+      '2026-05-22T00:00:00.000Z',
+      { auth: { scheme: 'bearer', token: 123 } } as unknown as Parameters<typeof handleBridgeDeliveryRequest>[3]
+    );
+    const nullOptions = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-null-options', makeSignedEvent({ eventId: 'evt_auth_null_options', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
+      '2026-05-22T00:00:00.000Z',
+      null as unknown as Parameters<typeof handleBridgeDeliveryRequest>[3]
+    );
+
+    expect(nonStringToken.status).toBe(503);
+    await expect(nonStringToken.json()).resolves.toEqual({ reason: 'Bridge auth misconfigured' });
+    expect(nullOptions.status).toBe(503);
+    await expect(nullOptions.json()).resolves.toEqual({ reason: 'Bridge auth misconfigured' });
+    await expect(bridge.snapshot('2026-05-22T00:00:01.000Z')).resolves.toMatchObject({ acceptedCount: 0 });
+  });
 });
 
 function sequenceOf(response: Awaited<ReturnType<BridgeService['acceptDelivery']>>): number {
