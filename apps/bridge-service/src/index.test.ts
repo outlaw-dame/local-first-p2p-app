@@ -6,6 +6,9 @@ import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createUnsignedEvent, type PrivacyScope } from '@lfp2p/protocol';
 import { BridgeService, handleBridgeDeliveryRequest, InMemoryBridgeService, JsonFileBridgeStore } from './index.js';
 
+const BRIDGE_AUTH_TOKEN = 'opaque-dev-value-123';
+const BRIDGE_AUTH = { scheme: 'bearer', token: BRIDGE_AUTH_TOKEN } as const;
+
 describe('InMemoryBridgeService', () => {
   it('accepts valid signed bridge-safe events and deduplicates by idempotency key', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
@@ -218,6 +221,51 @@ describe('handleBridgeDeliveryRequest', () => {
     expect(await mismatched.json()).toMatchObject({ status: 'rejected', reason: 'Idempotency header does not match request body' });
     expect(wrongMethod.status).toBe(405);
   });
+
+  it('enforces optional HTTP auth before parsing delivery bodies', async () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const missing = await handleBridgeDeliveryRequest(
+      bridge,
+      new Request('https://bridge.test/events', { method: 'POST', body: 'not json' }),
+      '2026-05-22T00:00:00.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+    const wrong = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-wrong', makeSignedEvent({ eventId: 'evt_auth_wrong', privacy: 'public' }), undefined, 'wrong-value'),
+      '2026-05-22T00:00:00.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+
+    expect(missing.status).toBe(401);
+    expect(missing.headers.get('www-authenticate')).toBe('Bearer realm="lfp2p-bridge"');
+    await expect(missing.json()).resolves.toEqual({ status: 'rejected', idempotencyKey: 'unknown', reason: 'Unauthorized' });
+    expect(wrong.status).toBe(401);
+    await expect(bridge.snapshot('2026-05-22T00:00:01.000Z')).resolves.toMatchObject({ acceptedCount: 0 });
+  });
+
+  it('accepts authorized delivery requests without leaking server auth config', async () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const authorized = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-ok', makeSignedEvent({ eventId: 'evt_auth_ok', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
+      '2026-05-22T00:00:00.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+    const misconfigured = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-bad-config', makeSignedEvent({ eventId: 'evt_auth_bad_config', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
+      '2026-05-22T00:00:00.000Z',
+      { auth: { scheme: 'bearer', token: 'bad config value' } }
+    );
+
+    expect(authorized.status).toBe(202);
+    await expect(authorized.json()).resolves.toMatchObject({ status: 'confirmed', idempotencyKey: 'idem-auth-ok' });
+    expect(misconfigured.status).toBe(503);
+    const body = await misconfigured.json();
+    expect(body).toEqual({ reason: 'Bridge auth misconfigured' });
+    expect(JSON.stringify(body)).not.toContain('bad config value');
+  });
 });
 
 function sequenceOf(response: Awaited<ReturnType<BridgeService['acceptDelivery']>>): number {
@@ -225,10 +273,19 @@ function sequenceOf(response: Awaited<ReturnType<BridgeService['acceptDelivery']
   return response.sequence;
 }
 
-function makeRequest(idempotencyKey: string, event: ReturnType<typeof makeSignedEvent>, headerKey = idempotencyKey): Request {
+function makeRequest(
+  idempotencyKey: string,
+  event: ReturnType<typeof makeSignedEvent>,
+  headerKey = idempotencyKey,
+  authToken?: string
+): Request {
   return new Request('https://bridge.test/events', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-lfp2p-idempotency-key': headerKey },
+    headers: {
+      'content-type': 'application/json',
+      'x-lfp2p-idempotency-key': headerKey,
+      ...(authToken === undefined ? {} : { authorization: `Bearer ${authToken}` })
+    },
     body: JSON.stringify({ idempotencyKey, target: 'bridge:dev', event })
   });
 }
