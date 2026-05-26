@@ -1,7 +1,7 @@
 import type { DexieLocalFirstStore } from '@lfp2p/local-store';
 import { processOutboxBatch, type ProcessOutboxResult } from '@lfp2p/sync-client';
 import { preparePwaBridgeTransport, type PreparePwaBridgeTransportInput } from './pwa-bridge-transport.js';
-import { createPwaSendBudget, type PwaSendBudget } from './pwa-send-budget.js';
+import { createPwaSendBudget, formatPwaSendBudgetDecision, type PwaSendBudget } from './pwa-send-budget.js';
 
 const MANUAL_DELIVERY_ENABLED_KEY = 'VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED';
 const DEFAULT_BATCH_SIZE = 1;
@@ -28,7 +28,7 @@ export type ManualOutboxDeliveryResult =
     }>
   | Readonly<{
       status: 'blocked';
-      reason: 'bridge-config-disabled' | 'bridge-config-invalid' | 'fetch-unavailable';
+      reason: 'bridge-config-disabled' | 'bridge-config-invalid' | 'fetch-unavailable' | 'send-budget-paused';
       message: string;
     }>
   | Readonly<{
@@ -61,8 +61,13 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
     return { status: 'blocked', reason: bridgeTransport.reason, message: `Manual outbox delivery blocked: ${bridgeTransport.message}` };
   }
 
-  const sendBudget = input.sendBudget ?? defaultSendBudget;
-  void sendBudget;
+  const budgetDecision = (input.sendBudget ?? defaultSendBudget).reserve({
+    entries: batchSize,
+    ...(input.now === undefined ? {} : { now: input.now })
+  });
+  if (budgetDecision.status !== 'accepted') {
+    return { status: 'blocked', reason: 'send-budget-paused', message: formatPwaSendBudgetDecision(budgetDecision) };
+  }
 
   const result = await processOutboxBatch({
     store: input.store,
@@ -80,6 +85,10 @@ export function manualOutboxDeliveryActionEnabled(env: ManualOutboxDeliveryEnv =
 
 export function formatManualOutboxDeliveryResult(result: ProcessOutboxResult): string {
   return `Manual outbox delivery attempted ${result.attempted}, confirmed ${result.confirmed}, conflicted ${result.conflicted}, retried ${result.retried}, failed ${result.failed}, skipped ${result.skipped}.`;
+}
+
+export function resetDefaultManualOutboxDeliveryBudgetForTest(now: Date = new Date()): void {
+  defaultSendBudget.reset(now);
 }
 
 function isDevMode(env: ManualOutboxDeliveryEnv): boolean {
