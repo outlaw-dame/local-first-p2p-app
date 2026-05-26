@@ -5,6 +5,7 @@ import { createLocalFirstStore, type DexieLocalFirstStore, type MutationOutboxEn
 import { createUnsignedEvent } from '@lfp2p/protocol';
 import type { OutboxTransport } from '@lfp2p/sync-client';
 import { manualOutboxDeliveryActionEnabled, runManualOutboxDelivery } from './pwa-outbox-manual-gate.js';
+import { createPwaSendBudget } from './pwa-send-budget.js';
 
 const DEV_ENV = { DEV: true } as const;
 const MANUAL_ENABLED_ENV = { ...DEV_ENV, VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' } as const;
@@ -97,7 +98,8 @@ describe('runManualOutboxDelivery', () => {
         env: { ...MANUAL_ENABLED_ENV, ...BRIDGE_ENABLED_ENV },
         createTransport: () => transport,
         now: new Date('2026-05-25T00:00:00.000Z'),
-        batchSize: 1
+        batchSize: 1,
+        sendBudget: createPwaSendBudget({ minIntervalMs: 0 })
       });
 
       expect(result).toMatchObject({ status: 'delivered', batchSize: 1 });
