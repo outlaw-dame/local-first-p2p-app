@@ -34,6 +34,8 @@ const AUTHORIZATION_HEADER = 'authorization';
 const BEARER_AUTH_PREFIX = 'Bearer ';
 const MAX_BRIDGE_AUTH_TOKEN_LENGTH = 4_096;
 
+type JsonResponseHeaders = Readonly<Record<string, string>>;
+
 export class BridgeService {
   readonly role: BridgeServiceRole;
   readonly authoritativeForPrivateState = false as const;
@@ -302,7 +304,7 @@ function normalizeReadLimit(limit: number | undefined): number {
   return normalized;
 }
 
-function jsonResponse(body: unknown, status: number, headers: HeadersInit = {}): Response {
+function jsonResponse(body: unknown, status: number, headers: JsonResponseHeaders = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -329,7 +331,7 @@ function bridgeAuthMisconfiguredResponse(): Response {
   return jsonResponse({ reason: 'Bridge auth misconfigured' }, 503);
 }
 
-function bridgeUnauthorizedHeaders(): HeadersInit {
+function bridgeUnauthorizedHeaders(): JsonResponseHeaders {
   return { 'www-authenticate': 'Bearer realm="lfp2p-bridge"' };
 }
 
