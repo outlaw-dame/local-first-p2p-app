@@ -6,6 +6,9 @@ import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createUnsignedEvent, type PrivacyScope } from '@lfp2p/protocol';
 import { BridgeService, handleBridgeDeliveryRequest, InMemoryBridgeService, JsonFileBridgeStore } from './index.js';
 
+const BRIDGE_AUTH_TOKEN = 'opaque-dev-value-123';
+const BRIDGE_AUTH = { scheme: 'bearer', token: BRIDGE_AUTH_TOKEN } as const;
+
 describe('InMemoryBridgeService', () => {
   it('accepts valid signed bridge-safe events and deduplicates by idempotency key', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
@@ -218,6 +221,95 @@ describe('handleBridgeDeliveryRequest', () => {
     expect(await mismatched.json()).toMatchObject({ status: 'rejected', reason: 'Idempotency header does not match request body' });
     expect(wrongMethod.status).toBe(405);
   });
+
+  it('enforces optional HTTP auth before parsing delivery bodies', async () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const missing = await handleBridgeDeliveryRequest(
+      bridge,
+      new Request('https://bridge.test/events', { method: 'POST', body: 'not json' }),
+      '2026-05-22T00:00:00.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+    const wrong = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-wrong', makeSignedEvent({ eventId: 'evt_auth_wrong', privacy: 'public' }), undefined, 'wrong-value'),
+      '2026-05-22T00:00:00.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+
+    expect(missing.status).toBe(401);
+    expect(missing.headers.get('www-authenticate')).toBe('Bearer realm="lfp2p-bridge"');
+    await expect(missing.json()).resolves.toEqual({ status: 'rejected', idempotencyKey: 'unknown', reason: 'Unauthorized' });
+    expect(wrong.status).toBe(401);
+    await expect(bridge.snapshot('2026-05-22T00:00:01.000Z')).resolves.toMatchObject({ acceptedCount: 0 });
+  });
+
+  it('accepts authorized delivery requests without leaking server auth config', async () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const authorized = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-ok', makeSignedEvent({ eventId: 'evt_auth_ok', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
+      '2026-05-22T00:00:00.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+    const misconfigured = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-bad-config', makeSignedEvent({ eventId: 'evt_auth_bad_config', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
+      '2026-05-22T00:00:00.000Z',
+      { auth: { scheme: 'bearer', token: 'bad config value' } }
+    );
+
+    expect(authorized.status).toBe(202);
+    await expect(authorized.json()).resolves.toMatchObject({ status: 'confirmed', idempotencyKey: 'idem-auth-ok' });
+    expect(misconfigured.status).toBe(503);
+    const body = await misconfigured.json();
+    expect(body).toEqual({ reason: 'Bridge auth misconfigured' });
+    expect(JSON.stringify(body)).not.toContain('bad config value');
+  });
+
+  it('accepts authorization scheme casing allowed by HTTP auth semantics', async () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const response = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-lowercase-scheme', makeSignedEvent({ eventId: 'evt_auth_lowercase_scheme', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN, 'bearer'),
+      '2026-05-22T00:00:00.000Z',
+      { auth: BRIDGE_AUTH }
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({ status: 'confirmed', idempotencyKey: 'idem-auth-lowercase-scheme' });
+  });
+
+  it('treats malformed runtime auth options as generic server misconfiguration', async () => {
+    const bridge = new InMemoryBridgeService({ initialSequence: 0 });
+    const nonAsciiAuthToken = ['caf', String.fromCodePoint(0xe9)].join('');
+    const nonStringToken = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-non-string', makeSignedEvent({ eventId: 'evt_auth_non_string', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
+      '2026-05-22T00:00:00.000Z',
+      { auth: { scheme: 'bearer', token: 123 } } as unknown as Parameters<typeof handleBridgeDeliveryRequest>[3]
+    );
+    const nonAsciiToken = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-non-ascii', makeSignedEvent({ eventId: 'evt_auth_non_ascii', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
+      '2026-05-22T00:00:00.000Z',
+      { auth: { scheme: 'bearer', token: nonAsciiAuthToken } } as unknown as Parameters<typeof handleBridgeDeliveryRequest>[3]
+    );
+    const nullOptions = await handleBridgeDeliveryRequest(
+      bridge,
+      makeRequest('idem-auth-null-options', makeSignedEvent({ eventId: 'evt_auth_null_options', privacy: 'public' }), undefined, BRIDGE_AUTH_TOKEN),
+      '2026-05-22T00:00:00.000Z',
+      null as unknown as Parameters<typeof handleBridgeDeliveryRequest>[3]
+    );
+
+    expect(nonStringToken.status).toBe(503);
+    await expect(nonStringToken.json()).resolves.toEqual({ reason: 'Bridge auth misconfigured' });
+    expect(nonAsciiToken.status).toBe(503);
+    await expect(nonAsciiToken.json()).resolves.toEqual({ reason: 'Bridge auth misconfigured' });
+    expect(nullOptions.status).toBe(503);
+    await expect(nullOptions.json()).resolves.toEqual({ reason: 'Bridge auth misconfigured' });
+    await expect(bridge.snapshot('2026-05-22T00:00:01.000Z')).resolves.toMatchObject({ acceptedCount: 0 });
+  });
 });
 
 function sequenceOf(response: Awaited<ReturnType<BridgeService['acceptDelivery']>>): number {
@@ -225,10 +317,20 @@ function sequenceOf(response: Awaited<ReturnType<BridgeService['acceptDelivery']
   return response.sequence;
 }
 
-function makeRequest(idempotencyKey: string, event: ReturnType<typeof makeSignedEvent>, headerKey = idempotencyKey): Request {
+function makeRequest(
+  idempotencyKey: string,
+  event: ReturnType<typeof makeSignedEvent>,
+  headerKey = idempotencyKey,
+  authToken?: string,
+  authScheme = 'Bearer'
+): Request {
   return new Request('https://bridge.test/events', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-lfp2p-idempotency-key': headerKey },
+    headers: {
+      'content-type': 'application/json',
+      'x-lfp2p-idempotency-key': headerKey,
+      ...(authToken === undefined ? {} : { authorization: `${authScheme} ${authToken}` })
+    },
     body: JSON.stringify({ idempotencyKey, target: 'bridge:dev', event })
   });
 }
