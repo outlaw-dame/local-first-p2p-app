@@ -3,6 +3,8 @@
 - Status: Draft
 - Date: 2026-05-24
 
+Superseded for active planning by `docs/threat-model/bridge-compromise.md` (2026-05-26), which keeps this review's concerns but reframes them in explicit compromise/adversarial terms.
+
 ## Scope
 
 This review covers the current bridge-service and sync-client delivery path.

@@ -12,4 +12,7 @@ Current fixture coverage:
 - unsupported event major version,
 - unsupported event kind,
 - unsupported privacy scope,
-- malformed source reference.
+- malformed source reference,
+- unsupported signature algorithm,
+- empty signature public key,
+- empty signature value.

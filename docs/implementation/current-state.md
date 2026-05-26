@@ -13,6 +13,8 @@ Notable changes since the baseline section above:
 - Manual outbox delivery includes a client-side send budget boundary (window, run count, entry reservations, and minimum interval).
 - Bridge service primitives now include an optional HTTP bearer-auth boundary for delivery and inbound read handlers.
 - A schema and storage versioning policy document now exists at `docs/implementation/schema-and-storage-versioning.md`.
+- Initial protocol fixture pack and negative fixture coverage now exist in `packages/protocol/fixtures/` and `packages/protocol/src/fixtures.test.ts`.
+- Bridge compromise threat-model note now exists at `docs/threat-model/bridge-compromise.md`.
 - Apple-first frontend rollout planning and Phase A token hardening are documented and implemented as initial UI-system progress.
 
 Scope reminder:

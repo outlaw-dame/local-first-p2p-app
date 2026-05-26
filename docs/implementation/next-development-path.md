@@ -2,6 +2,17 @@
 
 This is the recommended path to resume development cleanly from the current codebase.
 
+## Update addendum (2026-05-26)
+
+The original ordered steps below are preserved for historical traceability. Initial R1/R2 guardrails are now materially progressed:
+
+- ADR-000 runtime/product-surface decision exists in `docs/adr/000-runtime-and-product-surface.md`.
+- Schema/storage versioning policy exists in `docs/implementation/schema-and-storage-versioning.md`.
+- Initial protocol fixture pack and negative fixture tests exist under `packages/protocol/fixtures/` and `packages/protocol/src/fixtures.test.ts`.
+- Bridge compromise threat-model note now exists at `docs/threat-model/bridge-compromise.md`.
+
+Active highest-leverage next step is Step 5 (sync offsets/checkpoints design and implementation), followed by controlled delivery integration hardening.
+
 The immediate goal is not to add user-facing breadth. The immediate goal is to lock down the protocol, identity, bridge, and storage guardrails so later chat/media/search work does not create drift.
 
 ## Current working phase

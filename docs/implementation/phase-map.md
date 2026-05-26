@@ -13,8 +13,10 @@ The table below remains valid as the original reconciliation snapshot. Since the
 - Phase 4 boundary progressed with optional HTTP bearer-auth boundaries in bridge request handlers and corresponding PWA dev-auth config/transport support.
 - UI-system work progressed with Apple-first Phase A token hardening.
 - Phase 0 governance progressed with an explicit schema/storage versioning policy doc.
+- Phase 1 guardrails progressed with an initial protocol fixture pack and negative fixture tests.
+- Phase 4 guardrails progressed with a dedicated bridge compromise threat-model note.
 
-These do not change the main recommendation that the next highest-leverage work remains doctrine guardrails plus sync offsets/checkpoints before broader feature expansion.
+These updates shift the highest-leverage next implementation focus to durable sync offsets/checkpoints before broader feature expansion.
 
 ## Status legend
 

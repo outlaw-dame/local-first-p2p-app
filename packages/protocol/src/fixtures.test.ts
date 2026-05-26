@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import invalidKindFixture from '../fixtures/invalid/event-envelope-unsupported-kind.json';
 import invalidPrivacyFixture from '../fixtures/invalid/event-envelope-unsupported-privacy.json';
 import invalidRefFixture from '../fixtures/invalid/event-envelope-malformed-source-ref.json';
+import invalidSignatureAlgorithmFixture from '../fixtures/invalid/event-envelope-unsupported-signature-algorithm.json';
+import invalidSignaturePublicKeyFixture from '../fixtures/invalid/event-envelope-empty-signature-public-key.json';
+import invalidSignatureValueFixture from '../fixtures/invalid/event-envelope-empty-signature-value.json';
 import invalidVersionFixture from '../fixtures/invalid/event-envelope-unsupported-version.json';
 import validSignedEventFixture from '../fixtures/valid/signed-event-envelope.v1.json';
 import { canonicalizeJson, validateSignedEvent, type SignedEventEnvelope } from './index.js';
@@ -10,7 +13,10 @@ const invalidSignedEventFixtures = [
   ['unsupported version', invalidVersionFixture, /Unsupported event version/],
   ['unsupported kind', invalidKindFixture, /Unsupported event kind/],
   ['unsupported privacy scope', invalidPrivacyFixture, /Unsupported privacy scope/],
-  ['malformed source ref', invalidRefFixture, /ref\.sourceId/]
+  ['malformed source ref', invalidRefFixture, /ref\.sourceId/],
+  ['unsupported signature algorithm', invalidSignatureAlgorithmFixture, /Unsupported signature algorithm/],
+  ['empty signature public key', invalidSignaturePublicKeyFixture, /signature\.publicKey/],
+  ['empty signature value', invalidSignatureValueFixture, /signature\.value/]
 ] as const;
 
 describe('protocol event fixtures', () => {
@@ -29,31 +35,6 @@ describe('protocol event fixtures', () => {
         payload: []
       } as unknown as SignedEventEnvelope)
     ).toThrow(/payload must be a JSON object/);
-  });
-
-  it('rejects invalid signature fields', () => {
-    const base = validSignedEventFixture as SignedEventEnvelope;
-
-    expect(() =>
-      validateSignedEvent({
-        ...base,
-        signature: { ...base.signature, algorithm: 'rsa' }
-      } as unknown as SignedEventEnvelope)
-    ).toThrow(/Unsupported signature algorithm/);
-
-    expect(() =>
-      validateSignedEvent({
-        ...base,
-        signature: { ...base.signature, publicKey: '' }
-      } as unknown as SignedEventEnvelope)
-    ).toThrow(/signature\.publicKey/);
-
-    expect(() =>
-      validateSignedEvent({
-        ...base,
-        signature: { ...base.signature, value: '   ' }
-      } as unknown as SignedEventEnvelope)
-    ).toThrow(/signature\.value/);
   });
 
   it('rejects invalid date formats', () => {

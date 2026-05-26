@@ -11,6 +11,8 @@ The matrix below is preserved as the original alignment snapshot. Since then, ad
 - PWA manual outbox delivery: explicit user-triggered, dev-only gate exists (not automatic delivery).
 - PWA send budget: manual delivery now includes client-side window/runs/entries/min-interval budget enforcement.
 - Schema/storage policy: versioning policy documentation now exists and should be treated as active guidance.
+- Protocol fixture discipline: initial valid/invalid fixture pack and negative tests now exist in the protocol package.
+- Threat-model discipline: bridge compromise note now exists as a concrete threat-model artifact.
 - Apple-first UI progression: token system has moved beyond initial seed with semantic expansion and shell wiring.
 
 These additions improve guardrails and operator control, but they do not close doctrine-level deferred areas such as identity-control architecture, private payload encryption contracts, durable sync checkpoint persistence, or production bridge posture.
