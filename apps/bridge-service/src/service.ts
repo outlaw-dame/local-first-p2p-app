@@ -204,7 +204,9 @@ function authorizeBridgeHttpRequest(
   if (!isValidBridgeHttpAuthConfig(auth)) return { status: 'misconfigured' };
 
   const header = request.headers.get(AUTHORIZATION_HEADER);
-  if (header === null || !header.startsWith(BEARER_AUTH_PREFIX)) return { status: 'unauthorized' };
+  if (header === null || header.slice(0, BEARER_AUTH_PREFIX.length).toLowerCase() !== BEARER_AUTH_PREFIX.toLowerCase()) {
+    return { status: 'unauthorized' };
+  }
 
   const presented = header.slice(BEARER_AUTH_PREFIX.length);
   if (!isValidBridgeAuthToken(presented)) return { status: 'unauthorized' };
@@ -216,16 +218,12 @@ function isValidBridgeHttpAuthConfig(auth: unknown): auth is BridgeHttpAuthConfi
 }
 
 function isValidBridgeAuthToken(token: string): boolean {
-  if (token.length === 0 || token.length > MAX_BRIDGE_AUTH_TOKEN_LENGTH || token !== token.trim()) return false;
-  return !hasBridgeAuthUnsafeCharacter(token);
-}
-
-function hasBridgeAuthUnsafeCharacter(value: string): boolean {
-  for (const char of value) {
+  if (token.length === 0 || token.length > MAX_BRIDGE_AUTH_TOKEN_LENGTH) return false;
+  for (const char of token) {
     const codePoint = char.codePointAt(0);
-    if (codePoint === undefined || codePoint <= 32 || codePoint === 127) return true;
+    if (codePoint === undefined || codePoint < 33 || codePoint > 126) return false;
   }
-  return false;
+  return true;
 }
 
 function constantTimeEqual(left: string, right: string): boolean {
