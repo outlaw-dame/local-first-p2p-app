@@ -15,6 +15,7 @@ export type RunManualOutboxDeliveryInput = PreparePwaBridgeTransportInput &
   Readonly<{
     store: DexieLocalFirstStore;
     env?: ManualOutboxDeliveryEnv;
+    onlineSource?: Readonly<{ navigator?: Readonly<{ onLine?: boolean }> }>;
     now?: Date;
     batchSize?: number;
     sendBudget?: PwaSendBudget;
@@ -28,7 +29,7 @@ export type ManualOutboxDeliveryResult =
     }>
   | Readonly<{
       status: 'blocked';
-      reason: 'bridge-config-disabled' | 'bridge-config-invalid' | 'fetch-unavailable' | 'send-budget-paused';
+      reason: 'offline' | 'bridge-config-disabled' | 'bridge-config-invalid' | 'fetch-unavailable' | 'send-budget-paused';
       message: string;
     }>
   | Readonly<{
@@ -48,6 +49,14 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
       status: 'disabled',
       reason: 'manual-delivery-disabled',
       message: `Manual outbox delivery is disabled. Set ${MANUAL_DELIVERY_ENABLED_KEY}=true in dev mode to enable the explicit action.`
+    };
+  }
+
+  if (!browserReportsOnline(input.onlineSource)) {
+    return {
+      status: 'blocked',
+      reason: 'offline',
+      message: 'Manual outbox delivery is blocked while offline.'
     };
   }
 
@@ -124,4 +133,8 @@ function stringEnv(value: unknown): string | undefined {
 function importMetaEnv(): ManualOutboxDeliveryEnv {
   if (typeof import.meta === 'undefined') return {};
   return (import.meta as ImportMeta & { env?: ManualOutboxDeliveryEnv }).env ?? {};
+}
+
+function browserReportsOnline(source: Readonly<{ navigator?: Readonly<{ onLine?: boolean }> }> = globalThis): boolean {
+  return source.navigator?.onLine !== false;
 }
