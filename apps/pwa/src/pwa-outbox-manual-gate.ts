@@ -1,10 +1,13 @@
 import type { DexieLocalFirstStore } from '@lfp2p/local-store';
 import { processOutboxBatch, type ProcessOutboxResult } from '@lfp2p/sync-client';
 import { preparePwaBridgeTransport, type PreparePwaBridgeTransportInput } from './pwa-bridge-transport.js';
+import { createPwaSendBudget, type PwaSendBudget } from './pwa-send-budget.js';
 
 const MANUAL_DELIVERY_ENABLED_KEY = 'VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED';
 const DEFAULT_BATCH_SIZE = 1;
 const MAX_BATCH_SIZE = 5;
+
+const defaultSendBudget = createPwaSendBudget();
 
 export type ManualOutboxDeliveryEnv = Readonly<Record<string, unknown>>;
 
@@ -14,6 +17,7 @@ export type RunManualOutboxDeliveryInput = PreparePwaBridgeTransportInput &
     env?: ManualOutboxDeliveryEnv;
     now?: Date;
     batchSize?: number;
+    sendBudget?: PwaSendBudget;
   }>;
 
 export type ManualOutboxDeliveryResult =
@@ -56,6 +60,9 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
   if (bridgeTransport.status !== 'prepared') {
     return { status: 'blocked', reason: bridgeTransport.reason, message: `Manual outbox delivery blocked: ${bridgeTransport.message}` };
   }
+
+  const sendBudget = input.sendBudget ?? defaultSendBudget;
+  void sendBudget;
 
   const result = await processOutboxBatch({
     store: input.store,
