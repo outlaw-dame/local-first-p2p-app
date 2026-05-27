@@ -1,7 +1,12 @@
 import 'fake-indexeddb/auto';
+import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { createLocalFirstStore } from '@lfp2p/local-store';
 import { processInboundSyncBatch, type InboundSyncRecord } from './index.js';
+
+if (typeof globalThis.indexedDB === 'undefined') {
+  Object.assign(globalThis, { indexedDB, IDBKeyRange });
+}
 
 describe('processInboundSyncBatch malformed records', () => {
   it('reports a missing event without exposing a fabricated event id', async () => {

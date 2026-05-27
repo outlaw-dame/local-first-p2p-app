@@ -12,12 +12,13 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@lfp2p/crypto": "workspace:*",
+    "@lfp2p/identity": "workspace:*",
     "@lfp2p/local-store": "workspace:*",
     "@lfp2p/protocol": "workspace:*"
   },
   "devDependencies": {
     "@lfp2p/bridge-service": "workspace:*",
-    "@lfp2p/crypto": "workspace:*",
     "fake-indexeddb": "latest"
   }
 }

@@ -59,9 +59,10 @@ Required before expansion:
 
 - ADR for root/controller identity model (completed in ADR-001).
 - Identity control log protocol objects and fixtures (started with initial identity-control event schemas and fixtures; still incomplete).
+- Inbound sync now enforces and persists identity control projection state atomically with event/checkpoint writes.
 - Device add/revoke/rotate semantics.
 - Capability grant/revoke model.
-- Epoch/checkpoint verification rules (started with projection seed monotonic epoch checks; still incomplete).
+- Epoch/checkpoint verification rules (projection seed monotonic epoch checks implemented; broader migration/interop rules still incomplete).
 
 ### D3 - `mutationOutbox` exists before planned public social outbox
 
