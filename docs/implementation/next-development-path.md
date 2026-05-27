@@ -2,7 +2,7 @@
 
 This is the recommended path to resume development cleanly from the current codebase.
 
-The immediate goal is not to add user-facing breadth. The immediate goal is to lock down the protocol, identity, bridge, and storage guardrails so later chat/media/search work does not create drift.
+The immediate goal is not to add user-facing breadth. The immediate goal is to lock down the protocol, identity, bridge, storage, content-addressing, and trust/safety guardrails so later chat/media/search work does not create drift.
 
 ## Current working phase
 
@@ -14,10 +14,11 @@ Why this phase exists:
 - The bridge/outbox foundation exists.
 - Some protocol primitives exist.
 - The doctrine requires fixtures, ADRs, threat models, and phase gates before larger feature surfaces.
+- Content-addressing and trust/safety are now explicit gates before media, public search, recommendation, public social outbox, and production bridge deployment.
 
-## Completed by this documentation cleanup
+## Completed by prior documentation cleanup
 
-This PR adds the initial process scaffolding that was previously listed as Step 1:
+The repo already has the initial process scaffolding that was previously listed as Step 1:
 
 - `docs/adr/000-template.md`
 - `docs/threat-model/template.md`
@@ -25,6 +26,21 @@ This PR adds the initial process scaffolding that was previously listed as Step 
 - `docs/protocol/fixture-policy.md`
 
 Future work should use these templates rather than re-adding them.
+
+## Newly added planning gates
+
+The following planning docs now define required gates before feature expansion:
+
+- `docs/adr/004-trust-safety-moderation-curation-v1.md`
+- `docs/protocol/trust-safety-event-policy.md`
+- `docs/threat-model/trust-safety-and-abuse.md`
+- `docs/implementation/trust-safety-phase-plan.md`
+- `docs/adr/005-content-addressing-and-object-references-v1.md`
+- `docs/protocol/content-addressing.md`
+- `docs/threat-model/content-addressing-abuse.md`
+- `docs/implementation/phase-1.56-content-addressing-plan.md`
+
+These docs do not mean the implementation exists yet. They define the next implementation boundaries.
 
 ## Non-goals for the next cycle
 
@@ -38,9 +54,13 @@ Do not start these yet:
 - full native/Bare peer,
 - naming/namespace UX,
 - compression/chunking/dedupe,
-- production bridge deployment.
+- production bridge deployment,
+- networked moderation queues,
+- public labeler hosting,
+- public recommendation/curation expansion,
+- public search indexing.
 
-These are valid target features, but building them before the guardrails below risks duplicate protocols and weak security boundaries.
+These are valid target features, but building them before the guardrails below risks duplicate protocols, weak safety boundaries, privacy leakage, and unsafe infrastructure behavior.
 
 ## Ordered next steps
 
@@ -74,7 +94,9 @@ Must cover:
 - local-store/Dexie migration expectations,
 - PGlite schema migration expectations,
 - fixture requirements for old/new object shapes,
-- compatibility expectations for future full-peer adapters.
+- compatibility expectations for future full-peer adapters,
+- content-addressing object versioning,
+- trust/safety object versioning.
 
 Exit criteria:
 
@@ -103,35 +125,23 @@ Exit criteria:
 - Protocol changes must update fixtures.
 - Unknown major versions and malformed inputs are rejected predictably.
 
-### Step 4 - Write bridge compromise threat-model note
+### Step 4 - Bridge compromise threat model
 
 Deliverable:
 
 - `docs/threat-model/bridge-compromise.md`
 
-Must cover:
-
-- forged bridge confirmations,
-- malformed bridge responses,
-- stale confirmations,
-- duplicate delivery,
-- reordered delivery,
-- bridge data loss,
-- bridge replay,
-- bridge returning events it did not receive,
-- metadata exposure,
-- current mitigations and missing mitigations.
-
-Exit criteria:
-
-- Existing bridge hardening has a documented threat model.
-- Missing bridge controls are explicit before production runtime work.
-
 Status update (2026-05-27):
 
 - Completed by `docs/threat-model/bridge-compromise.md`.
 
-### Step 5 - Design sync offsets/checkpoints before more transport work
+Still required before production bridge work:
+
+- integrate transport admission policy from `docs/protocol/trust-safety-event-policy.md`,
+- add bridge-local quarantine/rate-limit event schemas after T&S protocol core exists,
+- ensure bridge refusal cannot be interpreted as global deletion.
+
+### Step 5 - Sync offsets/checkpoints before more transport work
 
 Deliverables:
 
@@ -139,43 +149,35 @@ Deliverables:
 - local-store schema proposal.
 - sync-client contract for offset persistence.
 
-Why now:
-
-- Durable Streams/WebSocket bridge readers require durable offsets.
-- Reconnect/resume correctness cannot be added safely without a storage contract.
-
-Exit criteria:
-
-- A future PR can implement offsets without guessing schema or semantics.
-
 Status update (2026-05-27):
 
 - Completed by `docs/adr/003-sync-offsets-and-cursors-v1.md`.
 
-### Step 6 - Decide identity-control model before identity expansion
+Implementation still needs:
+
+- local-store checkpoint tests,
+- sync-client offset contract tests,
+- stale/replay/rewind behavior wired through implementation.
+
+### Step 6 - Identity-control model before identity expansion
 
 Deliverable:
 
 - ADR for root/controller identity and identity control log v1.
 
-Must decide:
-
-- root/controller key representation,
-- device key representation,
-- identity event kinds,
-- epoch/checkpoint semantics,
-- revocation behavior,
-- local device bootstrap migration path,
-- capability object shape,
-- recovery/supersession placeholder.
-
-Exit criteria:
-
-- Future identity code extends the doctrine model instead of hardening the current local device bootstrap into the wrong abstraction.
-
 Status update (2026-05-26):
 
 - Completed by `docs/adr/001-identity-control-log-v1.md`.
+
+Implementation still needs:
+
+- root/controller identity events,
+- projection logic,
+- device add/revoke/rotate,
+- capabilities,
+- epochs,
+- contact card,
+- deterministic replay tests.
 
 ### Step 7 - Payload encryption design before private chat
 
@@ -183,56 +185,94 @@ Deliverable:
 
 - ADR for private payload encryption envelope.
 
-Must decide:
-
-- what is encrypted,
-- what metadata remains visible,
-- scope-specific handling for `self`, `dm`, `group`, and future room scopes,
-- key wrapping approach before MLS,
-- how payload encryption later composes with MLS,
-- test fixtures and failure modes.
-
-Exit criteria:
-
-- No private user-facing chat/social payload leaves the device without an explicit encryption contract.
-
 Status update (2026-05-26):
 
 - Completed by `docs/adr/002-private-payload-encryption-envelope-v1.md`.
 
+Implementation still needs:
+
+- envelope schema,
+- fixtures,
+- encryption/decryption tests,
+- private metadata limits,
+- bridge log/privacy enforcement.
+
+### Step 8 - Phase 1.56 content addressing and object references
+
+Deliverables:
+
+- `docs/adr/005-content-addressing-and-object-references-v1.md`
+- `docs/protocol/content-addressing.md`
+- `docs/threat-model/content-addressing-abuse.md`
+- `docs/implementation/phase-1.56-content-addressing-plan.md`
+- `packages/content-addressing`
+
+Why now:
+
+- T&S subjects/evidence need exact object references.
+- Media manifests need `BlockRef` / `ObjectRef` instead of custom hash/CID fields.
+- Bridge/relay/super-peer admission needs exact refs for quarantine/dedupe.
+- Search/recommendation provenance needs stable object refs.
+- Future full-peer storage must not force IPFS, ATProto, or Hypercore-specific identity into the core protocol.
+
+Exit criteria:
+
+- `DigestRef`, `ContentLink`, `BlockRef`, `ObjectRef`, `BundleRef`, and `StorageLocationHint` validators exist.
+- Valid and invalid fixtures exist.
+- Validators do not fetch, decode, route, or trust location hints.
+- Tests reject malformed digests, unsupported codecs, unsafe byte sizes, unsafe compression, bad location hints, and invalid bundle roots.
+
+### Step 9 - Phase 1.6 trust and safety doctrine/protocol core
+
+Deliverables:
+
+- `docs/adr/004-trust-safety-moderation-curation-v1.md`
+- `docs/protocol/trust-safety-event-policy.md`
+- `docs/threat-model/trust-safety-and-abuse.md`
+- `docs/implementation/trust-safety-phase-plan.md`
+- `packages/trust-safety`
+
+Why now:
+
+- Public social, search, media, bridge, and recommendation surfaces create abuse and moderation obligations.
+- User-local controls must exist before public reach expands.
+- Communities need owner/admin/moderator roles without unbounded protocol authority.
+- Bridges/relays/super-peers need self-protection tools.
+- Labeler/Tagger-agent outputs must be advisory by default and policy/capability-bound when elevated.
+
+Exit criteria:
+
+- T&S protocol types and validators exist.
+- Valid and invalid fixtures exist.
+- Local user controls are implemented before networked moderation queues.
+- Report/appeal/evidence refs use private payload and content-addressing rules.
+- Bridge/relay/super-peer admission decisions are scoped and cannot masquerade as global deletion.
+- Curation/reach controls are distinct from moderation enforcement.
+
 ## First implementation slice after guardrails
 
-After steps 1-7, the safest implementation slice is:
+After steps 1-7, the safest implementation slice remains:
 
 > **Sync offsets/checkpoints in `local-store` + sync-client offset contract tests**
 
-Next incremental slice after checkpoints:
+After the sync/identity/encryption guardrails are stable enough, the next protocol slices should be:
 
-> **Identity control event schemas + fixture pack + projection seed (without chat/media feature expansion)**
+1. **Phase 1.56 content-addressing package**
+   - pure types,
+   - validators,
+   - fixtures,
+   - tests.
 
-Why this slice:
+2. **Phase 1.61 trust-safety protocol core**
+   - pure types,
+   - validators,
+   - fixtures,
+   - tests,
+   - no runtime moderation enforcement yet.
 
-- It continues current bridge/outbox work.
-- It is required for Durable Streams/WebSocket readers.
-- It does not force premature identity, chat, MLS, or media decisions.
-- It improves correctness for reconnect/resume without expanding user-facing scope.
-
-Suggested files:
-
-- `packages/local-store/src/index.ts`
-- `packages/local-store/src/index.test.ts`
-- `packages/sync-client/src/index.ts`
-- `packages/sync-client/src/index.test.ts`
-- possibly `docs/adr/001-sync-offsets-and-checkpoints.md`
-
-Expected tests:
-
-- create/update sync checkpoint,
-- reject invalid source/cursor values,
-- idempotently advance offset,
-- do not rewind offset unless explicit policy allows,
-- persist across store reopen,
-- isolate offsets by source/stream/scope.
+3. **Phase 1.62 local user controls**
+   - block/mute/hide/label preference projections,
+   - private by default.
 
 ## Quality bar for next code PR
 
@@ -244,4 +284,6 @@ Every next implementation PR should include:
 - no unversioned durable object shape,
 - no private plaintext leakage in logs,
 - no bridge/server authority over private canonical state,
+- no IPFS assumptions from CID/content-link usage,
+- no global deletion semantics from local bridge/community decisions,
 - clear statement of whether it changes the phase map or known deviations.
