@@ -1,4 +1,4 @@
-import { type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
+import { canonicalizeJson, type SignedEventEnvelope, unsignedProjection, validateSignedEvent } from '@lfp2p/protocol';
 
 export type IdentityDeviceStatus = 'active' | 'revoked';
 
@@ -67,9 +67,10 @@ export function seedIdentityControlProjection(events: readonly SignedEventEnvelo
     if (createdAtOrder !== 0) return createdAtOrder;
     return left.eventId.localeCompare(right.eventId);
   });
+  const deduped = dedupeSortedEvents(sorted);
 
   let state = createEmptyIdentityControlState();
-  for (const event of sorted) {
+  for (const event of deduped) {
     state = applyIdentityControlEvent(state, event);
   }
   return state;
@@ -80,8 +81,8 @@ function applyControllerCreated(state: IdentityControlState, event: SignedEventE
   const controllerPublicKey = requireString(payload.controllerPublicKey, 'controllerPublicKey');
   const initialDeviceId = requireString(payload.initialDeviceId, 'initialDeviceId');
 
-  if (state.controllerPublicKey !== undefined && state.controllerPublicKey !== controllerPublicKey) {
-    throw new Error('identity.controller.created conflicts with existing controller key');
+  if (state.controllerPublicKey !== undefined) {
+    throw new Error('identity.controller.created may only be applied once per identity control state');
   }
 
   return {
@@ -129,9 +130,10 @@ function applyDeviceRevoked(state: IdentityControlState, event: SignedEventEnvel
   const payload = event.payload as Record<string, unknown>;
   const deviceId = requireString(payload.revokedDeviceId, 'revokedDeviceId');
   const epoch = requirePositiveInteger(payload.epoch, 'epoch');
-  requireMonotonicEpoch(state.epoch, epoch, event.kind);
   const existing = state.devices[deviceId];
   if (existing === undefined) throw new Error(`identity.device.revoked references unknown device ${deviceId}`);
+  if (existing.status === 'revoked') return state;
+  requireMonotonicEpoch(state.epoch, epoch, event.kind);
 
   return {
     ...state,
@@ -178,8 +180,13 @@ function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventE
   requireController(state, event.kind);
   const payload = event.payload as Record<string, unknown>;
   const capabilityId = requireString(payload.capabilityId, 'capabilityId');
+  const delegateDeviceId = requireString(payload.delegateDeviceId, 'delegateDeviceId');
   const existing = state.capabilities[capabilityId];
   if (existing === undefined) throw new Error(`identity.capability.revoked references unknown capability ${capabilityId}`);
+  if (existing.delegateDeviceId !== delegateDeviceId) {
+    throw new Error('identity.capability.revoked payload.delegateDeviceId does not match granted capability delegate');
+  }
+  if (existing.status === 'revoked') return state;
 
   return {
     ...state,
@@ -219,4 +226,33 @@ function requirePositiveInteger(value: unknown, field: string): number {
     throw new Error(`${field} must be a safe positive integer`);
   }
   return value;
+}
+
+function dedupeSortedEvents(events: readonly SignedEventEnvelope[]): SignedEventEnvelope[] {
+  const deduped: SignedEventEnvelope[] = [];
+  const seenByEventId = new Map<string, SignedEventEnvelope>();
+
+  for (const event of events) {
+    validateSignedEvent(event);
+    const existing = seenByEventId.get(event.eventId);
+    if (existing === undefined) {
+      seenByEventId.set(event.eventId, event);
+      deduped.push(event);
+      continue;
+    }
+    if (!sameSignedEvent(existing, event)) {
+      throw new Error(`duplicate eventId ${event.eventId} has conflicting signed event content`);
+    }
+  }
+
+  return deduped;
+}
+
+function sameSignedEvent(left: SignedEventEnvelope, right: SignedEventEnvelope): boolean {
+  return (
+    canonicalizeJson(unsignedProjection(left)) === canonicalizeJson(unsignedProjection(right)) &&
+    left.signature.algorithm === right.signature.algorithm &&
+    left.signature.publicKey === right.signature.publicKey &&
+    left.signature.value === right.signature.value
+  );
 }
