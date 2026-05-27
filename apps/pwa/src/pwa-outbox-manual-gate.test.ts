@@ -81,6 +81,20 @@ describe('runManualOutboxDelivery', () => {
     expect(result).toMatchObject({ status: 'blocked', reason: 'offline' });
   });
 
+  it('blocks manual delivery when identity authorization denies the action', async () => {
+    const result = await runManualOutboxDelivery({
+      store: fakeStore(),
+      env: { ...MANUAL_ENABLED_ENV, ...BRIDGE_ENABLED_ENV },
+      authorization: {
+        authorized: false,
+        reason: 'Current device is not authorized for sync:outbox.'
+      }
+    });
+
+    expect(result).toMatchObject({ status: 'blocked', reason: 'identity-authorization-denied' });
+    expect(result.message).toMatch(/not authorized for sync:outbox/i);
+  });
+
   it('rejects unsafe batch sizes', async () => {
     await expect(runManualOutboxDelivery({ store: fakeStore(), env: MANUAL_ENABLED_ENV, batchSize: 0 })).rejects.toThrow(
       'manual outbox delivery batchSize must be a positive safe integer no greater than 5.'

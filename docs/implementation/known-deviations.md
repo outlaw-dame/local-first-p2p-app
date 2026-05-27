@@ -61,7 +61,7 @@ Required before expansion:
 - Identity control log protocol objects and fixtures (initial set implemented; broadening and interop coverage still incomplete).
 - Inbound sync now enforces and persists identity control projection state atomically with event/checkpoint writes.
 - Device add/revoke/rotate semantics across full account workflows and migration paths.
-- Capability grant/revoke model for runtime authorization decisions (beyond projection persistence).
+- Capability grant/revoke model for broader runtime authorization decisions (initial enforcement helpers now exist, but end-to-end issuance and UX remain incomplete).
 - Epoch/checkpoint verification rules (projection seed monotonic epoch checks implemented; broader migration/interop rules still incomplete).
 
 ### D3 - `mutationOutbox` exists before planned public social outbox

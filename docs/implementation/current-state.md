@@ -25,6 +25,8 @@ Implemented today:
 - Runtime capability snapshot through `@lfp2p/platform`.
 - Local identity trust cues with controller fingerprint display/copy and verification status.
 - Local petname editing backed by contact profile persistence.
+- Local contact-card editing plus signed JSON export/import flow for local exchange.
+- Explicit fingerprint compare flow for anti-phishing verification.
 
 Not implemented yet:
 
@@ -131,6 +133,7 @@ Implemented today:
 - Fail-closed restore if an active identity exists but required local protection key is missing.
 - Identity control-log projection primitives (`createEmptyIdentityControlState`, `applyIdentityControlEvent`, `seedIdentityControlProjection`).
 - Control-log enforcement rules for controller signer, epoch monotonicity, entity existence, and deterministic replay behavior.
+- Runtime authorization helper for trust/device/capability-gated identity operations.
 
 Not implemented yet:
 
@@ -194,6 +197,7 @@ Implemented today:
 - Cryptographic signature verification for inbound signed events before persistence.
 - Identity control event enforcement on inbound apply using `@lfp2p/identity` control-log logic.
 - Atomic identity control projection persistence during inbound apply.
+- Manual outbox delivery gate can now enforce identity authorization decisions before network sends.
 
 Not implemented yet:
 

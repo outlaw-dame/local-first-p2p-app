@@ -145,6 +145,7 @@ export type StoredContactProfile = Readonly<{
   petnameCanonical?: string;
   displayName?: string;
   avatarUrl?: string;
+  websiteUrl?: string;
   note?: string;
   primaryDeviceId?: string;
   controllerPublicKey?: string;
@@ -159,6 +160,7 @@ export type PutContactProfileInput = Readonly<{
   petname?: string;
   displayName?: string;
   avatarUrl?: string;
+  websiteUrl?: string;
   note?: string;
   primaryDeviceId?: string;
   controllerPublicKey?: string;
@@ -478,6 +480,7 @@ export class DexieLocalFirstStore {
         ...(prepared.petnameCanonical === undefined ? {} : { petnameCanonical: prepared.petnameCanonical }),
         ...(prepared.displayName === undefined ? {} : { displayName: prepared.displayName }),
         ...(prepared.avatarUrl === undefined ? {} : { avatarUrl: prepared.avatarUrl }),
+        ...(prepared.websiteUrl === undefined ? {} : { websiteUrl: prepared.websiteUrl }),
         ...(prepared.note === undefined ? {} : { note: prepared.note }),
         ...(prepared.primaryDeviceId === undefined ? {} : { primaryDeviceId: prepared.primaryDeviceId }),
         ...(prepared.controllerPublicKey === undefined ? {} : { controllerPublicKey: prepared.controllerPublicKey }),
@@ -690,6 +693,9 @@ function validateStoredContactProfile(profile: StoredContactProfile): void {
   if (profile.avatarUrl !== undefined) {
     validateAvatarUrl(profile.avatarUrl);
   }
+  if (profile.websiteUrl !== undefined) {
+    validateExternalUrl(profile.websiteUrl, 'websiteUrl');
+  }
   if (profile.note !== undefined) {
     requireLengthBetween(profile.note, 'note', 1, 280);
   }
@@ -713,6 +719,7 @@ function validatePutContactProfileInput(input: PutContactProfileInput): Readonly
   petnameCanonical?: string;
   displayName?: string;
   avatarUrl?: string;
+  websiteUrl?: string;
   note?: string;
   primaryDeviceId?: string;
   controllerPublicKey?: string;
@@ -725,6 +732,7 @@ function validatePutContactProfileInput(input: PutContactProfileInput): Readonly
   const petnameCanonical = petname === undefined ? undefined : normalizePetnameCanonical(petname);
   const displayName = normalizeOptionalText(input.displayName, 'displayName', 96);
   const avatarUrl = normalizeOptionalAvatarUrl(input.avatarUrl);
+  const websiteUrl = normalizeOptionalExternalUrl(input.websiteUrl, 'websiteUrl');
   const note = normalizeOptionalText(input.note, 'note', 280);
   const primaryDeviceId = normalizeOptionalText(input.primaryDeviceId, 'primaryDeviceId', 128);
   const controllerPublicKey = normalizeOptionalText(input.controllerPublicKey, 'controllerPublicKey', 2048);
@@ -738,6 +746,7 @@ function validatePutContactProfileInput(input: PutContactProfileInput): Readonly
     ...(petnameCanonical === undefined ? {} : { petnameCanonical }),
     ...(displayName === undefined ? {} : { displayName }),
     ...(avatarUrl === undefined ? {} : { avatarUrl }),
+    ...(websiteUrl === undefined ? {} : { websiteUrl }),
     ...(note === undefined ? {} : { note }),
     ...(primaryDeviceId === undefined ? {} : { primaryDeviceId }),
     ...(controllerPublicKey === undefined ? {} : { controllerPublicKey }),
@@ -767,18 +776,30 @@ function normalizeOptionalAvatarUrl(value: string | undefined): string | undefin
   return normalized;
 }
 
+function normalizeOptionalExternalUrl(value: string | undefined, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = value.trim();
+  if (normalized.length === 0) return undefined;
+  validateExternalUrl(normalized, label);
+  return normalized;
+}
+
 function validateAvatarUrl(value: string): void {
+  validateExternalUrl(value, 'avatarUrl');
+}
+
+function validateExternalUrl(value: string, label: string): void {
   let parsed: URL;
   try {
     parsed = new URL(value);
   } catch {
-    throw new Error('avatarUrl must be a valid URL');
+    throw new Error(`${label} must be a valid URL`);
   }
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    throw new Error('avatarUrl must use http or https');
+    throw new Error(`${label} must use http or https`);
   }
   if (parsed.username.length > 0 || parsed.password.length > 0) {
-    throw new Error('avatarUrl must not include credentials');
+    throw new Error(`${label} must not include credentials`);
   }
 }
 

@@ -14,6 +14,7 @@ export type ManualOutboxDeliveryEnv = Readonly<Record<string, unknown>>;
 export type RunManualOutboxDeliveryInput = PreparePwaBridgeTransportInput &
   Readonly<{
     store: DexieLocalFirstStore;
+    authorization?: Readonly<{ authorized: boolean; reason: string }>;
     env?: ManualOutboxDeliveryEnv;
     onlineSource?: Readonly<{ navigator?: Readonly<{ onLine?: boolean }> }>;
     now?: Date;
@@ -29,7 +30,13 @@ export type ManualOutboxDeliveryResult =
     }>
   | Readonly<{
       status: 'blocked';
-      reason: 'offline' | 'bridge-config-disabled' | 'bridge-config-invalid' | 'fetch-unavailable' | 'send-budget-paused';
+      reason:
+        | 'offline'
+        | 'bridge-config-disabled'
+        | 'bridge-config-invalid'
+        | 'fetch-unavailable'
+        | 'send-budget-paused'
+        | 'identity-authorization-denied';
       message: string;
     }>
   | Readonly<{
@@ -57,6 +64,14 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
       status: 'blocked',
       reason: 'offline',
       message: 'Manual outbox delivery is blocked while offline.'
+    };
+  }
+
+  if (input.authorization?.authorized === false) {
+    return {
+      status: 'blocked',
+      reason: 'identity-authorization-denied',
+      message: `Manual outbox delivery blocked: ${input.authorization.reason}`
     };
   }
 

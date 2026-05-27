@@ -1,6 +1,7 @@
 import nacl from 'tweetnacl';
 import {
   canonicalizeJson,
+  type JsonValue,
   type SignedEventEnvelope,
   type UnsignedEventEnvelope,
   unsignedProjection,
@@ -16,6 +17,12 @@ export type EncryptedKeyMaterial = Readonly<{
   algorithm: 'aes-gcm-256';
   iv: string;
   ciphertext: string;
+}>;
+
+export type DetachedJsonSignature = Readonly<{
+  algorithm: 'ed25519-detached-json';
+  publicKey: string;
+  value: string;
 }>;
 
 export function generateSigningKeypair(): SigningKeypair {
@@ -66,6 +73,34 @@ export function verifySignedEventEnvelope(event: SignedEventEnvelope): boolean {
     if (signature.byteLength !== nacl.sign.signatureLength) return false;
     const message = new TextEncoder().encode(canonicalizeJson(unsignedProjection(event)));
     return nacl.sign.detached.verify(message, signature, publicKey);
+  } catch {
+    return false;
+  }
+}
+
+export function signDetachedJson(payload: JsonValue, keypair: SigningKeypair): DetachedJsonSignature {
+  const secretKey = fromBase64Url(keypair.privateKey);
+  if (secretKey.byteLength !== nacl.sign.secretKeyLength) {
+    throw new Error('Invalid Ed25519 private key length');
+  }
+  const message = new TextEncoder().encode(canonicalizeJson(payload));
+  const value = nacl.sign.detached(message, secretKey);
+  return {
+    algorithm: 'ed25519-detached-json',
+    publicKey: keypair.publicKey,
+    value: toBase64Url(value)
+  };
+}
+
+export function verifyDetachedJsonSignature(payload: JsonValue, signature: DetachedJsonSignature): boolean {
+  try {
+    if (signature.algorithm !== 'ed25519-detached-json') return false;
+    const publicKey = fromBase64Url(signature.publicKey);
+    const value = fromBase64Url(signature.value);
+    if (publicKey.byteLength !== nacl.sign.publicKeyLength) return false;
+    if (value.byteLength !== nacl.sign.signatureLength) return false;
+    const message = new TextEncoder().encode(canonicalizeJson(payload));
+    return nacl.sign.detached.verify(message, value, publicKey);
   } catch {
     return false;
   }

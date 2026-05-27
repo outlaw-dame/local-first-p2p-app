@@ -15,7 +15,7 @@ This document compares the original planning documents with the current implemen
 | Source references | Implemented basic type | Partial | `SourceRef` exists, but broader source provenance model is not yet integrated through search/media/bridge. |
 | Local device identity | Implemented early slice | Partial | Device bootstrap and encrypted local private-key material exist. Full root/controller account lifecycle wiring is still incomplete. |
 | Identity control log | Implemented early slice | Partial | ADR-001 model has protocol kinds, fixture coverage, projection logic, and inbound enforcement; full account lifecycle and runtime authorization wiring remain. |
-| Capability delegation | Not started | Deferred | Needs identity-control model first. |
+| Capability delegation | Implemented early slice | Partial | Identity projection and runtime authorization helpers can enforce capability-scoped operations, but full issuance, UX, and broader runtime wiring remain incomplete. |
 | Revocation epochs/checkpoints | Implemented early slice | Partial | Monotonic epoch rules are enforced in control-log projection logic; broader migration/interop semantics remain. |
 | Bridge as non-authoritative infrastructure | Implemented foundation | Strong | Bridge verifies signatures, handles idempotency, and does not define private source-of-truth state. |
 | Bridge response as untrusted input | Implemented and hardened | Strong | PR #19 hardened malformed/invalid response handling and avoided duplicate parser logic. |
@@ -27,7 +27,7 @@ This document compares the original planning documents with the current implemen
 | Media manifests | Not started | Deferred | Needs media manifest protocol and hash/encryption/variant policy. |
 | Presence plane | Not started | Deferred | Must remain ephemeral and outside durable logs. |
 | Social outbox model | Not started | Deferred | Current outbox is mutation delivery infrastructure, not social outbox semantics. |
-| Naming/petnames/contact cards | Implemented early slice | Partial | Local contact profile storage and petname editing are implemented for local UX. Name proofs, namespace claims, and exchange semantics are still deferred. |
+| Naming/petnames/contact cards | Implemented early slice | Partial | Local contact profile storage, petname editing, and detached-signature JSON contact-card import/export are implemented for local UX. Name proofs, namespace claims, and broader exchange semantics are still deferred. |
 | Local intelligence/hybrid search | Implemented early search seed | Partial | PGlite package is a seed; no permission-aware SearchObject, vectors, or fusion yet. |
 | Compression/chunking/dedupe | Not started | Deferred | Needs CompressionDescriptor and safety policy. |
 | Service worker/offline shell | Not started | Deferred | PWA is local-first at app-store level, but offline shell caching policy is not implemented. |
