@@ -9,7 +9,10 @@ Cryptographic verification fixtures should live with the crypto package or a fut
 Current fixture coverage:
 
 - valid signed event envelope shape,
+- valid identity controller created envelope shape,
 - unsupported event major version,
 - unsupported event kind,
 - unsupported privacy scope,
-- malformed source reference.
+- malformed source reference,
+- identity controller event with invalid privacy scope,
+- identity controller event with missing controller public key.

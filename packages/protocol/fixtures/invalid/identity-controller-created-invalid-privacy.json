@@ -1,0 +1,20 @@
+{
+  "version": "lfp2p.event.v1",
+  "eventId": "evt_fixture_identity_controller_invalid_privacy",
+  "kind": "identity.controller.created",
+  "author": "identity:fixture-account",
+  "deviceId": "device:fixture-primary",
+  "createdAt": "2026-05-26T00:00:00.000Z",
+  "lamport": 1,
+  "privacy": "device-local",
+  "schemaVersion": 1,
+  "payload": {
+    "controllerPublicKey": "controller-public-key-fixture",
+    "initialDeviceId": "device:fixture-primary"
+  },
+  "signature": {
+    "algorithm": "ed25519",
+    "publicKey": "fixture-public-key",
+    "value": "fixture-signature"
+  }
+}
