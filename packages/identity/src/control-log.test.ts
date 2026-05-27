@@ -102,6 +102,50 @@ describe('identity control projection seed', () => {
     ).toThrow(/may only be applied once/);
   });
 
+  it('requires controller-created signature key to match controller public key payload', () => {
+    const created = signedIdentityEvent('identity.controller.created', {
+      controllerPublicKey: 'controller-public-key',
+      initialDeviceId: 'device:primary'
+    }, 1, 'evt_controller_created');
+
+    expect(() =>
+      applyIdentityControlEvent(createEmptyIdentityControlState(), {
+        ...created,
+        signature: {
+          ...created.signature,
+          publicKey: 'different-controller-key'
+        }
+      })
+    ).toThrow(/signature\.publicKey must match payload\.controllerPublicKey/);
+  });
+
+  it('requires controller signer for all post-initialization control events', () => {
+    const initial = seedIdentityControlProjection([
+      signedIdentityEvent('identity.controller.created', {
+        controllerPublicKey: 'controller-public-key',
+        initialDeviceId: 'device:primary'
+      }, 1, 'evt_controller_created')
+    ]);
+
+    expect(() =>
+      applyIdentityControlEvent(
+        initial,
+        {
+          ...signedIdentityEvent('identity.device.authorized', {
+            authorizedDeviceId: 'device:laptop',
+            authorizedPublicKey: 'device-laptop-public-key',
+            epoch: 1
+          }, 2, 'evt_device_authorized_bad_signer'),
+          signature: {
+            algorithm: 'ed25519',
+            publicKey: 'attacker-public-key',
+            value: 'attacker-signature'
+          }
+        }
+      )
+    ).toThrow(/must be signed by the controller public key/);
+  });
+
   it('keeps earliest revocation timestamp when duplicate revokes are replayed', () => {
     const state = seedIdentityControlProjection([
       signedIdentityEvent('identity.controller.created', {
@@ -232,8 +276,18 @@ function signedEvent(
     ...unsigned,
     signature: {
       algorithm: 'ed25519',
-      publicKey: 'test-public-key',
+      publicKey: defaultSignerFor(kind, payload),
       value: 'test-signature'
     }
   };
+}
+
+function defaultSignerFor(kind: EventKind, payload: Record<string, unknown>): string {
+  if (kind === 'identity.controller.created') {
+    return typeof payload.controllerPublicKey === 'string' && payload.controllerPublicKey.length > 0
+      ? payload.controllerPublicKey
+      : 'controller-public-key';
+  }
+  if (kind.startsWith('identity.')) return 'controller-public-key';
+  return 'test-public-key';
 }

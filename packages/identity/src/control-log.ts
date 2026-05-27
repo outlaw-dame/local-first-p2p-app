@@ -84,6 +84,9 @@ function applyControllerCreated(state: IdentityControlState, event: SignedEventE
   if (state.controllerPublicKey !== undefined) {
     throw new Error('identity.controller.created may only be applied once per identity control state');
   }
+  if (event.signature.publicKey !== controllerPublicKey) {
+    throw new Error('identity.controller.created signature.publicKey must match payload.controllerPublicKey');
+  }
 
   return {
     ...state,
@@ -102,7 +105,7 @@ function applyControllerCreated(state: IdentityControlState, event: SignedEventE
 }
 
 function applyDeviceAuthorized(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
-  requireController(state, event.kind);
+  requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const deviceId = requireString(payload.authorizedDeviceId, 'authorizedDeviceId');
   const publicKey = requireString(payload.authorizedPublicKey, 'authorizedPublicKey');
@@ -126,7 +129,7 @@ function applyDeviceAuthorized(state: IdentityControlState, event: SignedEventEn
 }
 
 function applyDeviceRevoked(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
-  requireController(state, event.kind);
+  requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const deviceId = requireString(payload.revokedDeviceId, 'revokedDeviceId');
   const epoch = requirePositiveInteger(payload.epoch, 'epoch');
@@ -151,7 +154,7 @@ function applyDeviceRevoked(state: IdentityControlState, event: SignedEventEnvel
 }
 
 function applyCapabilityGranted(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
-  requireController(state, event.kind);
+  requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const capabilityId = requireString(payload.capabilityId, 'capabilityId');
   const delegateDeviceId = requireString(payload.delegateDeviceId, 'delegateDeviceId');
@@ -177,7 +180,7 @@ function applyCapabilityGranted(state: IdentityControlState, event: SignedEventE
 }
 
 function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
-  requireController(state, event.kind);
+  requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const capabilityId = requireString(payload.capabilityId, 'capabilityId');
   const delegateDeviceId = requireString(payload.delegateDeviceId, 'delegateDeviceId');
@@ -202,9 +205,13 @@ function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventE
   };
 }
 
-function requireController(state: IdentityControlState, kind: string): void {
+function requireControllerSigner(state: IdentityControlState, event: SignedEventEnvelope): void {
+  const kind = event.kind;
   if (state.controllerPublicKey === undefined) {
     throw new Error(`${kind} requires identity.controller.created`);
+  }
+  if (event.signature.publicKey !== state.controllerPublicKey) {
+    throw new Error(`${kind} must be signed by the controller public key`);
   }
 }
 
