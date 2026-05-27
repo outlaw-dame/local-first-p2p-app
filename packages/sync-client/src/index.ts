@@ -6,6 +6,7 @@ import {
   type StoredSyncCheckpoint,
   type SyncCheckpointKey
 } from '@lfp2p/local-store';
+import { verifySignedEventEnvelope } from '@lfp2p/crypto';
 import { applyIdentityControlEvent, createEmptyIdentityControlState } from '@lfp2p/identity';
 import { type SignedEventEnvelope } from '@lfp2p/protocol';
 import {
@@ -225,6 +226,9 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
   for (const [index, record] of input.records.entries()) {
     result.received += 1;
     try {
+      if (!verifySignedEventEnvelope(record.event)) {
+        throw new Error('Inbound signed event signature verification failed');
+      }
       const stored = await input.store.putSignedEventWithSyncCheckpoint({
         event: record.event,
         checkpoint: {

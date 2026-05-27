@@ -465,11 +465,7 @@ export class DexieLocalFirstStore {
     try {
       await this.#db.delete();
     } catch (error) {
-      if (
-        error instanceof TypeError &&
-        error.message.includes('deleteDatabase') &&
-        typeof globalThis.indexedDB === 'undefined'
-      ) {
+      if (error instanceof TypeError && error.message.includes('deleteDatabase')) {
         this.#db.close();
         return;
       }

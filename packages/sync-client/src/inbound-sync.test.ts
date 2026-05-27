@@ -85,7 +85,7 @@ describe('processInboundSyncBatch', () => {
       expect(result.skipped).toBe(0);
       expect(result.rejected).toBe(1);
       expect(result.errors[0]).toMatchObject({ index: 1, eventId: 'evt_inbound_invalid_payload' });
-      expect(result.errors[0]?.reason).toMatch(/payload must be a JSON object/);
+      expect(result.errors[0]?.reason).toMatch(/signature verification failed/i);
       await expect(store.getSignedEvent('evt_inbound_after_invalid')).resolves.toBeUndefined();
       await expect(
         store.getSyncCheckpoint({
@@ -273,6 +273,39 @@ describe('processInboundSyncBatch', () => {
         lastEventId: 'evt_identity_created_before_reject',
         epoch: 0
       });
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('rejects inbound events with invalid cryptographic signatures', async () => {
+    const store = createLocalFirstStore(`inbound-sync-bad-signature-${globalThis.crypto.randomUUID()}`);
+    const valid = makeRecord('evt_inbound_signature_valid', 'cursor-1', 1);
+    const tampered = {
+      ...makeRecord('evt_inbound_signature_tampered', 'cursor-2', 2),
+      event: {
+        ...makeSignedEvent('evt_inbound_signature_tampered'),
+        payload: { body: 'tampered-after-sign' }
+      }
+    } as InboundSyncRecord;
+
+    try {
+      await expect(processInboundSyncBatch({ store, records: [valid] })).resolves.toMatchObject({ applied: 1 });
+      const result = await processInboundSyncBatch({ store, records: [tampered] });
+
+      expect(result.received).toBe(1);
+      expect(result.applied).toBe(0);
+      expect(result.rejected).toBe(1);
+      expect(result.errors[0]).toMatchObject({ index: 0, eventId: 'evt_inbound_signature_tampered' });
+      expect(result.errors[0]?.reason).toMatch(/signature verification failed/i);
+      await expect(store.getSignedEvent('evt_inbound_signature_tampered')).resolves.toBeUndefined();
+      await expect(
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
+      ).resolves.toMatchObject({ cursor: 'cursor-1', sequence: 1 });
     } finally {
       await store.delete();
     }
