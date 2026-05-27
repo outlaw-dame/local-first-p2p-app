@@ -203,6 +203,12 @@ describe('identity trust snapshot helpers', () => {
           status: 'active' as const,
           authorizedAt: '2026-05-22T00:00:00.000Z'
         },
+        'device:alice-tablet': {
+          deviceId: 'device:alice-tablet',
+          publicKey: 'alice-tablet-key',
+          status: 'active' as const,
+          authorizedAt: '2026-05-22T00:00:10.000Z'
+        },
         'device:alice-laptop': {
           deviceId: 'device:alice-laptop',
           publicKey: 'alice-laptop-key',
@@ -214,7 +220,7 @@ describe('identity trust snapshot helpers', () => {
       capabilities: {
         'cap:expired': {
           capabilityId: 'cap:expired',
-          delegateDeviceId: 'device:alice-phone',
+          delegateDeviceId: 'device:alice-tablet',
           scope: 'sync:outbox',
           expiresAt: '2026-05-22T00:00:03.000Z',
           status: 'granted' as const,
@@ -233,7 +239,7 @@ describe('identity trust snapshot helpers', () => {
     expect(
       authorizeIdentityOperation({
         projection,
-        deviceId: 'device:alice-phone',
+        deviceId: 'device:alice-tablet',
         scope: 'sync:outbox',
         now: '2026-05-22T00:00:05.000Z'
       })
@@ -260,12 +266,37 @@ describe('identity trust snapshot helpers', () => {
       authorizeIdentityOperation({ projection: noCapabilityProjection, deviceId: 'device:alice-phone', scope: 'sync:outbox' })
     ).toMatchObject({ authorized: true, status: 'authorized-controller-device' });
 
+    const delegatedProjection = {
+      ...noCapabilityProjection,
+      capabilities: {
+        'cap:sync:outbox:tablet': {
+          capabilityId: 'cap:sync:outbox:tablet',
+          delegateDeviceId: 'device:alice-tablet',
+          scope: 'sync:outbox',
+          status: 'granted' as const,
+          grantedAt: '2026-05-22T00:00:00.000Z'
+        }
+      }
+    };
+    expect(
+      authorizeIdentityOperation({ projection: delegatedProjection, deviceId: 'device:alice-phone', scope: 'sync:outbox' })
+    ).toMatchObject({ authorized: true, status: 'authorized-controller-device' });
+
     const capabilityProjection = {
       ...noCapabilityProjection,
+      devices: {
+        ...noCapabilityProjection.devices,
+        'device:alice-tablet': {
+          deviceId: 'device:alice-tablet',
+          publicKey: 'alice-tablet-key',
+          status: 'active' as const,
+          authorizedAt: '2026-05-22T00:00:10.000Z'
+        }
+      },
       capabilities: {
         'cap:sync:outbox': {
           capabilityId: 'cap:sync:outbox',
-          delegateDeviceId: 'device:alice-phone',
+          delegateDeviceId: 'device:alice-tablet',
           scope: 'sync:outbox',
           expiresAt: '2026-05-22T01:00:00.000Z',
           status: 'granted' as const,
@@ -276,7 +307,7 @@ describe('identity trust snapshot helpers', () => {
     expect(
       authorizeIdentityOperation({
         projection: capabilityProjection,
-        deviceId: 'device:alice-phone',
+        deviceId: 'device:alice-tablet',
         scope: 'sync:outbox',
         now: '2026-05-22T00:30:00.000Z'
       })
@@ -284,7 +315,7 @@ describe('identity trust snapshot helpers', () => {
     expect(
       authorizeIdentityOperation({
         projection: capabilityProjection,
-        deviceId: 'device:alice-phone',
+        deviceId: 'device:alice-tablet',
         scope: 'sync:inbox',
         now: '2026-05-22T00:30:00.000Z'
       })

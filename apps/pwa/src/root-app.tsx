@@ -137,7 +137,7 @@ function HomePage(): JSX.Element {
       trust,
       existingProfile
     });
-    const [knownContacts] = await Promise.all([store.listContactProfiles()]);
+    const knownContacts = await store.listContactProfiles();
     const syncAuthorization = authorizeIdentityOperation({
       projection,
       deviceId: session.identity.deviceId,

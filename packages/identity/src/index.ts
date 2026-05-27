@@ -154,6 +154,16 @@ export function authorizeIdentityOperation(input: Readonly<{
     };
   }
 
+  const primaryDeviceId = resolvePrimaryDeviceId(projection);
+  if (primaryDeviceId !== undefined && primaryDeviceId === deviceId) {
+    return {
+      authorized: true,
+      status: 'authorized-controller-device',
+      scope,
+      reason: 'Current primary controller device is authorized by identity projection.'
+    };
+  }
+
   const grantedCapabilities = Object.values(projection.capabilities).filter(
     (capability) => capability.delegateDeviceId === deviceId && capability.scope === scope && capability.status === 'granted'
   );

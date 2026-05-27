@@ -90,6 +90,16 @@ describe('PWA contact card helpers', () => {
       displayName: 'Mallory'
     };
     await expect(createImportedContactProfileInput({ card: tampered })).rejects.toThrow(/signature verification failed/i);
+
+    const unsignedBase = {
+      version: 'lfp2p.contact-card.v1' as const,
+      exportedAt: '2026-05-22T00:00:00.000Z',
+      identityId: 'identity:carol',
+      controllerPublicKey: 'controller-public-key-carol'
+    };
+    const signedWithoutFingerprint = signContactCardDocument(unsignedBase, keypair);
+    const imported = await createImportedContactProfileInput({ card: signedWithoutFingerprint });
+    expect(imported.shortFingerprint).toBeDefined();
   });
 
   it('compares identity codes by fingerprint or controller key input', async () => {

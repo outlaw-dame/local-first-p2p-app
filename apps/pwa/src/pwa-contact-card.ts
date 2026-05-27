@@ -129,6 +129,10 @@ export async function createImportedContactProfileInput(input: Readonly<{
     }
   }
 
+  const importedShortFingerprint =
+    input.card.shortFingerprint ??
+    (input.card.controllerPublicKey === undefined ? undefined : await createShortFingerprint(input.card.controllerPublicKey));
+
   return {
     identityId: input.card.identityId,
     ...(input.existingProfile?.petname === undefined ? {} : { petname: input.existingProfile.petname }),
@@ -138,7 +142,7 @@ export async function createImportedContactProfileInput(input: Readonly<{
     ...(input.card.note === undefined ? {} : { note: input.card.note }),
     ...(input.card.primaryDeviceId === undefined ? {} : { primaryDeviceId: input.card.primaryDeviceId }),
     ...(input.card.controllerPublicKey === undefined ? {} : { controllerPublicKey: input.card.controllerPublicKey }),
-    ...(input.card.shortFingerprint === undefined ? {} : { shortFingerprint: input.card.shortFingerprint }),
+    ...(importedShortFingerprint === undefined ? {} : { shortFingerprint: importedShortFingerprint }),
     verificationStatus: input.existingProfile?.verificationStatus ?? 'unknown',
     updatedAt: new Date().toISOString()
   };
