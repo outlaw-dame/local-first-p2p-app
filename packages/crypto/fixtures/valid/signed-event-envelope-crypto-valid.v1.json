@@ -1,0 +1,19 @@
+{
+  "version": "lfp2p.event.v1",
+  "eventId": "evt_fixture_crypto_valid_001",
+  "kind": "outbox.test.created",
+  "author": "identity:fixture-bob",
+  "deviceId": "device:fixture-bob-phone",
+  "createdAt": "2026-05-27T00:00:00.000Z",
+  "lamport": 1,
+  "privacy": "device-local",
+  "schemaVersion": 1,
+  "payload": {
+    "body": "fixture crypto-valid event"
+  },
+  "signature": {
+    "algorithm": "ed25519",
+    "publicKey": "_RckOFqgx1tk-3jNYC-h2ZH96_drE8WO1wLqyDXp9hg",
+    "value": "E2_u-xmNZ2H8JF7mLXf1E5ROwmMjZjW43iThQ2E3n_ADHRu4rGrr3BVUjnc8KebckQkBoSEURyC136KiizknAw"
+  }
+}

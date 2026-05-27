@@ -16,3 +16,5 @@ Current fixture coverage:
 - malformed source reference,
 - identity controller event with invalid privacy scope,
 - identity controller event with missing controller public key.
+
+Cryptographic signature verification fixtures are package-local to `@lfp2p/crypto`.

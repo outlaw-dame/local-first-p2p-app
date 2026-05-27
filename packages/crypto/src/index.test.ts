@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createUnsignedEvent } from '@lfp2p/protocol';
+import invalidSignedFixture from '../fixtures/invalid/signed-event-envelope-crypto-invalid-signature.v1.json';
+import validSignedFixture from '../fixtures/valid/signed-event-envelope-crypto-valid.v1.json';
 import {
   signDetachedJson,
   signEventEnvelope,
@@ -82,5 +84,10 @@ describe('event signing', () => {
         signature
       )
     ).toBe(false);
+  });
+
+  it('verifies fixture-backed signed envelopes and rejects tampered fixture signatures', () => {
+    expect(verifySignedEventEnvelope(validSignedFixture)).toBe(true);
+    expect(verifySignedEventEnvelope(invalidSignedFixture)).toBe(false);
   });
 });
