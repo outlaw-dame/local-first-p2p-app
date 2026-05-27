@@ -25,7 +25,7 @@ Implemented today:
 - Runtime capability snapshot through `@lfp2p/platform`.
 - Local identity trust cues with controller fingerprint display/copy and verification status.
 - Local petname editing backed by contact profile persistence.
-- Local contact-card editing plus JSON export/import flow for local exchange.
+- Local contact-card editing plus signed JSON export/import flow for local exchange.
 - Explicit fingerprint compare flow for anti-phishing verification.
 
 Not implemented yet:

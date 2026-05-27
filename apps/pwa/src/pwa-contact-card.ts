@@ -1,4 +1,10 @@
-import { sha256Base64Url } from '@lfp2p/crypto';
+import {
+  sha256Base64Url,
+  signDetachedJson,
+  verifyDetachedJsonSignature,
+  type DetachedJsonSignature,
+  type SigningKeypair
+} from '@lfp2p/crypto';
 import { type IdentityTrustSnapshot } from '@lfp2p/identity';
 import { type PutContactProfileInput, type StoredContactProfile } from '@lfp2p/local-store';
 
@@ -13,6 +19,7 @@ export type ContactCardDocument = Readonly<{
   controllerPublicKey?: string;
   primaryDeviceId?: string;
   shortFingerprint?: string;
+  signature?: DetachedJsonSignature;
 }>;
 
 export type ComparedIdentityCode = Readonly<{
@@ -50,6 +57,21 @@ export function serializeContactCardDocument(card: ContactCardDocument): string 
   return JSON.stringify(card, null, 2);
 }
 
+export function signContactCardDocument(card: ContactCardDocument, keypair: SigningKeypair): ContactCardDocument {
+  validateContactCardDocument(card);
+  const signature = signDetachedJson(unsignedContactCardDocument(card), keypair);
+  return {
+    ...unsignedContactCardDocument(card),
+    signature
+  };
+}
+
+export function verifyContactCardDocumentSignature(card: ContactCardDocument): boolean {
+  validateContactCardDocument(card);
+  if (card.signature === undefined) return false;
+  return verifyDetachedJsonSignature(unsignedContactCardDocument(card), card.signature);
+}
+
 export function parseContactCardDocument(raw: string): ContactCardDocument {
   const parsed = safeJsonParse(raw);
   if (!isRecord(parsed)) throw new Error('Contact card must be a JSON object.');
@@ -69,7 +91,8 @@ export function parseContactCardDocument(raw: string): ContactCardDocument {
       : { primaryDeviceId: requireOptionalText(parsed.primaryDeviceId, 'primaryDeviceId', 128) }),
     ...(parsed.shortFingerprint === undefined
       ? {}
-      : { shortFingerprint: requireOptionalText(parsed.shortFingerprint, 'shortFingerprint', 64) })
+      : { shortFingerprint: requireOptionalText(parsed.shortFingerprint, 'shortFingerprint', 64) }),
+    ...(parsed.signature === undefined ? {} : { signature: requireDetachedJsonSignature(parsed.signature) })
   };
   validateContactCardDocument(card);
   return card;
@@ -79,8 +102,16 @@ export async function createImportedContactProfileInput(input: Readonly<{
   card: ContactCardDocument;
   existingProfile?: StoredContactProfile;
   trustedControllerPublicKey?: string;
+  requireSignature?: boolean;
 }>): Promise<PutContactProfileInput> {
   validateContactCardDocument(input.card);
+  const requireSignature = input.requireSignature ?? true;
+  if (requireSignature && input.card.signature === undefined) {
+    throw new Error('Imported contact card must include a detached signature.');
+  }
+  if (input.card.signature !== undefined && !verifyContactCardDocumentSignature(input.card)) {
+    throw new Error('Imported contact card signature verification failed.');
+  }
   const trustedControllerPublicKey =
     input.trustedControllerPublicKey ?? input.existingProfile?.controllerPublicKey;
   if (
@@ -162,6 +193,13 @@ function validateContactCardDocument(card: ContactCardDocument): void {
   if (card.controllerPublicKey !== undefined) requireTextLength(card.controllerPublicKey, 'controllerPublicKey', 2048);
   if (card.primaryDeviceId !== undefined) requireTextLength(card.primaryDeviceId, 'primaryDeviceId', 128);
   if (card.shortFingerprint !== undefined) requireTextLength(card.shortFingerprint, 'shortFingerprint', 64);
+  if (card.signature !== undefined) {
+    requireTextLength(card.signature.publicKey, 'signature.publicKey', 2048);
+    requireTextLength(card.signature.value, 'signature.value', 2048);
+    if (card.signature.algorithm !== 'ed25519-detached-json') {
+      throw new Error('Unsupported contact card signature algorithm.');
+    }
+  }
 }
 
 function safeJsonParse(raw: string): unknown {
@@ -228,6 +266,24 @@ function requireTextLength(value: string, label: string, maxLength: number): str
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function unsignedContactCardDocument(card: ContactCardDocument): Omit<ContactCardDocument, 'signature'> {
+  const { signature, ...unsigned } = card;
+  void signature;
+  return unsigned;
+}
+
+function requireDetachedJsonSignature(value: unknown): DetachedJsonSignature {
+  if (!isRecord(value)) throw new Error('signature must be an object.');
+  if (value.algorithm !== 'ed25519-detached-json') {
+    throw new Error('Unsupported contact card signature algorithm.');
+  }
+  return {
+    algorithm: 'ed25519-detached-json',
+    publicKey: requireNonEmptyString(value.publicKey, 'signature.publicKey'),
+    value: requireNonEmptyString(value.value, 'signature.value')
+  };
 }
 
 function normalizeIdentityCode(value: string): string {

@@ -36,6 +36,7 @@ import {
   createContactCardDocument,
   createImportedContactProfileInput,
   parseContactCardDocument,
+  signContactCardDocument,
   serializeContactCardDocument
 } from './pwa-contact-card.js';
 import { formatIdentityVerificationStatus, identityVerificationBadgeColor } from './pwa-identity-tools.js';
@@ -341,7 +342,7 @@ function HomePage(): JSX.Element {
   }
 
   async function exportContactCard(): Promise<void> {
-    if (identity === null || contactProfile === null || trustSnapshot === null) {
+    if (identity === null || keypair === null || contactProfile === null || trustSnapshot === null) {
       setStatus('Identity contact card is not ready yet.');
       return;
     }
@@ -351,13 +352,14 @@ function HomePage(): JSX.Element {
         profile: contactProfile,
         trustSnapshot
       });
-      const serialized = serializeContactCardDocument(card);
+      const signed = signContactCardDocument(card, keypair);
+      const serialized = serializeContactCardDocument(signed);
       setImportDraft(serialized);
       if (typeof globalThis.navigator?.clipboard?.writeText === 'function') {
         await globalThis.navigator.clipboard.writeText(serialized);
-        setStatus('Contact card copied to clipboard as JSON.');
+        setStatus('Signed contact card copied to clipboard as JSON.');
       } else {
-        setStatus('Contact card generated in the import/export field because clipboard is unavailable.');
+        setStatus('Signed contact card generated in the import/export field because clipboard is unavailable.');
       }
     } catch (error: unknown) {
       setStatus(`Contact card export failed: ${formatUiError(error)}`);
@@ -554,7 +556,11 @@ function HomePage(): JSX.Element {
       <BlockTitle>Contact card exchange</BlockTitle>
       <Block inset strong>
         <p className="lfp2p-muted-detail">Export your local contact card or paste a contact card JSON document to import it locally.</p>
-        <Button outline disabled={identity === null || contactProfile === null || trustSnapshot === null} onClick={() => void exportContactCard()}>
+        <Button
+          outline
+          disabled={identity === null || keypair === null || contactProfile === null || trustSnapshot === null}
+          onClick={() => void exportContactCard()}
+        >
           Export contact card
         </Button>
         <label className="lfp2p-label" htmlFor="contact-card-json">

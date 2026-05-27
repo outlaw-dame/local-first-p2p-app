@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createUnsignedEvent } from '@lfp2p/protocol';
-import { signEventEnvelope, signingKeypairFromSeed, verifySignedEventEnvelope } from './index.js';
+import {
+  signDetachedJson,
+  signEventEnvelope,
+  signingKeypairFromSeed,
+  verifyDetachedJsonSignature,
+  verifySignedEventEnvelope
+} from './index.js';
 
 describe('event signing', () => {
   const keypair = signingKeypairFromSeed(new Uint8Array(32).fill(7));
@@ -58,5 +64,23 @@ describe('event signing', () => {
 
     expect(() => verifySignedEventEnvelope(malformed)).not.toThrow();
     expect(verifySignedEventEnvelope(malformed)).toBe(false);
+  });
+
+  it('signs and verifies detached canonical JSON payloads', () => {
+    const payload = {
+      id: 'contact:alice',
+      profile: { displayName: 'Alice', websiteUrl: 'https://alice.example.test' }
+    };
+    const signature = signDetachedJson(payload, keypair);
+    expect(verifyDetachedJsonSignature(payload, signature)).toBe(true);
+    expect(
+      verifyDetachedJsonSignature(
+        {
+          ...payload,
+          profile: { ...payload.profile, displayName: 'Mallory' }
+        },
+        signature
+      )
+    ).toBe(false);
   });
 });

@@ -27,7 +27,7 @@ This document compares the original planning documents with the current implemen
 | Media manifests | Not started | Deferred | Needs media manifest protocol and hash/encryption/variant policy. |
 | Presence plane | Not started | Deferred | Must remain ephemeral and outside durable logs. |
 | Social outbox model | Not started | Deferred | Current outbox is mutation delivery infrastructure, not social outbox semantics. |
-| Naming/petnames/contact cards | Implemented early slice | Partial | Local contact profile storage, petname editing, and JSON contact-card import/export are implemented for local UX. Name proofs, namespace claims, and broader exchange semantics are still deferred. |
+| Naming/petnames/contact cards | Implemented early slice | Partial | Local contact profile storage, petname editing, and detached-signature JSON contact-card import/export are implemented for local UX. Name proofs, namespace claims, and broader exchange semantics are still deferred. |
 | Local intelligence/hybrid search | Implemented early search seed | Partial | PGlite package is a seed; no permission-aware SearchObject, vectors, or fusion yet. |
 | Compression/chunking/dedupe | Not started | Deferred | Needs CompressionDescriptor and safety policy. |
 | Service worker/offline shell | Not started | Deferred | PWA is local-first at app-store level, but offline shell caching policy is not implemented. |

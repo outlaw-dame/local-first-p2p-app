@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import { signingKeypairFromSeed } from '@lfp2p/crypto';
 import {
   compareIdentityCode,
   createContactCardDocument,
   createImportedContactProfileInput,
   parseContactCardDocument,
+  signContactCardDocument,
+  verifyContactCardDocumentSignature,
   serializeContactCardDocument
 } from './pwa-contact-card.js';
 
 describe('PWA contact card helpers', () => {
+  const keypair = signingKeypairFromSeed(new Uint8Array(32).fill(23));
+
   it('serializes and parses a strict versioned contact card', async () => {
     const document = await createContactCardDocument({
       identityId: 'identity:alice',
@@ -30,7 +35,10 @@ describe('PWA contact card helpers', () => {
       exportedAt: '2026-05-22T00:01:00.000Z'
     });
 
-    const serialized = serializeContactCardDocument(document);
+    const signed = signContactCardDocument(document, keypair);
+    expect(verifyContactCardDocumentSignature(signed)).toBe(true);
+
+    const serialized = serializeContactCardDocument(signed);
     const parsed = parseContactCardDocument(serialized);
 
     expect(parsed).toMatchObject({
@@ -39,6 +47,7 @@ describe('PWA contact card helpers', () => {
       websiteUrl: 'https://alice.example.test',
       controllerPublicKey: 'controller-public-key'
     });
+    expect(parsed.signature).toBeDefined();
   });
 
   it('rejects malformed cards and imported controller mismatches', async () => {
@@ -63,9 +72,24 @@ describe('PWA contact card helpers', () => {
           controllerPublicKey: 'controller-public-key',
           shortFingerprint: 'abcd-efgh-ijkl-mnop'
         },
-        trustedControllerPublicKey: 'different-controller-key'
+        trustedControllerPublicKey: 'different-controller-key',
+        requireSignature: false
       })
     ).rejects.toThrow(/does not match the trusted controller key/i);
+
+    const unsigned = {
+      version: 'lfp2p.contact-card.v1' as const,
+      exportedAt: '2026-05-22T00:00:00.000Z',
+      identityId: 'identity:bob'
+    };
+    await expect(createImportedContactProfileInput({ card: unsigned })).rejects.toThrow(/must include a detached signature/i);
+
+    const signed = signContactCardDocument(unsigned, keypair);
+    const tampered = {
+      ...signed,
+      displayName: 'Mallory'
+    };
+    await expect(createImportedContactProfileInput({ card: tampered })).rejects.toThrow(/signature verification failed/i);
   });
 
   it('compares identity codes by fingerprint or controller key input', async () => {
