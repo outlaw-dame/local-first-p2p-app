@@ -83,6 +83,98 @@ describe('identity control projection seed', () => {
     ).toThrow(/references unknown device/);
   });
 
+  it('rejects controller re-initialization', () => {
+    const initial = seedIdentityControlProjection([
+      signedIdentityEvent('identity.controller.created', {
+        controllerPublicKey: 'controller-public-key',
+        initialDeviceId: 'device:primary'
+      }, 1, 'evt_controller_created')
+    ]);
+
+    expect(() =>
+      applyIdentityControlEvent(
+        initial,
+        signedIdentityEvent('identity.controller.created', {
+          controllerPublicKey: 'controller-public-key',
+          initialDeviceId: 'device:secondary'
+        }, 2, 'evt_controller_reinit')
+      )
+    ).toThrow(/may only be applied once/);
+  });
+
+  it('keeps earliest revocation timestamp when duplicate revokes are replayed', () => {
+    const state = seedIdentityControlProjection([
+      signedIdentityEvent('identity.controller.created', {
+        controllerPublicKey: 'controller-public-key',
+        initialDeviceId: 'device:primary'
+      }, 1, 'evt_controller_created'),
+      signedIdentityEvent('identity.device.authorized', {
+        authorizedDeviceId: 'device:laptop',
+        authorizedPublicKey: 'device-laptop-public-key',
+        epoch: 1
+      }, 2, 'evt_device_authorized'),
+      signedIdentityEvent('identity.device.revoked', {
+        revokedDeviceId: 'device:laptop',
+        epoch: 2
+      }, 3, 'evt_device_revoked_first'),
+      signedIdentityEvent('identity.device.revoked', {
+        revokedDeviceId: 'device:laptop',
+        epoch: 3
+      }, 4, 'evt_device_revoked_duplicate')
+    ]);
+
+    expect(state.devices['device:laptop']?.status).toBe('revoked');
+    expect(state.devices['device:laptop']?.revokedAt).toBe('2026-05-26T00:00:03.000Z');
+    expect(state.epoch).toBe(2);
+  });
+
+  it('validates capability delegate id during revocation', () => {
+    const initial = seedIdentityControlProjection([
+      signedIdentityEvent('identity.controller.created', {
+        controllerPublicKey: 'controller-public-key',
+        initialDeviceId: 'device:primary'
+      }, 1, 'evt_controller_created'),
+      signedIdentityEvent('identity.capability.granted', {
+        capabilityId: 'cap:sync:device:laptop',
+        delegateDeviceId: 'device:laptop',
+        scope: 'sync:outbox',
+        expiresAt: '2026-06-01T00:00:00.000Z'
+      }, 2, 'evt_capability_granted')
+    ]);
+
+    expect(() =>
+      applyIdentityControlEvent(
+        initial,
+        signedIdentityEvent('identity.capability.revoked', {
+          capabilityId: 'cap:sync:device:laptop',
+          delegateDeviceId: 'device:tablet'
+        }, 3, 'evt_capability_revoked_mismatch')
+      )
+    ).toThrow(/does not match granted capability delegate/);
+  });
+
+  it('deduplicates identical events and rejects conflicting duplicate event ids', () => {
+    const controllerCreated = signedIdentityEvent('identity.controller.created', {
+      controllerPublicKey: 'controller-public-key',
+      initialDeviceId: 'device:primary'
+    }, 1, 'evt_controller_created');
+
+    const deduped = seedIdentityControlProjection([controllerCreated, controllerCreated]);
+    expect(deduped.controllerPublicKey).toBe('controller-public-key');
+
+    const conflictingDuplicate = {
+      ...controllerCreated,
+      payload: {
+        ...controllerCreated.payload,
+        initialDeviceId: 'device:other'
+      }
+    };
+
+    expect(() => seedIdentityControlProjection([controllerCreated, conflictingDuplicate])).toThrow(
+      /has conflicting signed event content/
+    );
+  });
+
   it('ignores non-identity events for projection seed', () => {
     const baseline = createEmptyIdentityControlState();
     const state = applyIdentityControlEvent(
