@@ -61,6 +61,10 @@ export function applyIdentityControlEvent(
 }
 
 export function seedIdentityControlProjection(events: readonly SignedEventEnvelope[]): IdentityControlState {
+  for (const event of events) {
+    validateSignedEvent(event);
+  }
+
   const sorted = [...events].sort((left, right) => {
     if (left.lamport !== right.lamport) return left.lamport - right.lamport;
     const createdAtOrder = Date.parse(left.createdAt) - Date.parse(right.createdAt);
@@ -135,7 +139,12 @@ function applyDeviceRevoked(state: IdentityControlState, event: SignedEventEnvel
   const epoch = requirePositiveInteger(payload.epoch, 'epoch');
   const existing = state.devices[deviceId];
   if (existing === undefined) throw new Error(`identity.device.revoked references unknown device ${deviceId}`);
-  if (existing.status === 'revoked') return state;
+  if (existing.status === 'revoked') {
+    return {
+      ...state,
+      lastEventId: event.eventId
+    };
+  }
   requireMonotonicEpoch(state.epoch, epoch, event.kind);
 
   return {
@@ -189,7 +198,12 @@ function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventE
   if (existing.delegateDeviceId !== delegateDeviceId) {
     throw new Error('identity.capability.revoked payload.delegateDeviceId does not match granted capability delegate');
   }
-  if (existing.status === 'revoked') return state;
+  if (existing.status === 'revoked') {
+    return {
+      ...state,
+      lastEventId: event.eventId
+    };
+  }
 
   return {
     ...state,
@@ -240,7 +254,6 @@ function dedupeSortedEvents(events: readonly SignedEventEnvelope[]): SignedEvent
   const seenByEventId = new Map<string, SignedEventEnvelope>();
 
   for (const event of events) {
-    validateSignedEvent(event);
     const existing = seenByEventId.get(event.eventId);
     if (existing === undefined) {
       seenByEventId.set(event.eventId, event);
@@ -256,10 +269,11 @@ function dedupeSortedEvents(events: readonly SignedEventEnvelope[]): SignedEvent
 }
 
 function sameSignedEvent(left: SignedEventEnvelope, right: SignedEventEnvelope): boolean {
+  if (left === right) return true;
   return (
-    canonicalizeJson(unsignedProjection(left)) === canonicalizeJson(unsignedProjection(right)) &&
-    left.signature.algorithm === right.signature.algorithm &&
+    left.signature.value === right.signature.value &&
     left.signature.publicKey === right.signature.publicKey &&
-    left.signature.value === right.signature.value
+    left.signature.algorithm === right.signature.algorithm &&
+    canonicalizeJson(unsignedProjection(left)) === canonicalizeJson(unsignedProjection(right))
   );
 }
