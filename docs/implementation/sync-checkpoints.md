@@ -3,6 +3,8 @@
 - Status: Implemented first slice
 - Date: 2026-05-24
 
+Normative design decision is recorded in `docs/adr/003-sync-offsets-and-cursors-v1.md`.
+
 ## Scope
 
 Sync checkpoints record the latest accepted reader position for a source, stream, and scope tuple.

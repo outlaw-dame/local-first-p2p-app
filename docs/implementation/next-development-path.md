@@ -148,6 +148,10 @@ Exit criteria:
 
 - A future PR can implement offsets without guessing schema or semantics.
 
+Status update (2026-05-27):
+
+- Completed by `docs/adr/003-sync-offsets-and-cursors-v1.md`.
+
 ### Step 6 - Decide identity-control model before identity expansion
 
 Deliverable:
