@@ -157,7 +157,7 @@ function normalizeOptions(options: PwaSendBudgetOptions): Required<PwaSendBudget
 
 function normalizeNowMs(now: Date | undefined): number {
   const value = (now ?? new Date()).getTime();
-  if (!Number.isSafeInteger(value) || value < 0) throw new TypeError('send budget now must be a valid Date.');
+  if (!Number.isSafeInteger(value)) throw new TypeError('send budget now must be a valid Date.');
   return value;
 }
 
