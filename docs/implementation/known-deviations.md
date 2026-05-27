@@ -40,11 +40,11 @@ Guardrails:
 - Add fixture/conformance discipline before expanding the protocol surface.
 - Preserve the full-peer adapter path.
 
-### D2 - Identity implementation currently means local device bootstrap, not root/controller identity
+### D2 - Identity implementation started as local device bootstrap, now partially implements identity-control log enforcement
 
-Status: **Temporary / ADR recorded, implementation pending**
+Status: **Temporary / ADR recorded, partially implemented**
 
-The planning docs define a root/controller identity that delegates scoped authority to device keys through an identity control log. The current code implements local device identity bootstrap and encrypted local private-key storage.
+The planning docs define a root/controller identity that delegates scoped authority to device keys through an identity control log. The current code now includes identity-control event schemas, projection fixtures, and inbound projection enforcement, while still relying on local device bootstrap for account lifecycle entry.
 
 Why acceptable:
 
@@ -53,15 +53,15 @@ Why acceptable:
 
 Risk:
 
-- Future code may confuse local device identity with account identity.
+- Future code may still confuse local device identity bootstrap with full account identity lifecycle.
 
 Required before expansion:
 
 - ADR for root/controller identity model (completed in ADR-001).
-- Identity control log protocol objects and fixtures (started with initial identity-control event schemas and fixtures; still incomplete).
+- Identity control log protocol objects and fixtures (initial set implemented; broadening and interop coverage still incomplete).
 - Inbound sync now enforces and persists identity control projection state atomically with event/checkpoint writes.
-- Device add/revoke/rotate semantics.
-- Capability grant/revoke model.
+- Device add/revoke/rotate semantics across full account workflows and migration paths.
+- Capability grant/revoke model for runtime authorization decisions (beyond projection persistence).
 - Epoch/checkpoint verification rules (projection seed monotonic epoch checks implemented; broader migration/interop rules still incomplete).
 
 ### D3 - `mutationOutbox` exists before planned public social outbox

@@ -1,11 +1,11 @@
 # Current Implementation State
 
-This document is the implementation truth layer for the repository. It describes what the code currently does after PR #19 merged, not the complete target architecture.
+This document is the implementation truth layer for the repository. It describes what the code currently does, not the complete target architecture.
 
 ## Current baseline
 
 - Default branch: `master`.
-- Latest verified baseline for this documentation pass: merge commit `01b386b59372ccadcbd909635f572c189c3190a3` from PR #19, `Harden malformed bridge response handling`.
+- Latest verified baseline for this documentation pass: default branch `master` after PR #52, `persist identity projection during inbound apply`.
 - The repo currently implements a PWA-first local-first foundation with signed local events, persistent local device identity, a Dexie local store, a mutation outbox, HTTP bridge transport, bridge service primitives, and bridge store backends.
 
 ## Applications
@@ -71,6 +71,11 @@ Implemented today:
 - Versioned `UnsignedEventEnvelope` / `SignedEventEnvelope`.
 - Event kinds:
   - `identity.device.created`,
+  - `identity.controller.created`,
+  - `identity.device.authorized`,
+  - `identity.device.revoked`,
+  - `identity.capability.granted`,
+  - `identity.capability.revoked`,
   - `contact.petname.set`,
   - `note.created`,
   - `outbox.test.created`.
@@ -83,18 +88,18 @@ Implemented today:
 - `SourceRef`.
 - JSON canonicalization helper.
 - Unsigned/signed event validation helpers.
+- Identity event payload and privacy-scope validation rules.
 
 Not implemented yet:
 
-- Identity control events.
-- Capabilities/delegations.
+- Broader capability credential formats and delegation envelope beyond the current identity event payloads.
 - Room events.
 - MLS control records.
 - Media manifests.
 - Name bindings.
 - Search objects.
 - Compression descriptors.
-- Golden fixture suite for protocol conformance.
+- Comprehensive golden fixture suite for protocol conformance.
 
 ### `packages/crypto`
 
@@ -122,15 +127,14 @@ Implemented today:
 - Local protection-key persistence.
 - Single-flight identity bootstrap to avoid duplicate concurrent identity creation.
 - Fail-closed restore if an active identity exists but required local protection key is missing.
+- Identity control-log projection primitives (`createEmptyIdentityControlState`, `applyIdentityControlEvent`, `seedIdentityControlProjection`).
+- Control-log enforcement rules for controller signer, epoch monotonicity, entity existence, and deterministic replay behavior.
 
 Not implemented yet:
 
-- Root/controller identity.
-- Identity control log.
-- Device add/revoke/rotate events.
-- Capability grant/revoke model.
-- Identity epochs/checkpoints.
-- Recovery/supersession flow.
+- Full account-level identity workflow that migrates local bootstrap into authoritative root/controller lifecycle management.
+- Identity recovery/supersession flow.
+- Controller key rotation semantics.
 - Contact-card import/export.
 
 ### `packages/local-store`
@@ -143,7 +147,9 @@ Implemented today:
   - `mutationOutbox`,
   - `eventSummaries`,
   - `deviceIdentities`,
-  - `localProtectionKeys`.
+  - `localProtectionKeys`,
+  - `syncCheckpoints`,
+  - `identityControlProjections`.
 - Signed event persistence and retrieval.
 - Mutation outbox enqueue, list, due-list, claim, confirm, conflict, fail, retry scheduling, stale-claim recovery, and status counts.
 - Local event summary storage.
@@ -181,6 +187,7 @@ Implemented today:
   - malformed/invalid successful bridge responses do not falsely confirm local outbox entries.
 - Inbound sync batch processing with checkpoint identity preflight and stale-sequence handling.
 - Pull-and-process inbound sync helper with checkpoint-before/after support.
+- Cryptographic signature verification for inbound signed events before persistence.
 - Identity control event enforcement on inbound apply using `@lfp2p/identity` control-log logic.
 - Atomic identity control projection persistence during inbound apply.
 

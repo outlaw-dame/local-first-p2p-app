@@ -11,12 +11,12 @@ This document compares the original planning documents with the current implemen
 | Dexie operational local store | Implemented foundation | Strong/partial | Signed events, outbox, event summaries, device identities, local protection keys exist. Contacts, media, sync offsets do not yet. |
 | PGlite local query/search | Implemented early slice | Partial | Current search is basic escaped `LIKE`; richer FTS/hybrid/vector plan is not implemented. |
 | TanStack Query boundary | Implemented initial boundary | Strong | Present as provider; not used as local-first source of truth. |
-| Signed durable events | Implemented foundation | Strong/partial | Event envelopes are signed. Protocol fixture discipline is still missing. |
+| Signed durable events | Implemented foundation | Strong | Event envelopes are signed and fixture-backed validation tests are in place. |
 | Source references | Implemented basic type | Partial | `SourceRef` exists, but broader source provenance model is not yet integrated through search/media/bridge. |
-| Local device identity | Implemented early slice | Partial | Device bootstrap and encrypted local private-key material exist. Root/controller identity and identity-control log do not. |
-| Identity control log | Planned with ADR | Deferred | ADR-001 defines the model; protocol fixtures and projection code are not implemented yet. |
+| Local device identity | Implemented early slice | Partial | Device bootstrap and encrypted local private-key material exist. Full root/controller account lifecycle wiring is still incomplete. |
+| Identity control log | Implemented early slice | Partial | ADR-001 model has protocol kinds, fixture coverage, projection logic, and inbound enforcement; full account lifecycle and runtime authorization wiring remain. |
 | Capability delegation | Not started | Deferred | Needs identity-control model first. |
-| Revocation epochs/checkpoints | Not started | Deferred | Must not be approximated by wall-clock-only logic. |
+| Revocation epochs/checkpoints | Implemented early slice | Partial | Monotonic epoch rules are enforced in control-log projection logic; broader migration/interop semantics remain. |
 | Bridge as non-authoritative infrastructure | Implemented foundation | Strong | Bridge verifies signatures, handles idempotency, and does not define private source-of-truth state. |
 | Bridge response as untrusted input | Implemented and hardened | Strong | PR #19 hardened malformed/invalid response handling and avoided duplicate parser logic. |
 | Durable Streams/WebSocket bridge | Not started | Deferred | Needs sync offsets/cursors and threat model first. |
@@ -31,7 +31,7 @@ This document compares the original planning documents with the current implemen
 | Local intelligence/hybrid search | Implemented early search seed | Partial | PGlite package is a seed; no permission-aware SearchObject, vectors, or fusion yet. |
 | Compression/chunking/dedupe | Not started | Deferred | Needs CompressionDescriptor and safety policy. |
 | Service worker/offline shell | Not started | Deferred | PWA is local-first at app-store level, but offline shell caching policy is not implemented. |
-| ADR/threat-model discipline | Implemented partial discipline | Partial | ADR-000, ADR-001, and ADR-002 now exist. Additional threat-model coverage and implementation follow-through are still required. |
+| ADR/threat-model discipline | Implemented partial discipline | Partial | ADR-000, ADR-001, and ADR-002 exist. Additional threat-model coverage and implementation follow-through are still required. |
 
 ## Important distinctions
 
@@ -46,12 +46,11 @@ Do not reuse the term `outbox` ambiguously in future docs or code. When needed, 
 
 ### Local device identity vs account identity
 
-The current identity implementation is a local device session bootstrap. It should not be treated as the final account identity model.
+The current identity implementation includes local device session bootstrap plus identity-control projection logic. It should not be treated as the final account identity model.
 
 Planned account identity still requires:
 
 - root/controller identity,
-- identity control log,
 - device authorization and revocation,
 - capability delegation,
 - recovery and supersession,
