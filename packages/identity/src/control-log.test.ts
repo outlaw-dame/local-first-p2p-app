@@ -170,6 +170,7 @@ describe('identity control projection seed', () => {
     expect(state.devices['device:laptop']?.status).toBe('revoked');
     expect(state.devices['device:laptop']?.revokedAt).toBe('2026-05-26T00:00:03.000Z');
     expect(state.epoch).toBe(2);
+    expect(state.lastEventId).toBe('evt_device_revoked_duplicate');
   });
 
   it('validates capability delegate id during revocation', () => {
@@ -217,6 +218,33 @@ describe('identity control projection seed', () => {
     expect(() => seedIdentityControlProjection([controllerCreated, conflictingDuplicate])).toThrow(
       /has conflicting signed event content/
     );
+  });
+
+  it('updates lastEventId for idempotent capability revocation replay', () => {
+    const state = seedIdentityControlProjection([
+      signedIdentityEvent('identity.controller.created', {
+        controllerPublicKey: 'controller-public-key',
+        initialDeviceId: 'device:primary'
+      }, 1, 'evt_controller_created'),
+      signedIdentityEvent('identity.capability.granted', {
+        capabilityId: 'cap:sync:device:laptop',
+        delegateDeviceId: 'device:laptop',
+        scope: 'sync:outbox',
+        expiresAt: '2026-06-01T00:00:00.000Z'
+      }, 2, 'evt_capability_granted'),
+      signedIdentityEvent('identity.capability.revoked', {
+        capabilityId: 'cap:sync:device:laptop',
+        delegateDeviceId: 'device:laptop'
+      }, 3, 'evt_capability_revoked_first'),
+      signedIdentityEvent('identity.capability.revoked', {
+        capabilityId: 'cap:sync:device:laptop',
+        delegateDeviceId: 'device:laptop'
+      }, 4, 'evt_capability_revoked_duplicate')
+    ]);
+
+    expect(state.capabilities['cap:sync:device:laptop']?.status).toBe('revoked');
+    expect(state.capabilities['cap:sync:device:laptop']?.revokedAt).toBe('2026-05-26T00:00:03.000Z');
+    expect(state.lastEventId).toBe('evt_capability_revoked_duplicate');
   });
 
   it('ignores non-identity events for projection seed', () => {
