@@ -7,7 +7,7 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "references": [{ "path": "../local-store" }, { "path": "../protocol" }],
+  "references": [{ "path": "../local-store" }, { "path": "../protocol" }, { "path": "../identity" }],
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"]
 }

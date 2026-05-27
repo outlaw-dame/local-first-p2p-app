@@ -12,6 +12,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@lfp2p/identity": "workspace:*",
     "@lfp2p/local-store": "workspace:*",
     "@lfp2p/protocol": "workspace:*"
   },

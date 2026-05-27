@@ -148,13 +148,15 @@ Implemented today:
 - Mutation outbox enqueue, list, due-list, claim, confirm, conflict, fail, retry scheduling, stale-claim recovery, and status counts.
 - Local event summary storage.
 - Device identity/protection-key storage.
+- Sync checkpoints with monotonic advance/rewind policy controls.
+- Atomic inbound event + checkpoint persistence helper.
+- Identity control projection persistence table and atomic projection update hook.
 - Transaction wrapper over known tables.
 
 Not implemented yet:
 
 - Contacts/petnames tables.
 - Pending media metadata.
-- Sync offsets/checkpoints.
 - Full identity-state projection.
 - Message/feed materialized views.
 - Search rebuild pipeline from signed events.
@@ -177,6 +179,10 @@ Implemented today:
   - unsupported status rejected,
   - permanent 4xx remains non-retryable,
   - malformed/invalid successful bridge responses do not falsely confirm local outbox entries.
+- Inbound sync batch processing with checkpoint identity preflight and stale-sequence handling.
+- Pull-and-process inbound sync helper with checkpoint-before/after support.
+- Identity control event enforcement on inbound apply using `@lfp2p/identity` control-log logic.
+- Atomic identity control projection persistence during inbound apply.
 
 Not implemented yet:
 
@@ -184,7 +190,6 @@ Not implemented yet:
 - WebSocket transport.
 - WebRTC adapter.
 - PWA foreground/resume/network-restoration runner.
-- Sync offsets/cursor persistence.
 - Multi-bridge failover.
 
 ### `packages/search`

@@ -10,7 +10,8 @@ export type LocalFirstTableName =
   | 'eventSummaries'
   | 'deviceIdentities'
   | 'localProtectionKeys'
-  | 'syncCheckpoints';
+  | 'syncCheckpoints'
+  | 'identityControlProjections';
 
 export type StoredSignedEvent = Readonly<{
   eventId: string;
@@ -93,6 +94,7 @@ export type AdvanceSyncCheckpointInput = SyncCheckpointKey &
 export type PutSignedEventWithSyncCheckpointInput = Readonly<{
   event: SignedEventEnvelope;
   checkpoint: AdvanceSyncCheckpointInput;
+  identityControlProjectionUpdate?: IdentityControlProjectionUpdate;
 }>;
 
 export type PutSignedEventWithSyncCheckpointResult = Readonly<{
@@ -101,6 +103,40 @@ export type PutSignedEventWithSyncCheckpointResult = Readonly<{
 }>;
 
 export type SyncCheckpointRejectedCode = 'stale-sequence' | 'cursor-mismatch';
+
+export type StoredIdentityControlDevice = Readonly<{
+  deviceId: string;
+  publicKey: string;
+  status: 'active' | 'revoked';
+  authorizedAt: string;
+  revokedAt?: string;
+}>;
+
+export type StoredIdentityControlCapability = Readonly<{
+  capabilityId: string;
+  delegateDeviceId: string;
+  scope: string;
+  expiresAt?: string;
+  status: 'granted' | 'revoked';
+  grantedAt: string;
+  revokedAt?: string;
+}>;
+
+export type StoredIdentityControlProjection = Readonly<{
+  identityId: string;
+  controllerPublicKey?: string;
+  epoch: number;
+  devices: Readonly<Record<string, StoredIdentityControlDevice>>;
+  capabilities: Readonly<Record<string, StoredIdentityControlCapability>>;
+  lastEventId?: string;
+  updatedAt: string;
+}>;
+
+export type IdentityControlProjectionUpdate = (
+  current: StoredIdentityControlProjection | undefined,
+  event: SignedEventEnvelope,
+  updatedAt: string
+) => Promise<StoredIdentityControlProjection> | StoredIdentityControlProjection;
 
 type OutboxStatusPatch = Readonly<{
   updatedAt?: string;
@@ -126,6 +162,7 @@ class LocalFirstP2PDatabase extends Dexie {
   deviceIdentities!: Table<StoredDeviceIdentity, string>;
   localProtectionKeys!: Table<StoredLocalProtectionKey, string>;
   syncCheckpoints!: Table<StoredSyncCheckpoint, string>;
+  identityControlProjections!: Table<StoredIdentityControlProjection, string>;
 
   constructor(name: string) {
     super(name);
@@ -155,6 +192,15 @@ class LocalFirstP2PDatabase extends Dexie {
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
       syncCheckpoints: 'checkpointId'
+    });
+    this.version(5).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt'
     });
   }
 }
@@ -353,6 +399,11 @@ export class DexieLocalFirstStore {
     return this.#db.syncCheckpoints.get(syncCheckpointId(normalized));
   }
 
+  async getIdentityControlProjection(identityId: string): Promise<StoredIdentityControlProjection | undefined> {
+    requireNonEmpty(identityId, 'identityId');
+    return this.#db.identityControlProjections.get(identityId);
+  }
+
   async advanceSyncCheckpoint(input: AdvanceSyncCheckpointInput): Promise<StoredSyncCheckpoint> {
     const next = validateAdvanceSyncCheckpointInput(input);
     return this.transaction('rw', ['syncCheckpoints'], async () => {
@@ -368,12 +419,25 @@ export class DexieLocalFirstStore {
     input: PutSignedEventWithSyncCheckpointInput
   ): Promise<PutSignedEventWithSyncCheckpointResult> {
     const next = validateAdvanceSyncCheckpointInput(input.checkpoint);
-    return this.transaction('rw', ['signedEvents', 'syncCheckpoints'], async () => {
+    const tables: LocalFirstTableName[] = ['signedEvents', 'syncCheckpoints'];
+    if (input.identityControlProjectionUpdate !== undefined) {
+      tables.push('identityControlProjections');
+    }
+    return this.transaction('rw', tables, async () => {
       const existing = await this.#db.syncCheckpoints.get(next.checkpointId);
       const decision = checkpointAdvanceDecision(existing, next, input.checkpoint.allowRewind === true);
       if (decision === 'skip' && existing) return { status: 'skipped', checkpoint: existing };
 
       validateSignedEvent(input.event);
+      if (input.identityControlProjectionUpdate !== undefined) {
+        const currentProjection = await this.#db.identityControlProjections.get(input.event.author);
+        const nextProjection = await input.identityControlProjectionUpdate(currentProjection, input.event, next.updatedAt);
+        validateIdentityControlProjection(nextProjection);
+        if (nextProjection.identityId !== input.event.author) {
+          throw new Error('identity control projection identityId must match event.author');
+        }
+        await this.#db.identityControlProjections.put(nextProjection);
+      }
       await this.#db.signedEvents.put(storedSignedEvent(input.event));
       await this.#db.syncCheckpoints.put(next);
       return { status: 'stored', checkpoint: next };
@@ -394,7 +458,23 @@ export class DexieLocalFirstStore {
   }
 
   async delete(): Promise<void> {
-    await this.#db.delete();
+    if (typeof globalThis.indexedDB === 'undefined') {
+      this.#db.close();
+      return;
+    }
+    try {
+      await this.#db.delete();
+    } catch (error) {
+      if (
+        error instanceof TypeError &&
+        error.message.includes('deleteDatabase') &&
+        typeof globalThis.indexedDB === 'undefined'
+      ) {
+        this.#db.close();
+        return;
+      }
+      throw error;
+    }
   }
 
   async updateOutboxStatus(idempotencyKey: string, status: OutboxStatus, patch: OutboxStatusPatch): Promise<void> {
@@ -418,6 +498,8 @@ export class DexieLocalFirstStore {
         return this.#db.localProtectionKeys;
       case 'syncCheckpoints':
         return this.#db.syncCheckpoints;
+      case 'identityControlProjections':
+        return this.#db.identityControlProjections;
     }
   }
 }
@@ -493,6 +575,18 @@ function validateAdvanceSyncCheckpointInput(input: AdvanceSyncCheckpointInput): 
     sequence: input.sequence,
     updatedAt
   };
+}
+
+function validateIdentityControlProjection(projection: StoredIdentityControlProjection): void {
+  requireNonEmpty(projection.identityId, 'identityId');
+  requireNonNegativeInteger(projection.epoch, 'epoch');
+  if (projection.controllerPublicKey !== undefined) {
+    requireNonEmpty(projection.controllerPublicKey, 'controllerPublicKey');
+  }
+  if (projection.lastEventId !== undefined) {
+    requireNonEmpty(projection.lastEventId, 'lastEventId');
+  }
+  requireIsoDate(projection.updatedAt, 'updatedAt');
 }
 
 function normalizeSyncCheckpointKey(key: SyncCheckpointKey): SyncCheckpointKey {

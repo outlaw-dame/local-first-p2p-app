@@ -2,9 +2,11 @@ import {
   SyncCheckpointRejectedError,
   type DexieLocalFirstStore,
   type MutationOutboxEntry,
+  type StoredIdentityControlProjection,
   type StoredSyncCheckpoint,
   type SyncCheckpointKey
 } from '@lfp2p/local-store';
+import { applyIdentityControlEvent, createEmptyIdentityControlState } from '@lfp2p/identity';
 import { type SignedEventEnvelope } from '@lfp2p/protocol';
 import {
   isAbortError,
@@ -233,7 +235,16 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
           sequence: record.sequence,
           updatedAt: record.receivedAt ?? nowIso,
           ...(input.allowRewind === undefined ? {} : { allowRewind: input.allowRewind })
-        }
+        },
+        ...(isIdentityControlEvent(record.event)
+          ? {
+              identityControlProjectionUpdate: (
+                current: StoredIdentityControlProjection | undefined,
+                event: SignedEventEnvelope,
+                updatedAt: string
+              ) => applyIdentityControlProjectionUpdate(current, event, updatedAt)
+            }
+          : {})
       });
       checkpointAfter = stored.checkpoint;
       if (stored.status === 'stored') result.applied += 1;
@@ -611,4 +622,46 @@ function normalizeErrorMessage(error: unknown): string {
 function normalizeInboundSyncErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) return error.message;
   return 'Unknown inbound sync failure';
+}
+
+function isIdentityControlEvent(event: unknown): event is SignedEventEnvelope {
+  if (!isRecord(event) || typeof event.kind !== 'string') return false;
+  switch (event.kind) {
+    case 'identity.controller.created':
+    case 'identity.device.authorized':
+    case 'identity.device.revoked':
+    case 'identity.capability.granted':
+    case 'identity.capability.revoked':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function applyIdentityControlProjectionUpdate(
+  current: StoredIdentityControlProjection | undefined,
+  event: SignedEventEnvelope,
+  updatedAt: string
+): StoredIdentityControlProjection {
+  const state = current === undefined ? createEmptyIdentityControlState() : toIdentityControlState(current);
+  const nextState = applyIdentityControlEvent(state, event);
+  return {
+    identityId: event.author,
+    epoch: nextState.epoch,
+    devices: nextState.devices,
+    capabilities: nextState.capabilities,
+    ...(nextState.controllerPublicKey === undefined ? {} : { controllerPublicKey: nextState.controllerPublicKey }),
+    ...(nextState.lastEventId === undefined ? {} : { lastEventId: nextState.lastEventId }),
+    updatedAt
+  };
+}
+
+function toIdentityControlState(current: StoredIdentityControlProjection) {
+  return {
+    epoch: current.epoch,
+    devices: current.devices,
+    capabilities: current.capabilities,
+    ...(current.controllerPublicKey === undefined ? {} : { controllerPublicKey: current.controllerPublicKey }),
+    ...(current.lastEventId === undefined ? {} : { lastEventId: current.lastEventId })
+  };
 }
