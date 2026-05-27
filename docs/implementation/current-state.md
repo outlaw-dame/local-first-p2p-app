@@ -93,7 +93,7 @@ Implemented today:
 - JSON canonicalization helper.
 - Unsigned/signed event validation helpers.
 - Identity event payload and privacy-scope validation rules.
-- Fixture-driven protocol envelope validation, including a cryptographically valid signed-event fixture shape.
+- Fixture-driven protocol envelope validation.
 
 Not implemented yet:
 
@@ -115,7 +115,7 @@ Implemented today:
 - AES-GCM protection-key helpers.
 - Key material encryption/decryption used by local device identity.
 - SHA-256 base64url helper.
-- Fixture-backed signed-event signature verification tests (valid signature acceptance + tampered signature rejection).
+- Fixture-backed signed-event signature verification tests with crypto-local fixtures (valid signature acceptance + tampered signature rejection).
 
 Not implemented yet:
 
