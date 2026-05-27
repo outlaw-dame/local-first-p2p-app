@@ -6,7 +6,12 @@ import {
   sha256Base64Url,
   type SigningKeypair
 } from '@lfp2p/crypto';
-import { type DexieLocalFirstStore, type StoredDeviceIdentity } from '@lfp2p/local-store';
+import {
+  type DexieLocalFirstStore,
+  type IdentityVerificationStatus,
+  type StoredDeviceIdentity,
+  type StoredIdentityControlProjection
+} from '@lfp2p/local-store';
 export {
   applyIdentityControlEvent,
   createEmptyIdentityControlState,
@@ -28,11 +33,78 @@ export type LocalDeviceSession = Readonly<{
   keypair: SigningKeypair;
 }>;
 
+export type IdentityTrustSnapshot = Readonly<{
+  controllerPublicKey?: string;
+  primaryDeviceId?: string;
+  shortFingerprint?: string;
+  verificationStatus: IdentityVerificationStatus;
+}>;
+
 export class DeviceIdentityBootstrapError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'DeviceIdentityBootstrapError';
   }
+}
+
+export async function buildIdentityTrustSnapshot(input: Readonly<{
+  projection: StoredIdentityControlProjection | undefined;
+  expectedControllerPublicKey?: string;
+}>): Promise<IdentityTrustSnapshot> {
+  const projection = input.projection;
+  if (projection === undefined || projection.controllerPublicKey === undefined) {
+    return { verificationStatus: 'unknown' };
+  }
+
+  const primaryDeviceId = resolvePrimaryDeviceId(projection);
+  const verificationStatus = resolveIdentityVerificationStatus({
+    projection,
+    ...(input.expectedControllerPublicKey === undefined
+      ? {}
+      : { expectedControllerPublicKey: input.expectedControllerPublicKey })
+  });
+
+  return {
+    controllerPublicKey: projection.controllerPublicKey,
+    ...(primaryDeviceId === undefined ? {} : { primaryDeviceId }),
+    shortFingerprint: await createShortFingerprint(projection.controllerPublicKey),
+    verificationStatus
+  };
+}
+
+export function resolveIdentityVerificationStatus(input: Readonly<{
+  projection: StoredIdentityControlProjection | undefined;
+  expectedControllerPublicKey?: string;
+}>): IdentityVerificationStatus {
+  const projection = input.projection;
+  if (projection === undefined || projection.controllerPublicKey === undefined) return 'unknown';
+  if (
+    input.expectedControllerPublicKey !== undefined &&
+    input.expectedControllerPublicKey.trim().length > 0 &&
+    input.expectedControllerPublicKey !== projection.controllerPublicKey
+  ) {
+    return 'mismatch-detected';
+  }
+  const hasRevokedDevice = Object.values(projection.devices).some((device) => device.status === 'revoked');
+  if (hasRevokedDevice) return 'revoked-device-seen';
+  return 'controller-known';
+}
+
+function resolvePrimaryDeviceId(projection: StoredIdentityControlProjection): string | undefined {
+  const activeDevices = Object.values(projection.devices)
+    .filter((device) => device.status === 'active')
+    .sort((left, right) => {
+      const timeDelta = Date.parse(left.authorizedAt) - Date.parse(right.authorizedAt);
+      if (timeDelta !== 0) return timeDelta;
+      return left.deviceId.localeCompare(right.deviceId);
+    });
+  return activeDevices[0]?.deviceId;
+}
+
+async function createShortFingerprint(value: string): Promise<string> {
+  const digest = await sha256Base64Url(value);
+  const short = digest.slice(0, 16);
+  return `${short.slice(0, 4)}-${short.slice(4, 8)}-${short.slice(8, 12)}-${short.slice(12, 16)}`;
 }
 
 type PreparedDeviceSession = Readonly<{

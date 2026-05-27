@@ -345,6 +345,79 @@ describe('DexieLocalFirstStore', () => {
       await store.delete();
     }
   });
+
+  it('stores contact profiles with normalized petnames and lists by updated time', async () => {
+    const store = createLocalFirstStore(`contact-profile-${globalThis.crypto.randomUUID()}`);
+    try {
+      const alice = await store.putContactProfile({
+        identityId: 'identity:alice',
+        petname: '  Alice  ',
+        displayName: 'Alice A.',
+        note: 'Trusted local contact',
+        verificationStatus: 'controller-known',
+        updatedAt: '2026-05-22T00:00:00.000Z'
+      });
+      const bob = await store.putContactProfile({
+        identityId: 'identity:bob',
+        displayName: 'Bob B.',
+        verificationStatus: 'unknown',
+        updatedAt: '2026-05-22T00:01:00.000Z'
+      });
+
+      expect(alice).toMatchObject({
+        identityId: 'identity:alice',
+        petname: 'Alice',
+        petnameCanonical: 'alice',
+        verificationStatus: 'controller-known'
+      });
+      await expect(store.getContactProfile('identity:alice')).resolves.toMatchObject({ petname: 'Alice' });
+      await expect(store.listContactProfiles()).resolves.toMatchObject([
+        { identityId: 'identity:bob' },
+        { identityId: 'identity:alice' }
+      ]);
+      expect(bob.createdAt).toBe('2026-05-22T00:01:00.000Z');
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('rejects duplicate petnames and unsafe avatar URLs', async () => {
+    const store = createLocalFirstStore(`contact-profile-safety-${globalThis.crypto.randomUUID()}`);
+    try {
+      await store.putContactProfile({
+        identityId: 'identity:alice',
+        petname: 'alice',
+        verificationStatus: 'unknown',
+        updatedAt: '2026-05-22T00:00:00.000Z'
+      });
+      await expect(
+        store.putContactProfile({
+          identityId: 'identity:bob',
+          petname: 'Alice',
+          verificationStatus: 'unknown',
+          updatedAt: '2026-05-22T00:00:01.000Z'
+        })
+      ).rejects.toThrow(/petname already assigned/);
+      await expect(
+        store.putContactProfile({
+          identityId: 'identity:bob',
+          avatarUrl: 'javascript:alert(1)',
+          verificationStatus: 'unknown',
+          updatedAt: '2026-05-22T00:00:02.000Z'
+        })
+      ).rejects.toThrow(/avatarUrl must use http or https/);
+      await expect(
+        store.putContactProfile({
+          identityId: 'identity:bob',
+          avatarUrl: 'https://user:pass@example.test/avatar.png',
+          verificationStatus: 'unknown',
+          updatedAt: '2026-05-22T00:00:03.000Z'
+        })
+      ).rejects.toThrow(/must not include credentials/);
+    } finally {
+      await store.delete();
+    }
+  });
 });
 
 function makeOutboxEntry(overrides: Partial<MutationOutboxEntry> = {}): MutationOutboxEntry {

@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { createUnsignedEvent } from '@lfp2p/protocol';
 import { signEventEnvelope, verifySignedEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore } from '@lfp2p/local-store';
-import { DeviceIdentityBootstrapError, DeviceIdentityManager } from './index.js';
+import {
+  buildIdentityTrustSnapshot,
+  DeviceIdentityBootstrapError,
+  DeviceIdentityManager,
+  resolveIdentityVerificationStatus
+} from './index.js';
 
 describe('DeviceIdentityManager', () => {
   it('creates and reuses a persisted primary device identity', async () => {
@@ -71,5 +76,84 @@ describe('DeviceIdentityManager', () => {
     );
     expect((await store.getActiveDeviceIdentity())?.identityId).toBe('identity:missing-key');
     await store.delete();
+  });
+});
+
+describe('identity trust snapshot helpers', () => {
+  it('returns unknown when controller data is missing', () => {
+    expect(resolveIdentityVerificationStatus({ projection: undefined })).toBe('unknown');
+    expect(
+      resolveIdentityVerificationStatus({
+        projection: {
+          identityId: 'identity:alice',
+          epoch: 0,
+          devices: {},
+          capabilities: {},
+          updatedAt: '2026-05-22T00:00:00.000Z'
+        }
+      })
+    ).toBe('unknown');
+  });
+
+  it('derives mismatch and revoked states in priority order', () => {
+    const projection = {
+      identityId: 'identity:alice',
+      controllerPublicKey: 'controller-public-key',
+      epoch: 2,
+      devices: {
+        'device:alice-phone': {
+          deviceId: 'device:alice-phone',
+          publicKey: 'alice-phone-key',
+          status: 'active' as const,
+          authorizedAt: '2026-05-22T00:00:00.000Z'
+        },
+        'device:alice-laptop': {
+          deviceId: 'device:alice-laptop',
+          publicKey: 'alice-laptop-key',
+          status: 'revoked' as const,
+          authorizedAt: '2026-05-22T00:00:01.000Z',
+          revokedAt: '2026-05-22T00:00:02.000Z'
+        }
+      },
+      capabilities: {},
+      updatedAt: '2026-05-22T00:00:03.000Z'
+    };
+
+    expect(resolveIdentityVerificationStatus({ projection })).toBe('revoked-device-seen');
+    expect(
+      resolveIdentityVerificationStatus({ projection, expectedControllerPublicKey: 'different-controller-key' })
+    ).toBe('mismatch-detected');
+  });
+
+  it('builds short fingerprint and primary device from active devices', async () => {
+    const projection = {
+      identityId: 'identity:alice',
+      controllerPublicKey: 'controller-public-key',
+      epoch: 1,
+      devices: {
+        'device:alice-laptop': {
+          deviceId: 'device:alice-laptop',
+          publicKey: 'alice-laptop-key',
+          status: 'active' as const,
+          authorizedAt: '2026-05-22T00:00:02.000Z'
+        },
+        'device:alice-phone': {
+          deviceId: 'device:alice-phone',
+          publicKey: 'alice-phone-key',
+          status: 'active' as const,
+          authorizedAt: '2026-05-22T00:00:01.000Z'
+        }
+      },
+      capabilities: {},
+      updatedAt: '2026-05-22T00:00:03.000Z'
+    };
+
+    const snapshot = await buildIdentityTrustSnapshot({ projection });
+    expect(snapshot).toMatchObject({
+      verificationStatus: 'controller-known',
+      primaryDeviceId: 'device:alice-phone',
+      controllerPublicKey: 'controller-public-key'
+    });
+    expect(snapshot.shortFingerprint).toMatch(/^[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}$/);
   });
 });

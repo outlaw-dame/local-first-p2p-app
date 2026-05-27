@@ -28,3 +28,34 @@ body,
   font-size: 16px;
   line-height: 1.45;
 }
+
+.lfp2p-muted-detail {
+  color: var(--lfp2p-color-secondary-label);
+  font-size: 13px;
+  margin: 8px 0;
+  word-break: break-word;
+}
+
+.lfp2p-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--lfp2p-color-secondary-label);
+}
+
+.lfp2p-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--lfp2p-hairline);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 16px;
+  color: var(--lfp2p-color-label);
+  background: var(--lfp2p-color-background);
+}
+
+.lfp2p-input:focus {
+  outline: 2px solid color-mix(in srgb, var(--f7-theme-color) 35%, transparent);
+  outline-offset: 1px;
+}

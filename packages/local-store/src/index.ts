@@ -11,7 +11,14 @@ export type LocalFirstTableName =
   | 'deviceIdentities'
   | 'localProtectionKeys'
   | 'syncCheckpoints'
-  | 'identityControlProjections';
+  | 'identityControlProjections'
+  | 'contactProfiles';
+
+export type IdentityVerificationStatus =
+  | 'unknown'
+  | 'controller-known'
+  | 'revoked-device-seen'
+  | 'mismatch-detected';
 
 export type StoredSignedEvent = Readonly<{
   eventId: string;
@@ -132,6 +139,34 @@ export type StoredIdentityControlProjection = Readonly<{
   updatedAt: string;
 }>;
 
+export type StoredContactProfile = Readonly<{
+  identityId: string;
+  petname?: string;
+  petnameCanonical?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  note?: string;
+  primaryDeviceId?: string;
+  controllerPublicKey?: string;
+  shortFingerprint?: string;
+  verificationStatus: IdentityVerificationStatus;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export type PutContactProfileInput = Readonly<{
+  identityId: string;
+  petname?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  note?: string;
+  primaryDeviceId?: string;
+  controllerPublicKey?: string;
+  shortFingerprint?: string;
+  verificationStatus?: IdentityVerificationStatus;
+  updatedAt?: string;
+}>;
+
 export type IdentityControlProjectionUpdate = (
   current: StoredIdentityControlProjection | undefined,
   event: SignedEventEnvelope,
@@ -163,6 +198,7 @@ class LocalFirstP2PDatabase extends Dexie {
   localProtectionKeys!: Table<StoredLocalProtectionKey, string>;
   syncCheckpoints!: Table<StoredSyncCheckpoint, string>;
   identityControlProjections!: Table<StoredIdentityControlProjection, string>;
+  contactProfiles!: Table<StoredContactProfile, string>;
 
   constructor(name: string) {
     super(name);
@@ -201,6 +237,16 @@ class LocalFirstP2PDatabase extends Dexie {
       localProtectionKeys: 'keyId, algorithm, createdAt',
       syncCheckpoints: 'checkpointId',
       identityControlProjections: 'identityId, updatedAt'
+    });
+    this.version(6).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt'
     });
   }
 }
@@ -404,6 +450,49 @@ export class DexieLocalFirstStore {
     return this.#db.identityControlProjections.get(identityId);
   }
 
+  async getContactProfile(identityId: string): Promise<StoredContactProfile | undefined> {
+    requireNonEmpty(identityId, 'identityId');
+    return this.#db.contactProfiles.get(identityId);
+  }
+
+  async listContactProfiles(limit = 100): Promise<StoredContactProfile[]> {
+    requirePositiveInteger(limit, 'limit');
+    return this.#db.contactProfiles.orderBy('updatedAt').reverse().limit(limit).toArray();
+  }
+
+  async putContactProfile(input: PutContactProfileInput): Promise<StoredContactProfile> {
+    const prepared = validatePutContactProfileInput(input);
+    return this.transaction('rw', ['contactProfiles'], async () => {
+      const existing = await this.#db.contactProfiles.get(prepared.identityId);
+      if (prepared.petnameCanonical !== undefined) {
+        const conflicting = await this.#db.contactProfiles.where('petnameCanonical').equals(prepared.petnameCanonical).first();
+        if (conflicting !== undefined && conflicting.identityId !== prepared.identityId) {
+          throw new Error(`petname already assigned to ${conflicting.identityId}`);
+        }
+      }
+
+      const createdAt = existing?.createdAt ?? prepared.updatedAt;
+      const next: StoredContactProfile = {
+        identityId: prepared.identityId,
+        ...(prepared.petname === undefined ? {} : { petname: prepared.petname }),
+        ...(prepared.petnameCanonical === undefined ? {} : { petnameCanonical: prepared.petnameCanonical }),
+        ...(prepared.displayName === undefined ? {} : { displayName: prepared.displayName }),
+        ...(prepared.avatarUrl === undefined ? {} : { avatarUrl: prepared.avatarUrl }),
+        ...(prepared.note === undefined ? {} : { note: prepared.note }),
+        ...(prepared.primaryDeviceId === undefined ? {} : { primaryDeviceId: prepared.primaryDeviceId }),
+        ...(prepared.controllerPublicKey === undefined ? {} : { controllerPublicKey: prepared.controllerPublicKey }),
+        ...(prepared.shortFingerprint === undefined ? {} : { shortFingerprint: prepared.shortFingerprint }),
+        verificationStatus: prepared.verificationStatus,
+        createdAt,
+        updatedAt: prepared.updatedAt
+      };
+
+      validateStoredContactProfile(next);
+      await this.#db.contactProfiles.put(next);
+      return next;
+    });
+  }
+
   async advanceSyncCheckpoint(input: AdvanceSyncCheckpointInput): Promise<StoredSyncCheckpoint> {
     const next = validateAdvanceSyncCheckpointInput(input);
     return this.transaction('rw', ['syncCheckpoints'], async () => {
@@ -496,6 +585,8 @@ export class DexieLocalFirstStore {
         return this.#db.syncCheckpoints;
       case 'identityControlProjections':
         return this.#db.identityControlProjections;
+      case 'contactProfiles':
+        return this.#db.contactProfiles;
     }
   }
 }
@@ -583,6 +674,131 @@ function validateIdentityControlProjection(projection: StoredIdentityControlProj
     requireNonEmpty(projection.lastEventId, 'lastEventId');
   }
   requireIsoDate(projection.updatedAt, 'updatedAt');
+}
+
+function validateStoredContactProfile(profile: StoredContactProfile): void {
+  requireNonEmpty(profile.identityId, 'identityId');
+  if (profile.petname !== undefined) {
+    requireLengthBetween(profile.petname, 'petname', 1, 64);
+  }
+  if (profile.petnameCanonical !== undefined) {
+    requireLengthBetween(profile.petnameCanonical, 'petnameCanonical', 1, 64);
+  }
+  if (profile.displayName !== undefined) {
+    requireLengthBetween(profile.displayName, 'displayName', 1, 96);
+  }
+  if (profile.avatarUrl !== undefined) {
+    validateAvatarUrl(profile.avatarUrl);
+  }
+  if (profile.note !== undefined) {
+    requireLengthBetween(profile.note, 'note', 1, 280);
+  }
+  if (profile.primaryDeviceId !== undefined) {
+    requireNonEmpty(profile.primaryDeviceId, 'primaryDeviceId');
+  }
+  if (profile.controllerPublicKey !== undefined) {
+    requireNonEmpty(profile.controllerPublicKey, 'controllerPublicKey');
+  }
+  if (profile.shortFingerprint !== undefined) {
+    requireLengthBetween(profile.shortFingerprint, 'shortFingerprint', 8, 64);
+  }
+  requireIdentityVerificationStatus(profile.verificationStatus, 'verificationStatus');
+  requireIsoDate(profile.createdAt, 'createdAt');
+  requireIsoDate(profile.updatedAt, 'updatedAt');
+}
+
+function validatePutContactProfileInput(input: PutContactProfileInput): Readonly<{
+  identityId: string;
+  petname?: string;
+  petnameCanonical?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  note?: string;
+  primaryDeviceId?: string;
+  controllerPublicKey?: string;
+  shortFingerprint?: string;
+  verificationStatus: IdentityVerificationStatus;
+  updatedAt: string;
+}> {
+  const identityId = requireNonEmpty(input.identityId, 'identityId');
+  const petname = normalizeOptionalText(input.petname, 'petname', 64);
+  const petnameCanonical = petname === undefined ? undefined : normalizePetnameCanonical(petname);
+  const displayName = normalizeOptionalText(input.displayName, 'displayName', 96);
+  const avatarUrl = normalizeOptionalAvatarUrl(input.avatarUrl);
+  const note = normalizeOptionalText(input.note, 'note', 280);
+  const primaryDeviceId = normalizeOptionalText(input.primaryDeviceId, 'primaryDeviceId', 128);
+  const controllerPublicKey = normalizeOptionalText(input.controllerPublicKey, 'controllerPublicKey', 2048);
+  const shortFingerprint = normalizeOptionalText(input.shortFingerprint, 'shortFingerprint', 64);
+  const verificationStatus = requireIdentityVerificationStatus(input.verificationStatus ?? 'unknown', 'verificationStatus');
+  const updatedAt = input.updatedAt ?? new Date().toISOString();
+  requireIsoDate(updatedAt, 'updatedAt');
+  return {
+    identityId,
+    ...(petname === undefined ? {} : { petname }),
+    ...(petnameCanonical === undefined ? {} : { petnameCanonical }),
+    ...(displayName === undefined ? {} : { displayName }),
+    ...(avatarUrl === undefined ? {} : { avatarUrl }),
+    ...(note === undefined ? {} : { note }),
+    ...(primaryDeviceId === undefined ? {} : { primaryDeviceId }),
+    ...(controllerPublicKey === undefined ? {} : { controllerPublicKey }),
+    ...(shortFingerprint === undefined ? {} : { shortFingerprint }),
+    verificationStatus,
+    updatedAt
+  };
+}
+
+function normalizeOptionalText(value: string | undefined, label: string, maxLength: number): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = value.trim();
+  if (normalized.length === 0) return undefined;
+  requireLengthBetween(normalized, label, 1, maxLength);
+  return normalized;
+}
+
+function normalizePetnameCanonical(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function normalizeOptionalAvatarUrl(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = value.trim();
+  if (normalized.length === 0) return undefined;
+  validateAvatarUrl(normalized);
+  return normalized;
+}
+
+function validateAvatarUrl(value: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('avatarUrl must be a valid URL');
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('avatarUrl must use http or https');
+  }
+  if (parsed.username.length > 0 || parsed.password.length > 0) {
+    throw new Error('avatarUrl must not include credentials');
+  }
+}
+
+function requireLengthBetween(value: string, label: string, min: number, max: number): string {
+  if (value.length < min || value.length > max) {
+    throw new Error(`${label} length must be between ${min} and ${max}`);
+  }
+  return value;
+}
+
+function requireIdentityVerificationStatus(value: string, label: string): IdentityVerificationStatus {
+  switch (value) {
+    case 'unknown':
+    case 'controller-known':
+    case 'revoked-device-seen':
+    case 'mismatch-detected':
+      return value;
+    default:
+      throw new Error(`${label} is invalid`);
+  }
 }
 
 function normalizeSyncCheckpointKey(key: SyncCheckpointKey): SyncCheckpointKey {

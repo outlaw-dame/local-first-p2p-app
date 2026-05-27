@@ -23,6 +23,8 @@ Implemented today:
 - Local event persistence and local materialized event summaries through `@lfp2p/local-store`.
 - Mutation outbox enqueueing through `@lfp2p/local-store` and idempotency helpers from `@lfp2p/sync-client`.
 - Runtime capability snapshot through `@lfp2p/platform`.
+- Local identity trust cues with controller fingerprint display/copy and verification status.
+- Local petname editing backed by contact profile persistence.
 
 Not implemented yet:
 
@@ -149,7 +151,8 @@ Implemented today:
   - `deviceIdentities`,
   - `localProtectionKeys`,
   - `syncCheckpoints`,
-  - `identityControlProjections`.
+  - `identityControlProjections`,
+  - `contactProfiles`.
 - Signed event persistence and retrieval.
 - Mutation outbox enqueue, list, due-list, claim, confirm, conflict, fail, retry scheduling, stale-claim recovery, and status counts.
 - Local event summary storage.
@@ -157,6 +160,7 @@ Implemented today:
 - Sync checkpoints with monotonic advance/rewind policy controls.
 - Atomic inbound event + checkpoint persistence helper.
 - Identity control projection persistence table and atomic projection update hook.
+- Contact profile persistence with normalized petname uniqueness and validation guards.
 - Transaction wrapper over known tables.
 
 Not implemented yet:

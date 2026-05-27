@@ -13,13 +13,23 @@ import {
 } from 'framework7-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { signEventEnvelope, type SigningKeypair } from '@lfp2p/crypto';
-import { DeviceIdentityManager, type LocalDeviceIdentity } from '@lfp2p/identity';
-import { createLocalFirstStore, type EventSummaryView } from '@lfp2p/local-store';
+import {
+  buildIdentityTrustSnapshot,
+  DeviceIdentityManager,
+  type IdentityTrustSnapshot,
+  type LocalDeviceIdentity
+} from '@lfp2p/identity';
+import {
+  createLocalFirstStore,
+  type EventSummaryView,
+  type StoredContactProfile
+} from '@lfp2p/local-store';
 import { detectPlatformCapabilities } from '@lfp2p/platform';
 import { createUnsignedEvent } from '@lfp2p/protocol';
 import { createIdempotencyKey } from '@lfp2p/sync-client';
 import { LocalFirstStatusCard } from '@lfp2p/ui';
 import { formatPwaBridgeConfigStatus, resolvePwaBridgeConfig } from './pwa-bridge-config.js';
+import { formatIdentityVerificationStatus, identityVerificationBadgeColor } from './pwa-identity-tools.js';
 import { manualOutboxDeliveryActionEnabled, runManualOutboxDelivery } from './pwa-outbox-manual-gate.js';
 import { createPwaOutboxDeliveryPlan, formatPwaOutboxDeliveryPlan } from './pwa-outbox-delivery-plan.js';
 import {
@@ -43,6 +53,8 @@ const queryClient = new QueryClient({
 type LocalRefreshSnapshot = Readonly<{
   identity: LocalDeviceIdentity;
   keypair: SigningKeypair;
+  contactProfile: StoredContactProfile;
+  trustSnapshot: IdentityTrustSnapshot;
   events: EventSummaryView[];
   pendingOutboxCount: number;
 }>;
@@ -70,6 +82,9 @@ function HomePage(): JSX.Element {
   const controlledDeliveryControllerRef = useRef<PwaForegroundSyncController | null>(null);
   const [identity, setIdentity] = useState<LocalDeviceIdentity | null>(null);
   const [keypair, setKeypair] = useState<SigningKeypair | null>(null);
+  const [contactProfile, setContactProfile] = useState<StoredContactProfile | null>(null);
+  const [trustSnapshot, setTrustSnapshot] = useState<IdentityTrustSnapshot | null>(null);
+  const [petnameDraft, setPetnameDraft] = useState('');
   const [events, setEvents] = useState<EventSummaryView[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [status, setStatus] = useState('Bootstrapping local device identity.');
@@ -82,14 +97,31 @@ function HomePage(): JSX.Element {
   );
 
   const loadLocalState = useCallback(async (): Promise<LocalRefreshSnapshot> => {
-    const [session, eventSummaries, outbox] = await Promise.all([
-      identityManager.getOrCreatePrimaryDeviceSession(),
+    const session = await identityManager.getOrCreatePrimaryDeviceSession();
+    const [eventSummaries, outbox, projection, existingProfile] = await Promise.all([
       store.listEventSummaries(),
-      store.listPendingOutbox()
+      store.listPendingOutbox(),
+      store.getIdentityControlProjection(session.identity.identityId),
+      store.getContactProfile(session.identity.identityId)
     ]);
+    const trust = await buildIdentityTrustSnapshot({
+      projection,
+      ...(existingProfile?.controllerPublicKey === undefined
+        ? {}
+        : { expectedControllerPublicKey: existingProfile.controllerPublicKey })
+    });
+    const contactProfile = await upsertSelfContactProfile({
+      store,
+      identity: session.identity,
+      trust,
+      existingProfile
+    });
+
     return {
       identity: session.identity,
       keypair: session.keypair,
+      contactProfile,
+      trustSnapshot: trust,
       events: eventSummaries,
       pendingOutboxCount: outbox.length
     };
@@ -98,6 +130,9 @@ function HomePage(): JSX.Element {
   const applyLocalStateSnapshot = useCallback((snapshot: LocalRefreshSnapshot, readyStatus: string): void => {
     setIdentity(snapshot.identity);
     setKeypair(snapshot.keypair);
+    setContactProfile(snapshot.contactProfile);
+    setTrustSnapshot(snapshot.trustSnapshot);
+    setPetnameDraft(snapshot.contactProfile.petname ?? '');
     setEvents(snapshot.events);
     setPendingCount(snapshot.pendingOutboxCount);
     setStatus(readyStatus);
@@ -218,6 +253,52 @@ function HomePage(): JSX.Element {
     applyLocalStateSnapshot(await loadLocalState(), 'Local event created and queued without waiting for the network.');
   }
 
+  async function savePetname(): Promise<void> {
+    if (identity === null || contactProfile === null) {
+      setStatus('Identity profile is not ready yet.');
+      return;
+    }
+    try {
+      await store.putContactProfile({
+        identityId: identity.identityId,
+        petname: petnameDraft,
+        ...(contactProfile.displayName === undefined ? {} : { displayName: contactProfile.displayName }),
+        ...(contactProfile.avatarUrl === undefined ? {} : { avatarUrl: contactProfile.avatarUrl }),
+        ...(contactProfile.note === undefined ? {} : { note: contactProfile.note }),
+        ...(contactProfile.primaryDeviceId === undefined ? {} : { primaryDeviceId: contactProfile.primaryDeviceId }),
+        ...(contactProfile.controllerPublicKey === undefined
+          ? {}
+          : { controllerPublicKey: contactProfile.controllerPublicKey }),
+        ...(contactProfile.shortFingerprint === undefined
+          ? {}
+          : { shortFingerprint: contactProfile.shortFingerprint }),
+        verificationStatus: trustSnapshot?.verificationStatus ?? contactProfile.verificationStatus,
+        updatedAt: new Date().toISOString()
+      });
+      applyLocalStateSnapshot(await loadLocalState(), 'Petname updated locally.');
+    } catch (error: unknown) {
+      setStatus(`Petname update failed: ${formatUiError(error)}`);
+    }
+  }
+
+  async function copyFingerprint(): Promise<void> {
+    if (trustSnapshot?.shortFingerprint === undefined) {
+      setStatus('No trusted controller fingerprint is available yet.');
+      return;
+    }
+    const payload = `${trustSnapshot.shortFingerprint} ${trustSnapshot.controllerPublicKey ?? ''}`.trim();
+    if (typeof globalThis.navigator?.clipboard?.writeText !== 'function') {
+      setStatus('Clipboard API is unavailable in this runtime.');
+      return;
+    }
+    try {
+      await globalThis.navigator.clipboard.writeText(payload);
+      setStatus('Identity fingerprint copied to clipboard.');
+    } catch (error: unknown) {
+      setStatus(`Fingerprint copy failed: ${formatUiError(error)}`);
+    }
+  }
+
   async function runManualForegroundSync(): Promise<void> {
     const syncController = syncControllerRef.current;
     if (syncController === null) {
@@ -279,6 +360,42 @@ function HomePage(): JSX.Element {
         <ListItem title="Identity" after={identity ? truncateMiddle(identity.identityId) : 'bootstrapping'} />
         <ListItem title="Device" after={identity ? truncateMiddle(identity.deviceId) : 'bootstrapping'} />
       </List>
+
+      <BlockTitle>
+        Identity trust cues{' '}
+        <Badge color={identityVerificationBadgeColor(trustSnapshot?.verificationStatus ?? 'unknown')}>
+          {trustSnapshot?.verificationStatus ?? 'unknown'}
+        </Badge>
+      </BlockTitle>
+      <Block inset strong>
+        <p>{formatIdentityVerificationStatus(trustSnapshot?.verificationStatus ?? 'unknown')}</p>
+        <p className="lfp2p-muted-detail">Controller key: {trustSnapshot?.controllerPublicKey ? truncateMiddle(trustSnapshot.controllerPublicKey, 42) : 'not available yet'}</p>
+        <p className="lfp2p-muted-detail">Fingerprint: {trustSnapshot?.shortFingerprint ?? 'not available yet'}</p>
+        <Button outline disabled={trustSnapshot?.shortFingerprint === undefined} onClick={() => void copyFingerprint()}>
+          Copy fingerprint
+        </Button>
+      </Block>
+
+      <BlockTitle>Petname book (local)</BlockTitle>
+      <Block inset strong>
+        <label className="lfp2p-label" htmlFor="petname-input">
+          Petname
+        </label>
+        <input
+          id="petname-input"
+          className="lfp2p-input"
+          value={petnameDraft}
+          maxLength={64}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(event) => setPetnameDraft(event.target.value)}
+          placeholder="Set a local nickname"
+        />
+        <Button outline disabled={identity === null} onClick={() => void savePetname()}>
+          Save petname
+        </Button>
+        <p className="lfp2p-muted-detail">Current petname: {contactProfile?.petname ?? 'not set'}</p>
+      </Block>
 
       <BlockTitle>Runtime capability snapshot</BlockTitle>
       <List inset strong>
@@ -348,4 +465,39 @@ function truncateMiddle(value: string, maxLength = 28): string {
 
 function formatUiError(error: unknown): string {
   return formatPwaSyncStatusText(error, 'Unknown error');
+}
+
+async function upsertSelfContactProfile(input: Readonly<{
+  store: ReturnType<typeof createLocalFirstStore>;
+  identity: LocalDeviceIdentity;
+  trust: IdentityTrustSnapshot;
+  existingProfile: StoredContactProfile | undefined;
+}>): Promise<StoredContactProfile> {
+  const existing = input.existingProfile;
+  const nextVerificationStatus = input.trust.verificationStatus;
+  const nextPrimaryDeviceId = input.trust.primaryDeviceId ?? existing?.primaryDeviceId ?? input.identity.deviceId;
+  const nextControllerPublicKey = input.trust.controllerPublicKey ?? existing?.controllerPublicKey;
+  const nextShortFingerprint = input.trust.shortFingerprint ?? existing?.shortFingerprint;
+
+  const requiresUpdate =
+    existing === undefined ||
+    existing.verificationStatus !== nextVerificationStatus ||
+    existing.primaryDeviceId !== nextPrimaryDeviceId ||
+    existing.controllerPublicKey !== nextControllerPublicKey ||
+    existing.shortFingerprint !== nextShortFingerprint;
+
+  if (!requiresUpdate && existing !== undefined) return existing;
+
+  return input.store.putContactProfile({
+    identityId: input.identity.identityId,
+    ...(existing?.petname === undefined ? {} : { petname: existing.petname }),
+    ...(existing?.displayName === undefined ? {} : { displayName: existing.displayName }),
+    ...(existing?.avatarUrl === undefined ? {} : { avatarUrl: existing.avatarUrl }),
+    ...(existing?.note === undefined ? {} : { note: existing.note }),
+    primaryDeviceId: nextPrimaryDeviceId,
+    ...(nextControllerPublicKey === undefined ? {} : { controllerPublicKey: nextControllerPublicKey }),
+    ...(nextShortFingerprint === undefined ? {} : { shortFingerprint: nextShortFingerprint }),
+    verificationStatus: nextVerificationStatus,
+    updatedAt: new Date().toISOString()
+  });
 }
