@@ -5,6 +5,7 @@ import invalidRefFixture from '../fixtures/invalid/event-envelope-malformed-sour
 import invalidVersionFixture from '../fixtures/invalid/event-envelope-unsupported-version.json';
 import invalidIdentityControllerPrivacyFixture from '../fixtures/invalid/identity-controller-created-invalid-privacy.json';
 import invalidIdentityControllerMissingPublicKeyFixture from '../fixtures/invalid/identity-controller-created-missing-controller-public-key.json';
+import validCryptoSignedEventFixture from '../fixtures/valid/signed-event-envelope-crypto-valid.v1.json';
 import validIdentityControllerCreatedFixture from '../fixtures/valid/identity-controller-created.v1.json';
 import validSignedEventFixture from '../fixtures/valid/signed-event-envelope.v1.json';
 import { canonicalizeJson, validateSignedEvent, type SignedEventEnvelope } from './index.js';
@@ -33,6 +34,10 @@ describe('protocol event fixtures', () => {
 
   it('accepts the valid identity controller created fixture', () => {
     expect(() => validateSignedEvent(validIdentityControllerCreatedFixture as SignedEventEnvelope)).not.toThrow();
+  });
+
+  it('accepts the cryptographically signed event fixture shape', () => {
+    expect(() => validateSignedEvent(validCryptoSignedEventFixture as SignedEventEnvelope)).not.toThrow();
   });
 
   it.each(invalidSignedEventFixtures)('rejects the %s fixture', (_name, fixture, errorPattern) => {
