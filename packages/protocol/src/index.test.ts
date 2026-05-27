@@ -77,4 +77,37 @@ describe('protocol event envelopes', () => {
       } as never)
     ).toThrow(/ref\.sourceId|ref\.sequence/);
   });
+
+  it('validates identity-control payload requirements', () => {
+    const identityControllerCreated = createUnsignedEvent({
+      eventId: 'evt_identity_controller_created',
+      kind: 'identity.controller.created',
+      author: 'identity:alice',
+      deviceId: 'device:alice-phone',
+      createdAt: '2026-05-26T00:00:00.000Z',
+      privacy: 'self',
+      payload: {
+        controllerPublicKey: 'controller-public-key',
+        initialDeviceId: 'device:alice-phone'
+      }
+    });
+    expect(() => validateUnsignedEvent(identityControllerCreated)).not.toThrow();
+
+    expect(() =>
+      validateUnsignedEvent({
+        ...identityControllerCreated,
+        privacy: 'device-local'
+      } as never)
+    ).toThrow(/must use privacy scope self/);
+
+    expect(() =>
+      validateUnsignedEvent({
+        ...identityControllerCreated,
+        payload: {
+          ...identityControllerCreated.payload,
+          controllerPublicKey: ''
+        }
+      } as never)
+    ).toThrow(/payload\.controllerPublicKey must be a non-empty string/);
+  });
 });

@@ -7,6 +7,14 @@ import {
   type SigningKeypair
 } from '@lfp2p/crypto';
 import { type DexieLocalFirstStore, type StoredDeviceIdentity } from '@lfp2p/local-store';
+export {
+  applyIdentityControlEvent,
+  createEmptyIdentityControlState,
+  seedIdentityControlProjection,
+  type IdentityControlCapability,
+  type IdentityControlDevice,
+  type IdentityControlState
+} from './control-log.js';
 
 export type LocalDeviceIdentity = Readonly<{
   identityId: string;

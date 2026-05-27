@@ -1,5 +1,10 @@
 const EVENT_KINDS = [
   'identity.device.created',
+  'identity.controller.created',
+  'identity.device.authorized',
+  'identity.device.revoked',
+  'identity.capability.granted',
+  'identity.capability.revoked',
   'contact.petname.set',
   'note.created',
   'outbox.test.created'
@@ -86,6 +91,7 @@ export function validateUnsignedEvent(event: UnsignedEventEnvelope): void {
   requirePrivacyScope(event.privacy);
   requireSafePositiveInteger(event.schemaVersion, 'schemaVersion');
   assertJsonObject(event.payload, 'payload');
+  validatePayloadForKind(event.kind, event.payload, event.privacy);
   event.refs?.forEach(validateSourceRef);
 }
 
@@ -194,6 +200,76 @@ function requireSafeNonNegativeInteger(value: number, label: string): number {
 function requireSafePositiveInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${label} must be a safe positive integer`);
+  }
+  return value;
+}
+
+function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: PrivacyScope): void {
+  switch (kind) {
+    case 'identity.controller.created': {
+      requirePrivacyForIdentityEvent(privacy, kind);
+      requireObjectString(payload, 'controllerPublicKey', kind);
+      requireObjectString(payload, 'initialDeviceId', kind);
+      break;
+    }
+    case 'identity.device.authorized': {
+      requirePrivacyForIdentityEvent(privacy, kind);
+      requireObjectString(payload, 'authorizedDeviceId', kind);
+      requireObjectString(payload, 'authorizedPublicKey', kind);
+      requireObjectSafePositiveInteger(payload, 'epoch', kind);
+      break;
+    }
+    case 'identity.device.revoked': {
+      requirePrivacyForIdentityEvent(privacy, kind);
+      requireObjectString(payload, 'revokedDeviceId', kind);
+      requireObjectSafePositiveInteger(payload, 'epoch', kind);
+      break;
+    }
+    case 'identity.capability.granted': {
+      requirePrivacyForIdentityEvent(privacy, kind);
+      requireObjectString(payload, 'capabilityId', kind);
+      requireObjectString(payload, 'delegateDeviceId', kind);
+      requireObjectString(payload, 'scope', kind);
+      requireObjectIsoDate(payload, 'expiresAt', kind);
+      break;
+    }
+    case 'identity.capability.revoked': {
+      requirePrivacyForIdentityEvent(privacy, kind);
+      requireObjectString(payload, 'capabilityId', kind);
+      requireObjectString(payload, 'delegateDeviceId', kind);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function requirePrivacyForIdentityEvent(privacy: PrivacyScope, kind: EventKind): void {
+  if (privacy !== 'self') {
+    throw new Error(`${kind} must use privacy scope self`);
+  }
+}
+
+function requireObjectString(payload: JsonObject, field: string, kind: EventKind): string {
+  const value = payload[field];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${kind} payload.${field} must be a non-empty string`);
+  }
+  return value;
+}
+
+function requireObjectSafePositiveInteger(payload: JsonObject, field: string, kind: EventKind): number {
+  const value = payload[field];
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${kind} payload.${field} must be a safe positive integer`);
+  }
+  return value;
+}
+
+function requireObjectIsoDate(payload: JsonObject, field: string, kind: EventKind): string {
+  const value = payload[field];
+  if (typeof value !== 'string' || value.trim().length === 0 || !Number.isFinite(Date.parse(value))) {
+    throw new Error(`${kind} payload.${field} must be an ISO date string`);
   }
   return value;
 }
