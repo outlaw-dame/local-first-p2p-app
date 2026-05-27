@@ -40,6 +40,23 @@ export type IdentityTrustSnapshot = Readonly<{
   verificationStatus: IdentityVerificationStatus;
 }>;
 
+export type IdentityOperationAuthorizationStatus =
+  | 'authorized-bootstrap'
+  | 'authorized-controller-device'
+  | 'authorized-capability'
+  | 'blocked-mismatch'
+  | 'blocked-device-missing'
+  | 'blocked-device-revoked'
+  | 'blocked-capability-missing'
+  | 'blocked-capability-expired';
+
+export type IdentityOperationAuthorization = Readonly<{
+  authorized: boolean;
+  status: IdentityOperationAuthorizationStatus;
+  scope: string;
+  reason: string;
+}>;
+
 export class DeviceIdentityBootstrapError extends Error {
   constructor(message: string) {
     super(message);
@@ -90,6 +107,95 @@ export function resolveIdentityVerificationStatus(input: Readonly<{
   return 'controller-known';
 }
 
+export function authorizeIdentityOperation(input: Readonly<{
+  projection: StoredIdentityControlProjection | undefined;
+  deviceId: string;
+  scope: string;
+  verificationStatus?: IdentityVerificationStatus;
+  now?: Date | string;
+}>): IdentityOperationAuthorization {
+  const deviceId = requireNonEmptyString(input.deviceId, 'deviceId');
+  const scope = requireNonEmptyString(input.scope, 'scope');
+  const verificationStatus = input.verificationStatus ?? resolveIdentityVerificationStatus({ projection: input.projection });
+  if (verificationStatus === 'mismatch-detected') {
+    return {
+      authorized: false,
+      status: 'blocked-mismatch',
+      scope,
+      reason: 'Controller key mismatch detected for this identity.'
+    };
+  }
+
+  const projection = input.projection;
+  if (projection === undefined || projection.controllerPublicKey === undefined) {
+    return {
+      authorized: true,
+      status: 'authorized-bootstrap',
+      scope,
+      reason: 'Identity control projection is not available yet; allowing bootstrap path.'
+    };
+  }
+
+  const device = projection.devices[deviceId];
+  if (device === undefined) {
+    return {
+      authorized: false,
+      status: 'blocked-device-missing',
+      scope,
+      reason: 'Current device is not present in the identity control projection.'
+    };
+  }
+  if (device.status === 'revoked') {
+    return {
+      authorized: false,
+      status: 'blocked-device-revoked',
+      scope,
+      reason: 'Current device has been revoked in the identity control projection.'
+    };
+  }
+
+  const grantedCapabilities = Object.values(projection.capabilities).filter(
+    (capability) => capability.delegateDeviceId === deviceId && capability.scope === scope && capability.status === 'granted'
+  );
+  if (Object.keys(projection.capabilities).length === 0) {
+    return {
+      authorized: true,
+      status: 'authorized-controller-device',
+      scope,
+      reason: 'Current active device is authorized by controller projection.'
+    };
+  }
+  if (grantedCapabilities.length === 0) {
+    return {
+      authorized: false,
+      status: 'blocked-capability-missing',
+      scope,
+      reason: `No granted capability authorizes scope ${scope} for this device.`
+    };
+  }
+
+  const nowMillis = resolveAuthorizationNow(input.now);
+  const activeCapability = grantedCapabilities.find((capability) => {
+    if (capability.expiresAt === undefined) return true;
+    return Date.parse(capability.expiresAt) > nowMillis;
+  });
+  if (activeCapability === undefined) {
+    return {
+      authorized: false,
+      status: 'blocked-capability-expired',
+      scope,
+      reason: `Granted capability for scope ${scope} has expired.`
+    };
+  }
+
+  return {
+    authorized: true,
+    status: 'authorized-capability',
+    scope,
+    reason: `Granted capability ${activeCapability.capabilityId} authorizes scope ${scope}.`
+  };
+}
+
 function resolvePrimaryDeviceId(projection: StoredIdentityControlProjection): string | undefined {
   const activeDevices = Object.values(projection.devices)
     .filter((device) => device.status === 'active')
@@ -105,6 +211,19 @@ async function createShortFingerprint(value: string): Promise<string> {
   const digest = await sha256Base64Url(value);
   const short = digest.slice(0, 16);
   return `${short.slice(0, 4)}-${short.slice(4, 8)}-${short.slice(8, 12)}-${short.slice(12, 16)}`;
+}
+
+function resolveAuthorizationNow(value: Date | string | undefined): number {
+  if (value === undefined) return Date.now();
+  if (value instanceof Date) return value.getTime();
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) throw new Error('now must be a Date or ISO date string');
+  return parsed;
+}
+
+function requireNonEmptyString(value: string, label: string): string {
+  if (value.trim().length === 0) throw new Error(`${label} must be a non-empty string`);
+  return value;
 }
 
 type PreparedDeviceSession = Readonly<{

@@ -4,6 +4,7 @@ import { createUnsignedEvent } from '@lfp2p/protocol';
 import { signEventEnvelope, verifySignedEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore } from '@lfp2p/local-store';
 import {
+  authorizeIdentityOperation,
   buildIdentityTrustSnapshot,
   DeviceIdentityBootstrapError,
   DeviceIdentityManager,
@@ -155,5 +156,138 @@ describe('identity trust snapshot helpers', () => {
       controllerPublicKey: 'controller-public-key'
     });
     expect(snapshot.shortFingerprint).toMatch(/^[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}$/);
+  });
+
+  it('authorizes bootstrap path and blocks mismatch before capability checks', () => {
+    expect(
+      authorizeIdentityOperation({
+        projection: undefined,
+        deviceId: 'device:alice-phone',
+        scope: 'sync:outbox'
+      })
+    ).toMatchObject({ authorized: true, status: 'authorized-bootstrap' });
+
+    expect(
+      authorizeIdentityOperation({
+        projection: {
+          identityId: 'identity:alice',
+          controllerPublicKey: 'controller-public-key',
+          epoch: 1,
+          devices: {
+            'device:alice-phone': {
+              deviceId: 'device:alice-phone',
+              publicKey: 'alice-phone-key',
+              status: 'active',
+              authorizedAt: '2026-05-22T00:00:00.000Z'
+            }
+          },
+          capabilities: {},
+          updatedAt: '2026-05-22T00:00:00.000Z'
+        },
+        deviceId: 'device:alice-phone',
+        scope: 'sync:outbox',
+        verificationStatus: 'mismatch-detected'
+      })
+    ).toMatchObject({ authorized: false, status: 'blocked-mismatch' });
+  });
+
+  it('enforces device presence, revocation, and capability expiry', () => {
+    const projection = {
+      identityId: 'identity:alice',
+      controllerPublicKey: 'controller-public-key',
+      epoch: 2,
+      devices: {
+        'device:alice-phone': {
+          deviceId: 'device:alice-phone',
+          publicKey: 'alice-phone-key',
+          status: 'active' as const,
+          authorizedAt: '2026-05-22T00:00:00.000Z'
+        },
+        'device:alice-laptop': {
+          deviceId: 'device:alice-laptop',
+          publicKey: 'alice-laptop-key',
+          status: 'revoked' as const,
+          authorizedAt: '2026-05-22T00:00:01.000Z',
+          revokedAt: '2026-05-22T00:00:02.000Z'
+        }
+      },
+      capabilities: {
+        'cap:expired': {
+          capabilityId: 'cap:expired',
+          delegateDeviceId: 'device:alice-phone',
+          scope: 'sync:outbox',
+          expiresAt: '2026-05-22T00:00:03.000Z',
+          status: 'granted' as const,
+          grantedAt: '2026-05-22T00:00:00.000Z'
+        }
+      },
+      updatedAt: '2026-05-22T00:00:00.000Z'
+    };
+
+    expect(
+      authorizeIdentityOperation({ projection, deviceId: 'device:missing', scope: 'sync:outbox' })
+    ).toMatchObject({ authorized: false, status: 'blocked-device-missing' });
+    expect(
+      authorizeIdentityOperation({ projection, deviceId: 'device:alice-laptop', scope: 'sync:outbox' })
+    ).toMatchObject({ authorized: false, status: 'blocked-device-revoked' });
+    expect(
+      authorizeIdentityOperation({
+        projection,
+        deviceId: 'device:alice-phone',
+        scope: 'sync:outbox',
+        now: '2026-05-22T00:00:05.000Z'
+      })
+    ).toMatchObject({ authorized: false, status: 'blocked-capability-expired' });
+  });
+
+  it('authorizes active devices directly during transition and by capability when present', () => {
+    const noCapabilityProjection = {
+      identityId: 'identity:alice',
+      controllerPublicKey: 'controller-public-key',
+      epoch: 1,
+      devices: {
+        'device:alice-phone': {
+          deviceId: 'device:alice-phone',
+          publicKey: 'alice-phone-key',
+          status: 'active' as const,
+          authorizedAt: '2026-05-22T00:00:00.000Z'
+        }
+      },
+      capabilities: {},
+      updatedAt: '2026-05-22T00:00:00.000Z'
+    };
+    expect(
+      authorizeIdentityOperation({ projection: noCapabilityProjection, deviceId: 'device:alice-phone', scope: 'sync:outbox' })
+    ).toMatchObject({ authorized: true, status: 'authorized-controller-device' });
+
+    const capabilityProjection = {
+      ...noCapabilityProjection,
+      capabilities: {
+        'cap:sync:outbox': {
+          capabilityId: 'cap:sync:outbox',
+          delegateDeviceId: 'device:alice-phone',
+          scope: 'sync:outbox',
+          expiresAt: '2026-05-22T01:00:00.000Z',
+          status: 'granted' as const,
+          grantedAt: '2026-05-22T00:00:00.000Z'
+        }
+      }
+    };
+    expect(
+      authorizeIdentityOperation({
+        projection: capabilityProjection,
+        deviceId: 'device:alice-phone',
+        scope: 'sync:outbox',
+        now: '2026-05-22T00:30:00.000Z'
+      })
+    ).toMatchObject({ authorized: true, status: 'authorized-capability' });
+    expect(
+      authorizeIdentityOperation({
+        projection: capabilityProjection,
+        deviceId: 'device:alice-phone',
+        scope: 'sync:inbox',
+        now: '2026-05-22T00:30:00.000Z'
+      })
+    ).toMatchObject({ authorized: false, status: 'blocked-capability-missing' });
   });
 });

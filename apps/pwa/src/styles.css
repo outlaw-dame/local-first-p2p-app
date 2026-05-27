@@ -59,3 +59,23 @@ body,
   outline: 2px solid color-mix(in srgb, var(--f7-theme-color) 35%, transparent);
   outline-offset: 1px;
 }
+
+.lfp2p-textarea {
+  width: 100%;
+  min-height: 112px;
+  box-sizing: border-box;
+  border: 1px solid var(--lfp2p-hairline);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--lfp2p-color-label);
+  background: var(--lfp2p-color-background);
+  resize: vertical;
+}
+
+.lfp2p-textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--f7-theme-color) 35%, transparent);
+  outline-offset: 1px;
+}

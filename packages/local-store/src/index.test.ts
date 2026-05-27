@@ -353,6 +353,7 @@ describe('DexieLocalFirstStore', () => {
         identityId: 'identity:alice',
         petname: '  Alice  ',
         displayName: 'Alice A.',
+        websiteUrl: 'https://alice.example.test',
         note: 'Trusted local contact',
         verificationStatus: 'controller-known',
         updatedAt: '2026-05-22T00:00:00.000Z'
@@ -368,6 +369,7 @@ describe('DexieLocalFirstStore', () => {
         identityId: 'identity:alice',
         petname: 'Alice',
         petnameCanonical: 'alice',
+        websiteUrl: 'https://alice.example.test',
         verificationStatus: 'controller-known'
       });
       await expect(store.getContactProfile('identity:alice')).resolves.toMatchObject({ petname: 'Alice' });
@@ -414,6 +416,14 @@ describe('DexieLocalFirstStore', () => {
           updatedAt: '2026-05-22T00:00:03.000Z'
         })
       ).rejects.toThrow(/must not include credentials/);
+      await expect(
+        store.putContactProfile({
+          identityId: 'identity:bob',
+          websiteUrl: 'file:///tmp/profile.txt',
+          verificationStatus: 'unknown',
+          updatedAt: '2026-05-22T00:00:04.000Z'
+        })
+      ).rejects.toThrow(/websiteUrl must use http or https/);
     } finally {
       await store.delete();
     }
