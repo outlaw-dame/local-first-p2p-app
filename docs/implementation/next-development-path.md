@@ -127,6 +127,10 @@ Exit criteria:
 - Existing bridge hardening has a documented threat model.
 - Missing bridge controls are explicit before production runtime work.
 
+Status update (2026-05-27):
+
+- Completed by `docs/threat-model/bridge-compromise.md`.
+
 ### Step 5 - Design sync offsets/checkpoints before more transport work
 
 Deliverables:
