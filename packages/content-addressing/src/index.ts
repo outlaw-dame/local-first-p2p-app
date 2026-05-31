@@ -209,16 +209,21 @@ async function digestBytesWithAlgorithm(
     return new Uint8Array(digestBuffer);
   }
 
-  const nodeCrypto = await import('crypto' as any);
+  const nodeCrypto = (await import('node:crypto')) as typeof import('node:crypto');
   const hash = nodeCrypto.createHash(algorithm);
   hash.update(bytes);
   return new Uint8Array(hash.digest());
 }
 
+type BufferLike = {
+  from(input: Uint8Array): { toString(encoding: 'base64'): string };
+};
+
 function base64UrlEncode(bytes: Uint8Array): string {
-  const bufferCtor = (globalThis as any).Buffer;
+  const bufferCtor = (globalThis as { Buffer?: BufferLike }).Buffer;
   if (typeof bufferCtor !== 'undefined') {
-    return bufferCtor.from(bytes)
+    return bufferCtor
+      .from(bytes)
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
