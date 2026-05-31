@@ -209,7 +209,8 @@ async function digestBytesWithAlgorithm(
     return new Uint8Array(digestBuffer);
   }
 
-  const nodeCrypto = (await import('node:crypto')) as NodeCryptoLike;
+  const cryptoModuleName = 'node:crypto';
+  const nodeCrypto = (await import(cryptoModuleName)) as NodeCryptoLike;
   const hash = nodeCrypto.createHash(algorithm);
   hash.update(bytes);
   return new Uint8Array(hash.digest());
