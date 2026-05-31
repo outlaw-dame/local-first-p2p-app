@@ -15,6 +15,9 @@ Why this phase exists:
 - Some protocol primitives exist.
 - The doctrine requires fixtures, ADRs, threat models, and phase gates before larger feature surfaces.
 - Content-addressing and trust/safety are now explicit gates before media, public search, recommendation, public social outbox, and production bridge deployment.
+- The repository is a trust-centric object network, not an ActivityPub/ATProto/Memory implementation. This phase preserves the protocol-first foundation before feature expansion.
+
+For the architecture summary, see `docs/implementation/repository-architecture-summary.md`.
 
 ## Completed by prior documentation cleanup
 

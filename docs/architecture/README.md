@@ -25,6 +25,8 @@ The PDFs that produced this planning layer were created before this repository's
 
 Use these documents as planning authority and constraint source. Do not treat them as a statement that every target subsystem exists today.
 
+The authoritative architecture model for this repository is a local-first trust-centric object network, not ActivityPub, ATProto, or Memory. External systems may provide inspiration, but they are not the protocol authority for this repo.
+
 Before implementing a feature, check:
 
 1. Does the feature belong to the architecture target?

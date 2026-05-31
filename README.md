@@ -2,6 +2,10 @@
 
 This repository is the first concrete product/client implementation for the Local-First P2P architecture. The first user-facing surface is a local-first PWA light peer, while the architecture keeps a path open for future full peers and persistent availability peers.
 
+The architecture is trust-centric and protocol-first: it is built around signed events, identity, capabilities, content objects, trust decisions, and replication. It is not an ActivityPub, ATProto, or Memory protocol authority; those systems may inspire ideas, but they are not the repository's architecture authority.
+
+For the current repository architecture summary, see `docs/implementation/repository-architecture-summary.md`.
+
 ## Start here
 
 Read the documentation in this order before changing implementation direction:
@@ -27,6 +31,7 @@ The architecture documents are planning and doctrine artifacts created before im
 ### Packages
 
 - `packages/protocol` - signed event schemas, source references, canonicalization, and validation helpers.
+- `packages/content-addressing` - content-addressed integrity primitives, canonical JSON hashing, digest refs, and object refs.
 - `packages/crypto` - signing, verification, hashing, and local key-material protection helpers.
 - `packages/identity` - local device identity bootstrap and restore; not the final account identity-control model.
 - `packages/local-store` - Dexie-backed signed event store, mutation outbox, summaries, device identity records, and local protection-key records.

@@ -8,3 +8,4 @@ coverage/
 apps/pwa/.vite/
 playwright-report/
 test-results/
+*.tsbuildinfo

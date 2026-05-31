@@ -7,6 +7,7 @@ This document is the implementation truth layer for the repository. It describes
 - Default branch: `master`.
 - Latest verified baseline for this documentation pass: default branch `master` after PR #52, `persist identity projection during inbound apply`.
 - The repo currently implements a PWA-first local-first foundation with signed local events, persistent local device identity, a Dexie local store, a mutation outbox, HTTP bridge transport, bridge service primitives, and bridge store backends.
+- The architecture is intentionally trust-centric and protocol-first, not an ActivityPub/ATProto/Memory authority. It is built on signed events, identity, capabilities, content object integrity, trust evaluation, and replication.
 
 ## Applications
 
@@ -94,6 +95,28 @@ Implemented today:
 - Unsigned/signed event validation helpers.
 - Identity event payload and privacy-scope validation rules.
 - Fixture-driven protocol envelope validation.
+
+### `packages/content-addressing`
+
+Implemented today:
+
+- Module version constant: `lfp2p.content-addressing.v1`.
+- Content-oriented canonical JSON hashing.
+- Digest reference primitive with base64url encoded digest values.
+- Content, block, object, bundle, and storage location reference shapes.
+- Cross-platform digest creation with `sha256` / `sha512` support.
+- Digest verification helper.
+- Canonical JSON object ordering and undefined-value rejection.
+- Input validation on reference constructors with hardened offset/length checks.
+- Initial test coverage for stability, verification, invalid input handling, and module versioning.
+
+Not implemented yet:
+
+- Application-specific content object schemas.
+- CID wrapper formats beyond algorithm/digest refs.
+- Block/bundle storage adapters.
+- Multi-node location hint plumbing.
+- Direct protocol integration with existing event objects.
 
 Not implemented yet:
 
