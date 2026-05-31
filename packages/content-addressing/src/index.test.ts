@@ -12,7 +12,6 @@ import {
   type ObjectRef,
   type BlockRef,
   type BundleRef,
-  type DigestRef,
   type StorageLocationHint
 } from './index.js';
 
@@ -34,9 +33,9 @@ describe('@lfp2p/content-addressing', () => {
   });
 
   it('throws for unsupported hash algorithms', async () => {
-    await expect(() => createDigest('hello' as any, 'sha1' as any)).rejects.toThrow(
-      'Unsupported hash algorithm'
-    );
+    await expect(() =>
+      createDigest('hello', 'sha1' as unknown as 'sha256')
+    ).rejects.toThrow('Unsupported hash algorithm');
   });
 
   it('produces valid content links, block refs, and bundle refs', async () => {
@@ -69,14 +68,17 @@ describe('@lfp2p/content-addressing', () => {
 
   it('rejects invalid digest references', () => {
     expect(() =>
-      validateDigestRef({ algorithm: 'sha256', digest: 'not valid++' } as any)
+      validateDigestRef({
+        algorithm: 'sha256',
+        digest: 'not valid++'
+      } as unknown as Parameters<typeof validateDigestRef>[0])
     ).toThrow('DigestRef.digest must be base64url encoded without padding');
   });
 
   it('canonicalizes JSON with sorted object keys and rejects undefined values', () => {
     expect(canonicalizeJson({ b: 2, a: 1 })).toBe('{"a":1,"b":2}');
-    expect(() => canonicalizeJson({ a: undefined as any })).toThrow(
-      'JSON objects must not contain undefined values'
-    );
+    expect(() =>
+      canonicalizeJson({ a: undefined } as unknown as Parameters<typeof canonicalizeJson>[0])
+    ).toThrow('JSON objects must not contain undefined values');
   });
 });
