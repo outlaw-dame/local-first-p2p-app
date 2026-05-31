@@ -21,6 +21,12 @@ The PDFs that produced this planning layer were created before this repository's
 7. **07 - Frontend Architecture for the First PWA**
    - PWA light-peer frontend plan, Framework7/Dexie/PGlite/TanStack Query boundaries, service-worker rules, mutation safety, and frontend build order.
 
+## Architecture identity
+
+Before writing any protocol code or importing an external system, read:
+
+- [`architecture-identity.md`](architecture-identity.md) — what this system is, what it is not, the five first-class primitives, the three-layer integrity model, and the contamination firewall against foreign protocol semantics.
+
 ## How to use these docs
 
 Use these documents as planning authority and constraint source. Do not treat them as a statement that every target subsystem exists today.
