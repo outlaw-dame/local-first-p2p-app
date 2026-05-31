@@ -1,0 +1,16 @@
+{
+  "type": "bundle-ref",
+  "format": "car-v1",
+  "purpose": "report-evidence",
+  "roots": [
+    {
+      "kind": "digest",
+      "digest": {
+        "algorithm": "sha-256",
+        "digest": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
+      }
+    }
+  ],
+  "byteLength": 65536,
+  "encrypted": false
+}

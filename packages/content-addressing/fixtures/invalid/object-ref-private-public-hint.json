@@ -1,0 +1,17 @@
+{
+  "type": "object-ref",
+  "kind": "media",
+  "block": {
+    "type": "block-ref",
+    "source": {
+      "kind": "digest",
+      "digest": {
+        "algorithm": "sha-256",
+        "digest": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
+      }
+    },
+    "byteLength": 4096,
+    "offset": 0,
+    "privacy": "private"
+  }
+}

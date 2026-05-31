@@ -101,22 +101,26 @@ Implemented today:
 Implemented today:
 
 - Module version constant: `lfp2p.content-addressing.v1`.
-- Content-oriented canonical JSON hashing.
-- Digest reference primitive with base64url encoded digest values.
-- Content, block, object, bundle, and storage location reference shapes.
-- Cross-platform digest creation with `sha256` / `sha512` support.
-- Digest verification helper.
-- Canonical JSON object ordering and undefined-value rejection.
-- Input validation on reference constructors with hardened offset/length checks.
-- Initial test coverage for stability, verification, invalid input handling, and module versioning.
+- Stable error codes (`CA_*`) and `ContentAddressingError` class with `code` discriminator.
+- `DigestRef` with strict shape validation: SHA-256 / SHA-512 only, base64url-no-pad encoding, length pinned to the algorithm.
+- Canonical JSON encoder hardened against prototype pollution (rejects `__proto__`, `prototype`, `constructor` keys), non-finite numbers, `undefined` values, and unbounded recursion (`MAX_CANONICAL_DEPTH = 64`).
+- Cross-platform digest creation using WebCrypto where available, Node `crypto` fallback otherwise. Constant-time digest comparison in `verifyDigest`.
+- `ContentLink` with CIDv1-only policy: multibase prefix allowlist, per-prefix alphabet enforcement, CIDv0 (`Qm…`) rejection, URL-masquerade rejection, body-length envelope. Codec allowlist for `raw`, `dag-cbor`, `dag-json`, `dag-pb`, `dcel-cbor`, `drisl-cbor`, `car-v1`, `car-v2`, `lfp2p-bundle-v1`. `mediaType` rejected if it contains control characters (header-injection guard).
+- `StorageLocationHint` with the full kind enum (local-cache, indexeddb-block-store, opfs-block-store, bridge-store, relay-store, super-peer-store, https, s3-compatible, filebase, ipfs-compatible, car-archive, hypercore-compatible, native-file-store). URL credentials are rejected outright; scheme allowlists are enforced per kind. Priority must be a safe non-negative integer; `expiresAt` must parse as a date-time.
+- `BlockRef` with discriminated source (digest or content-link), required encryption descriptor for `privacy: 'private'`, compression descriptor with explicit decoded-size bound (`MAX_DECODED_BYTE_LENGTH` = 16 GiB) and ratio cap (`MAX_COMPRESSION_RATIO` = 1024), self-referencing dictionary rejection, byte-length cap (`MAX_BLOCK_BYTE_LENGTH` = 1 GiB), storage-hint count cap (`MAX_STORAGE_HINTS` = 32).
+- `BundleRef` with format enum (`car-v1`, `car-v2`, `lfp2p-bundle-v1`), purpose enum, non-empty roots, root-count cap (`MAX_BUNDLE_ROOTS` = 1024), byte-length cap (`MAX_BUNDLE_BYTE_LENGTH` = 64 GiB).
+- `ObjectRef` as a 12-kind discriminated union: content-backed (`event`, `record`, `media`, `safety-label`, `report`, `policy-decision`), `bundle` (carries `BundleRef`), `url` (HTTP(S) only, no credentials), `domain` (RFC 1035 label rules, no URL-as-domain), identity (`actor`, `community`, `infrastructure`) using opaque identityRef strings — explicitly not content refs.
+- Redaction helpers (`redactDigestRef`, `redactContentLink`, `redactBlockRef`) that emit short, non-reversible log strings instead of full digests/key refs.
+- Fixture suite: 10 valid + 12 invalid fixtures covering CIDv0 rejection, malformed/wrong-length digests, unknown algorithms/codecs, negative and non-integer byte lengths, compression bombs, URL credentials, empty bundle roots, malformed URLs, and missing encryption on private blocks.
+- 130+ tests covering happy path, structural rejection, adversarial inputs (prototype pollution, recursion bomb, header injection, URL credential injection, compression bomb by ratio and absolute size, recursive dictionary reference, control characters in identity refs).
 
 Not implemented yet:
 
-- Application-specific content object schemas.
-- CID wrapper formats beyond algorithm/digest refs.
-- Block/bundle storage adapters.
-- Multi-node location hint plumbing.
-- Direct protocol integration with existing event objects.
+- Application-specific content object schemas (event payload digests, search objects).
+- A full multihash/multicodec parser (CID validation is shape-level only).
+- Block/bundle storage adapters and runtime fetchers.
+- BLAKE3 algorithm support (reserved in the plan; not in the supported algorithm set yet).
+- Direct integration into `packages/protocol` event objects.
 
 Not implemented yet:
 

@@ -1,0 +1,20 @@
+{
+  "type": "block-ref",
+  "source": {
+    "kind": "digest",
+    "digest": {
+      "algorithm": "sha-256",
+      "digest": "yzGu_2zWE3aHkD9CmsiVcgI0Lh8bAFnPxKkSWtQrW9I"
+    }
+  },
+  "byteLength": 4096,
+  "offset": 0,
+  "privacy": "private",
+  "encryption": {
+    "scheme": "xchacha20-poly1305",
+    "keyRef": {
+      "algorithm": "sha-256",
+      "digest": "FhKw8sLnQzVcUuOmJrKpHvNxBdYgEaTcWjSyLpRiXqA"
+    }
+  }
+}

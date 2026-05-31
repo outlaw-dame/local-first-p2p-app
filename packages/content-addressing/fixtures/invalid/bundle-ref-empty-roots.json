@@ -1,0 +1,8 @@
+{
+  "type": "bundle-ref",
+  "format": "car-v1",
+  "purpose": "report-evidence",
+  "roots": [],
+  "byteLength": 1024,
+  "encrypted": false
+}

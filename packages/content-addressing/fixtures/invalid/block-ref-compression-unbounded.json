@@ -1,0 +1,18 @@
+{
+  "type": "block-ref",
+  "source": {
+    "kind": "digest",
+    "digest": {
+      "algorithm": "sha-256",
+      "digest": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
+    }
+  },
+  "byteLength": 1024,
+  "offset": 0,
+  "privacy": "public",
+  "compression": {
+    "algorithm": "zstd",
+    "encodedSize": 1024,
+    "decodedSize": 8589934592
+  }
+}

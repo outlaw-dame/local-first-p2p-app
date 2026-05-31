@@ -1,0 +1,20 @@
+{
+  "type": "object-ref",
+  "kind": "media",
+  "block": {
+    "type": "block-ref",
+    "source": {
+      "kind": "content-link",
+      "link": {
+        "type": "content-link",
+        "cid": "bafkreih2akiscaiv2qtnfwa6vlsa3o5pwf3jmkcswxlha6m4q34cqyvcaa",
+        "codec": "raw",
+        "mediaType": "image/png",
+        "size": 32768
+      }
+    },
+    "byteLength": 32768,
+    "offset": 0,
+    "privacy": "public"
+  }
+}

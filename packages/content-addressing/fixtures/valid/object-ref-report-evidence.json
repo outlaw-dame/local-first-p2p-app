@@ -1,0 +1,9 @@
+{
+  "type": "object-ref",
+  "kind": "report",
+  "digest": {
+    "algorithm": "sha-256",
+    "digest": "ypeBEsobvcr6wjGzmiPcTaeG7_gUfE5yuYB3ha_uSLs"
+  },
+  "schemaVersion": 1
+}
