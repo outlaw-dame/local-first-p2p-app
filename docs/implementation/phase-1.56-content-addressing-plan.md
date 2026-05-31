@@ -392,17 +392,22 @@ Search/recommendation objects must preserve `ObjectRef` provenance and scope so 
 
 Phase 1.56 is complete when:
 
-- [ ] ADR-005 exists.
-- [ ] `docs/protocol/content-addressing.md` exists.
-- [ ] `docs/threat-model/content-addressing-abuse.md` exists.
-- [ ] `packages/content-addressing` exists.
-- [ ] The package exposes validators for all core object families.
-- [ ] Valid and invalid fixtures exist.
-- [ ] Tests cover malformed input and unsafe coercion.
-- [ ] The package does not fetch, decode, store, or route content.
-- [ ] The package does not depend on UI, bridge, local-store, sync-client, media runtime, or trust-safety runtime.
-- [ ] The trust and safety docs reference `ObjectRef` / `BlockRef` for content-backed subjects/evidence.
-- [ ] The phase map and next-development path list Phase 1.56 before T&S/media/search expansion.
+- [x] ADR-005 exists.
+- [x] `docs/protocol/content-addressing.md` exists.
+- [x] `docs/threat-model/content-addressing-abuse.md` exists.
+- [x] `packages/content-addressing` exists.
+- [x] The package exposes validators for all core object families.
+- [x] Valid and invalid fixtures exist.
+- [x] Tests cover malformed input and unsafe coercion.
+- [x] The package does not fetch, decode, store, or route content.
+- [x] The package does not depend on UI, bridge, local-store, sync-client, media runtime, or trust-safety runtime.
+- [x] The trust and safety docs reference `ObjectRef` / `BlockRef` for content-backed subjects/evidence.
+- [x] The phase map and next-development path list Phase 1.56 before T&S/media/search expansion.
+
+Exit report: `docs/implementation/phase-1.56-exit-report.md`. The phase is accepted as
+foundation-only / partial — the package is delivered and hardened, but downstream
+integration into protocol envelopes, T&S runtime, bridge, and media manifests is
+intentionally left to subsequent phases per the plan's integration sequence.
 
 ## Code quality bar
 

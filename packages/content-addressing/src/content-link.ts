@@ -1,3 +1,4 @@
+import { decodeMultibaseBody, parseCidBinary } from './cid.js';
 import { caError } from './errors.js';
 import {
   assertNonEmptyString,
@@ -114,6 +115,17 @@ export function validateCidV1String(value: unknown, label: string): string {
       `${label}: body contains characters outside the alphabet for multibase "${prefix}"`
     );
   }
+
+  // For multibase prefixes we can fully decode, parse the binary form and
+  // validate the multicodec + multihash structure. Other prefixes pass
+  // the alphabet check above and are accepted; their binary structure
+  // will be re-validated when the corresponding multibase decoder is
+  // added in a follow-up change.
+  const decoded = decodeMultibaseBody(prefix, body);
+  if (decoded !== undefined) {
+    parseCidBinary(decoded, label);
+  }
+
   return raw;
 }
 

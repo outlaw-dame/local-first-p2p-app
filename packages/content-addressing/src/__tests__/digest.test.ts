@@ -182,7 +182,7 @@ describe('canonicalizeJson — adversarial', () => {
 });
 
 describe('SUPPORTED_HASH_ALGORITHMS', () => {
-  it('is the documented set', () => {
-    expect(SUPPORTED_HASH_ALGORITHMS).toEqual(['sha-256', 'sha-512']);
+  it('is the documented set (including reserved blake3)', () => {
+    expect(SUPPORTED_HASH_ALGORITHMS).toEqual(['sha-256', 'sha-512', 'blake3']);
   });
 });

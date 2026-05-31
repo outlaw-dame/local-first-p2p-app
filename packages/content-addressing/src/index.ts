@@ -22,6 +22,7 @@ export {
 } from './validation.js';
 
 export {
+  COMPUTABLE_HASH_ALGORITHMS,
   SUPPORTED_HASH_ALGORITHMS,
   assertHashAlgorithm,
   canonicalizeJson,
@@ -31,12 +32,29 @@ export {
   verifyDigest
 } from './digest.js';
 export type {
+  ComputableHashAlgorithm,
   DigestRef,
   HashAlgorithm,
   JsonObject,
   JsonPrimitive,
   JsonValue
 } from './digest.js';
+
+export {
+  MAX_VARINT_BYTES,
+  readUnsignedVarint
+} from './varint.js';
+export type { VarintRead } from './varint.js';
+
+export { decodeBase16, decodeBase32Lower } from './base32.js';
+
+export {
+  MULTICODEC_CODES,
+  MULTIHASH_CODES,
+  decodeMultibaseBody,
+  parseCidBinary
+} from './cid.js';
+export type { ParsedCid } from './cid.js';
 
 export {
   LOCATION_HINT_KINDS,

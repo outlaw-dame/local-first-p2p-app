@@ -7,13 +7,37 @@ import {
   assertPlainObject
 } from './validation.js';
 
-export type HashAlgorithm = 'sha-256' | 'sha-512';
+export type HashAlgorithm = 'sha-256' | 'sha-512' | 'blake3';
 
-export const SUPPORTED_HASH_ALGORITHMS: readonly HashAlgorithm[] = ['sha-256', 'sha-512'];
+/**
+ * Algorithms whose shape is accepted by validators. BLAKE3 is reserved
+ * in the type system per the Phase 1.56 plan: refs received over the
+ * network parse and validate as `DigestRef`s, but local computation
+ * (`createDigest`/`verifyDigest`) is fail-closed until a vetted runtime
+ * dependency is added by ADR.
+ */
+export const SUPPORTED_HASH_ALGORITHMS: readonly HashAlgorithm[] = [
+  'sha-256',
+  'sha-512',
+  'blake3'
+];
+
+/**
+ * Algorithms we can currently compute locally. `createDigest` is
+ * restricted to this narrower set even though the type system reserves
+ * BLAKE3 for ref shape validation.
+ */
+export type ComputableHashAlgorithm = 'sha-256' | 'sha-512';
+
+export const COMPUTABLE_HASH_ALGORITHMS: readonly ComputableHashAlgorithm[] = [
+  'sha-256',
+  'sha-512'
+];
 
 const DIGEST_RAW_LENGTHS: Readonly<Record<HashAlgorithm, number>> = {
   'sha-256': 32,
-  'sha-512': 64
+  'sha-512': 64,
+  blake3: 32
 };
 
 /**
@@ -65,21 +89,32 @@ export function validateDigestRef(value: unknown): DigestRef {
   return { algorithm, digest };
 }
 
+function assertComputableAlgorithm(value: HashAlgorithm): ComputableHashAlgorithm {
+  if (value === 'blake3') {
+    throw caError(
+      'CA_UNSUPPORTED_ALGORITHM',
+      'BLAKE3 is reserved in the protocol but not yet implemented for local computation; refs may be received/validated but not generated or verified here'
+    );
+  }
+  return value;
+}
+
 export async function createDigest(
   input: JsonValue | string | Uint8Array,
   algorithm: HashAlgorithm = 'sha-256'
 ): Promise<DigestRef> {
   const normalizedAlgorithm = assertHashAlgorithm(algorithm, 'createDigest.algorithm');
+  const computable = assertComputableAlgorithm(normalizedAlgorithm);
   const bytes = toDigestBytes(input);
-  const digestBytes = await digestBytesWithAlgorithm(bytes, normalizedAlgorithm);
-  if (digestBytes.byteLength !== DIGEST_RAW_LENGTHS[normalizedAlgorithm]) {
+  const digestBytes = await digestBytesWithAlgorithm(bytes, computable);
+  if (digestBytes.byteLength !== DIGEST_RAW_LENGTHS[computable]) {
     throw caError(
       'CA_WRONG_DIGEST_LENGTH',
-      `Digest output for ${normalizedAlgorithm} produced ${digestBytes.byteLength} bytes; expected ${DIGEST_RAW_LENGTHS[normalizedAlgorithm]}`
+      `Digest output for ${computable} produced ${digestBytes.byteLength} bytes; expected ${DIGEST_RAW_LENGTHS[computable]}`
     );
   }
   return Object.freeze({
-    algorithm: normalizedAlgorithm,
+    algorithm: computable,
     digest: base64UrlEncode(digestBytes)
   });
 }
@@ -89,6 +124,12 @@ export async function verifyDigest(
   digestRef: DigestRef
 ): Promise<boolean> {
   const validated = validateDigestRef(digestRef);
+  if (validated.algorithm === 'blake3') {
+    throw caError(
+      'CA_UNSUPPORTED_ALGORITHM',
+      'BLAKE3 verification is fail-closed in this build; refs are accepted by shape but cannot be recomputed locally'
+    );
+  }
   const computed = await createDigest(input, validated.algorithm);
   return constantTimeStringEqual(computed.digest, validated.digest);
 }
@@ -187,7 +228,7 @@ function toDigestBytes(input: JsonValue | string | Uint8Array): Uint8Array {
 
 async function digestBytesWithAlgorithm(
   bytes: Uint8Array,
-  algorithm: HashAlgorithm
+  algorithm: ComputableHashAlgorithm
 ): Promise<Uint8Array> {
   if (typeof globalThis.crypto?.subtle?.digest === 'function') {
     const webAlgorithm = algorithm === 'sha-256' ? 'SHA-256' : 'SHA-512';

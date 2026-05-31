@@ -105,7 +105,9 @@ Implemented today:
 - `DigestRef` with strict shape validation: SHA-256 / SHA-512 only, base64url-no-pad encoding, length pinned to the algorithm.
 - Canonical JSON encoder hardened against prototype pollution (rejects `__proto__`, `prototype`, `constructor` keys), non-finite numbers, `undefined` values, and unbounded recursion (`MAX_CANONICAL_DEPTH = 64`).
 - Cross-platform digest creation using WebCrypto where available, Node `crypto` fallback otherwise. Constant-time digest comparison in `verifyDigest`.
-- `ContentLink` with CIDv1-only policy: multibase prefix allowlist, per-prefix alphabet enforcement, CIDv0 (`Qm…`) rejection, URL-masquerade rejection, body-length envelope. Codec allowlist for `raw`, `dag-cbor`, `dag-json`, `dag-pb`, `dcel-cbor`, `drisl-cbor`, `car-v1`, `car-v2`, `lfp2p-bundle-v1`. `mediaType` rejected if it contains control characters (header-injection guard).
+- `ContentLink` with CIDv1-only policy enforced at three layers: (1) multibase prefix allowlist with per-prefix alphabet enforcement, (2) CIDv0 (`Qm…`) explicit rejection, (3) **real multihash/multicodec binary parsing** for prefixes `b` / `B` / `f` / `F` — version varint must be 1, multicodec varint read with canonical-encoding and safe-integer bounds, multihash code must be in the allowlist (`sha2-256` 0x12, `sha2-512` 0x13, BLAKE3 0x1e), declared digest length must match the code, no trailing bytes allowed. Application-level codec allowlist for `raw`, `dag-cbor`, `dag-json`, `dag-pb`, `dcel-cbor`, `drisl-cbor`, `car-v1`, `car-v2`, `lfp2p-bundle-v1`. `mediaType` rejected if it contains control characters (header-injection guard).
+- Pure-TypeScript varint reader (`readUnsignedVarint`, bounded to 9 bytes, requires canonical/minimal encoding) and base32-lower / base16 decoders (canonical leftover-bit enforcement).
+- BLAKE3 reserved in the `HashAlgorithm` type: refs received over the network parse and validate by shape, but `createDigest`/`verifyDigest` fail closed with a clear "reserved, not yet implemented" error. `COMPUTABLE_HASH_ALGORITHMS` is the narrower set used for local computation.
 - `StorageLocationHint` with the full kind enum (local-cache, indexeddb-block-store, opfs-block-store, bridge-store, relay-store, super-peer-store, https, s3-compatible, filebase, ipfs-compatible, car-archive, hypercore-compatible, native-file-store). URL credentials are rejected outright; scheme allowlists are enforced per kind. Priority must be a safe non-negative integer; `expiresAt` must parse as a date-time.
 - `BlockRef` with discriminated source (digest or content-link), required encryption descriptor for `privacy: 'private'`, compression descriptor with explicit decoded-size bound (`MAX_DECODED_BYTE_LENGTH` = 16 GiB) and ratio cap (`MAX_COMPRESSION_RATIO` = 1024), self-referencing dictionary rejection, byte-length cap (`MAX_BLOCK_BYTE_LENGTH` = 1 GiB), storage-hint count cap (`MAX_STORAGE_HINTS` = 32).
 - `BundleRef` with format enum (`car-v1`, `car-v2`, `lfp2p-bundle-v1`), purpose enum, non-empty roots, root-count cap (`MAX_BUNDLE_ROOTS` = 1024), byte-length cap (`MAX_BUNDLE_BYTE_LENGTH` = 64 GiB).
@@ -119,7 +121,8 @@ Not implemented yet:
 - Application-specific content object schemas (event payload digests, search objects).
 - A full multihash/multicodec parser (CID validation is shape-level only).
 - Block/bundle storage adapters and runtime fetchers.
-- BLAKE3 algorithm support (reserved in the plan; not in the supported algorithm set yet).
+- BLAKE3 runtime — reserved in the type system; local computation is fail-closed until an ADR adds a vetted dependency.
+- Multibase decoders for `z` (base58btc) and `k` (base36) prefixes — currently alphabet-validated only; binary-level parsing applies to `b` / `B` / `f` / `F`.
 - Direct integration into `packages/protocol` event objects.
 
 Not implemented yet:
