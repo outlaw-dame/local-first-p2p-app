@@ -209,11 +209,18 @@ async function digestBytesWithAlgorithm(
     return new Uint8Array(digestBuffer);
   }
 
-  const nodeCrypto = (await import('node:crypto')) as typeof import('node:crypto');
+  const nodeCrypto = (await import('node:crypto')) as NodeCryptoLike;
   const hash = nodeCrypto.createHash(algorithm);
   hash.update(bytes);
   return new Uint8Array(hash.digest());
 }
+
+type NodeCryptoLike = {
+  createHash(algorithm: string): {
+    update(data: Uint8Array): void;
+    digest(): Uint8Array;
+  };
+};
 
 type BufferLike = {
   from(input: Uint8Array): { toString(encoding: 'base64'): string };
