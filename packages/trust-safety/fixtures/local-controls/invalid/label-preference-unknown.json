@@ -1,0 +1,10 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_label_pref_bad",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.label.preference.set",
+  "namespace": "lfp2p.safety",
+  "labelKey": "security.spam",
+  "preference": "reject-transport"
+}

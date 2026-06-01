@@ -1,0 +1,8 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_dom_url",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.domain.blocked",
+  "domain": "https://attacker.example.com/path"
+}

@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_mute_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.account.muted",
+  "targetActorId": "actor_loud_friend",
+  "muteScope": "feed"
+}

@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_kw_bad",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.keyword.muted",
+  "keyword": "(?:a+)+",
+  "matchKind": "regex"
+}

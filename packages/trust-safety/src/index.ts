@@ -155,3 +155,5 @@ export type {
   CurationSubjectMatcher,
   CurationSurface
 } from './curation.js';
+
+export * from './local-controls/index.js';

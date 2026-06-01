@@ -1,0 +1,7 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_missing_target",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.account.blocked"
+}

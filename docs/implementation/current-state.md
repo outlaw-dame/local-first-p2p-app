@@ -149,12 +149,26 @@ Implemented today:
 - 18 valid + 15 invalid fixtures covering the categories required by the trust-safety phase plan.
 - 137 tests including adversarial cases: URL credential injection, javascript: URL rejection, oversize URLs, private-subject + public-scope rejection across labels / annotations / reports / decisions, `reject-transport` outside transport scope, curation action at transport scope, curation masquerade, hard-safety downgrade, NaN/Infinity confidence rejection, expiry-before-creation, oversize array caps.
 
+Phase 1.62 local-controls slice (sub-module under `@lfp2p/trust-safety/local-controls`):
+
+- Module version sentinel: `lfp2p.local-control-event.v1`.
+- Seven event kinds with `apply`/`revert` action discriminator: `safety.account.blocked`, `safety.account.muted`, `safety.domain.blocked`, `safety.keyword.muted`, `safety.thread.muted`, `safety.post.hidden`, `safety.label.preference.set`.
+- `assertLocalControlEnvelopeScope` rejects every networked scope with `TS_PRIVATE_LEAK`; only `device-local` and `account-local` pass.
+- `safety.keyword.muted` allows only `substring` and `word` match kinds. User-supplied regexes are excluded as a ReDoS defense and the selector never compiles a regex.
+- `safety.label.preference.set` restricted to user-facing actions (`allow`, `warn`, `collapse`, `blur-media`, `hide`, `downrank`); infrastructure actions like `reject-transport` are rejected.
+- `LocalControlState` frozen snapshot with 7 keyed projection records plus `appliedEventIds` set for idempotency.
+- `applyLocalControlEvent` is pure, deterministic, validates before mutating, freezes the result, treats double-apply as a no-op, supports `revert` deterministically, and uses spread-then-define for key writes so adversarial keys like `__proto__` cannot pollute the prototype chain.
+- `seedLocalControlState` replays an event log producing equal state on every call — the store-reopen rebuild path.
+- `decideVisibility(state, context)` returns the most restrictive of `show < downrank < warn < blur-media < collapse < hide`. Word-boundary keyword scanner is hand-rolled (no regex compilation).
+- 8 valid + 6 invalid fixtures under `packages/trust-safety/fixtures/local-controls/`.
+- 59 new tests including replay equivalence, idempotency, ReDoS guard, prototype-pollution guard, every networked scope rejected with `TS_PRIVATE_LEAK`, most-restrictive selector combination, label-preference mapping, literal `.*` keyword treatment.
+
 Not implemented yet:
 
-- Phase 1.62 local user controls (events + projections).
-- Phase 1.63 report/appeal runtime (encrypted evidence routing, idempotency enforcement, target-authority resolution).
-- Phase 1.64 bridge/relay/super-peer admission runtime.
+- Phase 1.63 report/appeal runtime (encrypted evidence routing, idempotency enforcement at the projection layer, target-authority resolution).
+- Phase 1.64 bridge/relay/super-peer admission runtime including transport-side enforcement of `safety.account.blocked` for multi-device delivery.
 - Phase 1.65 curation/reach runtime.
+- Dexie projection persistence for local-control events and PWA settings UI to emit them.
 - Capability/credential verification (shape-only refs today; full verification depends on a future capability ADR).
 - Trust-policy engine (ADR-006) for turning validated evidence into deterministic decisions.
 

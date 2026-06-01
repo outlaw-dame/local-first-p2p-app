@@ -1,0 +1,8 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_thread_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.thread.muted",
+  "threadId": "thread_abc_123"
+}

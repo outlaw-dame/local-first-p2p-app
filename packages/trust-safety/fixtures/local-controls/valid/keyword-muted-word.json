@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_kw_002",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.keyword.muted",
+  "keyword": "rage",
+  "matchKind": "word"
+}
