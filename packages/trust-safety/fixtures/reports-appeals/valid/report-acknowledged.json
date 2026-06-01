@@ -1,0 +1,17 @@
+{
+  "version": "lfp2p.report-appeal-event.v1",
+  "eventId": "evt_rep_ack_001",
+  "createdAt": "2026-05-31T11:00:00Z",
+  "kind": "safety.report.acknowledged",
+  "reportId": "report_001",
+  "acknowledgedBy": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_mod_42",
+    "actorId": "actor_mod_alice",
+    "role": "moderator",
+    "scope": "community-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "acknowledgedAt": "2026-05-31T11:00:00Z",
+  "ackReasonCode": "policy.community-rule"
+}

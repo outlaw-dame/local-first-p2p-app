@@ -1,0 +1,17 @@
+{
+  "version": "lfp2p.report-appeal-event.v1",
+  "eventId": "evt_bad_overturned",
+  "createdAt": "2026-05-31T14:00:00Z",
+  "kind": "safety.appeal.resolved",
+  "appealId": "appeal_001",
+  "resolvedBy": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_admin_01",
+    "actorId": "actor_admin",
+    "scope": "community-local",
+    "createdAt": "2026-01-01T00:00:00Z"
+  },
+  "resolvedAt": "2026-05-31T14:00:00Z",
+  "resolution": "overturned",
+  "resolutionReasonCode": "policy.community-rule"
+}

@@ -29,10 +29,16 @@ export const OBJECT_REF_KINDS = [
 
 export type ObjectRefKind = (typeof OBJECT_REF_KINDS)[number];
 
+/**
+ * Kinds whose ObjectRef carries a `digest: DigestRef` directly. Distinct
+ * from `media` (which carries a `BlockRef`) and `bundle` (a `BundleRef`).
+ * Keeping `media` out of this set is what makes the discriminated union
+ * over `kind` work cleanly — every `kind` value belongs to exactly one
+ * variant.
+ */
 export type ContentBackedKind =
   | 'event'
   | 'record'
-  | 'media'
   | 'safety-label'
   | 'report'
   | 'policy-decision';
@@ -40,7 +46,6 @@ export type ContentBackedKind =
 const CONTENT_BACKED_KINDS: ReadonlySet<ContentBackedKind> = new Set([
   'event',
   'record',
-  'media',
   'safety-label',
   'report',
   'policy-decision'

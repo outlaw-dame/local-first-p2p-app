@@ -36,7 +36,8 @@ export const TS_ERROR_CODES = [
   'TS_CURATION_MASQUERADE',
   'TS_HARD_SAFETY_DOWNGRADE',
   'TS_DUPLICATE_KEY',
-  'TS_FORBIDDEN_KEY'
+  'TS_FORBIDDEN_KEY',
+  'TS_LIFECYCLE_TRANSITION'
 ] as const;
 
 export type TSErrorCode = (typeof TS_ERROR_CODES)[number];

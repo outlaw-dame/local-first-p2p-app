@@ -1,0 +1,23 @@
+{
+  "version": "lfp2p.report-appeal-event.v1",
+  "eventId": "evt_appeal_created_001",
+  "createdAt": "2026-05-31T13:00:00Z",
+  "kind": "safety.appeal.created",
+  "appeal": {
+    "version": "lfp2p.safety-appeal.v1",
+    "appealId": "appeal_001",
+    "appellant": { "actorId": "actor_appellant" },
+    "decisionId": "decision_001",
+    "targetAuthority": {
+      "version": "lfp2p.safety-authority.v1",
+      "authorityId": "auth_admin_01",
+      "actorId": "actor_admin",
+      "role": "admin",
+      "scope": "community-local",
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "reasonCode": "context-disputed",
+    "idempotencyKey": "idem_appeal_001",
+    "createdAt": "2026-05-31T13:00:00Z"
+  }
+}

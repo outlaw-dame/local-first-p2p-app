@@ -1,0 +1,17 @@
+{
+  "version": "lfp2p.report-appeal-event.v1",
+  "eventId": "evt_bad_escalate",
+  "createdAt": "2026-05-31T12:00:00Z",
+  "kind": "safety.report.resolved",
+  "reportId": "report_001",
+  "resolvedBy": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_mod_42",
+    "actorId": "actor_mod_alice",
+    "scope": "community-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "resolvedAt": "2026-05-31T12:00:00Z",
+  "resolution": "escalated",
+  "resolutionReasonCode": "abuse.harassment"
+}

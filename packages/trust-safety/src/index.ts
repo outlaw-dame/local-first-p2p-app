@@ -157,3 +157,4 @@ export type {
 } from './curation.js';
 
 export * from './local-controls/index.js';
+export * from './reports-appeals/index.js';

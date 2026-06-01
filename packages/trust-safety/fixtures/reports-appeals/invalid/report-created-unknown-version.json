@@ -1,0 +1,24 @@
+{
+  "version": "lfp2p.report-appeal-event.v2",
+  "eventId": "evt_bad_001",
+  "createdAt": "2026-05-31T10:00:00Z",
+  "kind": "safety.report.created",
+  "report": {
+    "version": "lfp2p.safety-report.v1",
+    "reportId": "report_x",
+    "reporter": { "kind": "actor", "actor": { "actorId": "actor_x" } },
+    "subject": { "type": "event", "eventId": "evt_y" },
+    "targetAuthority": {
+      "version": "lfp2p.safety-authority.v1",
+      "authorityId": "auth_x",
+      "actorId": "actor_a",
+      "scope": "community-local",
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "reasonCode": "abuse.harassment",
+    "scope": "community-local",
+    "idempotencyKey": "idem_x",
+    "createdAt": "2026-05-31T10:00:00Z",
+    "reporterPrivacy": "identified-to-authority"
+  }
+}

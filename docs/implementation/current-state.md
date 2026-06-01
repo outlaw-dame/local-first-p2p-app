@@ -165,10 +165,24 @@ Phase 1.62 local-controls slice (sub-module under `@lfp2p/trust-safety/local-con
 - 15 valid + 11 invalid fixtures under `packages/trust-safety/fixtures/local-controls/`.
 - 100 local-controls tests including TTL expiry / not-yet-expired / pruning, allowlist vs label / hard-safety / user-block / keyword / expired-allowlist, semantic matcher injection / containment on throw / threshold bounds / mixing-fields rejection, snapshot round-trip / union/replace/newer-wins merge / stale rejection / direct-apply rejection, replay equivalence, idempotency, ReDoS guard, prototype-pollution guard, every networked scope rejected with `TS_PRIVATE_LEAK`, most-restrictive selector combination, label-preference mapping, literal `.*` keyword treatment.
 
+Phase 1.63 reports-appeals slice (sub-module under `@lfp2p/trust-safety/reports-appeals`):
+
+- Module version sentinel: `lfp2p.report-appeal-event.v1`.
+- 5 lifecycle event kinds: `safety.report.created` (embeds full `SafetyReport`), `safety.report.acknowledged` (records ack authority + time + optional reason), `safety.report.resolved` (records resolution enum `upheld | dismissed | duplicate | invalid | escalated`, reason code, optional decisionId linking to a `SafetyPolicyDecision`, optional escalation target), `safety.appeal.created` (embeds full `SafetyAppeal`), `safety.appeal.resolved` (records resolution enum `overturned | upheld | dismissed | invalid`, required `newDecisionId` on overturned).
+- New stable error code: `TS_LIFECYCLE_TRANSITION`.
+- `ReportsAppealsState` frozen snapshot with six indexes: `byReportId`, `byReportIdempotencyKey` (dedup), `byTargetAuthority` (moderator-inbox surfaces), `byAppealId`, `byAppealIdempotencyKey`, `byAppealedDecisionId` ("all appeals against this decision"), plus `appliedEventIds` for replay idempotency.
+- State machine enforced at apply time: report `submitted → acknowledged → resolved` with `submitted → resolved` skip-ack allowed (doctrine: authority MAY resolve immediately for clear cases); appeal `submitted → resolved`. Terminal states. Every illegal transition (ack of unknown report, double-ack, resolve of already-resolved, resolve of unknown id) throws `TS_LIFECYCLE_TRANSITION` without mutating state.
+- Idempotency-key duplicates on `safety.report.created` and `safety.appeal.created` are silent no-ops at the projection layer; the `eventId` is still recorded so replay does not loop.
+- `applyReportAppealEvent` is pure, deterministic, validates before mutating, freezes the result, idempotent on `eventId`.
+- `seedReportsAppealsState` replays an event log producing equal state on every call — the store-reopen rebuild path.
+- `classifyReportPrivacy(report)` returns `'public-routable' | 'private-only'`. `assertPrivateEvidenceOnPrivateSubject(report)` enforces, when subject is private-by-nature: media evidence must have `privacy=private` + encryption descriptor; bundle evidence must have `encrypted=true`; `encryptedBodyRef` cannot be an identity-kind ObjectRef. Guard runs before projection mutation so unsafe `safety.report.created` events are rejected with `TS_PRIVATE_LEAK` and cannot land in the store.
+- `canBridgeForwardReport(report)` is a boolean structural pre-check usable by Phase 1.64 bridge admission code without decrypting anything.
+- 5 valid + 4 invalid fixtures under `packages/trust-safety/fixtures/reports-appeals/`.
+- 50 new tests covering every lifecycle transition (legal and illegal), idempotency dedup, replay equivalence, store-reopen rebuild, privacy classification, encrypted-evidence enforcement (private subject + unencrypted media → reject, private subject + encrypted media → accept, private subject + unencrypted bundle → reject), escalated-without-target rejection, overturned-without-newDecisionId rejection.
+
 Not implemented yet:
 
-- Phase 1.63 report/appeal runtime (encrypted evidence routing, idempotency enforcement at the projection layer, target-authority resolution).
-- Phase 1.64 bridge/relay/super-peer admission runtime including transport-side enforcement of `safety.account.blocked` for multi-device delivery.
+- Phase 1.64 bridge/relay/super-peer admission runtime including transport-side enforcement of `safety.account.blocked` for multi-device delivery and the `canBridgeForwardReport` integration.
 - Phase 1.65 curation/reach runtime.
 - Dexie projection persistence for local-control events and PWA settings UI to emit them.
 - Capability/credential verification (shape-only refs today; full verification depends on a future capability ADR).
