@@ -1,0 +1,6 @@
+{
+  "version": "lfp2p.safety-authority.v1",
+  "authorityId": "auth_1",
+  "scope": "device-local",
+  "createdAt": "2026-05-31T00:00:00Z"
+}

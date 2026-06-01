@@ -125,6 +125,39 @@ Not implemented yet:
 - Multibase decoders for `z` (base58btc) and `k` (base36) prefixes — currently alphabet-validated only; binary-level parsing applies to `b` / `B` / `f` / `F`.
 - Direct integration into `packages/protocol` event objects.
 
+### `packages/trust-safety`
+
+Implemented today:
+
+- Module version sentinel: `lfp2p.trust-safety.v1`.
+- Stable `TS_*` error codes on `TrustSafetyError` (29 codes) for caller branching.
+- Validation helpers: `assertExactVersion` (fail-closed on unknown major versions), `assertIso8601` with timezone requirement and 2020–2126 sanity window, `assertNotBefore`, `assertOneOf`, `assertId`/`assertText` with bounded length and control-character rejection, `assertReadonlyArray` with per-element validator and length caps, `assertFiniteNumberInRange`.
+- Reserved extension-point refs (`ActorRef`, `ReporterRef`, `CapabilityProofRef`, `CredentialRef`) validated by shape only — runtime authority elevation is the future trust-policy engine's job (ADR-006).
+- `SafetyAuthority` with version pinning, 8-scope allowlist, 10-role allowlist, optional `resourceRef` (delegates to `@lfp2p/content-addressing`), capability proofs and credential refs (count-capped), optional expiry with `createdAt <= expiresAt` cross-check.
+- `SafetySubjectRef` 14-variant discriminated union. Unknown variants fail closed. URL subjects must be http(s) and credentialless (rejects `https://user:pass@…`), oversize URLs rejected, domain subjects validated and lowercased.
+- `SafetyAction` enum split into moderation / curation / neutral groups with `assertActionScopeCompatible`: `reject-transport` requires a transport scope; curation actions cannot be issued at transport or `network-advisory` scope.
+- `SafetyLabelDefinition` with category/severity/action enums and hard-safety guards: `hardSafety=true` cannot pair with permissive `defaultAction` (`allow`/`downrank`) and cannot be `userConfigurable`.
+- `SafetyLabel` with confidence bounded to `[0, 1]` finite, evidence-ref count cap, and private-by-nature subject + public-scope leak rejection (`TS_PRIVATE_LEAK`).
+- `SafetyLabelerProfile` with https-only credentialless service endpoint, namespace/label count caps, `createdAt <= updatedAt`.
+- `SafetyLabelerSubscription` scope restricted to local scopes only (no `network-advisory`); action overrides validated against a known-safe action subset.
+- `SafetyAnnotation` with motivation/body/format enums and private-subject + public-scope leak guard.
+- `SafetyReport` with required `idempotencyKey` (length-capped), allowlisted `reasonCode`, reporter privacy enum, and private-subject + public-scope leak guard.
+- `SafetyAppeal` targeting a `decisionId` (not a label), with bounded `idempotencyKey` and `reasonCode`.
+- `SafetyPolicyDecision` with action/scope cross-validation and private-subject leak guard. `appealable` is required and must be a boolean.
+- `TransportAdmissionDecision` requiring an infrastructure operator authority and cross-checking surface against scope (bridge surface ⇒ bridge-local scope, etc.).
+- `CurationRule` + `CurationExplanation` with `TS_CURATION_MASQUERADE` rejection so moderation actions cannot be issued via curation paths.
+- 18 valid + 15 invalid fixtures covering the categories required by the trust-safety phase plan.
+- 137 tests including adversarial cases: URL credential injection, javascript: URL rejection, oversize URLs, private-subject + public-scope rejection across labels / annotations / reports / decisions, `reject-transport` outside transport scope, curation action at transport scope, curation masquerade, hard-safety downgrade, NaN/Infinity confidence rejection, expiry-before-creation, oversize array caps.
+
+Not implemented yet:
+
+- Phase 1.62 local user controls (events + projections).
+- Phase 1.63 report/appeal runtime (encrypted evidence routing, idempotency enforcement, target-authority resolution).
+- Phase 1.64 bridge/relay/super-peer admission runtime.
+- Phase 1.65 curation/reach runtime.
+- Capability/credential verification (shape-only refs today; full verification depends on a future capability ADR).
+- Trust-policy engine (ADR-006) for turning validated evidence into deterministic decisions.
+
 Not implemented yet:
 
 - Broader capability credential formats and delegation envelope beyond the current identity event payloads.

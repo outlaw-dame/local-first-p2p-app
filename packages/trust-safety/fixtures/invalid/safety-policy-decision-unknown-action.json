@@ -1,0 +1,19 @@
+{
+  "version": "lfp2p.safety-policy-decision.v1",
+  "decisionId": "decision_004",
+  "authority": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_mod_42",
+    "actorId": "actor_mod_alice",
+    "role": "moderator",
+    "scope": "community-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "subject": { "type": "event", "eventId": "evt_x" },
+  "action": "make-disappear",
+  "scope": "community-local",
+  "policyVersion": "community.policy.v1",
+  "reasonCode": "abuse.harassment",
+  "createdAt": "2026-05-31T05:45:00Z",
+  "appealable": false
+}

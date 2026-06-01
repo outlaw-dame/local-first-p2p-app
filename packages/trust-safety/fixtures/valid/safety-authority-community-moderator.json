@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.safety-authority.v1",
+  "authorityId": "auth_mod_42",
+  "actorId": "actor_mod_alice",
+  "role": "moderator",
+  "scope": "community-local",
+  "createdAt": "2026-05-01T00:00:00Z",
+  "expiresAt": "2027-05-01T00:00:00Z"
+}

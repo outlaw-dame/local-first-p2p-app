@@ -1,0 +1,25 @@
+{
+  "version": "lfp2p.safety-report.v1",
+  "reportId": "report_001",
+  "reporter": {
+    "kind": "actor",
+    "actor": { "actorId": "actor_damon" }
+  },
+  "subject": {
+    "type": "event",
+    "eventId": "event_offending_xyz"
+  },
+  "targetAuthority": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_mod_42",
+    "actorId": "actor_mod_alice",
+    "role": "moderator",
+    "scope": "community-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "reasonCode": "abuse.harassment",
+  "scope": "community-local",
+  "idempotencyKey": "idem_2026-05-31_001",
+  "createdAt": "2026-05-31T03:00:00Z",
+  "reporterPrivacy": "identified-to-authority"
+}

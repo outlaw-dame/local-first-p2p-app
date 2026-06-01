@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/protocol" },
     { "path": "packages/content-addressing" },
+    { "path": "packages/trust-safety" },
     { "path": "packages/crypto" },
     { "path": "packages/design-tokens" },
     { "path": "packages/platform" },

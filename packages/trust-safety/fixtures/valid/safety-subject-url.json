@@ -1,0 +1,8 @@
+{
+  "type": "url",
+  "normalizedUrl": "https://example.com/some/path",
+  "digest": {
+    "algorithm": "sha-256",
+    "digest": "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0"
+  }
+}

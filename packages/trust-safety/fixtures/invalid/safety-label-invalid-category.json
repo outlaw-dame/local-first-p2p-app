@@ -1,0 +1,19 @@
+{
+  "version": "lfp2p.safety-label-definition.v1",
+  "labelKey": "x.bad-category",
+  "namespace": "lfp2p.safety",
+  "displayName": "Bad Category",
+  "description": "Should fail validation.",
+  "category": "very-bad",
+  "defaultSeverity": "high",
+  "defaultAction": "hide",
+  "userConfigurable": false,
+  "createdBy": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_1",
+    "actorId": "actor_1",
+    "scope": "community-local",
+    "createdAt": "2026-01-01T00:00:00Z"
+  },
+  "createdAt": "2026-01-01T00:00:00Z"
+}

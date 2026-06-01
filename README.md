@@ -32,6 +32,7 @@ The architecture documents are planning and doctrine artifacts created before im
 
 - `packages/protocol` - signed event schemas, source references, canonicalization, and validation helpers.
 - `packages/content-addressing` - content-addressed integrity primitives, canonical JSON hashing, digest refs, and object refs.
+- `packages/trust-safety` - trust & safety protocol core: authorities, scopes, subjects, labels, labelers, annotations, reports, appeals, policy decisions, transport admission, and curation; validators only, no runtime enforcement.
 - `packages/crypto` - signing, verification, hashing, and local key-material protection helpers.
 - `packages/identity` - local device identity bootstrap and restore; not the final account identity-control model.
 - `packages/local-store` - Dexie-backed signed event store, mutation outbox, summaries, device identity records, and local protection-key records.

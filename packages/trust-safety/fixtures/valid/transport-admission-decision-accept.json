@@ -1,0 +1,22 @@
+{
+  "version": "lfp2p.transport-admission-decision.v1",
+  "decisionId": "tx_admission_001",
+  "operatorAuthority": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_bridge_01",
+    "actorId": "actor_bridge_operator",
+    "role": "bridge-operator",
+    "scope": "bridge-local",
+    "createdAt": "2026-01-01T00:00:00Z"
+  },
+  "subject": {
+    "type": "event",
+    "eventId": "event_inbound_001"
+  },
+  "surface": "bridge",
+  "action": "accept",
+  "reasonCode": "policy.local-preference",
+  "policyVersion": "bridge.policy.v1",
+  "idempotencyKey": "idem_tx_001",
+  "createdAt": "2026-05-31T07:00:00Z"
+}

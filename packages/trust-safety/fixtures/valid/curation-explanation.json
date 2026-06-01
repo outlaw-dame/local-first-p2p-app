@@ -1,0 +1,13 @@
+{
+  "version": "lfp2p.curation-explanation.v1",
+  "explanationId": "expl_001",
+  "surface": "public-feed",
+  "subject": {
+    "type": "event",
+    "eventId": "event_downranked_001"
+  },
+  "action": "downrank",
+  "reasonCodes": ["quality.low-effort", "quality.duplicate"],
+  "policyVersion": "feed.policy.v1",
+  "createdAt": "2026-05-31T09:00:00Z"
+}

@@ -1,0 +1,21 @@
+{
+  "version": "lfp2p.safety-label-definition.v1",
+  "labelKey": "abuse.harassment",
+  "namespace": "lfp2p.safety",
+  "displayName": "Harassment",
+  "description": "Content that targets a person or group with hostile intent.",
+  "category": "abuse",
+  "defaultSeverity": "high",
+  "defaultAction": "hide",
+  "userConfigurable": false,
+  "hardSafety": true,
+  "createdBy": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_root",
+    "actorId": "actor_root",
+    "role": "admin",
+    "scope": "community-local",
+    "createdAt": "2026-01-01T00:00:00Z"
+  },
+  "createdAt": "2026-01-01T00:00:00Z"
+}

@@ -1,0 +1,12 @@
+{
+  "version": "lfp2p.safety-labeler-profile.v1",
+  "labelerId": "labeler_alpha",
+  "actorId": "actor_labeler_alice",
+  "displayName": "Alpha Spam Labeler",
+  "description": "Community-run spam classifier.",
+  "supportedNamespaces": ["lfp2p.safety"],
+  "supportedLabels": ["security.spam", "quality.duplicate"],
+  "serviceEndpoint": "https://labeler.example.com/labels",
+  "createdAt": "2026-01-01T00:00:00Z",
+  "updatedAt": "2026-05-30T00:00:00Z"
+}

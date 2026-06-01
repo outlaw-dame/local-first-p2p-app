@@ -1,0 +1,38 @@
+{
+  "version": "lfp2p.safety-label.v1",
+  "labelId": "label_002",
+  "issuer": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_1",
+    "actorId": "actor_1",
+    "scope": "community-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "subject": {
+    "type": "blob",
+    "blockRef": {
+      "type": "block-ref",
+      "source": {
+        "kind": "digest",
+        "digest": {
+          "algorithm": "sha-256",
+          "digest": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
+        }
+      },
+      "byteLength": 4096,
+      "offset": 0,
+      "privacy": "private",
+      "encryption": {
+        "scheme": "xchacha20-poly1305",
+        "keyRef": {
+          "algorithm": "sha-256",
+          "digest": "ypeBEsobvcr6wjGzmiPcTaeG7_gUfE5yuYB3ha_uSLs"
+        }
+      }
+    }
+  },
+  "labelKey": "security.spam",
+  "namespace": "lfp2p.safety",
+  "scope": "network-advisory",
+  "createdAt": "2026-05-31T02:30:00Z"
+}

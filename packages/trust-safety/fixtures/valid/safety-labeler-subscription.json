@@ -1,0 +1,13 @@
+{
+  "version": "lfp2p.safety-labeler-subscription.v1",
+  "subscriptionId": "sub_001",
+  "subscriberActorId": "actor_damon",
+  "labelerId": "labeler_alpha",
+  "trustedNamespaces": ["lfp2p.safety"],
+  "trustedLabels": ["security.spam"],
+  "scope": "device-local",
+  "actionOverrides": [
+    { "labelKey": "security.spam", "namespace": "lfp2p.safety", "action": "collapse" }
+  ],
+  "createdAt": "2026-05-30T00:00:00Z"
+}

@@ -1,0 +1,46 @@
+{
+  "version": "lfp2p.safety-report.v1",
+  "reportId": "report_003",
+  "reporter": { "kind": "actor", "actor": { "actorId": "actor_damon" } },
+  "subject": {
+    "type": "media",
+    "mediaId": "media_private_001",
+    "objectRef": {
+      "type": "object-ref",
+      "kind": "media",
+      "block": {
+        "type": "block-ref",
+        "source": {
+          "kind": "digest",
+          "digest": {
+            "algorithm": "sha-256",
+            "digest": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
+          }
+        },
+        "byteLength": 8192,
+        "offset": 0,
+        "privacy": "private",
+        "encryption": {
+          "scheme": "xchacha20-poly1305",
+          "keyRef": {
+            "algorithm": "sha-256",
+            "digest": "ypeBEsobvcr6wjGzmiPcTaeG7_gUfE5yuYB3ha_uSLs"
+          }
+        }
+      }
+    }
+  },
+  "targetAuthority": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_mod_42",
+    "actorId": "actor_mod_alice",
+    "role": "moderator",
+    "scope": "community-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "reasonCode": "media-safety.violent-imagery",
+  "scope": "network-advisory",
+  "idempotencyKey": "idem_003",
+  "createdAt": "2026-05-31T03:00:00Z",
+  "reporterPrivacy": "pseudonymous-to-authority"
+}

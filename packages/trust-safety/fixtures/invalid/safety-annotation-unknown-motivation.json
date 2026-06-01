@@ -1,0 +1,17 @@
+{
+  "version": "lfp2p.safety-annotation.v1",
+  "annotationId": "ann_bad_001",
+  "issuer": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_labeler_42",
+    "actorId": "actor_labeler_alice",
+    "role": "labeler",
+    "scope": "account-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "subject": { "type": "event", "eventId": "evt_x" },
+  "motivation": "shouting",
+  "body": { "format": "text/plain", "value": "Strong opinion." },
+  "scope": "account-local",
+  "createdAt": "2026-05-31T01:00:00Z"
+}

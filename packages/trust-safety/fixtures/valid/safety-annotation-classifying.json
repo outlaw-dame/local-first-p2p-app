@@ -1,0 +1,23 @@
+{
+  "version": "lfp2p.safety-annotation.v1",
+  "annotationId": "ann_001",
+  "issuer": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_labeler_42",
+    "actorId": "actor_labeler_alice",
+    "role": "labeler",
+    "scope": "account-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "subject": {
+    "type": "event",
+    "eventId": "event_subject_123"
+  },
+  "motivation": "classifying",
+  "body": {
+    "format": "text/plain",
+    "value": "Classified as off-topic."
+  },
+  "scope": "account-local",
+  "createdAt": "2026-05-31T01:00:00Z"
+}

@@ -1,0 +1,22 @@
+{
+  "version": "lfp2p.safety-label.v1",
+  "labelId": "label_001",
+  "issuer": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_labeler_42",
+    "actorId": "actor_labeler_alice",
+    "role": "labeler",
+    "scope": "community-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "subject": {
+    "type": "event",
+    "eventId": "event_subject_xyz"
+  },
+  "labelKey": "security.spam",
+  "namespace": "lfp2p.safety",
+  "severity": "low",
+  "confidence": 0.85,
+  "scope": "community-local",
+  "createdAt": "2026-05-31T02:00:00Z"
+}
