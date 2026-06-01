@@ -22,13 +22,20 @@ describe('local-control fixtures — valid', () => {
 
   it('valid/ contains every documented kind', () => {
     expect(files).toContain('account-blocked.json');
+    expect(files).toContain('account-blocked-with-ttl.json');
     expect(files).toContain('account-muted.json');
+    expect(files).toContain('account-allowlisted.json');
     expect(files).toContain('domain-blocked.json');
     expect(files).toContain('keyword-muted-substring.json');
     expect(files).toContain('keyword-muted-word.json');
+    expect(files).toContain('keyword-muted-semantic.json');
     expect(files).toContain('thread-muted.json');
     expect(files).toContain('post-hidden.json');
     expect(files).toContain('label-preference-set.json');
+    expect(files).toContain('policy-list-subscribed.json');
+    expect(files).toContain('policy-list-unsubscribed.json');
+    expect(files).toContain('notification-preference.json');
+    expect(files).toContain('preferences-snapshot.json');
   });
 
   it.each(files)('valid: %s passes the event validator', (name) => {
@@ -45,8 +52,13 @@ describe('local-control fixtures — invalid', () => {
     expect(files).toContain('unknown-version.json');
     expect(files).toContain('missing-target.json');
     expect(files).toContain('keyword-regex-not-supported.json');
+    expect(files).toContain('keyword-semantic-missing-embedding.json');
+    expect(files).toContain('keyword-substring-with-embedding.json');
     expect(files).toContain('label-preference-unknown.json');
     expect(files).toContain('domain-with-scheme.json');
+    expect(files).toContain('expiry-before-creation.json');
+    expect(files).toContain('policy-list-empty-kinds.json');
+    expect(files).toContain('notification-unknown-channel.json');
   });
 
   it.each(files)('invalid: %s is rejected with a TrustSafetyError', (name) => {

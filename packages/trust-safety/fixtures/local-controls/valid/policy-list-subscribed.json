@@ -1,0 +1,11 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_pl_sub_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.policy-list.subscribed",
+  "policyListId": "policy_list_community_spam_v1",
+  "issuerActorId": "actor_community_curator",
+  "allowedKinds": ["block", "keyword-mute"],
+  "trustLevel": "apply"
+}

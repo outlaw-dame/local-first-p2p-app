@@ -1,0 +1,15 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_kw_sem_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.keyword.muted",
+  "keyword": "harassment of marginalized groups",
+  "matchKind": "semantic",
+  "embeddingRef": {
+    "algorithm": "sha-256",
+    "digest": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
+  },
+  "embeddingModel": "sentence-transformers/all-MiniLM-L6-v2",
+  "similarityThreshold": 0.78
+}

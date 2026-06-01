@@ -5,6 +5,10 @@ export {
   LOCAL_CONTROL_ACTIONS,
   LOCAL_CONTROL_EVENT_VERSION,
   LOCAL_CONTROL_KINDS,
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_PREFERENCES,
+  POLICY_LIST_KINDS,
+  POLICY_LIST_TRUST_LEVELS,
   PRIVATE_LOCAL_CONTROL_SCOPES,
   assertLocalControlEnvelopeScope,
   validateLocalControlEvent
@@ -15,16 +19,23 @@ export type {
   LabelPreferenceAction,
   LocalControlAction,
   LocalControlEvent,
-  LocalControlKind
+  LocalControlKind,
+  NotificationChannel,
+  NotificationPreference,
+  PolicyListKind,
+  PolicyListTrustLevel
 } from './events.js';
 
 export {
   applyLocalControlEvent,
   createEmptyLocalControlState,
+  isExpired,
   labelPreferenceKey,
+  pruneExpiredLocalControlState,
   seedLocalControlState
 } from './projection.js';
 export type {
+  AllowlistedActorEntry,
   BlockedActorEntry,
   BlockedDomainEntry,
   HiddenPostEntry,
@@ -32,11 +43,33 @@ export type {
   LocalControlState,
   MutedActorEntry,
   MutedKeywordEntry,
-  MutedThreadEntry
+  MutedThreadEntry,
+  NotificationPreferenceEntry,
+  PolicyListSubscriptionEntry
 } from './projection.js';
+
+export {
+  LOCAL_CONTROL_SNAPSHOT_SCHEMA,
+  assertSnapshotIsNotStale,
+  exportPreferencesSnapshot,
+  importPreferencesSnapshot,
+  snapshotsEqual,
+  validateLocalControlSnapshot
+} from './snapshot.js';
+export type {
+  LocalControlSnapshot,
+  LocalControlSnapshotSchema,
+  SnapshotImportOptions
+} from './snapshot.js';
 
 export {
   VISIBILITY_DECISIONS,
   decideVisibility
 } from './selector.js';
-export type { SelectorContext, SelectorLabelHit, VisibilityDecision } from './selector.js';
+export type {
+  SelectorContext,
+  SelectorLabelHit,
+  SelectorOptions,
+  SemanticKeywordMatcher,
+  VisibilityDecision
+} from './selector.js';

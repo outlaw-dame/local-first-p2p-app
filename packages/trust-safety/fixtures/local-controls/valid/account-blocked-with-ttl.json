@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_block_ttl_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.account.blocked",
+  "targetActorId": "actor_temp_offender",
+  "expiresAt": "2026-06-07T00:00:00Z"
+}

@@ -57,7 +57,7 @@ describe('validateLocalControlEvent — kinds', () => {
   });
 
   it('accepts safety.keyword.muted in substring and word modes', () => {
-    for (const matchKind of KEYWORD_MATCH_KINDS) {
+    for (const matchKind of ['substring', 'word'] as const) {
       expect(() =>
         validateLocalControlEvent({
           ...BASE,
@@ -67,6 +67,18 @@ describe('validateLocalControlEvent — kinds', () => {
         })
       ).not.toThrow();
     }
+  });
+
+  it('KEYWORD_MATCH_KINDS includes semantic, but semantic requires embeddingRef + model', () => {
+    expect(KEYWORD_MATCH_KINDS).toContain('semantic');
+    expect(() =>
+      validateLocalControlEvent({
+        ...BASE,
+        kind: 'safety.keyword.muted',
+        keyword: 'racist content',
+        matchKind: 'semantic'
+      })
+    ).toThrow(/embeddingRef/);
   });
 
   it('rejects safety.keyword.muted with matchKind=regex (ReDoS guard)', () => {
@@ -138,8 +150,14 @@ describe('validateLocalControlEvent — kinds', () => {
     ).toThrow(/TS_UNKNOWN_VERSION/);
   });
 
-  it('exposes all 7 kinds', () => {
-    expect(LOCAL_CONTROL_KINDS.length).toBe(7);
+  it('exposes the documented kinds (7 baseline + 5 portability expansion)', () => {
+    expect(LOCAL_CONTROL_KINDS.length).toBe(12);
+    expect(LOCAL_CONTROL_KINDS).toContain('safety.account.blocked');
+    expect(LOCAL_CONTROL_KINDS).toContain('safety.account.allowlisted');
+    expect(LOCAL_CONTROL_KINDS).toContain('safety.policy-list.subscribed');
+    expect(LOCAL_CONTROL_KINDS).toContain('safety.policy-list.unsubscribed');
+    expect(LOCAL_CONTROL_KINDS).toContain('safety.notification-preference.set');
+    expect(LOCAL_CONTROL_KINDS).toContain('safety.preferences.snapshot');
   });
 });
 

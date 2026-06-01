@@ -82,14 +82,69 @@ Additional verification:
 - The plan mentioned regex keyword matching as a possibility; this implementation excludes it on threat-model grounds (ReDoS). Adding regex later is an explicit ADR-level decision.
 - The plan did not pin a label-preference action set. This implementation pins it to `LABEL_PREFERENCE_ACTIONS = ['allow', 'warn', 'collapse', 'blur-media', 'hide', 'downrank']` and rejects infrastructure actions there. A user cannot accidentally subscribe themselves to a `reject-transport` preference on a label.
 
+## Phase 1.62.1 expansion (closing the cross-app portability and missing-control gaps)
+
+After review the slice was extended to address every gap identified in the
+Phase 1.62 review. Net additions:
+
+- **5 new event kinds**: `safety.account.allowlisted` (visibility
+  override), `safety.policy-list.subscribed` and `.unsubscribed`
+  (subscription to external curation lists with trust level and allowed
+  kinds), `safety.notification-preference.set` (per-channel
+  preferences across mentions / replies / reactions / DMs from
+  non-contacts / group invites / follows), `safety.preferences.snapshot`
+  (canonical full-state event for cross-app bootstrap).
+- **TTL on every applicable event**: optional `expiresAt`, validated
+  not to precede `createdAt`. The selector takes a `now` parameter and
+  skips expired entries — state remains pure. `pruneExpiredLocalControlState`
+  is provided as an optional compaction step.
+- **Semantic keyword filters**: `matchKind: 'semantic'` carrying
+  `embeddingRef` (DigestRef), `embeddingModel` identifier, and optional
+  `similarityThreshold ∈ [0, 1]`. The selector accepts a
+  `semanticMatch?: SemanticKeywordMatcher` callback so the package
+  stays ML-free; semantic entries without a host matcher are silently
+  skipped, and host-matcher errors are contained.
+- **Allowlist semantics**: allowlisted actors are not suppressed by
+  non-hard-safety labels (`SelectorLabelHit.hardSafety` controls
+  bypass). Hard-safety labels still apply. User blocks and user mutes
+  still apply to allowlisted actors — the user actively chose those.
+- **Cross-app portability**: `exportPreferencesSnapshot` /
+  `importPreferencesSnapshot` plus `validateLocalControlSnapshot`
+  (fail-closed on unknown schema). Three merge strategies: `union`
+  (default, preserve local), `replace` (hard reset), `merge-newer-wins`
+  (per-entry `since` comparison). `assertSnapshotIsNotStale` refuses to
+  roll backward in time. `appliedEventIds` is preserved across import
+  so events that arrive twice (via log + snapshot) do not double-apply.
+  Doctrine doc: `docs/protocol/local-controls-portability.md`.
+- **Notification preferences**: stored per channel; selector returns
+  `collapse` for `mute`, `show` for `allow`.
+- **Policy-list subscriptions**: recorded with `issuerActorId`,
+  `allowedKinds`, and `trustLevel`. Actual list resolution belongs to
+  Phase 1.63 / 1.64 — this slice only records the subscription.
+
+41 new tests across `local-controls-expansion.test.ts` cover TTL
+expiry, TTL not-yet-expired, pruning, allowlist vs label, allowlist vs
+hard-safety, allowlist vs user-block (block wins), allowlist vs
+keyword (keyword wins), expired allowlist, semantic matcher injection,
+semantic matcher containment on throw, embedding-field-mixing
+rejection, similarity-threshold bounds, notification preference apply
+and revert, policy-list subscribe and unsubscribe, snapshot
+round-trip, snapshot union/replace/newer-wins merges, snapshot stale
+rejection, and snapshot-event-direct-apply rejection.
+
+Total monorepo: 622 tests pass. Lint / typecheck / build clean.
+
 ## Remaining gaps
 
-Out of scope for Phase 1.62, tracked for downstream work:
+Out of scope for Phase 1.62.1, tracked for downstream work:
 
-- Dexie projection persistence layer: a `localControlEvents` table + an atomic `applyLocalControlEvent` hook on the local store. Phase plan says the projection runs on top of signed local events; the actual Dexie wiring belongs to the local-store package and the next chat/feed slice.
-- PWA UI integration: a settings surface that lets a user emit `apply`/`revert` events for each kind. Phase 3 work, gated by chat or feed vertical slices that need filtering.
-- Bridge-side enforcement: when a `safety.account.blocked` event has `account-local` scope and the user runs multi-device sync, the bridge may need to refuse delivering posts from the blocked actor to the user's other devices. This is "blocks may affect transport" from the doctrine and belongs to Phase 1.64 (bridge admission runtime).
-- Phase 1.63 (reports/appeals with encrypted evidence) and Phase 1.65 (curation runtime) consume `LocalControlState` indirectly via the selector; explicit integration tests will be added in those phases.
+- Dexie projection persistence layer: a `localControlEvents` table + an atomic `applyLocalControlEvent` hook on the local store. Belongs to the local-store package.
+- PWA UI integration: a settings surface that lets a user emit `apply`/`revert` events for each kind, plus per-app applicability indicators (this app supports filter X, this app does not).
+- Account-local sync envelope wiring: account-local encryption (ADR-002) and the per-user subscribe-to-own-stream mechanism in `@lfp2p/sync-client`. The portability snapshot is content-ready but cannot move between apps until that wire format exists.
+- Bridge-side enforcement of `safety.account.blocked` for multi-device delivery: Phase 1.64.
+- Phase 1.63 (reports/appeals with encrypted evidence) and Phase 1.65 (curation runtime) consume `LocalControlState` indirectly via the selector; explicit integration tests will be added there.
+- Host-side semantic embedding pipeline: the selector calls the host's matcher; an actual sentence-embedding model + wasm/onnx loader + cosine similarity comparison is a PWA/host concern, deliberately out of this package.
+- Policy-list resolution runtime: the subscription is recorded, but actually fetching the external list and applying its entries belongs to Phase 1.64 (transport) and Phase 1.63 (trust-policy decision engine).
 
 ## Decision
 

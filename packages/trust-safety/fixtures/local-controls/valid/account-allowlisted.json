@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_allow_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.account.allowlisted",
+  "targetActorId": "actor_trusted_friend",
+  "reasonCode": "trusted-source"
+}
