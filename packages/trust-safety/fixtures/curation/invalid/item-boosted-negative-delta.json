@@ -1,0 +1,11 @@
+{
+  "version": "lfp2p.curation-event.v1",
+  "eventId": "evt_bad_boost",
+  "createdAt": "2026-05-31T01:00:00Z",
+  "kind": "curation.item.boosted",
+  "itemSubject": { "type": "event", "eventId": "evt_target" },
+  "surface": "public-feed",
+  "sourceRuleId": "rule_x",
+  "scoreDelta": -5,
+  "reasonCode": "policy.community-rule"
+}

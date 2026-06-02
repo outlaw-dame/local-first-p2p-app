@@ -1,0 +1,11 @@
+{
+  "version": "lfp2p.curation-event.v1",
+  "eventId": "evt_cur_item_dr_001",
+  "createdAt": "2026-05-31T01:00:00Z",
+  "kind": "curation.item.downranked",
+  "itemSubject": { "type": "event", "eventId": "evt_target_xyz" },
+  "surface": "public-feed",
+  "sourceRuleId": "rule_low_effort",
+  "scoreDelta": 5,
+  "reasonCode": "quality.low-effort"
+}

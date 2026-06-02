@@ -1,5 +1,10 @@
 import type { DigestRef } from '@lfp2p/content-addressing';
 import { tsError } from '../errors.js';
+import {
+  withFrozenAppliedEventId as withAppliedEventId,
+  withFrozenRecordDelete as withRecordDelete,
+  withFrozenRecordSet as withRecordSet
+} from '../projection-helpers.js';
 import type {
   AccountMuteScope,
   KeywordMatchKind,
@@ -118,36 +123,6 @@ export function createEmptyLocalControlState(): LocalControlState {
 
 export function labelPreferenceKey(namespace: string, labelKey: string): string {
   return `${namespace}::${labelKey}`;
-}
-
-function withRecordSet<T>(
-  map: Readonly<Record<string, T>>,
-  key: string,
-  value: T
-): Readonly<Record<string, T>> {
-  const next: Record<string, T> = { ...map };
-  next[key] = value;
-  return Object.freeze(next);
-}
-
-function withRecordDelete<T>(
-  map: Readonly<Record<string, T>>,
-  key: string
-): Readonly<Record<string, T>> {
-  if (!Object.prototype.hasOwnProperty.call(map, key)) return map;
-  const next: Record<string, T> = { ...map };
-  delete next[key];
-  return Object.freeze(next);
-}
-
-function withAppliedEventId(
-  ids: ReadonlySet<string>,
-  eventId: string
-): ReadonlySet<string> {
-  if (ids.has(eventId)) return ids;
-  const next = new Set(ids);
-  next.add(eventId);
-  return next;
 }
 
 function attachSinceAndExpiry<E extends ExpiringEntry & { since: string }>(

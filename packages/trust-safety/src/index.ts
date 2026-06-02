@@ -29,8 +29,16 @@ export {
   assertPlainObject,
   assertReadonlyArray,
   assertText,
+  isForbiddenIdKey,
   isPlainObject
 } from './validation.js';
+
+export {
+  withFrozenAppliedEventId,
+  withFrozenBucketAppend,
+  withFrozenRecordDelete,
+  withFrozenRecordSet
+} from './projection-helpers.js';
 
 export {
   validateActorRef,
@@ -159,3 +167,4 @@ export type {
 export * from './local-controls/index.js';
 export * from './reports-appeals/index.js';
 export * from './transport-admission/index.js';
+export * from './curation-runtime/index.js';

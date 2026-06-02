@@ -1,5 +1,9 @@
 import { tsError } from '../errors.js';
 import {
+  withFrozenAppliedEventId as withAppliedEventId,
+  withFrozenRecordSet as withRecordSet
+} from '../projection-helpers.js';
+import {
   type AuditLog,
   appendAuditEntry,
   createAuditLog,
@@ -74,25 +78,8 @@ export function createEmptyTransportAdmissionState(): TransportAdmissionState {
   });
 }
 
-function withRecordSet<T>(
-  map: Readonly<Record<string, T>>,
-  key: string,
-  value: T
-): Readonly<Record<string, T>> {
-  const next: Record<string, T> = { ...map };
-  next[key] = value;
-  return Object.freeze(next);
-}
-
-function withAppliedEventId(
-  ids: ReadonlySet<string>,
-  eventId: string
-): ReadonlySet<string> {
-  if (ids.has(eventId)) return ids;
-  const next = new Set(ids);
-  next.add(eventId);
-  return next;
-}
+// Defensive Record helpers live in `../projection-helpers.js` (imported
+// at top of file).
 
 function mediaKey(digestAlgorithm: string, digestBody: string): string {
   return `${digestAlgorithm}:${digestBody}`;

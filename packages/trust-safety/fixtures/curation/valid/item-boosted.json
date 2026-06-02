@@ -1,0 +1,11 @@
+{
+  "version": "lfp2p.curation-event.v1",
+  "eventId": "evt_cur_item_boost_001",
+  "createdAt": "2026-05-31T01:00:00Z",
+  "kind": "curation.item.boosted",
+  "itemSubject": { "type": "actor", "actorId": "actor_trusted" },
+  "surface": "public-feed",
+  "sourceRuleId": "rule_trusted_actors",
+  "scoreDelta": 3,
+  "reasonCode": "policy.community-rule"
+}

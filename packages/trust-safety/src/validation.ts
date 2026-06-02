@@ -33,6 +33,34 @@ export const MAX_TEXT_LENGTH = 4096;
  * Assert a value is a non-empty bounded string with no control characters.
  * Used for ids, reason codes, scope keys, and similar opaque short tokens.
  */
+/**
+ * Reserved JavaScript object property names that, if used as a record
+ * key in our projection helpers, would either mutate the prototype
+ * chain (`__proto__`) or shadow methods inherited from `Object.prototype`
+ * (`constructor`, `prototype`, `hasOwnProperty`, etc.). We reject them
+ * at the validator boundary so they cannot reach `withRecordSet`-style
+ * helpers even by accident.
+ *
+ * Defense-in-depth: even when a forbidden key bypasses validation, the
+ * projection helpers use `Object.create(null)` + `Object.defineProperty`
+ * so the assignment lands as an own-property rather than mutating the
+ * prototype chain.
+ */
+const FORBIDDEN_ID_KEYS: ReadonlySet<string> = new Set([
+  '__proto__',
+  'prototype',
+  'constructor',
+  'hasOwnProperty',
+  'isPrototypeOf',
+  'propertyIsEnumerable',
+  'toString',
+  'valueOf'
+]);
+
+export function isForbiddenIdKey(value: string): boolean {
+  return FORBIDDEN_ID_KEYS.has(value);
+}
+
 export function assertId(value: unknown, label: string, maxLength = MAX_ID_LENGTH): string {
   const raw = assertNonEmptyString(value, label);
   if (raw.length > maxLength) {
@@ -40,6 +68,12 @@ export function assertId(value: unknown, label: string, maxLength = MAX_ID_LENGT
   }
   if (hasControlCharacters(raw)) {
     throw tsError('TS_INVALID_ID', `${label} contains control characters`);
+  }
+  if (FORBIDDEN_ID_KEYS.has(raw)) {
+    throw tsError(
+      'TS_FORBIDDEN_KEY',
+      `${label} cannot be a reserved JavaScript property name ("${raw}")`
+    );
   }
   return raw;
 }

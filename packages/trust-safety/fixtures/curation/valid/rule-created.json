@@ -1,0 +1,27 @@
+{
+  "version": "lfp2p.curation-event.v1",
+  "eventId": "evt_cur_rule_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "curation.rule.created",
+  "rule": {
+    "version": "lfp2p.curation-rule.v1",
+    "ruleId": "rule_low_effort",
+    "owner": {
+      "version": "lfp2p.safety-authority.v1",
+      "authorityId": "auth_curator_01",
+      "actorId": "actor_curator",
+      "role": "curator",
+      "scope": "index-local",
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "surface": "public-feed",
+    "subjectMatcher": {
+      "kind": "label",
+      "labelKey": "quality.low-effort",
+      "namespace": "lfp2p.safety"
+    },
+    "action": "downrank",
+    "reasonCode": "quality.low-effort",
+    "createdAt": "2026-05-31T00:00:00Z"
+  }
+}

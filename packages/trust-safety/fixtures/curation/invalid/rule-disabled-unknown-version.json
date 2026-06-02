@@ -1,0 +1,16 @@
+{
+  "version": "lfp2p.curation-event.v2",
+  "eventId": "evt_bad_ver",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "curation.rule.disabled",
+  "ruleId": "rule_x",
+  "disabledBy": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_x",
+    "actorId": "actor_x",
+    "scope": "index-local",
+    "createdAt": "2026-01-01T00:00:00Z"
+  },
+  "disabledAt": "2026-05-31T00:00:00Z",
+  "reasonCode": "policy.community-rule"
+}

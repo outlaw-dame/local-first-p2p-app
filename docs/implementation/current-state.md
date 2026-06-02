@@ -196,10 +196,33 @@ Phase 1.64 transport-admission slice (sub-module under `@lfp2p/trust-safety/tran
 - 60+ new tests across 7 test files: rate-limit math (capacity, refill, exponential growth, cap, cooldown semantics, self-healing), reputation (decay, hysteresis, TTL auto-lift, bounded clamping, NaN/Infinity rejection), replay cache (TTL + capacity flood resistance + pruning), audit redaction (no key digest, no full source digest, whole-second timestamps, FIFO eviction), admission engine per check, user-block enforcement (expired block ignored), report-forwarding privacy guard.
 - New doctrine document: `docs/protocol/bridge-admission-doctrine.md` with non-negotiable rules, the check-order spec, exponential-backoff and reputation math, and a "what the bridge MUST NOT do" section.
 
+Phase 1.65 curation-runtime slice (sub-module under `@lfp2p/trust-safety/curation-runtime`):
+
+- Module version sentinel: `lfp2p.curation-event.v1`.
+- 6 lifecycle event kinds: `curation.rule.created` (embeds `CurationRule`), `curation.rule.disabled` (ruleId + disabledBy authority + reasonCode), `curation.item.boosted` / `.downranked` (itemSubject + surface + sourceRuleId + scoreDelta + reasonCode), `curation.item.excluded` (same + `excludeFrom: 'feed' | 'search' | 'recommendation'`), `curation.explanation.recorded` (embeds `CurationExplanation`).
+- Score deltas bounded `[0, MAX_SCORE_DELTA = 100]` non-negative safe integer so a single rule cannot dominate the ranking and an adversary cannot push the projection into a non-recoverable state.
+- `excludeFrom` per exclusion event so a single exclusion cannot accidentally target all three surfaces — enforces the doctrine distinctions structurally.
+- Rule state machine `active → disabled` (terminal). Re-creation under existing ruleId, double-disable, and disable-unknown all throw `TS_LIFECYCLE_TRANSITION` without mutating state.
+- `CurationState` frozen snapshot with `rulesById`, `itemsBySubjectKey`, `explanationsById`, `appliedEventIds`. `applyCurationEvent` is pure/deterministic/idempotent. `seedCurationState` is the store-reopen rebuild path.
+- `computeItemRanking(state, subject)` returns `effectiveNetScoreDelta` and per-surface exclusion flags **filtered to currently-active source rules** — disabling a rule immediately retracts its effect from the ranking view without rewriting history. The audit trail (every item action with its `sourceRuleId`) is preserved.
+- `subjectKey` stably encodes any `SafetySubjectRef` for use as a record key; private-by-nature subjects key by source digest body or CID, never the encryption-key digest.
+- `decideCurationSurfaceIngest(surface, envelopeScope, subject)` is the public-surface gate. Public surfaces (`public-feed`, `search`, `recommendation`) reject every non-public envelope scope and reject private-by-nature subject types even on a public envelope. Local surfaces (`local-feed`, `community-feed`, `notification`) accept any scope.
+- **Phase 1.63 deferral resolved**: `decideReportAsCurationSignal(report, surface)` refuses to use a `private-only` report (per `classifyReportPrivacy`) as a curation signal on public surfaces. Bridge surfaces and curation surfaces now share the same private-report structural guard.
+- `assertCurationSurfaceIngest` and `assertReportAsCurationSignal` are the strict variants that throw `TS_PRIVATE_LEAK` at the boundary.
+- 6 valid + 3 invalid fixtures under `packages/trust-safety/fixtures/curation/`.
+- 60+ new tests covering event validation, lifecycle (legal and every illegal transition), distinctions (downrank ≠ hide, search exclusion ≠ deletion, recommendation exclusion ≠ feed/search), accumulating actions, disabled-rule retraction, idempotency, replay equivalence, duplicate-`explanationId` no-op, surface gate matrix across every public/local surface, private-only report refusal on public surfaces, public-routable report acceptance, local-surface acceptance of any scope.
+- New doctrine document: `docs/protocol/curation-doctrine.md` with the five non-negotiable distinctions, the surface gate spec, the rule lifecycle, item-action accumulation rules, and a "what the curation runtime MUST NOT do" section.
+
+**Hardening pass (Phase 1.65)** applied to all three prior projections:
+
+- `assertId` now rejects reserved JavaScript property names (`__proto__`, `prototype`, `constructor`, `hasOwnProperty`, `isPrototypeOf`, `propertyIsEnumerable`, `toString`, `valueOf`) with new stable code `TS_FORBIDDEN_KEY`. Bad input fails at the validator boundary before reaching any projection record.
+- New shared module `packages/trust-safety/src/projection-helpers.ts` (`withFrozenRecordSet`, `withFrozenRecordDelete`, `withFrozenBucketAppend`, `withFrozenAppliedEventId`) uses `Object.defineProperty` with explicit data-descriptor flags so even a forbidden key that bypassed validation lands as an own-property rather than mutating the prototype chain. All three prior projections (`local-controls`, `reports-appeals`, `transport-admission`) refactored to use the shared helpers — no duplicate code.
+- 29 new tests in `hardening-prototype-pollution.test.ts` covering `isForbiddenIdKey`, the defensive helpers (set / delete / bucket-append / mass operations with Object.prototype untouched), and per-projection rejection of every reserved id key.
+
 Not implemented yet:
 
-- Phase 1.65 curation/reach runtime.
-- Dexie projection persistence for local-control events and PWA settings UI to emit them.
+- `@lfp2p/search` and a future feed runtime that materializes a ranked feed by consuming `computeItemRanking`.
+- Dexie projection persistence for local-control events, reports-appeals, transport-admission, and curation state; PWA settings UI to emit them.
 - Capability/credential verification (shape-only refs today; full verification depends on a future capability ADR).
 - Trust-policy engine (ADR-006) for turning validated evidence into deterministic decisions.
 

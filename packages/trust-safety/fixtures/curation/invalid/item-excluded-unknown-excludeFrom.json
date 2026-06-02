@@ -1,0 +1,11 @@
+{
+  "version": "lfp2p.curation-event.v1",
+  "eventId": "evt_bad_excl",
+  "createdAt": "2026-05-31T01:00:00Z",
+  "kind": "curation.item.excluded",
+  "itemSubject": { "type": "event", "eventId": "evt_target" },
+  "surface": "search",
+  "sourceRuleId": "rule_x",
+  "reasonCode": "policy.community-rule",
+  "excludeFrom": "everywhere"
+}

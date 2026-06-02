@@ -120,7 +120,9 @@ describe('applyLocalControlEvent — idempotency', () => {
 });
 
 describe('applyLocalControlEvent — adversarial', () => {
-  it('rejects __proto__ as targetActorId without polluting Object.prototype', () => {
+  it('rejects __proto__ as targetActorId at the validator boundary (TS_FORBIDDEN_KEY)', () => {
+    // Phase-1.65 hardening: `assertId` now rejects reserved property
+    // names as ids so they never reach the projection's record keys.
     const before = (Object.prototype as Record<string, unknown>).polluted;
     const empty = createEmptyLocalControlState();
     const event = ev({
@@ -128,12 +130,23 @@ describe('applyLocalControlEvent — adversarial', () => {
       kind: 'safety.account.blocked',
       targetActorId: '__proto__'
     });
-    const after = applyLocalControlEvent(empty, event);
-    expect(after.blockedActors['__proto__']).toBeDefined();
-    // Prototype pollution check: setting __proto__ as a key should still
-    // produce a real own-property and not mutate Object.prototype.
+    expect(() => applyLocalControlEvent(empty, event)).toThrow(/TS_FORBIDDEN_KEY/);
     expect((Object.prototype as Record<string, unknown>).polluted).toBe(before);
   });
+
+  it.each(['__proto__', 'constructor', 'prototype', 'hasOwnProperty'])(
+    'rejects reserved property name %s as a targetActorId',
+    (badId) => {
+      const event = ev({
+        eventId: `e_bad_${badId}`,
+        kind: 'safety.account.blocked',
+        targetActorId: badId
+      });
+      expect(() =>
+        applyLocalControlEvent(createEmptyLocalControlState(), event)
+      ).toThrow(/TS_FORBIDDEN_KEY/);
+    }
+  );
 
   it('rejects malformed events', () => {
     expect(() =>

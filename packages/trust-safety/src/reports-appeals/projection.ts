@@ -1,6 +1,11 @@
 import type { SafetyAppeal } from '../appeals.js';
 import type { SafetyAuthority } from '../authorities.js';
 import { tsError } from '../errors.js';
+import {
+  withFrozenAppliedEventId as withAppliedEventId,
+  withFrozenBucketAppend as pushToBucket,
+  withFrozenRecordSet as withRecordSet
+} from '../projection-helpers.js';
 import type { SafetyReasonCode } from '../reason-codes.js';
 import type { SafetyReport } from '../reports.js';
 import type {
@@ -89,38 +94,7 @@ export function createEmptyReportsAppealsState(): ReportsAppealsState {
 }
 
 // --- Helpers -------------------------------------------------------------
-
-function withRecordSet<T>(
-  map: Readonly<Record<string, T>>,
-  key: string,
-  value: T
-): Readonly<Record<string, T>> {
-  const next: Record<string, T> = { ...map };
-  next[key] = value;
-  return Object.freeze(next);
-}
-
-function pushToBucket(
-  map: Readonly<Record<string, ReadonlyArray<string>>>,
-  key: string,
-  value: string
-): Readonly<Record<string, ReadonlyArray<string>>> {
-  const existing = map[key] ?? [];
-  if (existing.includes(value)) return map;
-  const next: Record<string, ReadonlyArray<string>> = { ...map };
-  next[key] = Object.freeze([...existing, value]);
-  return Object.freeze(next);
-}
-
-function withAppliedEventId(
-  ids: ReadonlySet<string>,
-  eventId: string
-): ReadonlySet<string> {
-  if (ids.has(eventId)) return ids;
-  const next = new Set(ids);
-  next.add(eventId);
-  return next;
-}
+// Projection helpers live in `../projection-helpers.js` (imported above).
 
 /**
  * Encode a SafetyAuthority for an index key in a way that is stable,
