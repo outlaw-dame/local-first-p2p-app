@@ -1,0 +1,6 @@
+{
+  "version": "lfp2p.transport-event.v1",
+  "eventId": "evt_bad_kind",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "transport.event.deleted"
+}

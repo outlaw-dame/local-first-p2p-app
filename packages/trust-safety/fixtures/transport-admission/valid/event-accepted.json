@@ -1,0 +1,24 @@
+{
+  "version": "lfp2p.transport-event.v1",
+  "eventId": "evt_tx_accept_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "transport.event.accepted",
+  "decision": {
+    "version": "lfp2p.transport-admission-decision.v1",
+    "decisionId": "dec_001",
+    "operatorAuthority": {
+      "version": "lfp2p.safety-authority.v1",
+      "authorityId": "auth_bridge_01",
+      "actorId": "actor_bridge_op",
+      "role": "bridge-operator",
+      "scope": "bridge-local",
+      "createdAt": "2026-05-01T00:00:00Z"
+    },
+    "subject": { "type": "event", "eventId": "evt_x" },
+    "surface": "bridge",
+    "action": "accept",
+    "reasonCode": "policy.local-preference",
+    "policyVersion": "bridge.policy.v1",
+    "createdAt": "2026-05-31T00:00:00Z"
+  }
+}

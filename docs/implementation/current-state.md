@@ -180,9 +180,24 @@ Phase 1.63 reports-appeals slice (sub-module under `@lfp2p/trust-safety/reports-
 - 5 valid + 4 invalid fixtures under `packages/trust-safety/fixtures/reports-appeals/`.
 - 50 new tests covering every lifecycle transition (legal and illegal), idempotency dedup, replay equivalence, store-reopen rebuild, privacy classification, encrypted-evidence enforcement (private subject + unencrypted media → reject, private subject + encrypted media → accept, private subject + unencrypted bundle → reject), escalated-without-target rejection, overturned-without-newDecisionId rejection.
 
+Phase 1.64 transport-admission slice (sub-module under `@lfp2p/trust-safety/transport-admission`):
+
+- Module version sentinel: `lfp2p.transport-event.v1`.
+- 6 transport event kinds: `transport.event.accepted | rejected | quarantined`, `transport.peer.rate_limited | quarantined`, `transport.media.rejected`. Each kind that records a decision embeds the Phase 1.61 `TransportAdmissionDecision`. `retryAfter` / `quarantineExpiresAt` validated against `createdAt`.
+- Token-bucket rate limiter with **real exponential backoff** (`baseBackoffMs * 2^(consecutiveRefusals - 1)`, capped at `maxBackoffMs`). Integer-floor refill prevents fractional-token exploits. Refusals during an active cooldown do NOT escalate further. A successful admit resets the refusal counter to 0 (self-healing).
+- Peer reputation tracker with time-based decay toward 0 (never crosses zero, negative-zero normalized), bounded score `[minScore, maxScore]` (default `[-1000, +1000]`), hysteresis-gated auto-quarantine (enter at `quarantineThreshold`, lift at `recoveryThreshold` OR at the hard `maxQuarantineMs` TTL, whichever comes first).
+- Replay cache with TTL + bounded capacity. Oldest-first eviction so flood attack cannot OOM the bridge while preserving the TTL guarantee for non-evicted entries. Lazy pruning on insert plus an explicit `pruneReplayCache` helper.
+- Audit log with structural redaction: `redactDigestRef` truncates digests to an 8-char prefix; encryption key refs are dropped entirely; CIDs are truncated to a 9-char prefix. **Timestamps rounded to whole seconds** so the log cannot serve as a high-resolution timing oracle. FIFO eviction at capacity.
+- Admission decision engine: pure function `runAdmissionChecks(inputs) -> outputs` with 10 ordered checks (schema → replay → privacy scope per surface → kind allowlist → byte size → decoded-size compression-bomb guard → peer quarantine → rate limit → user-block transport [Phase 1.62 deferral] → report-forwarding privacy guard [Phase 1.63 deferral]). Per-surface privacy scope allowlists. Each failure produces a `TransportAdmissionDecision` with `action` and `reasonCode`. Successful admits credit +1 to peer reputation; failures penalize per-rule (-5 to -100).
+- Phase 1.62 deferral resolved: `decideUserBlockTransport(state, context, now)` returns `producer-blocked | producer-allowed`. TTL-aware. The bridge runtime that holds the user's local-control state calls this before forwarding into the user's account-local sync.
+- Phase 1.63 deferral resolved: `decideReportForwarding(report)` runs `canBridgeForwardReport` structurally — bridges MUST NOT decrypt encrypted bodies or evidence; the decision operates on declared privacy/encryption shape only.
+- `TransportAdmissionState` frozen snapshot with `peerReputation`, `rateLimitState`, `replayCache`, `quarantinedPeers / Events / Media`, `auditLog`, `appliedEventIds`. `admitEnvelope(state, envelope, config, context, now)` is the canonical entry point. `applyTransportEvent` rebuilds projection from emitted events. `seedTransportAdmissionState` is the store-reopen rebuild path.
+- 4 valid + 2 invalid fixtures under `packages/trust-safety/fixtures/transport-admission/`.
+- 60+ new tests across 7 test files: rate-limit math (capacity, refill, exponential growth, cap, cooldown semantics, self-healing), reputation (decay, hysteresis, TTL auto-lift, bounded clamping, NaN/Infinity rejection), replay cache (TTL + capacity flood resistance + pruning), audit redaction (no key digest, no full source digest, whole-second timestamps, FIFO eviction), admission engine per check, user-block enforcement (expired block ignored), report-forwarding privacy guard.
+- New doctrine document: `docs/protocol/bridge-admission-doctrine.md` with non-negotiable rules, the check-order spec, exponential-backoff and reputation math, and a "what the bridge MUST NOT do" section.
+
 Not implemented yet:
 
-- Phase 1.64 bridge/relay/super-peer admission runtime including transport-side enforcement of `safety.account.blocked` for multi-device delivery and the `canBridgeForwardReport` integration.
 - Phase 1.65 curation/reach runtime.
 - Dexie projection persistence for local-control events and PWA settings UI to emit them.
 - Capability/credential verification (shape-only refs today; full verification depends on a future capability ADR).

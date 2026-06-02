@@ -1,0 +1,17 @@
+{
+  "version": "lfp2p.transport-event.v1",
+  "eventId": "evt_tx_q_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "transport.peer.quarantined",
+  "peerId": "peer_attacker",
+  "operatorAuthority": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_bridge_01",
+    "actorId": "actor_bridge_op",
+    "role": "bridge-operator",
+    "scope": "bridge-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "reasonCode": "security.spam",
+  "quarantineExpiresAt": "2026-06-07T00:00:00Z"
+}

@@ -1,0 +1,16 @@
+{
+  "version": "lfp2p.transport-event.v1",
+  "eventId": "evt_bad_retry",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "transport.peer.rate_limited",
+  "peerId": "peer_abc",
+  "operatorAuthority": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_bridge_01",
+    "actorId": "actor_bridge_op",
+    "scope": "bridge-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "reasonCode": "system.rate-limit",
+  "retryAfter": "2026-05-30T00:00:00Z"
+}

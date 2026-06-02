@@ -1,0 +1,28 @@
+{
+  "version": "lfp2p.transport-event.v1",
+  "eventId": "evt_tx_media_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "transport.media.rejected",
+  "blockRef": {
+    "type": "block-ref",
+    "source": {
+      "kind": "digest",
+      "digest": {
+        "algorithm": "sha-256",
+        "digest": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
+      }
+    },
+    "byteLength": 8192,
+    "offset": 0,
+    "privacy": "public"
+  },
+  "operatorAuthority": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_bridge_01",
+    "actorId": "actor_bridge_op",
+    "role": "bridge-operator",
+    "scope": "bridge-local",
+    "createdAt": "2026-05-01T00:00:00Z"
+  },
+  "reasonCode": "media-safety.violent-imagery"
+}
