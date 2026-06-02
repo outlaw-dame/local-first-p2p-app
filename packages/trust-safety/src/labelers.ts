@@ -96,7 +96,119 @@ export type SafetyLabelerProfile = Readonly<{
    * `kind` is anything else.
    */
   aggregatorOf?: ReadonlyArray<string>;
+  /**
+   * Self-declared capabilities — *what the labeler does*, in
+   * machine-readable form. Distinct from `kind` (which describes
+   * *how* the labeler operates).
+   *
+   * A capability declares a functional purpose (`detect.twitter-screenshot`,
+   * `classify.spam`, `attest.domain-ownership`, etc.) and the label
+   * keys it produces in service of that purpose. UIs can compare two
+   * labelers' `capabilities` to spot redundant subscriptions; trust
+   * policy can refuse to surface labels whose producing capability
+   * is unknown.
+   *
+   * Optional and additive on `lfp2p.safety-labeler-profile.v1`.
+   * When absent, downstream consumers treat the labeler as having
+   * no declared capabilities (subscription overlap detection falls
+   * back to `supportedLabels` overlap).
+   */
+  capabilities?: ReadonlyArray<LabelerCapability>;
 }>;
+
+/**
+ * A single declared capability on a `SafetyLabelerProfile`.
+ *
+ *  - `capabilityId`: a structured token from the standard registry
+ *    (`detect.*`, `classify.*`, `scan.*`, `attest.*`, `aggregate.*`)
+ *    or a community-defined `x.*` token.
+ *  - `description`: a short human-readable description.
+ *  - `producesLabels`: the `labelKey` values this capability emits.
+ *    Must be a subset of the profile's `supportedLabels` — declaring
+ *    a capability whose output labels are not in the profile's
+ *    supported list is rejected.
+ *  - `mediaTypes`: optional restriction. When present, the capability
+ *    only operates on content with these media types (e.g., a screenshot
+ *    detector that only consumes `image/png`).
+ */
+export type LabelerCapability = Readonly<{
+  capabilityId: string;
+  description: string;
+  producesLabels: ReadonlyArray<string>;
+  mediaTypes?: ReadonlyArray<string>;
+}>;
+
+/**
+ * Standard capability namespaces. The registry is curated; communities
+ * may extend it with `x.<namespace>.<name>` tokens for experimental
+ * capabilities (which downstream consumers may treat with reduced
+ * trust by default).
+ *
+ * Initial standard entries:
+ *
+ *   detect.*    — functional detection (typically high-volume, automated)
+ *     detect.twitter-screenshot   — screenshot of an X/Twitter post
+ *     detect.bluesky-screenshot   — screenshot of a Bluesky post
+ *     detect.crossplatform-screenshot — any non-local social screenshot
+ *     detect.profanity-en         — English profanity
+ *     detect.profanity-multilang  — multi-language profanity
+ *     detect.malicious-link       — phishing / malware link
+ *     detect.machine-generated    — AI-generated content detection
+ *     detect.duplicate            — near-duplicate of prior content
+ *
+ *   classify.*  — broader classifiers, often with severity / confidence
+ *     classify.spam               — spam likelihood classifier
+ *     classify.toxicity           — toxicity scoring
+ *     classify.topic              — topic / category labeling
+ *     classify.sentiment          — sentiment scoring
+ *     classify.adult-content      — adult content classifier (umbrella)
+ *
+ *   scan.*      — media safety scanners
+ *     scan.media-csam             — CSAM scanner (hard-safety)
+ *     scan.media-violence         — graphic violence scanner
+ *     scan.media-nudity           — nudity scanner
+ *
+ *   attest.*    — attestation issuers (claims about identity / property)
+ *     attest.domain-ownership     — domain verification
+ *     attest.organization-affiliation — org affiliation
+ *     attest.account-age          — account-age attestation
+ *
+ *   aggregate.* — re-publishing / synthesis
+ *     aggregate.community-list    — re-publishes community list curation
+ *     aggregate.multi-labeler     — synthesizes from multiple sources
+ *
+ * Custom capabilities are valid if they match `x.<namespace>.<name>`.
+ */
+export const STANDARD_LABELER_CAPABILITIES: ReadonlyArray<string> = Object.freeze([
+  // detect.*
+  'detect.twitter-screenshot',
+  'detect.bluesky-screenshot',
+  'detect.crossplatform-screenshot',
+  'detect.profanity-en',
+  'detect.profanity-multilang',
+  'detect.malicious-link',
+  'detect.machine-generated',
+  'detect.duplicate',
+  // classify.*
+  'classify.spam',
+  'classify.toxicity',
+  'classify.topic',
+  'classify.sentiment',
+  'classify.adult-content',
+  // scan.*
+  'scan.media-csam',
+  'scan.media-violence',
+  'scan.media-nudity',
+  // attest.*
+  'attest.domain-ownership',
+  'attest.organization-affiliation',
+  'attest.account-age',
+  // aggregate.*
+  'aggregate.community-list',
+  'aggregate.multi-labeler'
+]);
+
+const CAPABILITY_ID_PATTERN = /^(detect|classify|scan|attest|aggregate|x)\.[a-z0-9][a-z0-9-]{0,63}(?:\.[a-z0-9][a-z0-9-]{0,63})*$/;
 
 export function validateSafetyLabelerProfile(
   value: unknown,
@@ -218,7 +330,104 @@ export function validateSafetyLabelerProfile(
     );
   }
 
+  if (record.capabilities !== undefined) {
+    const supportedLabelSet = new Set(supportedLabels);
+    const capabilities = assertReadonlyArray(
+      record.capabilities,
+      `${label}.capabilities`,
+      256,
+      (item, i) => validateLabelerCapability(item, `${label}.capabilities[${i}]`, supportedLabelSet)
+    );
+    if (capabilities.length === 0) {
+      throw tsError(
+        'TS_INVALID_LABELER',
+        `${label}.capabilities, when present, must contain at least one entry`
+      );
+    }
+    out.capabilities = capabilities;
+  }
+
   return Object.freeze(out);
+}
+
+const MAX_CAPABILITY_DESCRIPTION_LENGTH = 1024;
+const MAX_CAPABILITY_PRODUCES_LABELS = 1024;
+const MAX_CAPABILITY_MEDIA_TYPES = 64;
+const MEDIA_TYPE_PATTERN = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
+
+function validateLabelerCapability(
+  value: unknown,
+  label: string,
+  supportedLabels: ReadonlySet<string>
+): LabelerCapability {
+  const record = assertPlainObject(value, label);
+  const capabilityId = assertId(record.capabilityId, `${label}.capabilityId`);
+  if (!CAPABILITY_ID_PATTERN.test(capabilityId)) {
+    throw tsError(
+      'TS_INVALID_LABELER',
+      `${label}.capabilityId "${capabilityId}" must match (detect|classify|scan|attest|aggregate|x).<segment>(.<segment>)*`
+    );
+  }
+  const description = assertText(
+    record.description,
+    `${label}.description`,
+    MAX_CAPABILITY_DESCRIPTION_LENGTH
+  );
+  const producesLabels = assertReadonlyArray(
+    record.producesLabels,
+    `${label}.producesLabels`,
+    MAX_CAPABILITY_PRODUCES_LABELS,
+    (item, i) => assertId(item, `${label}.producesLabels[${i}]`)
+  );
+  if (producesLabels.length === 0) {
+    throw tsError(
+      'TS_INVALID_LABELER',
+      `${label}.producesLabels must contain at least one labelKey`
+    );
+  }
+  for (const lk of producesLabels) {
+    if (!supportedLabels.has(lk)) {
+      throw tsError(
+        'TS_INVALID_LABELER',
+        `${label}.producesLabels: "${lk}" is not in the profile's supportedLabels`
+      );
+    }
+  }
+  const out: { -readonly [K in keyof LabelerCapability]: LabelerCapability[K] } = {
+    capabilityId,
+    description,
+    producesLabels
+  };
+  if (record.mediaTypes !== undefined) {
+    const mediaTypes = assertReadonlyArray(
+      record.mediaTypes,
+      `${label}.mediaTypes`,
+      MAX_CAPABILITY_MEDIA_TYPES,
+      (item, i) => {
+        const mt = assertId(item, `${label}.mediaTypes[${i}]`, 255);
+        if (!MEDIA_TYPE_PATTERN.test(mt)) {
+          throw tsError(
+            'TS_INVALID_LABELER',
+            `${label}.mediaTypes[${i}] "${mt}" is not a valid RFC 6838 media type`
+          );
+        }
+        return mt;
+      }
+    );
+    if (mediaTypes.length === 0) {
+      throw tsError(
+        'TS_INVALID_LABELER',
+        `${label}.mediaTypes, when present, must contain at least one type`
+      );
+    }
+    out.mediaTypes = mediaTypes;
+  }
+  return Object.freeze(out);
+}
+
+/** Returns true when `capabilityId` is in the standard registry. */
+export function isStandardCapability(capabilityId: string): boolean {
+  return STANDARD_LABELER_CAPABILITIES.includes(capabilityId);
 }
 
 export type SafetyLabelActionOverride = Readonly<{

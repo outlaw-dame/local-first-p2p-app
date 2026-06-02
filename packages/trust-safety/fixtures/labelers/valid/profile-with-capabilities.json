@@ -1,0 +1,37 @@
+{
+  "version": "lfp2p.labeler-event.v1",
+  "eventId": "evt_lab_prof_caps_001",
+  "createdAt": "2026-06-02T00:00:00Z",
+  "kind": "safety.labeler.profile.published",
+  "profile": {
+    "version": "lfp2p.safety-labeler-profile.v1",
+    "labelerId": "labeler_screenshot_detector",
+    "actorId": "actor_labeler_screenshot",
+    "displayName": "Cross-Platform Screenshot Detector",
+    "description": "Detects screenshots of posts from X/Twitter, Bluesky, and other platforms.",
+    "supportedNamespaces": ["lfp2p.safety", "lfp2p.content-category.v1"],
+    "supportedLabels": [
+      "screenshot.crossplatform",
+      "provenance.x-twitter",
+      "provenance.bluesky"
+    ],
+    "serviceEndpoint": "https://labeler-screenshot.example.com/stream",
+    "createdAt": "2026-01-15T00:00:00Z",
+    "updatedAt": "2026-06-02T00:00:00Z",
+    "kind": "automated-classifier",
+    "capabilities": [
+      {
+        "capabilityId": "detect.twitter-screenshot",
+        "description": "OCR + layout heuristic for X/Twitter screenshots.",
+        "producesLabels": ["screenshot.crossplatform", "provenance.x-twitter"],
+        "mediaTypes": ["image/jpeg", "image/png", "image/webp"]
+      },
+      {
+        "capabilityId": "detect.bluesky-screenshot",
+        "description": "OCR + layout heuristic for Bluesky screenshots.",
+        "producesLabels": ["screenshot.crossplatform", "provenance.bluesky"],
+        "mediaTypes": ["image/jpeg", "image/png", "image/webp"]
+      }
+    ]
+  }
+}

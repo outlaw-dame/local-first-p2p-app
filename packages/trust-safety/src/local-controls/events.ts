@@ -43,7 +43,9 @@ export const LOCAL_CONTROL_KINDS = [
   'safety.policy-list.subscribed',
   'safety.policy-list.unsubscribed',
   'safety.notification-preference.set',
-  'safety.preferences.snapshot'
+  'safety.preferences.snapshot',
+  // Phase 1.69 (content-category master gate)
+  'safety.adult-content.gate.set'
 ] as const;
 export type LocalControlKind = (typeof LOCAL_CONTROL_KINDS)[number];
 
@@ -210,6 +212,23 @@ export type LocalControlEvent =
       includesUpThroughEventId?: string;
       /** Canonical serialized state. Schema lives in `./snapshot.ts`. */
       snapshot: Readonly<Record<string, unknown>>;
+    }>
+  | Readonly<CommonFields & {
+      /**
+       * Adult content master gate. When `enabled === false` (the
+       * conservative default), all `adult.*` content-category labels
+       * force `hide` regardless of per-category preference. This is
+       * the protocol-level child-safety / fresh-account default.
+       */
+      kind: 'safety.adult-content.gate.set';
+      enabled: boolean;
+      /**
+       * For audit chains: the moment the user explicitly set the gate
+       * to its current value. The host SHOULD render an explicit
+       * "I am 18+" confirmation in the UI before emitting an
+       * `enabled: true` event.
+       */
+      gatedAt: string;
     }>;
 
 function commonFields(record: Record<string, unknown>, label: string): CommonFields {
@@ -494,6 +513,21 @@ export function validateLocalControlEvent(
         );
       }
       return Object.freeze(out) as LocalControlEvent;
+    }
+    case 'safety.adult-content.gate.set': {
+      if (typeof record.enabled !== 'boolean') {
+        throw tsError(
+          'TS_INVALID_INPUT',
+          `${label}.enabled must be a boolean`
+        );
+      }
+      const gatedAt = assertIso8601(record.gatedAt, `${label}.gatedAt`);
+      return Object.freeze({
+        ...common,
+        kind: 'safety.adult-content.gate.set',
+        enabled: record.enabled,
+        gatedAt
+      }) as LocalControlEvent;
     }
   }
 }

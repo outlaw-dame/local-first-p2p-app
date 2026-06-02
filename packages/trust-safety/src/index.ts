@@ -105,10 +105,13 @@ export {
   LABELER_SUBSCRIPTION_SCOPES,
   SAFETY_LABELER_PROFILE_VERSION,
   SAFETY_LABELER_SUBSCRIPTION_VERSION,
+  STANDARD_LABELER_CAPABILITIES,
+  isStandardCapability,
   validateSafetyLabelerProfile,
   validateSafetyLabelerSubscription
 } from './labelers.js';
 export type {
+  LabelerCapability,
   LabelerKind,
   LabelerSubscriptionScope,
   SafetyLabelActionOverride,
@@ -178,3 +181,4 @@ export * from './transport-admission/index.js';
 export * from './curation-runtime/index.js';
 export * from './labelers-runtime/index.js';
 export * from './moderation-runtime/index.js';
+export * from './content-categories/index.js';

@@ -150,14 +150,15 @@ describe('validateLocalControlEvent — kinds', () => {
     ).toThrow(/TS_UNKNOWN_VERSION/);
   });
 
-  it('exposes the documented kinds (7 baseline + 5 portability expansion)', () => {
-    expect(LOCAL_CONTROL_KINDS.length).toBe(12);
+  it('exposes the documented kinds (7 baseline + 5 portability + 1 adult-gate)', () => {
+    expect(LOCAL_CONTROL_KINDS.length).toBe(13);
     expect(LOCAL_CONTROL_KINDS).toContain('safety.account.blocked');
     expect(LOCAL_CONTROL_KINDS).toContain('safety.account.allowlisted');
     expect(LOCAL_CONTROL_KINDS).toContain('safety.policy-list.subscribed');
     expect(LOCAL_CONTROL_KINDS).toContain('safety.policy-list.unsubscribed');
     expect(LOCAL_CONTROL_KINDS).toContain('safety.notification-preference.set');
     expect(LOCAL_CONTROL_KINDS).toContain('safety.preferences.snapshot');
+    expect(LOCAL_CONTROL_KINDS).toContain('safety.adult-content.gate.set');
   });
 });
 

@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_local_ctl_gate_001",
+  "createdAt": "2026-06-02T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.adult-content.gate.set",
+  "enabled": true,
+  "gatedAt": "2026-06-02T00:00:00Z"
+}

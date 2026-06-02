@@ -102,6 +102,14 @@ export type LocalControlState = Readonly<{
   >;
   appliedEventIds: ReadonlySet<string>;
   snapshotAppliedAt?: string;
+  /**
+   * Adult-content master gate, per Phase 1.69. `undefined` means the
+   * user has never explicitly set it — downstream
+   * `decideContentCategoryAction` treats `undefined` as `false`
+   * (conservative default, all adult categories force hide).
+   * `gatedAt` records the moment the user last set it.
+   */
+  adultContentGate?: Readonly<{ enabled: boolean; gatedAt: string }>;
 }>;
 
 /** Build an empty, frozen state. */
@@ -349,6 +357,21 @@ export function applyLocalControlEvent(
         'TS_INVALID_INPUT',
         `${label}: safety.preferences.snapshot must be applied via importPreferencesSnapshot, not applyLocalControlEvent`
       );
+    }
+    case 'safety.adult-content.gate.set': {
+      // `apply` records the new gate; `revert` removes it entirely
+      // (returns to the conservative undefined-means-disabled default).
+      if (e.action === 'apply') {
+        return Object.freeze({
+          ...state,
+          adultContentGate: Object.freeze({ enabled: e.enabled, gatedAt: e.gatedAt }),
+          appliedEventIds: nextAppliedEventIds
+        });
+      }
+      // revert
+      const next: Record<string, unknown> = { ...state, appliedEventIds: nextAppliedEventIds };
+      delete next.adultContentGate;
+      return Object.freeze(next) as LocalControlState;
     }
   }
 }

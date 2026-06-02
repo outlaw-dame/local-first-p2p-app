@@ -22,3 +22,9 @@ export type {
   SubscriptionRecord,
   SubscriptionStatus
 } from './projection.js';
+
+export {
+  detectRedundantSubscription,
+  findOverlappingSubscriptions
+} from './overlap.js';
+export type { OverlapLevel, OverlappingPair, RedundancyAssessment } from './overlap.js';
