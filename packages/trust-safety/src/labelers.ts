@@ -31,6 +31,39 @@ const MAX_NAMESPACES = 256;
 const MAX_LABELS = 1024;
 const MAX_OVERRIDES = 1024;
 const MAX_SERVICE_ENDPOINT_LENGTH = 2048;
+const MAX_AGGREGATOR_SOURCES = 256;
+
+/**
+ * Self-declared labeler kind. The kind is advisory metadata — local
+ * trust policy decides how to weight different kinds. The protocol
+ * does not infer authority from the kind; that belongs to the
+ * trust-policy engine (ADR-006).
+ *
+ * Kinds (chosen to emulate ATProto-style composable moderation while
+ * preserving our protocol's stronger privacy and trust controls):
+ *
+ *  - `human-curated`: individual or small team manually applying labels.
+ *  - `automated-classifier`: ML or heuristic, high-volume, low-latency.
+ *  - `hybrid`: automated triage with human review.
+ *  - `attestation`: cryptographic attestations (domain verification,
+ *    badge issuers, court orders, identity verification services).
+ *  - `community-aggregator`: re-publishes labels from other labelers'
+ *    streams with its own signature; carries `aggregatorOf` listing
+ *    the source labelerIds.
+ *  - `media-scanner`: specifically for media safety (CSAM/NSFW/etc.).
+ *  - `unknown`: default when the field is not provided on older
+ *    `lfp2p.safety-labeler-profile.v1` events.
+ */
+export const LABELER_KINDS = [
+  'human-curated',
+  'automated-classifier',
+  'hybrid',
+  'attestation',
+  'community-aggregator',
+  'media-scanner',
+  'unknown'
+] as const;
+export type LabelerKind = (typeof LABELER_KINDS)[number];
 
 export type SafetyLabelerProfile = Readonly<{
   version: typeof SAFETY_LABELER_PROFILE_VERSION;
@@ -45,6 +78,24 @@ export type SafetyLabelerProfile = Readonly<{
   credentialRefs?: ReadonlyArray<CredentialRef>;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Self-declared labeler kind. Advisory only. When absent on a v1
+   * profile event, the runtime treats the kind as `unknown` rather
+   * than rejecting the event — preserving backward compatibility
+   * with profiles emitted before this field existed.
+   */
+  kind?: LabelerKind;
+  /**
+   * For `community-aggregator` kind, the set of source labelerIds
+   * whose streams this labeler re-publishes. Subscribing to an
+   * aggregator transitively trusts the aggregator's curation of
+   * which sources to include — NOT the source labelers themselves
+   * for purposes of their other (non-aggregated) work.
+   *
+   * Required when `kind === 'community-aggregator'`; rejected when
+   * `kind` is anything else.
+   */
+  aggregatorOf?: ReadonlyArray<string>;
 }>;
 
 export function validateSafetyLabelerProfile(
@@ -120,6 +171,53 @@ export function validateSafetyLabelerProfile(
       (item, i) => validateCredentialRef(item, `${label}.credentialRefs[${i}]`)
     );
   }
+
+  // --- Phase 1.66 additive fields (still lfp2p.safety-labeler-profile.v1) ---
+  let kind: LabelerKind | undefined;
+  if (record.kind !== undefined) {
+    kind = assertOneOf(record.kind, LABELER_KINDS, `${label}.kind`);
+    out.kind = kind;
+  }
+
+  if (record.aggregatorOf !== undefined) {
+    const sources = assertReadonlyArray(
+      record.aggregatorOf,
+      `${label}.aggregatorOf`,
+      MAX_AGGREGATOR_SOURCES,
+      (item, i) => assertId(item, `${label}.aggregatorOf[${i}]`)
+    );
+    // Cross-check: aggregatorOf is only valid when kind === 'community-aggregator'.
+    if (kind !== 'community-aggregator') {
+      throw tsError(
+        'TS_INVALID_LABELER',
+        `${label}.aggregatorOf may only be present when kind === "community-aggregator" (got kind="${String(kind)}")`
+      );
+    }
+    if (sources.length === 0) {
+      throw tsError(
+        'TS_INVALID_LABELER',
+        `${label}.aggregatorOf must contain at least one source labelerId`
+      );
+    }
+    // An aggregator cannot list itself as a source — that would be a
+    // trust loop.
+    for (const src of sources) {
+      if (src === labelerId) {
+        throw tsError(
+          'TS_INVALID_LABELER',
+          `${label}.aggregatorOf must not include the labeler's own id (would create a trust loop)`
+        );
+      }
+    }
+    out.aggregatorOf = sources;
+  } else if (kind === 'community-aggregator') {
+    // Symmetric guard: a community-aggregator profile MUST declare its sources.
+    throw tsError(
+      'TS_INVALID_LABELER',
+      `${label}: kind="community-aggregator" requires aggregatorOf to list at least one source labelerId`
+    );
+  }
+
   return Object.freeze(out);
 }
 

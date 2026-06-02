@@ -1,0 +1,26 @@
+{
+  "version": "lfp2p.moderation-event.v1",
+  "eventId": "evt_dec_001",
+  "createdAt": "2026-05-31T03:00:00Z",
+  "kind": "safety.policy.decision.recorded",
+  "decision": {
+    "version": "lfp2p.safety-policy-decision.v1",
+    "decisionId": "decision_001",
+    "authority": {
+      "version": "lfp2p.safety-authority.v1",
+      "authorityId": "auth_mod_42",
+      "actorId": "actor_mod_alice",
+      "role": "moderator",
+      "scope": "community-local",
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "subject": { "type": "event", "eventId": "evt_offending_xyz" },
+    "action": "hide",
+    "scope": "community-local",
+    "policyVersion": "policy_community_rules::1",
+    "reasonCode": "abuse.harassment",
+    "createdAt": "2026-05-31T03:00:00Z",
+    "appealable": true
+  },
+  "sourceQueueItemId": "q_001"
+}

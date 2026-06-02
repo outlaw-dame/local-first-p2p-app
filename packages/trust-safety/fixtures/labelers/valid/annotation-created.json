@@ -1,0 +1,26 @@
+{
+  "version": "lfp2p.labeler-event.v1",
+  "eventId": "evt_lab_ann_001",
+  "createdAt": "2026-05-31T03:00:00Z",
+  "kind": "safety.annotation.created",
+  "annotation": {
+    "version": "lfp2p.safety-annotation.v1",
+    "annotationId": "ann_001",
+    "issuer": {
+      "version": "lfp2p.safety-authority.v1",
+      "authorityId": "labeler_human_team_one",
+      "actorId": "actor_human_reviewer",
+      "role": "reviewer",
+      "scope": "community-local",
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "subject": { "type": "event", "eventId": "evt_annotated" },
+    "motivation": "commenting",
+    "body": {
+      "format": "text/markdown",
+      "value": "Context: this is a quote from an academic paper, not an original claim."
+    },
+    "scope": "community-local",
+    "createdAt": "2026-05-31T03:00:00Z"
+  }
+}

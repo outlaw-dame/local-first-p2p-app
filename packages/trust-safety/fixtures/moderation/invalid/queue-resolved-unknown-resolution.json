@@ -1,0 +1,17 @@
+{
+  "version": "lfp2p.moderation-event.v1",
+  "eventId": "evt_bad_q_resolve",
+  "createdAt": "2026-05-31T03:00:00Z",
+  "kind": "moderation.queue.item.resolved",
+  "queueItemId": "q1",
+  "resolvedBy": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_mod",
+    "actorId": "actor_mod",
+    "scope": "community-local",
+    "createdAt": "2026-01-01T00:00:00Z"
+  },
+  "resolvedAt": "2026-05-31T03:00:00Z",
+  "resolution": "yeeted",
+  "resolutionReasonCode": "abuse.harassment"
+}

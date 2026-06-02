@@ -1,0 +1,17 @@
+{
+  "version": "lfp2p.labeler-event.v1",
+  "eventId": "evt_lab_rev_001",
+  "createdAt": "2026-06-01T00:00:00Z",
+  "kind": "safety.label.revoked",
+  "labelId": "label_001",
+  "revokedBy": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "labeler_alpha_classifier",
+    "actorId": "actor_labeler_alpha",
+    "role": "labeler",
+    "scope": "community-local",
+    "createdAt": "2026-01-01T00:00:00Z"
+  },
+  "revokedAt": "2026-06-01T00:00:00Z",
+  "reasonCode": "policy.community-rule"
+}

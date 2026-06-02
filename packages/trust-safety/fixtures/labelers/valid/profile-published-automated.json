@@ -1,0 +1,19 @@
+{
+  "version": "lfp2p.labeler-event.v1",
+  "eventId": "evt_lab_prof_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "safety.labeler.profile.published",
+  "profile": {
+    "version": "lfp2p.safety-labeler-profile.v1",
+    "labelerId": "labeler_alpha_classifier",
+    "actorId": "actor_labeler_alpha",
+    "displayName": "Alpha Automated Spam Classifier",
+    "description": "ML-driven spam classifier; advisory only.",
+    "supportedNamespaces": ["lfp2p.safety"],
+    "supportedLabels": ["security.spam", "quality.duplicate"],
+    "serviceEndpoint": "https://labeler-alpha.example.com/stream",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-05-30T00:00:00Z",
+    "kind": "automated-classifier"
+  }
+}

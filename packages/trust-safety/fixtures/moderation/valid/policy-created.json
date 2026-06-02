@@ -1,0 +1,24 @@
+{
+  "version": "lfp2p.moderation-event.v1",
+  "eventId": "evt_pol_create_001",
+  "createdAt": "2026-01-01T00:00:00Z",
+  "kind": "safety.policy.created",
+  "policy": {
+    "version": "lfp2p.safety-policy.v1",
+    "policyId": "policy_community_rules",
+    "policyVersionNumber": 1,
+    "title": "Community Rules v1",
+    "body": "1. Be respectful.\n2. No spam.\n3. No harassment.",
+    "scope": "community-local",
+    "applicableActions": ["warn", "hide", "remove-local"],
+    "createdBy": {
+      "version": "lfp2p.safety-authority.v1",
+      "authorityId": "auth_admin_01",
+      "actorId": "actor_admin",
+      "role": "admin",
+      "scope": "community-local",
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "createdAt": "2026-01-01T00:00:00Z"
+  }
+}

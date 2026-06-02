@@ -1,0 +1,25 @@
+{
+  "version": "lfp2p.labeler-event.v1",
+  "eventId": "evt_lab_app_001",
+  "createdAt": "2026-05-31T01:00:00Z",
+  "kind": "safety.label.applied",
+  "label": {
+    "version": "lfp2p.safety-label.v1",
+    "labelId": "label_001",
+    "issuer": {
+      "version": "lfp2p.safety-authority.v1",
+      "authorityId": "labeler_alpha_classifier",
+      "actorId": "actor_labeler_alpha",
+      "role": "labeler",
+      "scope": "community-local",
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "subject": { "type": "event", "eventId": "evt_target" },
+    "labelKey": "security.spam",
+    "namespace": "lfp2p.safety",
+    "severity": "medium",
+    "confidence": 0.83,
+    "scope": "community-local",
+    "createdAt": "2026-05-31T01:00:00Z"
+  }
+}

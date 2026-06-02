@@ -1,0 +1,19 @@
+{
+  "version": "lfp2p.moderation-event.v1",
+  "eventId": "evt_q_create_001",
+  "createdAt": "2026-05-31T01:00:00Z",
+  "kind": "moderation.queue.item.created",
+  "queueItemId": "q_001",
+  "ownerAuthority": {
+    "version": "lfp2p.safety-authority.v1",
+    "authorityId": "auth_mod_42",
+    "actorId": "actor_mod_alice",
+    "role": "moderator",
+    "scope": "community-local",
+    "createdAt": "2026-01-01T00:00:00Z"
+  },
+  "sourceKind": "report",
+  "sourceId": "report_001",
+  "reasonCode": "abuse.harassment",
+  "summary": "Report cites multiple instances of targeted harassment."
+}

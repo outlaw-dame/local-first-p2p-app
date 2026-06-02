@@ -1,0 +1,19 @@
+{
+  "version": "lfp2p.labeler-event.v1",
+  "eventId": "evt_lab_sub_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "safety.labeler.subscribed",
+  "subscription": {
+    "version": "lfp2p.safety-labeler-subscription.v1",
+    "subscriptionId": "sub_001",
+    "subscriberActorId": "actor_damon",
+    "labelerId": "labeler_alpha_classifier",
+    "trustedNamespaces": ["lfp2p.safety"],
+    "trustedLabels": ["security.spam"],
+    "scope": "account-local",
+    "actionOverrides": [
+      { "labelKey": "security.spam", "namespace": "lfp2p.safety", "action": "collapse" }
+    ],
+    "createdAt": "2026-05-31T00:00:00Z"
+  }
+}

@@ -101,6 +101,7 @@ export {
 export type { SafetyLabel, SafetyLabelDefinition } from './labels.js';
 
 export {
+  LABELER_KINDS,
   LABELER_SUBSCRIPTION_SCOPES,
   SAFETY_LABELER_PROFILE_VERSION,
   SAFETY_LABELER_SUBSCRIPTION_VERSION,
@@ -108,6 +109,7 @@ export {
   validateSafetyLabelerSubscription
 } from './labelers.js';
 export type {
+  LabelerKind,
   LabelerSubscriptionScope,
   SafetyLabelActionOverride,
   SafetyLabelerProfile,
@@ -116,6 +118,12 @@ export type {
 
 export { SAFETY_REASON_CODES } from './reason-codes.js';
 export type { SafetyReasonCode } from './reason-codes.js';
+
+export {
+  SAFETY_POLICY_VERSION,
+  validateSafetyPolicy
+} from './policies.js';
+export type { SafetyPolicy } from './policies.js';
 
 export {
   REPORTER_PRIVACY_LEVELS,
@@ -168,3 +176,5 @@ export * from './local-controls/index.js';
 export * from './reports-appeals/index.js';
 export * from './transport-admission/index.js';
 export * from './curation-runtime/index.js';
+export * from './labelers-runtime/index.js';
+export * from './moderation-runtime/index.js';

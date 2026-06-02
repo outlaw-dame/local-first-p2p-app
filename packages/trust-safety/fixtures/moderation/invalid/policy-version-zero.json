@@ -1,0 +1,23 @@
+{
+  "version": "lfp2p.moderation-event.v1",
+  "eventId": "evt_bad_pol_v0",
+  "createdAt": "2026-01-01T00:00:00Z",
+  "kind": "safety.policy.created",
+  "policy": {
+    "version": "lfp2p.safety-policy.v1",
+    "policyId": "policy_x",
+    "policyVersionNumber": 0,
+    "title": "Bad",
+    "body": "versionNumber must be >= 1",
+    "scope": "community-local",
+    "applicableActions": ["warn"],
+    "createdBy": {
+      "version": "lfp2p.safety-authority.v1",
+      "authorityId": "auth_admin",
+      "actorId": "actor_admin",
+      "scope": "community-local",
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "createdAt": "2026-01-01T00:00:00Z"
+  }
+}

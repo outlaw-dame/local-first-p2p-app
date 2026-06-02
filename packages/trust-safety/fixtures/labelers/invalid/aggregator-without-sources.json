@@ -1,0 +1,17 @@
+{
+  "version": "lfp2p.labeler-event.v1",
+  "eventId": "evt_bad_agg",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "safety.labeler.profile.published",
+  "profile": {
+    "version": "lfp2p.safety-labeler-profile.v1",
+    "labelerId": "labeler_X",
+    "actorId": "actor_X",
+    "displayName": "Bad Aggregator",
+    "supportedNamespaces": ["lfp2p.safety"],
+    "supportedLabels": ["security.spam"],
+    "createdAt": "2026-04-01T00:00:00Z",
+    "updatedAt": "2026-05-30T00:00:00Z",
+    "kind": "community-aggregator"
+  }
+}

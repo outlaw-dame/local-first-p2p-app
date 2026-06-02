@@ -219,10 +219,43 @@ Phase 1.65 curation-runtime slice (sub-module under `@lfp2p/trust-safety/curatio
 - New shared module `packages/trust-safety/src/projection-helpers.ts` (`withFrozenRecordSet`, `withFrozenRecordDelete`, `withFrozenBucketAppend`, `withFrozenAppliedEventId`) uses `Object.defineProperty` with explicit data-descriptor flags so even a forbidden key that bypassed validation lands as an own-property rather than mutating the prototype chain. All three prior projections (`local-controls`, `reports-appeals`, `transport-admission`) refactored to use the shared helpers — no duplicate code.
 - 29 new tests in `hardening-prototype-pollution.test.ts` covering `isForbiddenIdKey`, the defensive helpers (set / delete / bucket-append / mass operations with Object.prototype untouched), and per-projection rejection of every reserved id key.
 
+Phase 1.66 labelers-runtime slice (sub-module under `@lfp2p/trust-safety/labelers-runtime`):
+
+- Module version sentinel: `lfp2p.labeler-event.v1`.
+- 7 lifecycle event kinds: `safety.labeler.profile.published`, `safety.label-definition.published`, `safety.labeler.subscribed`, `safety.labeler.unsubscribed`, `safety.label.applied`, `safety.label.revoked`, `safety.annotation.created`.
+- `SafetyLabelerProfile` (Phase 1.61) gained two optional fields under the same v1 schema: `kind: LabelerKind` (taxonomy with 7 values — `human-curated`, `automated-classifier`, `hybrid`, `attestation`, `community-aggregator`, `media-scanner`, `unknown`) and `aggregatorOf: ReadonlyArray<string>` (required for `community-aggregator`, rejected for others, no self-loops, must be non-empty).
+- `LabelersState` projection with `labelerProfilesById`, `labelDefinitionsByKey`, `subscriptionsById`, `labelsByLabelId`, `labelsBySubjectKey`, `annotationsById`, `appliedEventIds`. State machines: profile re-publish supersedes; subscription `active → unsubscribed` terminal; label `active → revoked` terminal; cross-labeler revoke rejected.
+- **Composable / stackable resolution**: `effectiveLabelsForSubject(state, subjectKey, subscriberActorId, options?)` returns `ResolvedLabel[]` — one entry per (labelKey × issuing labeler) with full provenance (issuerActorId, issuerLabelerId, labelerKind, severity, confidence, effectiveAction, appliedAt). Subscriber-side filtering: revoked / unsubscribed-from / non-trusted-namespace / non-trusted-label entries excluded. Per-labeler `actionOverride` from the subscription derives `effectiveAction`; falls through to `SafetyLabelDefinition.defaultAction` then to a severity-derived conservative default. Companion `mostRestrictiveAction(stack)` picks the highest-rank action.
+- Improvements over ATProto: private-by-default subscriptions (Phase 1.62 carryover), per-namespace + per-label trust, hard-safety can't be downgraded, first-class aggregators with trust-loop guard, fully transparent stacking.
+- 6 valid + 3 invalid fixtures under `packages/trust-safety/fixtures/labelers/`.
+- 27 new tests covering 2-labeler stacking with distinct kinds, per-labeler override producing per-labeler effectiveAction, cross-labeler revoke rejection, same-labeler revoke success, unsubscribed mid-stack filtering, per-namespace + per-label trust, profile re-publish supersedes, replay equivalence, aggregator cross-checks (without-sources / self-loop / non-aggregator-with-field), lifecycle illegal transitions.
+- New doctrine document: `docs/protocol/labeler-runtime-doctrine.md` with ATProto-to-our-architecture mapping table, 12 explicit improvements over ATProto, state machine reference, "what the labeler runtime MUST NOT do" section.
+
+Phase 1.67 moderation-runtime slice (sub-module under `@lfp2p/trust-safety/moderation-runtime`):
+
+- New shape `SafetyPolicy` (`lfp2p.safety-policy.v1`) with versioned policy chain (policyId, policyVersionNumber, title, body, scope, applicableActions, createdBy, createdAt, optional supersedesPolicyVersionNumber cross-validated < policyVersionNumber).
+- Module version sentinel: `lfp2p.moderation-event.v1`.
+- 7 lifecycle event kinds: `safety.policy.created`, `safety.policy.updated`, `safety.policy.deprecated`, `safety.policy.decision.recorded` (wraps existing `SafetyPolicyDecision`), `moderation.queue.item.created`, `moderation.queue.item.assigned`, `moderation.queue.item.resolved`.
+- `ModerationState` projection with rich cross-reference indexing: `policiesByPolicyIdAndVersion` (every version preserved), `activePolicyVersionByPolicyId` (cleared on deprecation), `decisionsById`, `decisionsBySubjectKey`, `decisionsByPolicyId`, `queueItemsById`, `queueIdsByStatus` (open/assigned/resolved), `queueIdsByAssignee` (moderator inbox), `queueIdsBySourceId` (cross-ref from `(sourceKind, sourceId)` → queue items), `appliedEventIds`.
+- Policy state machine: `absent → active@v1 → active@v2 → ... → deprecated@vN` (terminal). Updates require `policyVersionNumber = active + 1` AND `supersedesPolicyVersionNumber = active`. Deprecation does NOT retroactively reverse decisions (audit-preserving).
+- Queue state machine: `open → assigned → resolved` with `open → resolved` skip-assignment permitted; terminal at resolved. Every illegal transition rejected with `TS_LIFECYCLE_TRANSITION`.
+- Decision recording: append-only by `decisionId`; duplicate silent no-op.
+- Two-way linkage: queue resolution cites `resolutionDecisionId`; decision references `sourceQueueItemId`. Phase 1.63 integration: `queueItemsForSource('report', reportId)` returns all queue items spawned from a report.
+- 3 valid + 3 invalid fixtures under `packages/trust-safety/fixtures/moderation/`.
+- 28 new tests covering every legal and illegal state machine transition (policy version chaining, skip-version rejection, mismatched supersedes pointer, deprecation preserves past decisions, queue lifecycle every illegal case), decision-recording subject + policyVersion cross-indexing, queue ↔ decision two-way linkage, `queueItemsForSource` cross-reference, replay equivalence, eventId idempotency.
+- New doctrine document: `docs/protocol/moderation-runtime-doctrine.md` with what-this-is / what-this-is-NOT, five non-negotiable rules, state machine diagrams, cross-reference index table, integration points with Phase 1.61 / 1.63 / 1.66, "what moderation runtime MUST NOT do" section.
+
+Phase 1.68 — T&S completion sweep (docs-only):
+
+- Threat model (`docs/threat-model/trust-safety-and-abuse.md`) appended with an "Implementation update — Phase 1.62.1 through 1.67" section documenting threats and mitigations introduced by the expansion, deferral integrations, surface gate, hardening pass, labeler runtime, and moderation runtime.
+- New canonical entry point `docs/implementation/trust-safety-complete-summary.md` surveying the full 1.6x stack: phases shipped, sub-modules with public surface + doctrine, dependency graph (no cycles), per-consumer "how to consume" sections, explicit non-deferred deferrals table, boundary discipline statement, final acceptance criteria checklist.
+
 Not implemented yet:
 
 - `@lfp2p/search` and a future feed runtime that materializes a ranked feed by consuming `computeItemRanking`.
-- Dexie projection persistence for local-control events, reports-appeals, transport-admission, and curation state; PWA settings UI to emit them.
+- Dexie projection persistence for local-control events, reports-appeals, transport-admission, curation, labelers, and moderation state; PWA settings UI to emit them.
+- Labeler HTTP/WS API (future `apps/labeler-service`) and subscriber-side ingestion runtime (`packages/sync-client`).
+- Moderation tools API + UI (future `apps/moderation-tools`).
 - Capability/credential verification (shape-only refs today; full verification depends on a future capability ADR).
 - Trust-policy engine (ADR-006) for turning validated evidence into deterministic decisions.
 

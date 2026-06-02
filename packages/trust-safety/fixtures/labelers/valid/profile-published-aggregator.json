@@ -1,0 +1,19 @@
+{
+  "version": "lfp2p.labeler-event.v1",
+  "eventId": "evt_lab_prof_agg_001",
+  "createdAt": "2026-05-31T00:00:00Z",
+  "kind": "safety.labeler.profile.published",
+  "profile": {
+    "version": "lfp2p.safety-labeler-profile.v1",
+    "labelerId": "labeler_community_bundle",
+    "actorId": "actor_community_curator",
+    "displayName": "Community Bundle Aggregator",
+    "description": "Re-publishes labels from a curated set of community labelers.",
+    "supportedNamespaces": ["lfp2p.safety"],
+    "supportedLabels": ["security.spam", "quality.low-effort"],
+    "createdAt": "2026-04-01T00:00:00Z",
+    "updatedAt": "2026-05-30T00:00:00Z",
+    "kind": "community-aggregator",
+    "aggregatorOf": ["labeler_alpha_classifier", "labeler_human_team_one"]
+  }
+}
