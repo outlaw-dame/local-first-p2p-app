@@ -316,12 +316,15 @@ Implemented today:
 - Identity control-log projection primitives (`createEmptyIdentityControlState`, `applyIdentityControlEvent`, `seedIdentityControlProjection`).
 - Control-log enforcement rules for controller signer, epoch monotonicity, entity existence, and deterministic replay behavior.
 - Runtime authorization helper for trust/device/capability-gated identity operations.
+- **Phase 2.1**: stable `IDENTITY_*` error-code namespace (`errors.ts`) and pure shape validator (`validation.ts`). `validateIdentityEvent` enforces version pinning, kind allowlist, prototype-pollution defense at every payload-object boundary, public-key wire-format check, digest-reference wire-format check, epoch hygiene, scope length bounds, and a 16 KB serialized-payload cap. Two new event kinds: `identity.device.rotated` (in-place key swap; rejects unknown device, revoked device, same-key reuse, and `previousPublicKey` mismatch) and `identity.contact-card.published` (audit trail for contact-card publication; projection retains the most recent digest under `state.contactCardPublication`). Projection now re-runs the pure validator on identity events before any mutation. 7 valid + 6 invalid fixtures; 39 new tests.
 
 Not implemented yet:
 
 - Full account-level identity workflow that migrates local bootstrap into authoritative root/controller lifecycle management.
-- Identity recovery/supersession flow.
-- Controller key rotation semantics.
+- Identity recovery/supersession flow (controller-key replacement).
+- Capability delegation chains (delegate-of-delegate).
+- Multi-controller accounts.
+- Phase 2.2 — identity-event persistence in `@lfp2p/local-store` (event-log table + idempotent append + replay-on-open) and PWA emit/append wiring for identity flows.
 - Contact-card import/export.
 
 ### `packages/local-store`

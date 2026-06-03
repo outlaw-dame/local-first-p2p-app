@@ -1,0 +1,7 @@
+{
+  "version": "lfp2p.identity-event.v1",
+  "kind": "identity.account.transferred",
+  "payload": {
+    "newOwner": "device:bob"
+  }
+}

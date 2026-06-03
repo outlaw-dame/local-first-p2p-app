@@ -16,10 +16,25 @@ export {
   applyIdentityControlEvent,
   createEmptyIdentityControlState,
   seedIdentityControlProjection,
+  type IdentityContactCardPublication,
   type IdentityControlCapability,
   type IdentityControlDevice,
   type IdentityControlState
 } from './control-log.js';
+export {
+  IDENTITY_ERROR_CODES,
+  IdentityError,
+  identityError,
+  type IdentityErrorCode
+} from './errors.js';
+export {
+  IDENTITY_EVENT_KINDS,
+  IDENTITY_EVENT_VERSION,
+  assertPlainObject,
+  validateIdentityEvent,
+  type IdentityEventKind,
+  type ValidatedIdentityEvent
+} from './validation.js';
 
 export type LocalDeviceIdentity = Readonly<{
   identityId: string;

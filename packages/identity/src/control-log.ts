@@ -1,6 +1,14 @@
 import { canonicalizeJson, type SignedEventEnvelope, unsignedProjection, validateSignedEvent } from '@lfp2p/protocol';
+import { identityError } from './errors.js';
+import { validateIdentityEvent } from './validation.js';
 
 export type IdentityDeviceStatus = 'active' | 'revoked';
+
+export type IdentityContactCardPublication = Readonly<{
+  contactCardDigest: string;
+  capturedAt: string;
+  publishedAt: string;
+}>;
 
 export type IdentityControlDevice = Readonly<{
   deviceId: string;
@@ -27,6 +35,13 @@ export type IdentityControlState = Readonly<{
   epoch: number;
   devices: Readonly<Record<string, IdentityControlDevice>>;
   capabilities: Readonly<Record<string, IdentityControlCapability>>;
+  /**
+   * Most recent contact-card publication observed for this identity.
+   * The projection retains only the latest publication — older ones
+   * remain in the signed-event log for audit but are not surfaced as
+   * "current."
+   */
+  contactCardPublication?: IdentityContactCardPublication;
   lastEventId?: string;
 }>;
 
@@ -44,6 +59,18 @@ export function applyIdentityControlEvent(
 ): IdentityControlState {
   validateSignedEvent(event);
 
+  // Belt-and-suspenders: re-run the pure shape validator on identity
+  // events so a payload that slipped past the envelope layer can
+  // never poison the projection. Non-identity kinds bypass this
+  // narrow validator (the projection ignores them anyway).
+  if (typeof event.kind === 'string' && event.kind.startsWith('identity.')) {
+    validateIdentityEvent({
+      version: 'lfp2p.identity-event.v1',
+      kind: event.kind,
+      payload: event.payload
+    });
+  }
+
   switch (event.kind) {
     case 'identity.controller.created':
       return applyControllerCreated(state, event);
@@ -51,10 +78,14 @@ export function applyIdentityControlEvent(
       return applyDeviceAuthorized(state, event);
     case 'identity.device.revoked':
       return applyDeviceRevoked(state, event);
+    case 'identity.device.rotated':
+      return applyDeviceRotated(state, event);
     case 'identity.capability.granted':
       return applyCapabilityGranted(state, event);
     case 'identity.capability.revoked':
       return applyCapabilityRevoked(state, event);
+    case 'identity.contact-card.published':
+      return applyContactCardPublished(state, event);
     default:
       return state;
   }
@@ -215,6 +246,81 @@ function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventE
         revokedAt: event.createdAt
       }
     },
+    lastEventId: event.eventId
+  };
+}
+
+function applyDeviceRotated(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
+  requireControllerSigner(state, event);
+  const payload = event.payload as Record<string, unknown>;
+  const deviceId = requireString(payload.deviceId, 'deviceId');
+  const previousPublicKey = requireString(payload.previousPublicKey, 'previousPublicKey');
+  const newPublicKey = requireString(payload.newPublicKey, 'newPublicKey');
+  const epoch = requirePositiveInteger(payload.epoch, 'epoch');
+  const existing = state.devices[deviceId];
+  if (existing === undefined) {
+    throw identityError(
+      'IDENTITY_DEVICE_NOT_FOUND',
+      `identity.device.rotated references unknown device ${deviceId}`
+    );
+  }
+  if (existing.status !== 'active') {
+    throw identityError(
+      'IDENTITY_LIFECYCLE_TRANSITION',
+      `identity.device.rotated cannot rotate a ${existing.status} device`
+    );
+  }
+  if (existing.publicKey !== previousPublicKey) {
+    throw identityError(
+      'IDENTITY_AUTHORITY_MISMATCH',
+      'identity.device.rotated payload.previousPublicKey does not match the stored key'
+    );
+  }
+  if (previousPublicKey === newPublicKey) {
+    throw identityError(
+      'IDENTITY_DEVICE_REUSE',
+      'identity.device.rotated payload.newPublicKey must differ from previousPublicKey'
+    );
+  }
+  requireMonotonicEpoch(state.epoch, epoch, event.kind);
+
+  return {
+    ...state,
+    epoch,
+    devices: {
+      ...state.devices,
+      [deviceId]: {
+        ...existing,
+        publicKey: newPublicKey,
+        authorizedAt: event.createdAt
+      }
+    },
+    lastEventId: event.eventId
+  };
+}
+
+function applyContactCardPublished(
+  state: IdentityControlState,
+  event: SignedEventEnvelope
+): IdentityControlState {
+  requireControllerSigner(state, event);
+  const payload = event.payload as Record<string, unknown>;
+  const contactCardDigest = requireString(payload.contactCardDigest, 'contactCardDigest');
+  const capturedAt = requireString(payload.capturedAt, 'capturedAt');
+  if (!Number.isFinite(Date.parse(capturedAt))) {
+    throw identityError(
+      'IDENTITY_INVALID_TIMESTAMP',
+      'identity.contact-card.published payload.capturedAt must be an ISO date string'
+    );
+  }
+
+  return {
+    ...state,
+    contactCardPublication: Object.freeze({
+      contactCardDigest,
+      capturedAt,
+      publishedAt: event.createdAt
+    }),
     lastEventId: event.eventId
   };
 }

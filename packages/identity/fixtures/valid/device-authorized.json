@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.identity-event.v1",
+  "kind": "identity.device.authorized",
+  "payload": {
+    "authorizedDeviceId": "device:alice-laptop",
+    "authorizedPublicKey": "Ed25519_PubKey_AliceLaptop_AAAAAAAAAAAAAAAA",
+    "epoch": 2
+  }
+}

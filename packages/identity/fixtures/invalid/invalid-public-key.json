@@ -1,0 +1,8 @@
+{
+  "version": "lfp2p.identity-event.v1",
+  "kind": "identity.controller.created",
+  "payload": {
+    "controllerPublicKey": "not a valid base64url+++=",
+    "initialDeviceId": "device:x"
+  }
+}

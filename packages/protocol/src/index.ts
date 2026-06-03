@@ -3,8 +3,10 @@ const EVENT_KINDS = [
   'identity.controller.created',
   'identity.device.authorized',
   'identity.device.revoked',
+  'identity.device.rotated',
   'identity.capability.granted',
   'identity.capability.revoked',
+  'identity.contact-card.published',
   'contact.petname.set',
   'note.created',
   'outbox.test.created'

@@ -1,0 +1,8 @@
+{
+  "version": "lfp2p.identity-event.v1",
+  "kind": "identity.capability.revoked",
+  "payload": {
+    "capabilityId": "cap_outbox_send_001",
+    "delegateDeviceId": "device:alice-laptop"
+  }
+}

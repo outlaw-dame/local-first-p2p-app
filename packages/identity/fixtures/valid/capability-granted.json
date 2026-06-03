@@ -1,0 +1,10 @@
+{
+  "version": "lfp2p.identity-event.v1",
+  "kind": "identity.capability.granted",
+  "payload": {
+    "capabilityId": "cap_outbox_send_001",
+    "delegateDeviceId": "device:alice-laptop",
+    "scope": "outbox.send",
+    "expiresAt": "2027-01-01T00:00:00Z"
+  }
+}

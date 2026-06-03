@@ -1,0 +1,10 @@
+{
+  "version": "lfp2p.identity-event.v1",
+  "kind": "identity.device.authorized",
+  "payload": {
+    "authorizedDeviceId": "device:x",
+    "authorizedPublicKey": "Ed25519_PubKey_AAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "epoch": 2,
+    "__proto__": { "polluted": true }
+  }
+}

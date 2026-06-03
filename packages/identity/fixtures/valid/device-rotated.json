@@ -1,0 +1,10 @@
+{
+  "version": "lfp2p.identity-event.v1",
+  "kind": "identity.device.rotated",
+  "payload": {
+    "deviceId": "device:alice-phone",
+    "previousPublicKey": "Ed25519_PubKey_AlicePhone_OLD_AAAAAAAAAAAA",
+    "newPublicKey": "Ed25519_PubKey_AlicePhone_NEW_BBBBBBBBBBBB",
+    "epoch": 4
+  }
+}

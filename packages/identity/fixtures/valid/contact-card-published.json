@@ -1,0 +1,8 @@
+{
+  "version": "lfp2p.identity-event.v1",
+  "kind": "identity.contact-card.published",
+  "payload": {
+    "contactCardDigest": "sha-256:AAAA1111BBBB2222CCCC3333DDDD4444EEEE5555FFFF6666GGGG7777HHHH8888",
+    "capturedAt": "2026-06-02T00:00:00Z"
+  }
+}

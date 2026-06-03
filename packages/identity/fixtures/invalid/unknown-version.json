@@ -1,0 +1,8 @@
+{
+  "version": "lfp2p.identity-event.v2",
+  "kind": "identity.controller.created",
+  "payload": {
+    "controllerPublicKey": "Ed25519_PubKey_AAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "initialDeviceId": "device:x"
+  }
+}
