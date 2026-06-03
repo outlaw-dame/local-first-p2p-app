@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.local-control-event.v1",
+  "eventId": "evt_kw_005",
+  "createdAt": "2026-06-02T00:00:00Z",
+  "action": "apply",
+  "kind": "safety.keyword.muted",
+  "keyword": "#Spoilers",
+  "matchKind": "hashtag"
+}

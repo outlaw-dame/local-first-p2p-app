@@ -16,6 +16,7 @@
     "@lfp2p/platform": "workspace:*",
     "@lfp2p/protocol": "workspace:*",
     "@lfp2p/sync-client": "workspace:*",
+    "@lfp2p/trust-safety": "workspace:*",
     "@lfp2p/ui": "workspace:*",
     "@tanstack/react-query": "latest",
     "framework7": "^8.3.0",

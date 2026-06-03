@@ -50,6 +50,7 @@ import {
   requestPwaForegroundSync,
   type PwaForegroundSyncController
 } from './pwa-sync-lifecycle.js';
+import { TrustSafetySettings } from './pwa-trust-safety-settings.js';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -668,6 +669,10 @@ function HomePage(): JSX.Element {
           ))
         )}
       </List>
+
+      {identity ? (
+        <TrustSafetySettings store={store} subscriberActorId={identity.identityId} />
+      ) : null}
     </Page>
   );
 }

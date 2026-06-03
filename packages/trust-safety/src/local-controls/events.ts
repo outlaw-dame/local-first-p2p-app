@@ -76,13 +76,28 @@ export type AccountMuteScope = (typeof ACCOUNT_MUTE_SCOPES)[number];
 /**
  * Keyword match kinds.
  *
- * `substring` and `word` are pure-text matchers implemented inside this
- * package. `semantic` carries a reference to a precomputed embedding and
- * a similarity threshold; the actual cosine-similarity comparison happens
- * in a host-supplied matcher. The package never compiles a regex and
- * never loads an ML model — both would be ReDoS / supply-chain risks.
+ * `substring`, `word`, `phrase`, and `hashtag` are pure-text matchers
+ * implemented inside this package on the linear-time path (no regex
+ * compilation against user-authored patterns, no backtracking — the
+ * only regexes used are constant patterns compiled at module load).
+ * `semantic` carries a reference to a precomputed embedding and a
+ * similarity threshold; the actual cosine-similarity comparison
+ * happens in a host-supplied matcher. The package never compiles a
+ * regex against an attacker-controlled string and never loads an ML
+ * model — both would be ReDoS / supply-chain risks.
+ *
+ * Author-supplied general regex is deliberately not a match kind: a
+ * pattern like `(?:a+)+$` evaluated against every incoming post can
+ * either freeze the host or be weaponized when the preference
+ * snapshot syncs to another device.
  */
-export const KEYWORD_MATCH_KINDS = ['substring', 'word', 'semantic'] as const;
+export const KEYWORD_MATCH_KINDS = [
+  'substring',
+  'word',
+  'phrase',
+  'hashtag',
+  'semantic'
+] as const;
 export type KeywordMatchKind = (typeof KEYWORD_MATCH_KINDS)[number];
 
 export const LABEL_PREFERENCE_ACTIONS = [
@@ -128,6 +143,27 @@ const MAX_KEYWORD_LENGTH = 256;
 const MAX_REASON_CODE_LENGTH = 256;
 const MAX_EMBEDDING_MODEL_LENGTH = 256;
 const MAX_POLICY_LIST_KINDS = POLICY_LIST_KINDS.length;
+
+/**
+ * Maximum length of a hashtag body (without the leading `#`). Matches
+ * the de-facto convention used by Bluesky, Mastodon, X, and Threads
+ * so a stored hashtag round-trips across platforms.
+ */
+const MAX_HASHTAG_LENGTH = 140;
+
+/**
+ * Constant, anchored, linear-time pattern for the body of a hashtag.
+ * Compiled once at module load so we never compile a regex against
+ * an attacker-controlled string. Unicode letters / numbers /
+ * underscore only; no whitespace, no punctuation, no `#`.
+ */
+const HASHTAG_BODY_PATTERN = /^[\p{L}\p{N}_]+$/u;
+
+/**
+ * Constant, anchored, linear-time pattern for collapsing runs of
+ * whitespace inside a phrase. Single quantifier, no alternation.
+ */
+const WHITESPACE_RUN = /\s+/g;
 
 type CommonFields = Readonly<{
   version: typeof LOCAL_CONTROL_EVENT_VERSION;
@@ -335,12 +371,59 @@ export function validateLocalControlEvent(
       return Object.freeze(out) as LocalControlEvent;
     }
     case 'safety.keyword.muted': {
-      const keyword = assertText(record.keyword, `${label}.keyword`, MAX_KEYWORD_LENGTH);
+      const rawKeyword = assertText(record.keyword, `${label}.keyword`, MAX_KEYWORD_LENGTH);
       const matchKind = assertOneOf(
         record.matchKind,
         KEYWORD_MATCH_KINDS,
         `${label}.matchKind`
       );
+      // Normalize the stored keyword per match kind. Normalization is
+      // append-only and content-preserving (case + whitespace only) so
+      // the user's intent round-trips through a cross-app preference
+      // snapshot.
+      let keyword: string;
+      if (matchKind === 'phrase') {
+        // Trim and collapse internal whitespace runs to single spaces.
+        // The store keeps the user's letter case so a snapshot still
+        // shows the human-readable phrase; match-time normalizes
+        // case-insensitively.
+        keyword = rawKeyword.trim().replace(WHITESPACE_RUN, ' ');
+        if (keyword.length === 0) {
+          throw tsError(
+            'TS_INVALID_INPUT',
+            `${label}.keyword (phrase) must contain at least one non-whitespace character`
+          );
+        }
+      } else if (matchKind === 'hashtag') {
+        // Accept "tag" or "#tag". Strip a single leading `#` if present.
+        // Reject anything else with a `#` or whitespace inside the body
+        // — a hashtag is a single token by definition.
+        let body = rawKeyword.trim();
+        if (body.startsWith('#')) body = body.slice(1);
+        if (body.length === 0) {
+          throw tsError(
+            'TS_INVALID_INPUT',
+            `${label}.keyword (hashtag) must contain a body after the leading '#'`
+          );
+        }
+        if (body.length > MAX_HASHTAG_LENGTH) {
+          throw tsError(
+            'TS_INVALID_INPUT',
+            `${label}.keyword (hashtag) body must be at most ${MAX_HASHTAG_LENGTH} characters (got ${body.length})`
+          );
+        }
+        if (!HASHTAG_BODY_PATTERN.test(body)) {
+          throw tsError(
+            'TS_INVALID_INPUT',
+            `${label}.keyword (hashtag) body must contain only Unicode letters, numbers, and underscores`
+          );
+        }
+        // Store lowercased for case-insensitive matching. Hashtags
+        // do not preserve case across platforms anyway.
+        keyword = body.toLowerCase();
+      } else {
+        keyword = rawKeyword;
+      }
       const expiresAt = maybeExpiry(record, label, common.createdAt);
       const out: Record<string, unknown> = {
         ...common,

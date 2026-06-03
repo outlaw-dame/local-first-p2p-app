@@ -103,13 +103,36 @@ export type SelectorOptions = Readonly<{
   semanticMatch?: SemanticKeywordMatcher;
 }>;
 
-function isWordChar(code: number): boolean {
+function isAsciiWordChar(code: number): boolean {
   return (
     (code >= 48 && code <= 57) ||
     (code >= 65 && code <= 90) ||
     (code >= 97 && code <= 122) ||
     code === 95
   );
+}
+
+/**
+ * Constant Unicode pattern for "is this code point a hashtag-body
+ * character (letter, number, underscore)". Compiled once at module
+ * load — never compiled against user input.
+ */
+const UNICODE_WORD_PATTERN = /[\p{L}\p{N}_]/u;
+
+function isUnicodeWordChar(ch: string): boolean {
+  if (ch.length === 0) return false;
+  // Single-code-point fast path for ASCII.
+  if (ch.charCodeAt(0) < 128) return isAsciiWordChar(ch.charCodeAt(0));
+  return UNICODE_WORD_PATTERN.test(ch);
+}
+
+/**
+ * Collapse runs of whitespace to a single space and trim. Pure;
+ * uses a constant pre-compiled pattern so it is linear-time and
+ * cannot be made adversarial by the caller's text.
+ */
+function normalizeWhitespace(s: string): string {
+  return s.trim().replace(/\s+/g, ' ');
 }
 
 function matchesKeyword(
@@ -129,25 +152,62 @@ function matchesKeyword(
     }
   }
 
-  const haystack = text.toLowerCase();
-  const needle = entry.keyword.toLowerCase();
+  const haystackLower = text.toLowerCase();
+  const needleLower = entry.keyword.toLowerCase();
 
   if (entry.matchKind === 'substring') {
+    return haystackLower.includes(needleLower);
+  }
+
+  if (entry.matchKind === 'phrase') {
+    // Phrase: whitespace-insensitive (collapse runs to a single
+    // space), case-insensitive substring match. The needle was
+    // already normalized at validation time; we still re-normalize
+    // for safety against an unverified projection.
+    const haystack = normalizeWhitespace(haystackLower);
+    const needle = normalizeWhitespace(needleLower);
+    if (needle.length === 0) return false;
     return haystack.includes(needle);
+  }
+
+  if (entry.matchKind === 'hashtag') {
+    // Hashtag: walk the text looking for `#`, then compare the body
+    // up to the next non-Unicode-word-character against the needle.
+    // The needle (stored lowercased without `#`) is compared
+    // case-insensitively. Pure char-by-char scan; no regex against
+    // attacker text.
+    const haystack = haystackLower;
+    let i = 0;
+    while (true) {
+      const hashIdx = haystack.indexOf('#', i);
+      if (hashIdx === -1) return false;
+      // Walk forward collecting the body.
+      let end = hashIdx + 1;
+      while (end < haystack.length) {
+        const ch = haystack[end];
+        if (ch === undefined || !isUnicodeWordChar(ch)) break;
+        end += 1;
+      }
+      if (end > hashIdx + 1) {
+        const body = haystack.slice(hashIdx + 1, end);
+        if (body === needleLower) return true;
+      }
+      i = hashIdx + 1;
+    }
   }
 
   // word: boundary-checked literal scan; no regex compilation.
   let from = 0;
-  while (from <= haystack.length - needle.length) {
-    const idx = haystack.indexOf(needle, from);
+  while (from <= haystackLower.length - needleLower.length) {
+    const idx = haystackLower.indexOf(needleLower, from);
     if (idx === -1) return false;
-    const before = idx === 0 ? -1 : haystack.charCodeAt(idx - 1);
+    const before = idx === 0 ? -1 : haystackLower.charCodeAt(idx - 1);
     const after =
-      idx + needle.length >= haystack.length
+      idx + needleLower.length >= haystackLower.length
         ? -1
-        : haystack.charCodeAt(idx + needle.length);
-    const leftBoundary = before === -1 || !isWordChar(before);
-    const rightBoundary = after === -1 || !isWordChar(after);
+        : haystackLower.charCodeAt(idx + needleLower.length);
+    const leftBoundary = before === -1 || !isAsciiWordChar(before);
+    const rightBoundary = after === -1 || !isAsciiWordChar(after);
     if (leftBoundary && rightBoundary) return true;
     from = idx + 1;
   }

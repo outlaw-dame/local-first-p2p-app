@@ -1,6 +1,18 @@
 import Dexie, { type Table } from 'dexie';
 import { type EncryptedKeyMaterial } from '@lfp2p/crypto';
 import { type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
+import {
+  type LabelerEvent,
+  type LabelersState,
+  type LocalControlEvent,
+  type LocalControlState,
+  applyLabelerEvent,
+  applyLocalControlEvent,
+  createEmptyLabelersState,
+  createEmptyLocalControlState,
+  validateLabelerEvent,
+  validateLocalControlEvent
+} from '@lfp2p/trust-safety';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
 export type DeviceIdentityStatus = 'active' | 'revoked';
@@ -12,7 +24,33 @@ export type LocalFirstTableName =
   | 'localProtectionKeys'
   | 'syncCheckpoints'
   | 'identityControlProjections'
-  | 'contactProfiles';
+  | 'contactProfiles'
+  | 'trustSafetyControlEvents'
+  | 'trustSafetyLabelerEvents';
+
+/**
+ * Stored local-control event. The full envelope is preserved as the
+ * source of truth; the indexed columns are projected for query
+ * efficiency. `sequence` is a monotonic per-row insertion counter so
+ * replay order is deterministic even when two events share a
+ * createdAt timestamp.
+ */
+export type StoredTrustSafetyControlEvent = Readonly<{
+  eventId: string;
+  kind: string;
+  createdAt: string;
+  sequence: number;
+  event: LocalControlEvent;
+}>;
+
+/** Stored labeler event. Same shape rationale as the control row. */
+export type StoredTrustSafetyLabelerEvent = Readonly<{
+  eventId: string;
+  kind: string;
+  createdAt: string;
+  sequence: number;
+  event: LabelerEvent;
+}>;
 
 export type IdentityVerificationStatus =
   | 'unknown'
@@ -201,6 +239,8 @@ class LocalFirstP2PDatabase extends Dexie {
   syncCheckpoints!: Table<StoredSyncCheckpoint, string>;
   identityControlProjections!: Table<StoredIdentityControlProjection, string>;
   contactProfiles!: Table<StoredContactProfile, string>;
+  trustSafetyControlEvents!: Table<StoredTrustSafetyControlEvent, string>;
+  trustSafetyLabelerEvents!: Table<StoredTrustSafetyLabelerEvent, string>;
 
   constructor(name: string) {
     super(name);
@@ -249,6 +289,22 @@ class LocalFirstP2PDatabase extends Dexie {
       syncCheckpoints: 'checkpointId',
       identityControlProjections: 'identityId, updatedAt',
       contactProfiles: 'identityId, petnameCanonical, updatedAt'
+    });
+    this.version(7).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt',
+      // Trust & Safety: append-only event logs. Primary key is eventId
+      // so a duplicate append (replay, retry) is a silent no-op. The
+      // composite [sequence] secondary index gives us deterministic
+      // replay order even when two events share a createdAt.
+      trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence'
     });
   }
 }
@@ -496,6 +552,110 @@ export class DexieLocalFirstStore {
     });
   }
 
+  // -------------------------------------------------------------------
+  // Trust & Safety event-log persistence (Phase 1.70)
+  //
+  // The stored rows are an append-only log per-kind. The frozen
+  // projection state is rebuilt deterministically by replaying the rows
+  // in `sequence` order. Replay is pure (no IO), uses the validated
+  // protocol shapes from `@lfp2p/trust-safety`, and is idempotent on
+  // `eventId` (a re-append of the same event is a silent no-op).
+  //
+  // Why event-source rather than persist a snapshot of the state?
+  //  - Two devices that sync the same account-local event log MUST end
+  //    up with byte-equivalent state. Snapshot serialisation drift
+  //    (e.g. property-order differences in Object.freeze) is a real
+  //    risk; replay is structurally drift-free.
+  //  - Cross-app `safety.preferences.snapshot` round-trips assume an
+  //    event log behind them.
+  //  - Compaction (when needed) lives in
+  //    `@lfp2p/trust-safety/pruneExpiredLocalControlState`, not here.
+  // -------------------------------------------------------------------
+
+  async appendTrustSafetyControlEvent(event: LocalControlEvent): Promise<void> {
+    // Re-validate at the persistence boundary. Defense-in-depth: even
+    // if the caller forgot, we will not store a malformed event.
+    const validated = validateLocalControlEvent(event);
+    await this.transaction('rw', ['trustSafetyControlEvents'], async () => {
+      const existing = await this.#db.trustSafetyControlEvents.get(validated.eventId);
+      if (existing !== undefined) return; // idempotent
+      const sequence = await this.#db.trustSafetyControlEvents.count();
+      const row: StoredTrustSafetyControlEvent = {
+        eventId: validated.eventId,
+        kind: validated.kind,
+        createdAt: validated.createdAt,
+        sequence,
+        event: validated
+      };
+      await this.#db.trustSafetyControlEvents.add(row);
+    });
+  }
+
+  async listTrustSafetyControlEvents(): Promise<StoredTrustSafetyControlEvent[]> {
+    return this.#db.trustSafetyControlEvents.orderBy('sequence').toArray();
+  }
+
+  async loadLocalControlState(): Promise<LocalControlState> {
+    const rows = await this.listTrustSafetyControlEvents();
+    let state = createEmptyLocalControlState();
+    for (const row of rows) {
+      // Validate again on read. If a row was corrupted at rest (e.g.
+      // tampering, schema drift on a future downgrade), we will skip
+      // it rather than poison the projection.
+      let validated: LocalControlEvent;
+      try {
+        validated = validateLocalControlEvent(row.event);
+      } catch {
+        continue;
+      }
+      state = applyLocalControlEvent(state, validated);
+    }
+    return state;
+  }
+
+  async appendTrustSafetyLabelerEvent(event: LabelerEvent): Promise<void> {
+    const validated = validateLabelerEvent(event);
+    await this.transaction('rw', ['trustSafetyLabelerEvents'], async () => {
+      const existing = await this.#db.trustSafetyLabelerEvents.get(validated.eventId);
+      if (existing !== undefined) return;
+      const sequence = await this.#db.trustSafetyLabelerEvents.count();
+      const row: StoredTrustSafetyLabelerEvent = {
+        eventId: validated.eventId,
+        kind: validated.kind,
+        createdAt: validated.createdAt,
+        sequence,
+        event: validated
+      };
+      await this.#db.trustSafetyLabelerEvents.add(row);
+    });
+  }
+
+  async listTrustSafetyLabelerEvents(): Promise<StoredTrustSafetyLabelerEvent[]> {
+    return this.#db.trustSafetyLabelerEvents.orderBy('sequence').toArray();
+  }
+
+  async loadLabelersState(): Promise<LabelersState> {
+    const rows = await this.listTrustSafetyLabelerEvents();
+    let state = createEmptyLabelersState();
+    for (const row of rows) {
+      let validated: LabelerEvent;
+      try {
+        validated = validateLabelerEvent(row.event);
+      } catch {
+        continue;
+      }
+      try {
+        state = applyLabelerEvent(state, validated);
+      } catch {
+        // Lifecycle-transition errors (e.g. an unsubscribed-then-
+        // unsubscribed pair) should never poison the rebuild. Skip
+        // the offending event; the rest of the log replays cleanly.
+        continue;
+      }
+    }
+    return state;
+  }
+
   async advanceSyncCheckpoint(input: AdvanceSyncCheckpointInput): Promise<StoredSyncCheckpoint> {
     const next = validateAdvanceSyncCheckpointInput(input);
     return this.transaction('rw', ['syncCheckpoints'], async () => {
@@ -590,6 +750,10 @@ export class DexieLocalFirstStore {
         return this.#db.identityControlProjections;
       case 'contactProfiles':
         return this.#db.contactProfiles;
+      case 'trustSafetyControlEvents':
+        return this.#db.trustSafetyControlEvents;
+      case 'trustSafetyLabelerEvents':
+        return this.#db.trustSafetyLabelerEvents;
     }
   }
 }

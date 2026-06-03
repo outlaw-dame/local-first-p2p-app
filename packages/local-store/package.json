@@ -12,6 +12,7 @@
   "dependencies": {
     "@lfp2p/crypto": "workspace:*",
     "@lfp2p/protocol": "workspace:*",
+    "@lfp2p/trust-safety": "workspace:*",
     "dexie": "^4.0.0"
   },
   "devDependencies": {
