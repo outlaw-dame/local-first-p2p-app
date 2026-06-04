@@ -33,7 +33,7 @@ Not implemented yet:
 
 - Real app navigation beyond the first vertical slice.
 - Service worker/offline shell policy.
-- Contacts, petnames, name-proof UI, or contact cards.
+- Name-proof UI (NIP-05-like cryptographic proofs of human-readable identifiers — Phase 10 territory). Contact cards, petnames, and the fingerprint-compare flow are already implemented (see above).
 - Private payload encryption for user-facing chat/social payloads.
 - Chat, groups, media attachments, social posting, feed UX, or search UX.
 - Background/foreground outbox worker wired into the PWA runtime.

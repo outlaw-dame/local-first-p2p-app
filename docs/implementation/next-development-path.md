@@ -290,3 +290,48 @@ Every next implementation PR should include:
 - no IPFS assumptions from CID/content-link usage,
 - no global deletion semantics from local bridge/community decisions,
 - clear statement of whether it changes the phase map or known deviations.
+
+## External architecture review notes (2026-06-03)
+
+An external architecture analysis (compared the repo against NextGraph,
+Willow, Loro, and Leaf protocol families) surfaced four genuinely
+actionable items and four speculative ones. They are recorded here so
+future contributors don't have to relitigate the same questions.
+
+### Endorsed and scheduled
+
+| Suggestion                                                                 | Target slice                                                                                       | Rationale |
+|----------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|-----------|
+| Name the verifier boundary in one architectural doc + pin with one test    | **Shipped 2026-06-03** as `docs/architecture/local-verifier.md` + `packages/sync-client/src/verifier-boundary.test.ts` | The checks already exist across multiple packages; the doc + test make the composition auditable without adding a wrapper package. |
+| Add `docs/protocol/operation-consistency-classes.md` doctrine              | **Shipped 2026-06-03**                                                                              | Classifies every event by required consistency model (A–E). Future-drift prevention against using a CRDT for a Class B/C operation. |
+| Wire trust-safety transport-admission engine into `apps/bridge-service`    | **Phase 4.1** (annotated on the Phase 4 phase-map row)                                              | Closes a documented Phase 1.64 deferral. Engine + fixtures + tests already exist. Smallest concrete bridge-service slice. |
+| Implement `packages/block-store` runtime with `fetch → cap → verify-digest → decode` discipline | **Phase 7.0** (annotated on the Phase 7 phase-map row)                                              | Phase 7 (media manifests) is blocked on this. Also unblocks encrypted-evidence retrieval from Phase 1.63 and is reusable for Phase 5 chat attachments. |
+| Revocation-realism doctrine paired with Phase 2.2 identity persistence     | **Phase 2.2**                                                                                       | UI language must not overpromise deletion of already-replicated data. |
+| ADR-002 private payload envelope implementation                            | **Phase 5.0** (annotated on the Phase 5 phase-map row)                                              | Chat (Phase 5) and MLS (Phase 6) both require it. ADR exists; runtime does not. |
+
+### Explicitly deferred — revisit conditions
+
+| Suggestion                                                          | Defer reason                                                                                                                                         | Revisit when |
+|---------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|
+| Build `packages/verifier` as a wrapper package                       | The existing per-package checks already compose into the documented boundary. Adding a wrapper would create a parallel code path with its own bug surface and no new guarantee. | A concrete inbound bypass is identified that a wrapper would prevent. First response is to add the check to the package where it naturally belongs. |
+| `packages/replication` with `ReplicationSpace` / `ReplicationArea`   | Sync-checkpoints suffice for the single bridge↔PWA stream we sync today. Defining a multi-field `ReplicationAreaV1` shape before knowing whether the next partial-sync surface is per-room, per-thread, or per-contact-graph is YAGNI. | Phase 5+ introduces a concrete partial-sync surface (rooms, DMs, groups) and the query shape can be designed against real consumers. |
+| `packages/crdt` + Loro adapter                                       | No collaborative state requirement exists today. Adding Loro now imports bundle weight and a new bug surface for zero immediate value.               | Phase 5 (chat) or a later phase introduces a concrete collaborative-state need (drafts, shared docs, channel ordering). Loro then gets evaluated against alternatives. |
+| Leaf-inspired `ObjectComponentRef`                                   | Leaf is "draft, WIP." Our existing `ObjectRef` discriminated union already encodes object-by-purpose. The component model is speculative without a consumer. | A concrete need for per-component encryption granularity arises (Phase 6 MLS or a later media slice). |
+
+### Rationale for the ordering
+
+The first two endorsed items (verifier doc + consistency-classes
+doctrine) are pure documentation and pin existing behavior — they do
+not block anything, but they were called out as the highest-value
+analytical clarity work. Shipping them first costs nothing and makes
+every subsequent slice clearer to audit.
+
+The next four endorsed items have explicit target phases and are not
+hidden in this notes section — they live as annotations on the phase
+map. Phase 2.2 is the next implementation slice (already in the
+deferred list from Phase 2.1's exit report); Phase 4.1, Phase 5.0,
+and Phase 7.0 land in their natural phase order.
+
+The four explicitly deferred items each have a documented revisit
+condition. They are not "no" — they are "not until a real consumer
+exists."
