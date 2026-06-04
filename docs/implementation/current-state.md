@@ -318,15 +318,18 @@ Implemented today:
 - Runtime authorization helper for trust/device/capability-gated identity operations.
 - **Phase 2.1**: stable `IDENTITY_*` error-code namespace (`errors.ts`) and pure shape validator (`validation.ts`). `validateIdentityEvent` enforces version pinning, kind allowlist, prototype-pollution defense at every payload-object boundary, public-key wire-format check, digest-reference wire-format check, epoch hygiene, scope length bounds, and a 16 KB serialized-payload cap. Two new event kinds: `identity.device.rotated` (in-place key swap; rejects unknown device, revoked device, same-key reuse, and `previousPublicKey` mismatch) and `identity.contact-card.published` (audit trail for contact-card publication; projection retains the most recent digest under `state.contactCardPublication`). Projection now re-runs the pure validator on identity events before any mutation. 7 valid + 6 invalid fixtures; 39 new tests.
 - **Phase 2.2** (persistence + PWA wiring): regression fix for the Phase 2.1 follow-on bug where `isIdentityControlEvent` in `@lfp2p/sync-client` was silently dropping `device.rotated` and `contact-card.published` (the events were stored but the projection didn't update); both now dispatch correctly and the fix is pinned by a regression test. `StoredIdentityControlProjection` extended with `contactCardPublication` and propagated through `applyIdentityControlProjectionUpdate` / `toIdentityControlState`. New `DexieLocalFirstStore.appendLocalIdentityEvent` (atomic, idempotent-on-eventId entry point for locally-emitted identity events) and `listLocalIdentityEvents` (replay-from-log helper for caller-side `seedIdentityControlProjection`). PWA `pwa-identity-emit.ts` ships `emitContactCardPublishedEvent` (wired into the existing `exportContactCard` flow — every contact-card export now records a publication audit with a `sha-256:<base64url>` digest) and `emitDeviceRotatedEvent` (helper for the future rotation UI). 15 new tests in `phase-2.2.test.ts` and `pwa-identity-emit.test.ts`. New doctrine: `docs/protocol/revocation-realism.md` pinning what each revocation primitive does and does not guarantee, with a UI language guide.
+- **Phase 2.3a** (threat model): `docs/threat-model/identity-control.md` covers ten threat scenarios (T-IDC-1…T-IDC-10) with explicit defense status, residual risk, and a consolidated gap table mapping each undefended surface to its target future phase. Pairs with `revocation-realism.md` (UX) and `local-verifier.md` (boundary enforcement).
+- **Phase 2.3b** (audit + rotation UI): PWA `IdentityAudit` component (`apps/pwa/src/pwa-identity-audit.tsx`) renders devices + capabilities + contact-card publication audit. Non-controller active devices show a "Rotate key" affordance that generates a fresh `SigningKeypair` via `@lfp2p/crypto`, displays both old and new fingerprints in a confirmation dialog, and calls `emitDeviceRotatedEvent` end-to-end. Controller-device rows show an explicit deferred-flow message. View-model helpers in `pwa-identity-audit-state.ts`: `buildIdentityAuditViewModel`, `prepareRotationIntent`, `shortPublicKeyFingerprint`. 17 new tests in `pwa-identity-audit-state.test.ts`.
 
 Not implemented yet:
 
 - Full account-level identity workflow that migrates local bootstrap into authoritative root/controller lifecycle management.
-- Identity recovery/supersession flow (controller-key replacement).
-- Capability delegation chains (delegate-of-delegate).
-- Multi-controller accounts.
-- Phase 2.2 — identity-event persistence in `@lfp2p/local-store` (event-log table + idempotent append + replay-on-open) and PWA emit/append wiring for identity flows.
-- Contact-card import/export.
+- Controller-key recovery / supersession (new ADR required).
+- Capability delegation chains (delegate-of-delegate; new ADR required).
+- Multi-controller accounts (new ADR required).
+- Cross-app sync of identity events (depends on ADR-002 account-local sync envelope, Phase 5.0).
+- Periodic snapshot-vs-log integrity check.
+- Contact-card import/export beyond the local signed-JSON exchange flow already shipped.
 
 ### `packages/local-store`
 

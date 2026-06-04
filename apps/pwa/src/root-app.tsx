@@ -50,6 +50,7 @@ import {
   requestPwaForegroundSync,
   type PwaForegroundSyncController
 } from './pwa-sync-lifecycle.js';
+import { IdentityAudit } from './pwa-identity-audit.js';
 import { TrustSafetySettings } from './pwa-trust-safety-settings.js';
 import { emitContactCardPublishedEvent } from './pwa-identity-emit.js';
 
@@ -690,6 +691,15 @@ function HomePage(): JSX.Element {
           ))
         )}
       </List>
+
+      {identity && keypair ? (
+        <IdentityAudit
+          store={store}
+          identityId={identity.identityId}
+          controllerKeypair={keypair}
+          controllerDeviceId={identity.deviceId}
+        />
+      ) : null}
 
       {identity ? (
         <TrustSafetySettings store={store} subscriberActorId={identity.identityId} />
