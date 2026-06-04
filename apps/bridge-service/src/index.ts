@@ -5,3 +5,4 @@ export * from './sql-store.js';
 export * from './service.js';
 export * from './dev-bridge.js';
 export * from './admission-gateway.js';
+export * from './admission-state-store.js';

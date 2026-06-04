@@ -145,31 +145,42 @@ export type BridgeServiceOptions = Readonly<{
  * keep `BridgeServiceOptions` free of a cycle with the gateway
  * implementation file.
  */
+type AdmissionDecisionResult = Readonly<{
+  result: Readonly<{
+    decision: Readonly<{
+      action:
+        | 'accept'
+        | 'accept-limited'
+        | 'reject'
+        | 'quarantine'
+        | 'rate-limit'
+        | 'drop-duplicate';
+      reasonCode: string;
+    }>;
+    admitted: boolean;
+  }>;
+  reason: string;
+}>;
+
 export type BridgeAdmissionGatewayHandle = Readonly<{
   /**
    * Process one delivery through admission and return the decision.
    * The gateway holds the underlying admission state internally and
    * advances it atomically per call.
    */
-  admit: (
+  admit: (request: BridgeDeliveryRequest, nowMs: number) => AdmissionDecisionResult;
+  /**
+   * Phase 4.2 — process one delivery through admission, persist the
+   * new state via the configured `stateStore`, and only then
+   * advance the in-memory reference. When no store is configured
+   * this is equivalent to `admit`. When a store IS configured a
+   * persistence failure throws (fail-closed) and the in-memory
+   * state stays unchanged.
+   */
+  admitAndPersist: (
     request: BridgeDeliveryRequest,
     nowMs: number
-  ) => Readonly<{
-    result: Readonly<{
-      decision: Readonly<{
-        action:
-          | 'accept'
-          | 'accept-limited'
-          | 'reject'
-          | 'quarantine'
-          | 'rate-limit'
-          | 'drop-duplicate';
-        reasonCode: string;
-      }>;
-      admitted: boolean;
-    }>;
-    reason: string;
-  }>;
+  ) => Promise<AdmissionDecisionResult>;
 }>;
 
 export type InMemoryBridgeStoreOptions = Readonly<{

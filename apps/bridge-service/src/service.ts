@@ -79,8 +79,29 @@ export class BridgeService {
     // shouldn't consume the producer's per-peer rate-limit budget —
     // a forged envelope from an attacker would otherwise let the
     // attacker burn the legitimate producer's budget.
+    //
+    // Phase 4.2: we call `admitAndPersist` rather than `admit`. The
+    // gateway uses the awaited form to persist the post-admission
+    // state via its (optional) `AdmissionStateStore` BEFORE
+    // returning a decision. When no store is configured the await
+    // resolves synchronously with no I/O side effect; when a store
+    // IS configured a persistence failure throws and we surface it
+    // as a rejection rather than admitting a delivery whose
+    // admission record would be lost on the next restart.
     if (this.#admission !== undefined) {
-      const admission = this.#admission.admit(request, nowMs);
+      let admission;
+      try {
+        admission = await this.#admission.admitAndPersist(request, nowMs);
+      } catch (error) {
+        // Fail-closed: admission persistence failure becomes a
+        // rejection. The reason carries only the stable error
+        // class name + a static label, never payload contents,
+        // per the Phase 3.1 privacy-safe-logging doctrine.
+        return rejected(
+          idempotencyKey,
+          `admission-persist-failed:${(error as Error).name}`
+        );
+      }
       if (!admission.result.admitted) {
         // `drop-duplicate` collapses into a rejection with the
         // engine's stable reason code; callers that want

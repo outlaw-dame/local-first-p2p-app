@@ -223,11 +223,54 @@ is documented but is NOT a substitute for a real transport-level
 peer in production: per-peer rate limits and reputation only
 function correctly when distinct peers map to distinct ids.
 
-### State persistence
+### State persistence (Phase 4.2)
 
-Phase 4.1 holds `TransportAdmissionState` in process memory only.
-After a bridge restart the state is empty until events are replayed.
-A future slice (Phase 4.2) will persist the state across restarts.
+Phase 4.1 held `TransportAdmissionState` in process memory only.
+Phase 4.2 closes that gap with an optional `AdmissionStateStore`
+that snapshots the full state on every successful admit.
+
+- **Snapshot, not event-log.** The Phase 1.64 audit log is FIFO-
+  evicted at capacity, so it cannot serve as the source of truth
+  for a startup replay. We persist the full state snapshot
+  instead. Size is bounded by the engine's own per-field caps
+  (replay-cache `maxEntries`, audit-log `capacity`, etc.).
+- **Fail-closed save.** `BridgeAdmissionGateway.admitAndPersist`
+  writes the new state via `stateStore.save` BEFORE advancing the
+  in-memory reference. A save failure throws and the in-memory
+  state DOES NOT advance. `BridgeService.acceptDelivery` translates
+  the throw into a rejection response with reason
+  `admission-persist-failed:<ErrorClassName>` — a stable static
+  label, never the underlying IO message (per Phase 3.1
+  privacy-safe logging).
+- **Atomic on disk.** `JsonFileAdmissionStateStore` writes to a
+  sibling temp file (`<filePath>.<pid>.<suffix>.tmp`) then
+  `fs.rename`s. POSIX guarantees same-filesystem rename is atomic,
+  so a crash mid-write leaves either the prior file intact OR the
+  new file fully in place — never a partial state.
+- **Refuses to start on corruption.**
+  `BridgeAdmissionGateway.create({stateStore})` propagates load
+  errors (`AdmissionStateCorruptError` for shape mismatches; raw
+  `SyntaxError` would similarly propagate from malformed JSON).
+  The operator decides whether to delete the bad snapshot and
+  restart with a clean budget. We deliberately do NOT silently
+  start fresh on corruption — that would let an attacker who
+  corrupted the file (or a buggy upgrade producing an incompatible
+  shape) gain a fresh budget every restart.
+- **Set serialization discipline.** The only non-JSON-native field
+  in `TransportAdmissionState` is `appliedEventIds: ReadonlySet<string>`.
+  The serializer emits it as a sorted array; the deserializer
+  rehydrates a frozen `Set`. Deep-freezing on load matches the
+  Phase 3.2 integrity-suite invariant — the rehydrated state is
+  Object.isFrozen at every nested node.
+- **Pinned wire version.** Snapshots carry an explicit
+  `version: 'lfp2p.admission-state-snapshot.v1'` field. A future
+  incompatible shape change requires a new version, and a
+  mismatched version is a structural corruption (the deserializer
+  throws), not a silent reinterpretation.
+- **Concurrency.** The gateway docs continue to require sequential
+  `admit` calls per instance. The persistence layer does not add
+  any locking — it inherits whatever guarantees the bridge runtime
+  already provides.
 
 ## Implementation evidence
 

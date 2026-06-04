@@ -52,11 +52,27 @@ import {
   type TransportAdmissionState
 } from '@lfp2p/trust-safety';
 
+import type { AdmissionStateStore } from './admission-state-store.js';
 import type { BridgeDeliveryRequest } from './types.js';
 
 export type AdmissionGatewayOptions = Readonly<{
   config: AdmissionConfig;
   initialState?: TransportAdmissionState;
+  /**
+   * Phase 4.2 — optional persistent state store. When set, every
+   * successful `admit` call writes the new state via
+   * `stateStore.save(state)` BEFORE returning the result. A save
+   * failure throws and the in-memory state DOES NOT advance — the
+   * gateway fail-closes so the bridge wraps it in a rejection
+   * response rather than silently losing the durable abuse-resistance
+   * record.
+   *
+   * Use `BridgeAdmissionGateway.create({...})` to construct a
+   * gateway that pre-loads any persisted state on startup. The plain
+   * constructor does NOT auto-load; pass `initialState` if you have
+   * pre-loaded state synchronously.
+   */
+  stateStore?: AdmissionStateStore;
 }>;
 
 export type AdmissionGatewayDecision = Readonly<{
@@ -126,11 +142,40 @@ function buildAdmissionEnvelope(
  */
 export class BridgeAdmissionGateway {
   readonly #config: AdmissionConfig;
+  readonly #stateStore: AdmissionStateStore | undefined;
   #state: TransportAdmissionState;
 
   constructor(options: AdmissionGatewayOptions) {
     this.#config = options.config;
+    this.#stateStore = options.stateStore;
     this.#state = options.initialState ?? createEmptyTransportAdmissionState();
+  }
+
+  /**
+   * Async factory that pre-loads persisted state from the supplied
+   * `stateStore` (if any) before returning a ready-to-use gateway.
+   *
+   * On cold start (no persisted state) the gateway begins with
+   * `options.initialState` or `createEmptyTransportAdmissionState()`.
+   *
+   * Refuses to start on corruption: if `stateStore.load()` throws
+   * (e.g. `AdmissionStateCorruptError`), the factory propagates the
+   * error so the operator decides whether to delete the bad
+   * snapshot. We deliberately do NOT silently start fresh on
+   * corruption — that would let an attacker who corrupted the file
+   * (or a buggy upgrade producing an incompatible shape) gain a
+   * fresh budget every restart.
+   */
+  static async create(
+    options: AdmissionGatewayOptions
+  ): Promise<BridgeAdmissionGateway> {
+    if (options.stateStore !== undefined) {
+      const loaded = await options.stateStore.load();
+      if (loaded !== undefined) {
+        return new BridgeAdmissionGateway({ ...options, initialState: loaded });
+      }
+    }
+    return new BridgeAdmissionGateway(options);
   }
 
   /**
@@ -155,6 +200,47 @@ export class BridgeAdmissionGateway {
       nowMs
     );
     // Move the reference forward exactly once per admission decision.
+    this.#state = nextState;
+    return Object.freeze({
+      result,
+      reason: this.#formatReason(result)
+    });
+  }
+
+  /**
+   * Phase 4.2 — async variant that persists the new state BEFORE
+   * advancing the in-memory reference.
+   *
+   * Fail-closed contract: if `stateStore.save` throws, the in-memory
+   * state IS NOT advanced and the error propagates upward. The
+   * BridgeService that wraps the gateway then returns a rejection
+   * response rather than admitting a delivery whose admission record
+   * was not durably written. This matches the bridge-admission
+   * doctrine: an in-memory budget that disappears on restart while
+   * the producer continues to consume it would be silently broken
+   * abuse-resistance.
+   *
+   * When no `stateStore` was configured this method's behavior is
+   * identical to `admit` (no persistence side effect).
+   */
+  async admitAndPersist(
+    request: BridgeDeliveryRequest,
+    nowMs: number,
+    context?: AdmissionContext
+  ): Promise<AdmissionGatewayDecision> {
+    const envelope = buildAdmissionEnvelope(request);
+    const { nextState, result } = admitEnvelope(
+      this.#state,
+      envelope,
+      this.#config,
+      context,
+      nowMs
+    );
+    if (this.#stateStore !== undefined) {
+      // Persist FIRST. If this throws, the gateway never advances
+      // its in-memory reference and the caller gets the I/O error.
+      await this.#stateStore.save(nextState);
+    }
     this.#state = nextState;
     return Object.freeze({
       result,
