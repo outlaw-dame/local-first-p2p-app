@@ -14,6 +14,7 @@ export type {
 
 export {
   APPEAL_STATUSES,
+  DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY,
   REPORT_STATUSES,
   applyReportAppealEvent,
   createEmptyReportsAppealsState,
@@ -22,6 +23,7 @@ export {
 export type {
   AppealRecord,
   AppealStatus,
+  ApplyReportAppealEventOptions,
   ReportRecord,
   ReportStatus,
   ReportsAppealsState

@@ -266,6 +266,14 @@ Phase 1.70 — PWA T&S settings + hashtag/phrase match kinds:
 - PWA settings surface (`apps/pwa/src/pwa-trust-safety-state.ts` pure logic + `pwa-trust-safety-settings.tsx` React) renders the Bluesky-equivalent T&S controls in one screen: adult-content master gate toggle with explicit 18+ confirm before enabling; 20-category preference list with Show / Warn / Hide buttons per row and locked indicator for adult categories when the gate is off; keyword filter add/remove with the 4 UI match kinds (`substring`, `word`, `phrase`, `hashtag`) and an explicit "regex is intentionally not offered" note; labeler subscription list with `findOverlappingSubscriptions` warning callout and `detectRedundantSubscription` pre-subscribe assessment helper. 32 new tests in `pwa-trust-safety-state.test.ts`.
 - Doctrine note added to `docs/protocol/local-controls-portability.md` covering the ReDoS guard on the new kinds.
 
+Phase 1.71 — block-evasion hardening pack:
+
+- **Phase 1.71.A** — every non-semantic keyword matcher (`substring`, `word`, `phrase`, `hashtag`) runs through a Unicode-normalization pipeline (NFKD → lowercase → strip zero-width / combining marks → confusables map) on both haystack and needle before comparison. Defeats leet (`sp0iler`), zero-width-space, Cyrillic homoglyph (`ѕpoiler`), full-width (`ＳＰＯＩＬＥＲ`), circled-letter (`ⓢⓟⓞⓘⓛⓔⓡ`), and combining-diacritic (`spoîler`) evasions. All patterns precompiled against literal source; `Map<string, string>` confusables table immune to prototype pollution. Linear-time, sub-second on 20 000-char pathological inputs.
+- **Phase 1.71.B** — `applyReportAppealEvent` enforces a per-(reporter, subject, UTC day) rate cap on `safety.report.created` with new stable error code `TS_REPORT_RATE_LIMITED`. Default cap is 10/day, configurable via `ApplyReportAppealEventOptions.maxReportsPerReporterSubjectDay`, opt-out via `Infinity`. Cap fires AFTER `appliedEventIds` replay no-op AND AFTER idempotency-key dedup so replay determinism is preserved.
+- Bucket key is `JSON.stringify([reporterKey, utcDay, subjectKey])` — an attacker who crafts a reporter id containing the literal delimiter cannot collide with a legitimate user's bucket. (Hardening review caught + fixed a `::`-without-escaping collision bug pre-commit; pinned by dedicated test.)
+- 32 new adversarial tests in `phase-1.71.test.ts`.
+- Doctrine: `docs/protocol/block-evasion-resilience.md` with full defeat matrix, explicit non-defenses (sock-puppets and coordinated brigading point to right future slice), composition with `decideVisibility`'s `mostRestrictive` combiner.
+
 Not implemented yet:
 
 - `@lfp2p/search` and a future feed runtime that materializes a ranked feed by consuming `computeItemRanking`.

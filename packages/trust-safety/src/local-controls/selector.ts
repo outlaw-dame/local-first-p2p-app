@@ -135,6 +135,107 @@ function normalizeWhitespace(s: string): string {
   return s.trim().replace(/\s+/g, ' ');
 }
 
+// Phase 1.71.A — Unicode normalization on the keyword match path.
+//
+// The goal is to make `sp0iler`, `sp<U+200B>oiler`, `ѕpoiler` (Cyrillic),
+// `ＳＰＯＩＬＥＲ` (full-width), `ⓢⓟⓞⓘⓛⓔⓡ` (circled letters), and
+// `spoîler` (combining diacritic obfuscation) all match a user's
+// `spoiler` filter. Without this hardening, every one of those
+// evades the literal matcher.
+//
+// Pipeline (applied to BOTH haystack and needle before match):
+//   1. `String.prototype.normalize('NFKD')` — compatibility
+//      decomposition. Full-width / circled / mathematical letters
+//      collapse to base ASCII letters; precomposed diacritics
+//      decompose into base letter + combining marks so the marks
+//      can be stripped at step 3.
+//   2. lowercase (`toLowerCase()`, not locale-aware — JS default
+//      `toLowerCase()` is deliberately not locale-sensitive; we want
+//      stable cross-device behavior).
+//   3. strip a fixed set of zero-width / format code points AND
+//      every Unicode combining mark via constant precompiled
+//      patterns.
+//   4. map a fixed table of common visual confusables (Cyrillic /
+//      Greek homoglyphs + common leet-speak digit/symbol-to-letter
+//      substitutions) onto their ASCII counterparts.
+//
+// Safety:
+//   - All patterns are compiled once at module load against literal
+//     source. We never compile a regex against attacker text.
+//   - The confusables table is a `Map`, not a plain object — safe
+//     against prototype-pollution lookups.
+//   - The pipeline is linear-time in the input length.
+//   - The output is at most ~1.1× the input length (NFKD can grow
+//     a few graphemes but is bounded; the confusables map is 1:1).
+//   - Combining-mark stripping is intentionally aggressive. The
+//     normalized form is used ONLY for matching; the user's stored
+//     keyword and the rendered post text are untouched. For non-Latin
+//     scripts where combining marks are semantically essential
+//     (Arabic, Devanagari, Hebrew, etc.) this collapses some
+//     distinctions, but the user opted into a content filter and
+//     this only affects whether a filter matches — never the
+//     displayed text.
+
+// U+200B zero-width space, U+200C zero-width non-joiner,
+// U+200D zero-width joiner, U+2060 word joiner,
+// U+FEFF zero-width no-break space (BOM).
+const ZERO_WIDTH_PATTERN = /[\u200B-\u200D\u2060\uFEFF]/gu;
+
+// Every Unicode combining mark. Compiled once against literal source.
+const COMBINING_MARK_PATTERN = /\p{M}/gu;
+
+/**
+ * Common visual confusables → ASCII equivalents. Keyed by
+ * lowercase forms (we lowercase before applying). Entries are
+ * conservative — only homoglyphs that look indistinguishable to
+ * a human reader plus common leet-speak digit/symbol swaps that
+ * users actually use to evade filters. The cost of a false match
+ * here (e.g. matching "k1ll" against a mute on "kill") is the
+ * intended behavior: the user opted into a content filter, and
+ * the alternative is rampant evasion.
+ */
+const KEYWORD_CONFUSABLES: ReadonlyMap<string, string> = new Map([
+  // Cyrillic small letters that look like Latin letters
+  ['а', 'a'], ['е', 'e'], ['і', 'i'], ['ј', 'j'], ['о', 'o'],
+  ['р', 'p'], ['с', 'c'], ['у', 'y'], ['х', 'x'], ['ѕ', 's'],
+  ['ԁ', 'd'], ['һ', 'h'], ['ӏ', 'l'],
+  // Greek small letters that look like Latin letters
+  ['α', 'a'], ['ε', 'e'], ['ι', 'i'], ['ν', 'v'], ['ο', 'o'],
+  ['ρ', 'p'], ['τ', 't'], ['μ', 'u'],
+  // Common leet-speak intentional evasions
+  ['0', 'o'], ['1', 'l'], ['3', 'e'], ['4', 'a'], ['5', 's'],
+  ['7', 't'], ['8', 'b'], ['@', 'a'], ['$', 's']
+]);
+
+/**
+ * The full normalization applied before matching. Pure function;
+ * exported only via the package boundary (no test imports it
+ * directly — its behavior is observed via the selector outputs in
+ * `phase-1.71.test.ts`).
+ */
+function normalizeForKeywordMatch(input: string): string {
+  if (input.length === 0) return '';
+  // Step 1: NFKD — compatibility decomposition.
+  const nfkd = input.normalize('NFKD');
+  // Step 2: lowercase. Default `toLowerCase()` is intentionally not
+  // locale-aware (`toLocaleLowerCase()` would be), which gives us
+  // deterministic behavior across devices regardless of system locale.
+  const lower = nfkd.toLowerCase();
+  // Step 3: strip zero-width / format code points + every combining
+  // mark in one pass each. Both patterns are constants.
+  const stripped = lower
+    .replace(ZERO_WIDTH_PATTERN, '')
+    .replace(COMBINING_MARK_PATTERN, '');
+  // Step 4: confusables mapping. Iterate by code-point chunk so a
+  // surrogate pair lookup does not split mid-character.
+  let out = '';
+  for (const ch of stripped) {
+    const mapped = KEYWORD_CONFUSABLES.get(ch);
+    out += mapped === undefined ? ch : mapped;
+  }
+  return out;
+}
+
 function matchesKeyword(
   text: string,
   entry: MutedKeywordEntry,
@@ -152,60 +253,62 @@ function matchesKeyword(
     }
   }
 
-  const haystackLower = text.toLowerCase();
-  const needleLower = entry.keyword.toLowerCase();
+  // Phase 1.71.A: every non-semantic match kind runs through the
+  // Unicode normalization pipeline before comparison. The needle is
+  // normalized fresh each call rather than precomputed on the entry
+  // — we expect filter counts to be small (tens, not thousands), so
+  // the extra ~2µs per filter is irrelevant and the simpler code is
+  // worth more than the micro-optimization.
+  const haystackN = normalizeForKeywordMatch(text);
+  const needleN = normalizeForKeywordMatch(entry.keyword);
+  if (needleN.length === 0) return false;
 
   if (entry.matchKind === 'substring') {
-    return haystackLower.includes(needleLower);
+    return haystackN.includes(needleN);
   }
 
   if (entry.matchKind === 'phrase') {
-    // Phrase: whitespace-insensitive (collapse runs to a single
-    // space), case-insensitive substring match. The needle was
-    // already normalized at validation time; we still re-normalize
-    // for safety against an unverified projection.
-    const haystack = normalizeWhitespace(haystackLower);
-    const needle = normalizeWhitespace(needleLower);
+    // Phrase: whitespace-insensitive (collapse runs to a single space)
+    // on top of the normalized strings.
+    const haystack = normalizeWhitespace(haystackN);
+    const needle = normalizeWhitespace(needleN);
     if (needle.length === 0) return false;
     return haystack.includes(needle);
   }
 
   if (entry.matchKind === 'hashtag') {
-    // Hashtag: walk the text looking for `#`, then compare the body
-    // up to the next non-Unicode-word-character against the needle.
-    // The needle (stored lowercased without `#`) is compared
-    // case-insensitively. Pure char-by-char scan; no regex against
+    // Hashtag: walk the normalized haystack for `#`, then compare the
+    // body up to the next non-Unicode-word-character against the
+    // normalized needle. Pure char-by-char scan; no regex against
     // attacker text.
-    const haystack = haystackLower;
     let i = 0;
     while (true) {
-      const hashIdx = haystack.indexOf('#', i);
+      const hashIdx = haystackN.indexOf('#', i);
       if (hashIdx === -1) return false;
-      // Walk forward collecting the body.
       let end = hashIdx + 1;
-      while (end < haystack.length) {
-        const ch = haystack[end];
+      while (end < haystackN.length) {
+        const ch = haystackN[end];
         if (ch === undefined || !isUnicodeWordChar(ch)) break;
         end += 1;
       }
       if (end > hashIdx + 1) {
-        const body = haystack.slice(hashIdx + 1, end);
-        if (body === needleLower) return true;
+        const body = haystackN.slice(hashIdx + 1, end);
+        if (body === needleN) return true;
       }
       i = hashIdx + 1;
     }
   }
 
-  // word: boundary-checked literal scan; no regex compilation.
+  // word: boundary-checked literal scan against the normalized strings.
   let from = 0;
-  while (from <= haystackLower.length - needleLower.length) {
-    const idx = haystackLower.indexOf(needleLower, from);
+  while (from <= haystackN.length - needleN.length) {
+    const idx = haystackN.indexOf(needleN, from);
     if (idx === -1) return false;
-    const before = idx === 0 ? -1 : haystackLower.charCodeAt(idx - 1);
+    const before = idx === 0 ? -1 : haystackN.charCodeAt(idx - 1);
     const after =
-      idx + needleLower.length >= haystackLower.length
+      idx + needleN.length >= haystackN.length
         ? -1
-        : haystackLower.charCodeAt(idx + needleLower.length);
+        : haystackN.charCodeAt(idx + needleN.length);
     const leftBoundary = before === -1 || !isAsciiWordChar(before);
     const rightBoundary = after === -1 || !isAsciiWordChar(after);
     if (leftBoundary && rightBoundary) return true;

@@ -1,13 +1,16 @@
 import type { SafetyAppeal } from '../appeals.js';
 import type { SafetyAuthority } from '../authorities.js';
 import { tsError } from '../errors.js';
+import { subjectKey } from '../curation-runtime/projection.js';
 import {
   withFrozenAppliedEventId as withAppliedEventId,
   withFrozenBucketAppend as pushToBucket,
   withFrozenRecordSet as withRecordSet
 } from '../projection-helpers.js';
 import type { SafetyReasonCode } from '../reason-codes.js';
+import type { ReporterRef } from '../refs.js';
 import type { SafetyReport } from '../reports.js';
+import type { SafetySubjectRef } from '../subjects.js';
 import type {
   AppealResolution,
   ReportAppealEvent,
@@ -75,6 +78,14 @@ export type ReportsAppealsState = Readonly<{
   byReportId: Readonly<Record<string, ReportRecord>>;
   byReportIdempotencyKey: Readonly<Record<string, string>>;
   byTargetAuthority: Readonly<Record<string, ReadonlyArray<string>>>;
+  /**
+   * Phase 1.71.B — per-(reporter, subject, UTC day) report counter
+   * used by the rate cap. Keys are `${reporterKey}::${utcDay}::${subjectKey}`;
+   * values are the reportIds counted in that bucket. The reportIds
+   * preserve audit ordering and let us list which specific reports
+   * exhausted the budget if anyone asks.
+   */
+  reportsByReporterSubjectDay: Readonly<Record<string, ReadonlyArray<string>>>;
   byAppealId: Readonly<Record<string, AppealRecord>>;
   byAppealIdempotencyKey: Readonly<Record<string, string>>;
   byAppealedDecisionId: Readonly<Record<string, ReadonlyArray<string>>>;
@@ -86,12 +97,86 @@ export function createEmptyReportsAppealsState(): ReportsAppealsState {
     byReportId: Object.freeze({}),
     byReportIdempotencyKey: Object.freeze({}),
     byTargetAuthority: Object.freeze({}),
+    reportsByReporterSubjectDay: Object.freeze({}),
     byAppealId: Object.freeze({}),
     byAppealIdempotencyKey: Object.freeze({}),
     byAppealedDecisionId: Object.freeze({}),
     appliedEventIds: Object.freeze(new Set<string>())
   });
 }
+
+/**
+ * Phase 1.71.B — default per-(reporter, subject, day) report rate cap.
+ *
+ * Tuned conservatively. A legitimate user filing more than 10 reports
+ * against the same target in a single day is unusual; a weaponized
+ * report flood is far more likely. The cap is opt-out via
+ * `applyReportAppealEvent`'s `options.maxReportsPerReporterSubjectDay`
+ * (set to `Infinity` to disable for a community-curation flow that
+ * needs higher throughput).
+ */
+export const DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY = 10;
+
+/**
+ * Stable per-reporter key for the rate cap. Discriminator-aware so
+ * `actor:alice` and `pseudonym:alice` are distinct buckets, and so an
+ * attacker cannot bypass the cap by switching the reporter `kind`
+ * field. The reporter identifier itself is already validated upstream
+ * (non-empty id, length-bounded).
+ */
+function reporterRateKey(reporter: ReporterRef): string {
+  switch (reporter.kind) {
+    case 'actor':
+      return `actor::${reporter.actor.actorId}`;
+    case 'community':
+      return `community::${reporter.communityId}`;
+    case 'pseudonym':
+      return `pseudonym::${reporter.pseudonymId}`;
+  }
+}
+
+/**
+ * UTC day bucket for the rate cap. The `createdAt` field has already
+ * been validated as an ISO-8601 timestamp by the report validator;
+ * a structural slice of the first 10 characters yields `YYYY-MM-DD`
+ * which is stable, locale-independent, and trivially comparable.
+ *
+ * We intentionally do NOT use the receiver's clock — a clock-skewed
+ * report would otherwise fall into the wrong bucket. The
+ * `createdAt` field is signed (when the envelope is signed), so a
+ * malicious reporter cannot trivially rewrite it to bypass the cap
+ * without producing detectable backdating.
+ */
+function utcDayKey(iso: string): string {
+  return iso.slice(0, 10);
+}
+
+function reporterSubjectDayKey(
+  reporter: ReporterRef,
+  subject: SafetySubjectRef,
+  createdAt: string
+): string {
+  // JSON-encoded array so the three components cannot collide via
+  // embedded delimiters. An attacker who chooses an actorId
+  // containing literal `::` cannot land in another reporter's
+  // bucket and consume their budget — every component is
+  // independently quoted by `JSON.stringify`.
+  return JSON.stringify([
+    reporterRateKey(reporter),
+    utcDayKey(createdAt),
+    subjectKey(subject)
+  ]);
+}
+
+export type ApplyReportAppealEventOptions = Readonly<{
+  /**
+   * Per-(reporter, subject, UTC day) report cap. Defaults to
+   * `DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY`. Set to `Infinity`
+   * to disable; set to a higher number to widen the budget for a
+   * specific consumer.
+   */
+  maxReportsPerReporterSubjectDay?: number;
+}>;
 
 // --- Helpers -------------------------------------------------------------
 // Projection helpers live in `../projection-helpers.js` (imported above).
@@ -134,7 +219,8 @@ function authorityKey(authority: SafetyAuthority): string {
 export function applyReportAppealEvent(
   state: ReportsAppealsState,
   event: ReportAppealEvent | unknown,
-  label = 'applyReportAppealEvent'
+  label = 'applyReportAppealEvent',
+  options?: ApplyReportAppealEventOptions
 ): ReportsAppealsState {
   if (event === null || typeof event !== 'object' || Array.isArray(event)) {
     throw tsError('TS_INVALID_INPUT', `${label}: event must be a plain object`);
@@ -152,6 +238,21 @@ export function applyReportAppealEvent(
       // Duplicate idempotency key -> silent no-op (still record eventId).
       if (state.byReportIdempotencyKey[report.idempotencyKey] !== undefined) {
         return Object.freeze({ ...state, appliedEventIds: nextAppliedEventIds });
+      }
+      // Phase 1.71.B — per-(reporter, subject, UTC day) rate cap. Runs
+      // AFTER idempotency dedup so a replay does not consume budget,
+      // and BEFORE private-evidence enforcement so the cap also blocks
+      // attempts to leak private subjects via a flood.
+      const rsdKey = reporterSubjectDayKey(report.reporter, report.subject, report.createdAt);
+      const existingBucket = state.reportsByReporterSubjectDay[rsdKey] ?? [];
+      const cap =
+        options?.maxReportsPerReporterSubjectDay ??
+        DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY;
+      if (existingBucket.length >= cap) {
+        throw tsError(
+          'TS_REPORT_RATE_LIMITED',
+          `${label}: reporter has reached the per-(reporter, subject, UTC day) cap (${cap}) for this target`
+        );
       }
       // Private-evidence enforcement before mutation.
       assertPrivateEvidenceOnPrivateSubject(report, `${label}.report`);
@@ -172,6 +273,11 @@ export function applyReportAppealEvent(
         byTargetAuthority: pushToBucket(
           state.byTargetAuthority,
           authorityKey(report.targetAuthority),
+          report.reportId
+        ),
+        reportsByReporterSubjectDay: pushToBucket(
+          state.reportsByReporterSubjectDay,
+          rsdKey,
           report.reportId
         ),
         appliedEventIds: nextAppliedEventIds
@@ -305,12 +411,13 @@ export function applyReportAppealEvent(
  */
 export function seedReportsAppealsState(
   events: Iterable<ReportAppealEvent | unknown>,
-  label = 'seedReportsAppealsState'
+  label = 'seedReportsAppealsState',
+  options?: ApplyReportAppealEventOptions
 ): ReportsAppealsState {
   let state = createEmptyReportsAppealsState();
   let i = 0;
   for (const event of events) {
-    state = applyReportAppealEvent(state, event, `${label}[${i}]`);
+    state = applyReportAppealEvent(state, event, `${label}[${i}]`, options);
     i += 1;
   }
   return state;
