@@ -46,11 +46,46 @@ export type IdentityControlState = Readonly<{
 }>;
 
 export function createEmptyIdentityControlState(): IdentityControlState {
-  return {
+  return Object.freeze({
     epoch: 0,
-    devices: {},
-    capabilities: {}
-  };
+    devices: Object.freeze({}),
+    capabilities: Object.freeze({})
+  });
+}
+
+/**
+ * Recursively freezes the projection state's outer object plus the
+ * `devices` and `capabilities` records and every record entry within.
+ *
+ * Rationale (hardening, Phase 3.2): without this, a consumer who held
+ * a reference to the state could mutate `state.devices['device:x']`
+ * to flip `status: 'revoked' -> 'active'`, or splice a fake
+ * capability into `state.capabilities`, bypassing the entire
+ * controller-signed authority chain. The deep-freeze walk in the
+ * Phase 3.2 local-first integrity test pins this defense.
+ *
+ * Idempotent on already-frozen entries: re-applying does not
+ * reallocate, and the function does not produce an unbounded
+ * allocation cascade — each level is touched exactly once.
+ */
+function freezeIdentityControlState(state: IdentityControlState): IdentityControlState {
+  const devices: Record<string, IdentityControlDevice> = {};
+  for (const k of Object.keys(state.devices)) {
+    const v = state.devices[k];
+    if (v === undefined) continue;
+    devices[k] = Object.isFrozen(v) ? v : Object.freeze(v);
+  }
+  const capabilities: Record<string, IdentityControlCapability> = {};
+  for (const k of Object.keys(state.capabilities)) {
+    const v = state.capabilities[k];
+    if (v === undefined) continue;
+    capabilities[k] = Object.isFrozen(v) ? v : Object.freeze(v);
+  }
+  return Object.freeze({
+    ...state,
+    devices: Object.freeze(devices),
+    capabilities: Object.freeze(capabilities)
+  });
 }
 
 export function applyIdentityControlEvent(
@@ -123,7 +158,7 @@ function applyControllerCreated(state: IdentityControlState, event: SignedEventE
     throw new Error('identity.controller.created signature.publicKey must match payload.controllerPublicKey');
   }
 
-  return {
+  return freezeIdentityControlState({
     ...state,
     controllerPublicKey,
     devices: {
@@ -136,7 +171,7 @@ function applyControllerCreated(state: IdentityControlState, event: SignedEventE
       }
     },
     lastEventId: event.eventId
-  };
+  });
 }
 
 function applyDeviceAuthorized(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
@@ -147,7 +182,7 @@ function applyDeviceAuthorized(state: IdentityControlState, event: SignedEventEn
   const epoch = requirePositiveInteger(payload.epoch, 'epoch');
   requireMonotonicEpoch(state.epoch, epoch, event.kind);
 
-  return {
+  return freezeIdentityControlState({
     ...state,
     epoch,
     devices: {
@@ -160,7 +195,7 @@ function applyDeviceAuthorized(state: IdentityControlState, event: SignedEventEn
       }
     },
     lastEventId: event.eventId
-  };
+  });
 }
 
 function applyDeviceRevoked(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
@@ -171,14 +206,14 @@ function applyDeviceRevoked(state: IdentityControlState, event: SignedEventEnvel
   const existing = state.devices[deviceId];
   if (existing === undefined) throw new Error(`identity.device.revoked references unknown device ${deviceId}`);
   if (existing.status === 'revoked') {
-    return {
+    return freezeIdentityControlState({
       ...state,
       lastEventId: event.eventId
-    };
+    });
   }
   requireMonotonicEpoch(state.epoch, epoch, event.kind);
 
-  return {
+  return freezeIdentityControlState({
     ...state,
     epoch,
     devices: {
@@ -190,7 +225,7 @@ function applyDeviceRevoked(state: IdentityControlState, event: SignedEventEnvel
       }
     },
     lastEventId: event.eventId
-  };
+  });
 }
 
 function applyCapabilityGranted(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
@@ -202,7 +237,7 @@ function applyCapabilityGranted(state: IdentityControlState, event: SignedEventE
   const expiresAt = requireString(payload.expiresAt, 'expiresAt');
   if (!Number.isFinite(Date.parse(expiresAt))) throw new Error('identity.capability.granted payload.expiresAt must be an ISO date string');
 
-  return {
+  return freezeIdentityControlState({
     ...state,
     capabilities: {
       ...state.capabilities,
@@ -216,7 +251,7 @@ function applyCapabilityGranted(state: IdentityControlState, event: SignedEventE
       }
     },
     lastEventId: event.eventId
-  };
+  });
 }
 
 function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
@@ -230,13 +265,13 @@ function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventE
     throw new Error('identity.capability.revoked payload.delegateDeviceId does not match granted capability delegate');
   }
   if (existing.status === 'revoked') {
-    return {
+    return freezeIdentityControlState({
       ...state,
       lastEventId: event.eventId
-    };
+    });
   }
 
-  return {
+  return freezeIdentityControlState({
     ...state,
     capabilities: {
       ...state.capabilities,
@@ -247,7 +282,7 @@ function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventE
       }
     },
     lastEventId: event.eventId
-  };
+  });
 }
 
 function applyDeviceRotated(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
@@ -284,7 +319,7 @@ function applyDeviceRotated(state: IdentityControlState, event: SignedEventEnvel
   }
   requireMonotonicEpoch(state.epoch, epoch, event.kind);
 
-  return {
+  return freezeIdentityControlState({
     ...state,
     epoch,
     devices: {
@@ -296,7 +331,7 @@ function applyDeviceRotated(state: IdentityControlState, event: SignedEventEnvel
       }
     },
     lastEventId: event.eventId
-  };
+  });
 }
 
 function applyContactCardPublished(
@@ -314,7 +349,7 @@ function applyContactCardPublished(
     );
   }
 
-  return {
+  return freezeIdentityControlState({
     ...state,
     contactCardPublication: Object.freeze({
       contactCardDigest,
@@ -322,7 +357,7 @@ function applyContactCardPublished(
       publishedAt: event.createdAt
     }),
     lastEventId: event.eventId
-  };
+  });
 }
 
 function requireControllerSigner(state: IdentityControlState, event: SignedEventEnvelope): void {

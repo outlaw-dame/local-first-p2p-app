@@ -274,6 +274,20 @@ Phase 1.71 — block-evasion hardening pack:
 - 32 new adversarial tests in `phase-1.71.test.ts`.
 - Doctrine: `docs/protocol/block-evasion-resilience.md` with full defeat matrix, explicit non-defenses (sock-puppets and coordinated brigading point to right future slice), composition with `decideVisibility`'s `mostRestrictive` combiner.
 
+Phase 3.1 — privacy-safe logging policy + structural enforcement:
+
+- `docs/protocol/privacy-safe-logging.md` doctrine pinning 8 private categories (decrypted payloads, keys, public keys, projection contents, pre-decryption envelopes, full digest bodies, sub-second timestamps) and 5 loggable categories, with references to the existing redaction primitives (`redactDigestRef`, `redactContentLink`, `redactBlockRef`, `redactDigestForAudit`, `redactBlockRefForAudit`). Error-message hygiene rules + user-facing status-surface guidance.
+- ESLint rule rejecting `console.*`/`debugger`/`alert|confirm|prompt` in `packages/*/src/**` + `apps/*/src/**` (test + config exempt). Two intentional PWA consent prompts annotated with `eslint-disable-next-line no-alert` markers + doctrine-compliant comments.
+- Defense-in-depth `packages/trust-safety/src/__tests__/phase-3.1-no-leak.test.ts` walks production source directly and pins zero `console.*`, zero `debugger`, and the alert-family inventory matches the documented two consent-prompt files.
+
+Phase 3.2 — local-first integrity test suite + projection deep-freeze hardening:
+
+- `packages/sync-client/src/phase-3.2-local-first-integrity.test.ts` (47 new tests) is the single audit surface that pins the local-first guarantee end-to-end across all 7 projections (identity, local-controls, labelers, reports/appeals, transport, curation, moderation). Invariants: replay equivalence (`seed === reduce`), deep-freeze walk on every nested node, Class A commutativity, cross-projection isolation (30 paired wrong-validator tests), end-to-end interleaved replay with within-stream order preserved.
+- Loads canonical JSON fixtures from disk for trust-safety projections so any protocol shape drift fails this test AND the per-phase fixture suite in lockstep — no parallel fixture inventory. Identity events constructed in code with real Ed25519 keypairs.
+- **Hardening review caught and fixed TWO real integrity bugs in the same commit**:
+  1. `withFrozenAppliedEventId` was not freezing its returned `Set` — a consumer could `.add('evt_attacker_forged')` to silently no-op a future inbound replay. Fixed with `Object.freeze` (JS Set internal slots remain mutable but the structural marker discipline is restored; an immutable-Set semantic is deferred as it requires a library or wrapper class).
+  2. `IdentityControlState` projection missed every `Object.freeze` call — a consumer could mutate device status, public keys, capabilities, or `controllerPublicKey` directly in the snapshot, bypassing the controller-signed authority chain. Fixed by a new private `freezeIdentityControlState` helper that deeply freezes outer state + `devices` record + every device entry + `capabilities` record + every capability entry; every `apply*` return path wrapped, `createEmpty` updated. Was the most serious integrity bug found in any phase.
+
 Not implemented yet:
 
 - `@lfp2p/search` and a future feed runtime that materializes a ranked feed by consuming `computeItemRanking`.

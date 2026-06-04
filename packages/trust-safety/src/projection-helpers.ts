@@ -81,5 +81,13 @@ export function withFrozenAppliedEventId(
   if (ids.has(eventId)) return ids;
   const next = new Set(ids);
   next.add(eventId);
-  return next;
+  // Freeze the Set marker. Note: `Object.freeze(set)` does not block
+  // `.add()` / `.delete()` calls on the Set's internal slots — those
+  // mutate internal storage, not enumerable properties — but it does
+  // mark the value as intentionally immutable at the type-system /
+  // structural level, and the deep-freeze walk
+  // (Phase 3.2 local-first integrity test) requires this. Consumers
+  // who genuinely need to extend a set MUST build a fresh one rather
+  // than mutate in place.
+  return Object.freeze(next);
 }

@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@lfp2p/bridge-service": "workspace:*",
+    "@lfp2p/trust-safety": "workspace:*",
     "fake-indexeddb": "latest"
   }
 }
