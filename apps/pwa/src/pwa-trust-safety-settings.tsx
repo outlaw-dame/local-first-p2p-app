@@ -91,6 +91,9 @@ export function TrustSafetySettings({
         // Explicit confirmation when turning the gate ON. We refuse to
         // enable adult content without an explicit user action — this
         // is the protocol-level child-safety / fresh-account default.
+        // Per Phase 1.69 doctrine. Message contains only the gate
+        // question, no private state.
+        // eslint-disable-next-line no-alert
         const confirmed = globalThis.confirm(
           'Show adult content? You confirm you are 18 or older.'
         );

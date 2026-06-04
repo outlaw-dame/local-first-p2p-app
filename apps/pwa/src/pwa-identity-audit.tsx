@@ -86,6 +86,11 @@ export function IdentityAudit({
         const intent = prepareRotationIntent(viewModel, deviceId, newKeypair.publicKey);
         const oldFp = shortPublicKeyFingerprint(intent.previousPublicKey);
         const newFp = shortPublicKeyFingerprint(intent.newPublicKey);
+        // Intentional consent prompt before emitting a Class C
+        // identity-control event (key rotation). The message body
+        // contains only short fingerprints + neutral language per
+        // docs/protocol/privacy-safe-logging.md error-message hygiene.
+        // eslint-disable-next-line no-alert
         const confirmed = globalThis.confirm(
           `Rotate the key for ${deviceId}?\n\n` +
             `Old fingerprint:  ${oldFp}\n` +
