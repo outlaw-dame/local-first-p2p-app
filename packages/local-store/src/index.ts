@@ -167,12 +167,24 @@ export type StoredIdentityControlCapability = Readonly<{
   revokedAt?: string;
 }>;
 
+/**
+ * Snapshot of the most recent contact-card publication audit entry
+ * (Phase 2.1). Older publications stay in the signed-event log; the
+ * projection retains only the latest.
+ */
+export type StoredIdentityContactCardPublication = Readonly<{
+  contactCardDigest: string;
+  capturedAt: string;
+  publishedAt: string;
+}>;
+
 export type StoredIdentityControlProjection = Readonly<{
   identityId: string;
   controllerPublicKey?: string;
   epoch: number;
   devices: Readonly<Record<string, StoredIdentityControlDevice>>;
   capabilities: Readonly<Record<string, StoredIdentityControlCapability>>;
+  contactCardPublication?: StoredIdentityContactCardPublication;
   lastEventId?: string;
   updatedAt: string;
 }>;
@@ -506,6 +518,103 @@ export class DexieLocalFirstStore {
   async getIdentityControlProjection(identityId: string): Promise<StoredIdentityControlProjection | undefined> {
     requireNonEmpty(identityId, 'identityId');
     return this.#db.identityControlProjections.get(identityId);
+  }
+
+  // -------------------------------------------------------------------
+  // Local identity-event append + replay (Phase 2.2)
+  //
+  // The inbound sync path in `@lfp2p/sync-client` already persists
+  // identity events that arrive from the bridge via
+  // `putSignedEventWithSyncCheckpoint`. These helpers are the
+  // *locally-emitted* counterpart: when the PWA itself produces a
+  // signed identity event (e.g. `identity.contact-card.published`
+  // when the user exports a contact card), it goes through
+  // `appendLocalIdentityEvent` so the projection updates atomically
+  // with the persisted signed event.
+  //
+  // `loadIdentityControlState` is the rebuild-from-log helper.
+  // Persisted projections are a snapshot for fast load; the source
+  // of truth is the signed-event log. A reopen replays the log into
+  // a fresh `IdentityControlState` (the protocol's frozen shape),
+  // which `seedIdentityControlProjection` does for us.
+  // -------------------------------------------------------------------
+
+  /**
+   * Locally-emitted identity-event append: atomically persists the
+   * signed event and updates the cached projection. Caller supplies
+   * a `projectionUpdate` callback that knows how to apply the event
+   * (the identity package owns the protocol-level apply logic; the
+   * store is identity-agnostic to avoid a circular package
+   * dependency).
+   *
+   * Idempotent on `eventId`: a re-append of the same event returns
+   * the persisted projection without re-applying. Re-applying a
+   * Class B/C event a second time would either silent-no-op
+   * (revoke-already-revoked) or throw (lifecycle transition); the
+   * store-level idempotency makes the behaviour stable at this
+   * boundary.
+   */
+  async appendLocalIdentityEvent(
+    event: SignedEventEnvelope,
+    projectionUpdate: IdentityControlProjectionUpdate,
+    options: Readonly<{ updatedAt?: string }> = {}
+  ): Promise<StoredIdentityControlProjection> {
+    validateSignedEvent(event);
+    const updatedAt = options.updatedAt ?? new Date().toISOString();
+    requireIsoDate(updatedAt, 'updatedAt');
+    return this.transaction(
+      'rw',
+      ['signedEvents', 'identityControlProjections'],
+      async () => {
+        const existing = await this.#db.signedEvents.get(event.eventId);
+        const projection =
+          await this.#db.identityControlProjections.get(event.author);
+        if (existing !== undefined) {
+          if (projection === undefined) {
+            throw new Error(
+              `appendLocalIdentityEvent: signedEvent ${event.eventId} present but projection for ${event.author} is missing`
+            );
+          }
+          return projection;
+        }
+        const nextProjection = await projectionUpdate(
+          projection,
+          event,
+          updatedAt
+        );
+        validateIdentityControlProjection(nextProjection);
+        if (nextProjection.identityId !== event.author) {
+          throw new Error(
+            'identity control projection identityId must match event.author'
+          );
+        }
+        await this.#db.signedEvents.put(storedSignedEvent(event));
+        await this.#db.identityControlProjections.put(nextProjection);
+        return nextProjection;
+      }
+    );
+  }
+
+  /**
+   * List every locally-stored identity event for `identityId` in
+   * stable order (by `createdAt`, then `eventId`). Intended for
+   * replay-based projection rebuilds — the caller passes the result
+   * to `seedIdentityControlProjection` from `@lfp2p/identity`.
+   *
+   * This avoids a circular dependency: the store does not depend on
+   * `@lfp2p/identity`.
+   */
+  async listLocalIdentityEvents(
+    identityId: string
+  ): Promise<SignedEventEnvelope[]> {
+    requireNonEmpty(identityId, 'identityId');
+    const rows = await this.#db.signedEvents
+      .where('author')
+      .equals(identityId)
+      .sortBy('createdAt');
+    return rows
+      .filter((row) => row.kind.startsWith('identity.'))
+      .map((row) => row.event);
   }
 
   async getContactProfile(identityId: string): Promise<StoredContactProfile | undefined> {

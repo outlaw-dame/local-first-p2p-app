@@ -634,8 +634,10 @@ function isIdentityControlEvent(event: unknown): event is SignedEventEnvelope {
     case 'identity.controller.created':
     case 'identity.device.authorized':
     case 'identity.device.revoked':
+    case 'identity.device.rotated':
     case 'identity.capability.granted':
     case 'identity.capability.revoked':
+    case 'identity.contact-card.published':
       return true;
     default:
       return false;
@@ -655,6 +657,9 @@ function applyIdentityControlProjectionUpdate(
     devices: nextState.devices,
     capabilities: nextState.capabilities,
     ...(nextState.controllerPublicKey === undefined ? {} : { controllerPublicKey: nextState.controllerPublicKey }),
+    ...(nextState.contactCardPublication === undefined
+      ? {}
+      : { contactCardPublication: nextState.contactCardPublication }),
     ...(nextState.lastEventId === undefined ? {} : { lastEventId: nextState.lastEventId }),
     updatedAt
   };
@@ -666,6 +671,9 @@ function toIdentityControlState(current: StoredIdentityControlProjection) {
     devices: current.devices,
     capabilities: current.capabilities,
     ...(current.controllerPublicKey === undefined ? {} : { controllerPublicKey: current.controllerPublicKey }),
+    ...(current.contactCardPublication === undefined
+      ? {}
+      : { contactCardPublication: current.contactCardPublication }),
     ...(current.lastEventId === undefined ? {} : { lastEventId: current.lastEventId })
   };
 }

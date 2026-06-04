@@ -51,6 +51,7 @@ import {
   type PwaForegroundSyncController
 } from './pwa-sync-lifecycle.js';
 import { TrustSafetySettings } from './pwa-trust-safety-settings.js';
+import { emitContactCardPublishedEvent } from './pwa-identity-emit.js';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -356,6 +357,26 @@ function HomePage(): JSX.Element {
       const signed = signContactCardDocument(card, keypair);
       const serialized = serializeContactCardDocument(signed);
       setImportDraft(serialized);
+      // Phase 2.2: record the publication in the identity-control
+      // log so a downstream verifier (and the user's other devices,
+      // once account-local sync ships) can audit when this digest
+      // was published. We never put the card *bytes* on the log,
+      // only the canonical digest reference.
+      try {
+        await emitContactCardPublishedEvent({
+          store,
+          identityId: identity.identityId,
+          deviceId: identity.deviceId,
+          controllerKeypair: keypair,
+          serializedContactCard: serialized
+        });
+      } catch (publishError: unknown) {
+        // Publication audit failure must not block the export UX.
+        // The card is still exported; the user gets a status hint.
+        setStatus(
+          `Contact card exported, but the publication-audit event failed: ${formatUiError(publishError)}`
+        );
+      }
       if (typeof globalThis.navigator?.clipboard?.writeText === 'function') {
         await globalThis.navigator.clipboard.writeText(serialized);
         setStatus('Signed contact card copied to clipboard as JSON.');
