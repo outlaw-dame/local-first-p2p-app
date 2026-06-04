@@ -12,6 +12,7 @@
   "dependencies": {
     "@electric-sql/pglite": "latest",
     "@lfp2p/crypto": "workspace:*",
-    "@lfp2p/protocol": "workspace:*"
+    "@lfp2p/protocol": "workspace:*",
+    "@lfp2p/trust-safety": "workspace:*"
   }
 }

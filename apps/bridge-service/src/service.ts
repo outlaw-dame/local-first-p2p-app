@@ -40,10 +40,15 @@ export class BridgeService {
   readonly role: BridgeServiceRole;
   readonly authoritativeForPrivateState = false as const;
   readonly store: BridgeServiceOptions['store'];
+  // Phase 4.1 — optional admission gateway. Held as a private field
+  // so the BridgeService surface stays unchanged for callers that
+  // don't opt into admission.
+  readonly #admission: BridgeServiceOptions['admission'];
 
   constructor(options: BridgeServiceOptions) {
     this.role = options.role ?? 'stateful-edge-actor';
     this.store = options.store;
+    this.#admission = options.admission;
   }
 
   async acceptDelivery(request: BridgeDeliveryRequest, now = new Date().toISOString()): Promise<BridgeDeliveryResponse> {
@@ -63,6 +68,29 @@ export class BridgeService {
 
     if (!verifySignedEventEnvelope(request.event)) {
       return rejected(idempotencyKey, 'Event signature verification failed');
+    }
+
+    // Phase 4.1 — trust-safety transport admission. Runs AFTER the
+    // signature + protocol-scope checks (those are cheap, deterministic,
+    // and don't consume admission budget) and BEFORE the store
+    // mutation (so a rejected delivery never lands a record).
+    //
+    // Order rationale: an envelope that fails signature verification
+    // shouldn't consume the producer's per-peer rate-limit budget —
+    // a forged envelope from an attacker would otherwise let the
+    // attacker burn the legitimate producer's budget.
+    if (this.#admission !== undefined) {
+      const admission = this.#admission.admit(request, nowMs);
+      if (!admission.result.admitted) {
+        // `drop-duplicate` collapses into a rejection with the
+        // engine's stable reason code; callers that want
+        // idempotency-style "duplicate" semantics use the existing
+        // `store.get(idempotencyKey)` path further down. The
+        // admission's replay cache is a separate, time-bound
+        // dedup layer for transport-level replay attacks (Phase
+        // 1.64), not the application-level idempotency dedup.
+        return rejected(idempotencyKey, admission.reason);
+      }
     }
 
     const existing = await this.store.get(idempotencyKey, nowMs);
@@ -133,7 +161,8 @@ export class InMemoryBridgeService extends BridgeService {
         ...(normalized.ttlMs === undefined ? {} : { ttlMs: normalized.ttlMs }),
         ...(normalized.initialSequence === undefined ? {} : { initialSequence: normalized.initialSequence })
       }),
-      ...(normalized.role === undefined ? {} : { role: normalized.role })
+      ...(normalized.role === undefined ? {} : { role: normalized.role }),
+      ...(normalized.admission === undefined ? {} : { admission: normalized.admission })
     });
   }
 }

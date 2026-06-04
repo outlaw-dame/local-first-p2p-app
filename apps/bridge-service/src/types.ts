@@ -17,6 +17,18 @@ export type BridgeDeliveryRequest = Readonly<{
   idempotencyKey: string;
   target: string;
   event: SignedEventEnvelope;
+  /**
+   * Transport-level peer identifier supplied by the upstream HTTP /
+   * WebSocket handler. The admission engine uses this as the key for
+   * per-peer rate-limit buckets and reputation tracking.
+   *
+   * When omitted (e.g. tests, legacy callers, or pre-Phase-4.1
+   * deployments) the admission gateway falls back to
+   * `event.deviceId`. This keeps the engine functional for testing
+   * while making it clear in production wiring that a real
+   * transport identifier SHOULD be plumbed in.
+   */
+  peerId?: string;
 }>;
 
 export type BridgeDeliveryResponse =
@@ -111,6 +123,53 @@ export type BridgeStore = Readonly<{
 export type BridgeServiceOptions = Readonly<{
   role?: BridgeServiceRole;
   store: BridgeStore;
+  /**
+   * Phase 4.1 — optional admission gateway. When supplied the bridge
+   * runs every accepted delivery through the Phase 1.64
+   * trust-safety transport-admission engine BEFORE persisting it,
+   * applying the engine's rate limit, peer reputation, replay
+   * cache, byte cap, kind allowlist, and privacy-scope checks.
+   *
+   * When omitted the bridge behaves exactly as before (the existing
+   * signature + protocol-scope + idempotency checks still run).
+   * Production deployments MUST configure admission; the option is
+   * non-required only for backward compatibility with pre-Phase-4.1
+   * test code.
+   */
+  admission?: BridgeAdmissionGatewayHandle;
+}>;
+
+/**
+ * Opaque handle for the admission gateway instance, declared in
+ * `./admission-gateway.ts`. Declared here as a type-only handle to
+ * keep `BridgeServiceOptions` free of a cycle with the gateway
+ * implementation file.
+ */
+export type BridgeAdmissionGatewayHandle = Readonly<{
+  /**
+   * Process one delivery through admission and return the decision.
+   * The gateway holds the underlying admission state internally and
+   * advances it atomically per call.
+   */
+  admit: (
+    request: BridgeDeliveryRequest,
+    nowMs: number
+  ) => Readonly<{
+    result: Readonly<{
+      decision: Readonly<{
+        action:
+          | 'accept'
+          | 'accept-limited'
+          | 'reject'
+          | 'quarantine'
+          | 'rate-limit'
+          | 'drop-duplicate';
+        reasonCode: string;
+      }>;
+      admitted: boolean;
+    }>;
+    reason: string;
+  }>;
 }>;
 
 export type InMemoryBridgeStoreOptions = Readonly<{
@@ -122,6 +181,8 @@ export type InMemoryBridgeStoreOptions = Readonly<{
 export type InMemoryBridgeServiceOptions = InMemoryBridgeStoreOptions &
   Readonly<{
     role?: BridgeServiceRole;
+    /** Phase 4.1 — forwarded to the base `BridgeService`. */
+    admission?: BridgeAdmissionGatewayHandle;
   }>;
 
 export type JsonFileBridgeStoreOptions = Readonly<{

@@ -165,11 +165,83 @@ A successful admit credits +1 to the peer's reputation.
   `operatorAuthority.scope` is not a transport scope is invalid by
   construction (Phase 1.61 validator catches it).
 
+## Runtime wiring (Phase 4.1, 2026-06-04)
+
+The Phase 1.64 engine + projection + fixtures + tests have been wired
+into the production bridge surface via a thin integration layer:
+
+- `apps/bridge-service/src/admission-gateway.ts` exposes
+  `BridgeAdmissionGateway`, a class that owns the latest
+  `TransportAdmissionState` (frozen per Phase 3.2 invariant 2) and
+  exposes a single `admit(request, nowMs)` method.
+- `BridgeService` accepts an optional `admission` constructor option.
+  When provided, every accepted delivery is projected into an
+  `AdmissionEnvelope` and run through `admitEnvelope` BEFORE the
+  store mutation. Rejections short-circuit with a stable reason of
+  the form `<action>:<reasonCode>` (e.g. `rejected:oversized:1234`,
+  `rate-limited:transport.rate-limit`, `drop-duplicate:system.replay`).
+- The gateway never logs payload contents. The reason string
+  contains only the engine's stable action label and reason code,
+  per the Phase 3.1 privacy-safe-logging doctrine.
+
+### Ordering inside `acceptDelivery`
+
+The integration runs admission AFTER the cheap deterministic checks
+and BEFORE store mutation:
+
+```
+1. envelope shape (validateSignedEvent)
+2. bridge-safe privacy scope (`dm` / `group` / `public`)
+3. signature verification
+4. ──── ADMISSION GATEWAY ────
+5. idempotency-key dedup (existing store check)
+6. store insert
+```
+
+**Rationale for step 4 placement:** signature verification (step 3)
+runs BEFORE admission so a forged envelope from an attacker cannot
+burn a legitimate producer's per-peer rate-limit budget. A tampered
+envelope is rejected with `Event signature verification failed`
+without consuming any admission state. The
+`admission-gateway.test.ts` pins this invariant.
+
+### Backward compatibility
+
+The `admission` option is optional. A `BridgeService` constructed
+without admission preserves pre-Phase-4.1 behavior exactly — all
+existing bridge tests continue to pass unmodified. **Production
+deployments MUST configure admission**; the doctrine treats the
+admission engine as a non-negotiable runtime requirement.
+
+### peerId discipline
+
+`BridgeDeliveryRequest.peerId` is optional. Production wiring (HTTP
+or WebSocket handler) SHOULD supply a transport-level peer
+identifier (TLS client identity, WebSocket connection id, etc.). If
+omitted, the gateway falls back to `event.deviceId`. The fallback
+is documented but is NOT a substitute for a real transport-level
+peer in production: per-peer rate limits and reputation only
+function correctly when distinct peers map to distinct ids.
+
+### State persistence
+
+Phase 4.1 holds `TransportAdmissionState` in process memory only.
+After a bridge restart the state is empty until events are replayed.
+A future slice (Phase 4.2) will persist the state across restarts.
+
 ## Implementation evidence
 
-- Package: `packages/trust-safety/src/transport-admission/`
-- 735 tests pass across the monorepo; ~60 of those exercise the
-  admission slice directly.
+- Engine: `packages/trust-safety/src/transport-admission/`
+  (Phase 1.64).
+- Bridge wiring: `apps/bridge-service/src/admission-gateway.ts`,
+  `BridgeService` constructor + `acceptDelivery`.
+- Tests: `packages/trust-safety/src/__tests__/` (engine);
+  `apps/bridge-service/src/admission-gateway.test.ts` (wiring,
+  14 tests pinning happy path, byte cap, kind allowlist,
+  drop-duplicate, per-peer isolation, peerId fallback,
+  signature-before-admission ordering, state-advance, and
+  privacy-safe rejection reasons).
 - 4 valid + 2 invalid fixtures covering accepted / rate-limited /
   quarantined / media-rejected.
-- Exit report: `docs/implementation/phase-1.64-exit-report.md`.
+- Exit reports: `docs/implementation/phase-1.64-exit-report.md`,
+  `docs/implementation/phase-4.1-exit-report.md`.
