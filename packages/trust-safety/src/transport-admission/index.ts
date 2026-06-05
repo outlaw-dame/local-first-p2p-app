@@ -78,3 +78,8 @@ export type { ReportForwardingDecision } from './report-forwarding.js';
 
 export { decideUserBlockTransport } from './user-block-enforcement.js';
 export type { EnvelopeProducerContext, UserBlockTransportDecision } from './user-block-enforcement.js';
+
+// Phase 1.8.6 — bridge between the Phase 1.8.3 doctrine band table
+// and the Phase 1.64 rate-limit config. Pure helper.
+export { modulateRateLimitConfig, modulateDefaultRateLimit } from './reputation-modulation.js';
+export type { ModulatedRateLimit } from './reputation-modulation.js';

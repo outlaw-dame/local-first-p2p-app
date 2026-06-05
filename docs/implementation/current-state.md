@@ -346,6 +346,23 @@ Phase 1.8.4 — reputation aggregator labeler kind + stacking runtime:
 - The `AggregatorEventWithSource` shape IS the OpenRank adapter contract — a thin external HTTP-to-event mapper lives outside protocol core.
 - 19 new adversarial tests covering: local-always-#0 (3), priority stacking with tie-breaking (2), opt-in discipline (3), input validation (2), output integrity + frozen + version sentinel + contributingLabelers correctness (4), replay equivalence (1), clamping + privacy-safety (2), labeler taxonomy extension (2).
 
+Phase 1.8.6 — live wiring of `applyAdmissionBand` into transport-admission:
+
+- New `reputation-modulation.ts` bridges Phase 1.8.3 doctrine band table to the Phase 1.64 `RateLimitConfig` shape. `modulateRateLimitConfig(baseline, score)` returns `{ config, band }`; the doctrine `cooldownExponentMultiplier` maps to `baseBackoffMs` (existing engine has fixed `2^(n−1)` growth law; dialing initial cooldown scales the geometric progression). Capacity rounded down with floor of 1; `baseBackoffMs` clamped at `maxBackoffMs`; result re-validated via `validateRateLimitConfig`.
+- `AdmissionContext.reputationScoreLookup?: (peerId) → number | undefined` is the optional injection point.
+- `AdmissionOutputs.reputationBand?: 'high' | 'mid' | 'low' | 'untrusted'` — privacy-safe stable string per Phase 3.1.
+- `runAdmissionChecks` refactored to a thin wrapper that computes the modulated config ONCE so every return path reports the same band.
+- **Engine math is unchanged**; defaults (no lookup) preserve byte-identical pre-1.8.6 behavior (regression test pinned). Unknown peer collapses to `'untrusted'` band (fail-closed).
+- 15 new adversarial tests including end-to-end behavioral pin (high-band peer admits more in a fresh-bucket burst than untrusted).
+
+Phase 1.8.7 — Dexie v8 persistence + PWA emit + settings UI:
+
+- `@lfp2p/local-store` v8 adds `trustSafetyReputationEvents` table + `appendTrustSafetyReputationEvent` (idempotent on eventId; validates via Phase 1.8.1 validator at persistence boundary) + `listTrustSafetyReputationEvents` + `loadReputationEvents` (replay-from-log with corrupt-row skipping). Migration purely additive.
+- `apps/pwa/src/pwa-reputation-emit.ts` ships 5 emit helpers (one per Phase 1.8.1 event kind): `emitObservationRecorded`, `emitAttestationPublished`, `emitAttestationRevoked`, `emitAggregatorPublished`, `emitAggregatorRemoved`. Each helper builds → validates → persists → idempotent. **Doctrine "default privacy = device-local" enforced structurally**: helpers do NOT cross-publish.
+- `apps/pwa/src/pwa-reputation-state.ts` ships view-model logic: `clampSpamGateInput` (clamps + warns; final defense-in-depth via `resolveSpamGateConfig`); form defaults frozen bound to documented enums; `DEVICE_LOCAL_PRIVACY_NOTICE` frozen content the UI MUST surface; `buildAggregatorSubscriptionList` enforces doctrine non-negotiables (**reserved sentinel `LOCAL_REPUTATION_SOURCE` rejected outright**; priority 0 bumped to 1 with warning; non-integer / negative priorities reset; empty labelerIds + unknown algorithms dropped; duplicate labelerIds dedup'd keeping highest-priority entry; sorted ascending output; deep-frozen).
+- `apps/pwa/src/pwa-reputation-settings.tsx` ships functional React component with 3 sub-sections: spam-gate thresholds with live warnings, observation/attestation emit forms surfacing the device-local privacy notice prominently, aggregator subscription list with add/unsubscribe + live warnings.
+- 34 new adversarial tests across pwa-reputation-state (22) + pwa-reputation-emit (12).
+
 Phase 1.8.3 — surface integration (admission band + curation downrank + spam gate):
 
 - `getReputationBand(score) → 'high' | 'mid' | 'low' | 'untrusted'` per doctrine thresholds (0.5/0.1/0.01); NaN/Infinity/negative collapse to `'untrusted'` (fail closed).

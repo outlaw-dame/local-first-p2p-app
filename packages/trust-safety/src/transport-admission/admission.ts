@@ -46,6 +46,7 @@ import {
 } from './peer-reputation.js';
 import type { RateLimitBucket, RateLimitConfig } from './rate-limit.js';
 import { DEFAULT_RATE_LIMIT, tryConsume } from './rate-limit.js';
+import { modulateRateLimitConfig } from './reputation-modulation.js';
 import type { ReplayCache, ReplayCacheConfig } from './replay-cache.js';
 import { DEFAULT_REPLAY_CACHE, recordSeen } from './replay-cache.js';
 
@@ -167,6 +168,30 @@ export type AdmissionContext = Readonly<{
   recipientUserLocalControlState?: LocalControlState;
   /** Recipient user id (matches the local-control state owner). */
   recipientUserId?: string;
+  /**
+   * Phase 1.8.6 — per-peer reputation score lookup. When supplied,
+   * the rate-limit step modulates the per-peer bucket params via
+   * the Phase 1.8.3 doctrine band table:
+   *
+   *   high       ⇒ 2.0× capacity, 2.0× refill, 0.5× base-backoff
+   *   mid        ⇒ 1.0× × all (no-op)
+   *   low        ⇒ 0.5× capacity, 0.5× refill, 1.5× base-backoff
+   *   untrusted  ⇒ 0.25× capacity, 0.25× refill, 2.0× base-backoff
+   *
+   * Engine math (token bucket, exponential backoff, self-healing) is
+   * UNCHANGED — only the per-peer parameters are dialed. The
+   * resulting `band` is recorded in the audit log entry under
+   * `reputationBand` for privacy-safe Phase 3.1 audit (band is a
+   * stable string; raw score is never logged).
+   *
+   * Returns `undefined` when the peer is unknown to the user's
+   * reputation state — the band table collapses to `'untrusted'`
+   * in that case (fail-closed default).
+   *
+   * Default behavior (`undefined` lookup) is byte-identical to
+   * pre-1.8.6 admission so existing callers see no change.
+   */
+  reputationScoreLookup?: (peerId: string) => number | undefined;
 }>;
 
 export type AdmissionResult = Readonly<{
@@ -222,11 +247,45 @@ export type AdmissionOutputs = Readonly<{
   rateLimitBucket: RateLimitBucket;
   reputation: PeerReputation;
   replayCache: ReplayCache;
+  /**
+   * Phase 1.8.6 — privacy-safe stable string identifying which
+   * reputation band this peer fell into for the rate-limit check.
+   * `undefined` when no `context.reputationScoreLookup` was wired —
+   * matches pre-1.8.6 behavior. Per Phase 3.1: the raw score is
+   * NEVER logged; this stable string is sufficient for audit.
+   */
+  reputationBand?: 'high' | 'mid' | 'low' | 'untrusted';
 }>;
 
 export function runAdmissionChecks(inputs: AdmissionInputs): AdmissionOutputs {
-  const { config, envelope, context, now } = inputs;
+  const { config, envelope, context } = inputs;
   const rateConfig = config.rateLimit ?? DEFAULT_RATE_LIMIT;
+
+  // Phase 1.8.6 — compute the per-peer modulated rate-limit config
+  // ONCE so every return path (early reject / rate-limit / admit)
+  // reports the same band. When no lookup is wired, `reputationBand`
+  // is undefined and the engine sees byte-identical behavior.
+  let effectiveRateConfig = rateConfig;
+  let reputationBand: AdmissionOutputs['reputationBand'];
+  if (context?.reputationScoreLookup !== undefined) {
+    const score = context.reputationScoreLookup(envelope.peerId);
+    const modulated = modulateRateLimitConfig(rateConfig, score);
+    effectiveRateConfig = modulated.config;
+    reputationBand = modulated.band;
+  }
+
+  const raw = runAdmissionChecksInner(inputs, effectiveRateConfig);
+  // Defense-in-depth: only attach the band when set so existing
+  // callers see byte-identical structures otherwise.
+  if (reputationBand === undefined) return raw;
+  return Object.freeze({ ...raw, reputationBand });
+}
+
+function runAdmissionChecksInner(
+  inputs: AdmissionInputs,
+  effectiveRateConfig: RateLimitConfig
+): AdmissionOutputs {
+  const { config, envelope, context, now } = inputs;
   const repConfig = config.reputation ?? DEFAULT_REPUTATION;
   const replayConfig = config.replayCache ?? DEFAULT_REPLAY_CACHE;
   const maxBytes = config.maxBytes ?? DEFAULT_MAX_BYTES_BY_SURFACE[config.surface];
@@ -336,8 +395,10 @@ export function runAdmissionChecks(inputs: AdmissionInputs): AdmissionOutputs {
     );
   }
 
-  // 8. Rate limit.
-  const rl = tryConsume(inputs.rateLimitBucket, now, rateConfig);
+  // 8. Rate limit. The `effectiveRateConfig` already accounts for
+  // any per-peer modulation computed at function entry (Phase
+  // 1.8.6).
+  const rl = tryConsume(inputs.rateLimitBucket, now, effectiveRateConfig);
   if (!rl.allowed) {
     const out = applyReputationDelta(decayed, -10, now, 'rate-limit', repConfig);
     return makeOutputs(
@@ -407,26 +468,30 @@ function makeOutputs(
   admitted: boolean,
   rateLimitBucket: AdmissionInputs['rateLimitBucket'],
   reputation: AdmissionInputs['reputation'],
-  replayCache: AdmissionInputs['replayCache']
+  replayCache: AdmissionInputs['replayCache'],
+  reputationBand?: AdmissionOutputs['reputationBand']
 ): AdmissionOutputs {
   return Object.freeze({
     result: Object.freeze({ decision, admitted }),
     rateLimitBucket,
     reputation,
-    replayCache
+    replayCache,
+    ...(reputationBand === undefined ? {} : { reputationBand })
   });
 }
 
 function outputsFor(
   inputs: AdmissionInputs,
   action: TransportAction,
-  reasonCode: SafetyReasonCode
+  reasonCode: SafetyReasonCode,
+  reputationBand?: AdmissionOutputs['reputationBand']
 ): AdmissionOutputs {
   return makeOutputs(
     buildDecision(inputs.config, inputs.envelope, action, reasonCode, inputs.now),
     action === 'accept' || action === 'accept-limited',
     inputs.rateLimitBucket,
     inputs.reputation,
-    inputs.replayCache
+    inputs.replayCache,
+    reputationBand
   );
 }

@@ -6,12 +6,14 @@ import {
   type LabelersState,
   type LocalControlEvent,
   type LocalControlState,
+  type ReputationEvent,
   applyLabelerEvent,
   applyLocalControlEvent,
   createEmptyLabelersState,
   createEmptyLocalControlState,
   validateLabelerEvent,
-  validateLocalControlEvent
+  validateLocalControlEvent,
+  validateReputationEvent
 } from '@lfp2p/trust-safety';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
@@ -26,7 +28,8 @@ export type LocalFirstTableName =
   | 'identityControlProjections'
   | 'contactProfiles'
   | 'trustSafetyControlEvents'
-  | 'trustSafetyLabelerEvents';
+  | 'trustSafetyLabelerEvents'
+  | 'trustSafetyReputationEvents';
 
 /**
  * Stored local-control event. The full envelope is preserved as the
@@ -50,6 +53,25 @@ export type StoredTrustSafetyLabelerEvent = Readonly<{
   createdAt: string;
   sequence: number;
   event: LabelerEvent;
+}>;
+
+/**
+ * Phase 1.8.7 — stored reputation event (observation / attestation /
+ * revocation / aggregator-published / aggregator-score.removed).
+ * Same append-only + idempotent-on-eventId pattern as the other
+ * trust-safety tables.
+ *
+ * The privacy ladder lives on the underlying event envelope, NOT
+ * here — Phase 3.1 privacy-safe-logging makes this row safe to
+ * persist because the protocol-layer validator (Phase 1.8.1)
+ * already enforced bounded-enum fields only (no free-form text).
+ */
+export type StoredTrustSafetyReputationEvent = Readonly<{
+  eventId: string;
+  kind: string;
+  createdAt: string;
+  sequence: number;
+  event: ReputationEvent;
 }>;
 
 export type IdentityVerificationStatus =
@@ -253,6 +275,7 @@ class LocalFirstP2PDatabase extends Dexie {
   contactProfiles!: Table<StoredContactProfile, string>;
   trustSafetyControlEvents!: Table<StoredTrustSafetyControlEvent, string>;
   trustSafetyLabelerEvents!: Table<StoredTrustSafetyLabelerEvent, string>;
+  trustSafetyReputationEvents!: Table<StoredTrustSafetyReputationEvent, string>;
 
   constructor(name: string) {
     super(name);
@@ -317,6 +340,21 @@ class LocalFirstP2PDatabase extends Dexie {
       // replay order even when two events share a createdAt.
       trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
       trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence'
+    });
+    // Phase 1.8.7 — adds the reputation event log. Schema bump is
+    // additive: existing v7 rows roll forward unchanged.
+    this.version(8).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt',
+      trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence'
     });
   }
 }
@@ -765,6 +803,63 @@ export class DexieLocalFirstStore {
     return state;
   }
 
+  // -------------------------------------------------------------------
+  // Phase 1.8.7 — Reputation event persistence (append-only log).
+  //
+  // Mirrors the local-control + labeler patterns above. The
+  // validator runs at BOTH append time AND list-time so a corrupt
+  // row at rest (schema drift on a downgrade, hostile direct DB
+  // mutation) is skipped rather than poisoning consumers. Idempotent
+  // on `eventId` so retries are silent no-ops.
+  //
+  // The Phase 1.8.1 validator enforces bounded enums + range checks
+  // at the persistence boundary; we get defense-in-depth without
+  // duplicating any validation logic here.
+  // -------------------------------------------------------------------
+
+  async appendTrustSafetyReputationEvent(event: ReputationEvent): Promise<void> {
+    const validated = validateReputationEvent(event);
+    await this.transaction('rw', ['trustSafetyReputationEvents'], async () => {
+      const existing = await this.#db.trustSafetyReputationEvents.get(validated.eventId);
+      if (existing !== undefined) return; // idempotent
+      const sequence = await this.#db.trustSafetyReputationEvents.count();
+      const row: StoredTrustSafetyReputationEvent = {
+        eventId: validated.eventId,
+        kind: validated.kind,
+        createdAt: validated.createdAt,
+        sequence,
+        event: validated
+      };
+      await this.#db.trustSafetyReputationEvents.add(row);
+    });
+  }
+
+  async listTrustSafetyReputationEvents(): Promise<StoredTrustSafetyReputationEvent[]> {
+    return this.#db.trustSafetyReputationEvents.orderBy('sequence').toArray();
+  }
+
+  /**
+   * Load every persisted reputation event in replay order, dropping
+   * corrupt rows silently. Returns only validated events so a caller
+   * can feed them straight into the Phase 1.8.2 `computeReputation`
+   * pipeline.
+   */
+  async loadReputationEvents(): Promise<ReputationEvent[]> {
+    const rows = await this.listTrustSafetyReputationEvents();
+    const out: ReputationEvent[] = [];
+    for (const row of rows) {
+      try {
+        out.push(validateReputationEvent(row.event));
+      } catch {
+        // Corrupt at rest — skip rather than poisoning the
+        // projection. The Phase 1.8.1 validator's exhaustive
+        // checks ensure any survivor is well-formed.
+        continue;
+      }
+    }
+    return out;
+  }
+
   async advanceSyncCheckpoint(input: AdvanceSyncCheckpointInput): Promise<StoredSyncCheckpoint> {
     const next = validateAdvanceSyncCheckpointInput(input);
     return this.transaction('rw', ['syncCheckpoints'], async () => {
@@ -863,6 +958,8 @@ export class DexieLocalFirstStore {
         return this.#db.trustSafetyControlEvents;
       case 'trustSafetyLabelerEvents':
         return this.#db.trustSafetyLabelerEvents;
+      case 'trustSafetyReputationEvents':
+        return this.#db.trustSafetyReputationEvents;
     }
   }
 }
