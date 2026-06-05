@@ -7,3 +7,8 @@
  */
 export * from './constants.js';
 export * from './events.js';
+export * from './inputs.js';
+export * from './config.js';
+export * from './computer.js';
+export * from './surface-integration.js';
+export * from './spam-gate.js';
