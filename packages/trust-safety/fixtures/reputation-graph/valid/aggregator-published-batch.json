@@ -1,0 +1,28 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_agg_002",
+  "createdAt": "2026-06-01T01:00:00Z",
+  "kind": "reputation.aggregator.published",
+  "algorithm": "openrank.v1",
+  "computedAt": "2026-06-01T00:55:00Z",
+  "subjects": [
+    {
+      "subject": { "type": "actor", "actorId": "actor_alice_42" },
+      "score": 0.83,
+      "confidence": 0.91,
+      "observationCount": 42
+    },
+    {
+      "subject": { "type": "actor", "actorId": "actor_bob_7" },
+      "score": 0.12,
+      "confidence": 0.45,
+      "observationCount": 5
+    },
+    {
+      "subject": { "type": "bridge", "bridgeId": "bridge_primary" },
+      "score": 0.95,
+      "confidence": 0.99,
+      "observationCount": 311
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_obs_003",
+  "createdAt": "2026-06-01T00:00:00Z",
+  "kind": "reputation.observation.recorded",
+  "subject": { "type": "actor", "actorId": "actor_bob_7" },
+  "observationKind": "outbox.spammy",
+  "satCount": 4,
+  "unsatCount": 9,
+  "windowStart": "2026-05-20T00:00:00Z",
+  "windowEnd": "2026-06-01T00:00:00Z"
+}

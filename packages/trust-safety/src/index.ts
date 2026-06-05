@@ -182,3 +182,4 @@ export * from './curation-runtime/index.js';
 export * from './labelers-runtime/index.js';
 export * from './moderation-runtime/index.js';
 export * from './content-categories/index.js';
+export * from './reputation-graph/index.js';

@@ -1,0 +1,7 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_rev_bad_002",
+  "createdAt": "2026-06-01T00:00:00Z",
+  "kind": "reputation.attestation.revoked",
+  "revokedAt": "2026-06-01T00:00:00Z"
+}

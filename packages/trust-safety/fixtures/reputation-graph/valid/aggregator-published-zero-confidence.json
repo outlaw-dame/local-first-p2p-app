@@ -1,0 +1,16 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_agg_003",
+  "createdAt": "2026-06-01T01:00:00Z",
+  "kind": "reputation.aggregator.published",
+  "algorithm": "community-curated.v1",
+  "computedAt": "2026-06-01T01:00:00Z",
+  "subjects": [
+    {
+      "subject": { "type": "actor", "actorId": "actor_unknown_99" },
+      "score": 0.0,
+      "confidence": 0.0,
+      "observationCount": 0
+    }
+  ]
+}

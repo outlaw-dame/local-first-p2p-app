@@ -1,0 +1,12 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_obs_004",
+  "createdAt": "2026-06-01T12:30:00Z",
+  "kind": "reputation.observation.recorded",
+  "subject": { "type": "domain", "domain": "media.example.org" },
+  "observationKind": "media.served-correct",
+  "satCount": 8,
+  "unsatCount": 0,
+  "windowStart": "2026-05-30T00:00:00Z",
+  "windowEnd": "2026-06-01T12:30:00Z"
+}

@@ -1,0 +1,10 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_att_004",
+  "createdAt": "2026-06-01T00:00:00Z",
+  "kind": "reputation.attestation.published",
+  "subject": { "type": "actor", "actorId": "actor_disputed_3" },
+  "valence": "dispute",
+  "contextTag": "commercial.dispute-unresolved",
+  "strength": 0.0
+}

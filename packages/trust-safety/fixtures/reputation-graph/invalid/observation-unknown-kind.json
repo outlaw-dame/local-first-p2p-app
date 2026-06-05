@@ -1,0 +1,15 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_obs_bad_001",
+  "createdAt": "2026-06-01T00:00:00Z",
+  "kind": "reputation.observation.recorded",
+  "subject": {
+    "type": "actor",
+    "actorId": "actor_alice_42"
+  },
+  "observationKind": "outbox.fabulous",
+  "satCount": 1,
+  "unsatCount": 0,
+  "windowStart": "2026-05-25T00:00:00Z",
+  "windowEnd": "2026-06-01T00:00:00Z"
+}

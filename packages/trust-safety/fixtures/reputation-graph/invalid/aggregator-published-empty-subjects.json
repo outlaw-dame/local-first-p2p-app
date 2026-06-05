@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_agg_bad_002",
+  "createdAt": "2026-06-01T01:00:00Z",
+  "kind": "reputation.aggregator.published",
+  "algorithm": "openrank.v1",
+  "computedAt": "2026-06-01T01:00:00Z",
+  "subjects": []
+}

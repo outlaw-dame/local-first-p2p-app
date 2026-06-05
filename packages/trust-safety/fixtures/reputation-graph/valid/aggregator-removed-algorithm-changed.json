@@ -1,0 +1,8 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_rem_004",
+  "createdAt": "2026-06-02T00:00:00Z",
+  "kind": "reputation.aggregator.score.removed",
+  "subject": { "type": "community", "communityId": "community_legacy" },
+  "reason": "algorithm-changed"
+}

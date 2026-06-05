@@ -38,7 +38,13 @@ export const TS_ERROR_CODES = [
   'TS_DUPLICATE_KEY',
   'TS_FORBIDDEN_KEY',
   'TS_LIFECYCLE_TRANSITION',
-  'TS_REPORT_RATE_LIMITED'
+  'TS_REPORT_RATE_LIMITED',
+  // Phase 1.8.1 — reputation graph composite-shape failures
+  // (windowStart > windowEnd, expiresAt before createdAt, mismatched
+  // per-event subject counts, aggregator-batch cap exceeded). Enum /
+  // number-range / id / timestamp / forbidden-key failures continue
+  // to use the existing generic codes so the namespace stays small.
+  'TS_INVALID_REPUTATION'
 ] as const;
 
 export type TSErrorCode = (typeof TS_ERROR_CODES)[number];

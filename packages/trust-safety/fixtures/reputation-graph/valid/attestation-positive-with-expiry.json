@@ -1,0 +1,11 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_att_002",
+  "createdAt": "2026-06-01T00:00:00Z",
+  "kind": "reputation.attestation.published",
+  "subject": { "type": "community", "communityId": "community_eng_42" },
+  "valence": "positive",
+  "contextTag": "community.contributor",
+  "strength": 0.75,
+  "expiresAt": "2027-06-01T00:00:00Z"
+}

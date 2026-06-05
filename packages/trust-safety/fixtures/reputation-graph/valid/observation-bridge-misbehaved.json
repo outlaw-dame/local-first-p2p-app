@@ -1,0 +1,12 @@
+{
+  "version": "lfp2p.reputation-event.v1",
+  "eventId": "evt_rep_obs_002",
+  "createdAt": "2026-06-01T00:00:00Z",
+  "kind": "reputation.observation.recorded",
+  "subject": { "type": "bridge", "bridgeId": "bridge_primary" },
+  "observationKind": "bridge.misbehaved",
+  "satCount": 0,
+  "unsatCount": 3,
+  "windowStart": "2026-05-31T00:00:00Z",
+  "windowEnd": "2026-06-01T00:00:00Z"
+}
