@@ -7,3 +7,5 @@ export * from './dev-bridge.js';
 export * from './admission-gateway.js';
 export * from './admission-state-store.js';
 export * from './http-hardening.js';
+export * from './stream-broker.js';
+export * from './stream-socket.js';

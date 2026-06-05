@@ -54,11 +54,16 @@ export class BridgeService {
   // so the BridgeService surface stays unchanged for callers that
   // don't opt into admission.
   readonly #admission: BridgeServiceOptions['admission'];
+  // Phase 4.4 — optional Durable Streams broker. Same pattern: a
+  // private field so the BridgeService public surface is unchanged
+  // for callers that don't opt into live streaming.
+  readonly #streamBroker: BridgeServiceOptions['streamBroker'];
 
   constructor(options: BridgeServiceOptions) {
     this.role = options.role ?? 'stateful-edge-actor';
     this.store = options.store;
     this.#admission = options.admission;
+    this.#streamBroker = options.streamBroker;
   }
 
   async acceptDelivery(request: BridgeDeliveryRequest, now = new Date().toISOString()): Promise<BridgeDeliveryResponse> {
@@ -141,6 +146,30 @@ export class BridgeService {
       nowMs
     );
     if (result.status === 'existing') return responseForExistingRecord(result.record, idempotencyKey, target, request.event);
+
+    // Phase 4.4 — publish to the broker AFTER a fresh insert.
+    // Duplicates and rejections are deliberately NOT published; the
+    // broker would otherwise emit phantom records the store does not
+    // contain. The broker is a notification channel; the store is
+    // the durable source of truth. A broker failure is isolated
+    // here so the delivery still confirms — the subscriber's next
+    // backlog read from the store will pick up the record.
+    if (this.#streamBroker !== undefined) {
+      try {
+        this.#streamBroker.publish(target, {
+          cursor: String(result.record.sequence),
+          sequence: result.record.sequence,
+          event: request.event,
+          receivedAt: result.record.acceptedAt
+        });
+      } catch {
+        // Intentionally silent — see comment above. The store wrote
+        // successfully; we will not roll that back because the
+        // notification channel failed. Subscribers reconnect and
+        // catch up from the store.
+      }
+    }
+
     return confirmed(result.record, false);
   }
 
@@ -193,7 +222,8 @@ export class InMemoryBridgeService extends BridgeService {
         ...(normalized.initialSequence === undefined ? {} : { initialSequence: normalized.initialSequence })
       }),
       ...(normalized.role === undefined ? {} : { role: normalized.role }),
-      ...(normalized.admission === undefined ? {} : { admission: normalized.admission })
+      ...(normalized.admission === undefined ? {} : { admission: normalized.admission }),
+      ...(normalized.streamBroker === undefined ? {} : { streamBroker: normalized.streamBroker })
     });
   }
 }

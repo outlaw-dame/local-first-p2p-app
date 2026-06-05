@@ -228,6 +228,35 @@ export type BridgeServiceOptions = Readonly<{
    * test code.
    */
   admission?: BridgeAdmissionGatewayHandle;
+  /**
+   * Phase 4.4 — optional Durable Streams broker. When supplied the
+   * bridge publishes every freshly-inserted record to the broker
+   * so live WebSocket subscribers are notified. Duplicates and
+   * rejected deliveries are NEVER published (the broker would
+   * otherwise emit phantom records the store does not contain). A
+   * broker failure is isolated and never crashes delivery — the
+   * store is the durable source of truth, the broker is a
+   * notification channel.
+   */
+  streamBroker?: BridgeStreamBrokerHandle;
+}>;
+
+/**
+ * Opaque handle for the stream broker, declared here so
+ * `BridgeServiceOptions` does not depend on the broker implementation
+ * file. The bridge only needs `publish`; subscribe/unsubscribe is
+ * the adapter's concern.
+ */
+export type BridgeStreamBrokerHandle = Readonly<{
+  publish: (
+    streamKey: string,
+    record: Readonly<{
+      cursor: string;
+      sequence: number;
+      event: SignedEventEnvelope;
+      receivedAt: string;
+    }>
+  ) => void;
 }>;
 
 /**
@@ -285,6 +314,8 @@ export type InMemoryBridgeServiceOptions = InMemoryBridgeStoreOptions &
     role?: BridgeServiceRole;
     /** Phase 4.1 — forwarded to the base `BridgeService`. */
     admission?: BridgeAdmissionGatewayHandle;
+    /** Phase 4.4 — forwarded to the base `BridgeService`. */
+    streamBroker?: BridgeStreamBrokerHandle;
   }>;
 
 export type JsonFileBridgeStoreOptions = Readonly<{

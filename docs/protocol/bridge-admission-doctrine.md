@@ -365,3 +365,114 @@ that snapshots the full state on every successful admit.
   quarantined / media-rejected.
 - Exit reports: `docs/implementation/phase-1.64-exit-report.md`,
   `docs/implementation/phase-4.1-exit-report.md`.
+
+### Durable streams (Phase 4.4)
+
+Phase 4.4 adds a live-tail surface on top of the existing POST inbound-read
+endpoint. The wire model follows Electric SQL's Durable Streams pattern:
+opaque monotonic cursors the client persists, resumability via cursor,
+and an HTTP-friendly transport. The bridge's transport is WebSocket
+(any Web-standard `WebSocketLike`) and the cursor is `String(sequence)`
+— the same offset the POST inbound-read endpoint returns. A client
+library can share a single decoder for both surfaces.
+
+**Architecture**: the broker is a pure pub-sub primitive
+(`BridgeStreamBroker`). It does NOT cache record bodies — the store is
+the single source of truth. The broker's only state is a per-subscription
+buffer that exists ONLY between `subscribe()` and `goLive()` to close
+the subscribe-vs-backlog race. A broker failure (subscriber throws,
+buffer overflows) is isolated per-subscription and never crashes the
+delivery path or other subscribers.
+
+**Wire protocol** (JSON, framed by the WebSocket):
+
+```
+Client → Server                            Server → Client
+{ "type": "subscribe",                     { "type": "ready", "tokenId": "..." }
+  "sourceId": "...", "streamId": "...",    { "type": "backlog", "records": [...],
+  "scope": "...", "cursor"?: "..."}          "cursor": "..." }
+{ "type": "ack", "cursor": "..." }         { "type": "live", "record": {...},
+{ "type": "ping" }                            "cursor": "..." }
+{ "type": "unsubscribe" }                  { "type": "pong" }
+                                            { "type": "ping" }   // heartbeat
+                                            { "type": "error", "code": "..." }
+```
+
+The record shape is `BridgeInboundReadRecord` — identical to the POST
+inbound-read response. Cursors are strings (the decimal `sequence`).
+
+**The race fix**. A naive "fetch backlog → subscribe" loses records
+published in the gap; "subscribe → fetch backlog" double-delivers them.
+The adapter does:
+
+1. `broker.subscribe(streamKey, onRecord, onOverflow)` first — broker
+   transitions to `buffering`. Any publish from this instant lands in
+   the per-subscription buffer.
+2. `service.readInboundRecords({ cursor })` from the store.
+3. Send `backlog` frame.
+4. `handle.goLive(lastBacklogSequence)` — broker drains the buffer
+   (filtering `sequence > lastBacklogSequence`), dispatches via
+   `onRecord`, and transitions to `live`. Subsequent publishes flow
+   straight through `onRecord`.
+
+The buffer is bounded (`maxBufferedRecords`, default 1000). On overflow
+`onOverflow` fires once, the subscription transitions to `overflowed`,
+and the adapter closes the socket with `1013 backpressure-overflow`. No
+records are silently dropped — the client reconnects with their last
+cursor and the store backfill is authoritative.
+
+**Hardening (matches the project's adversarial-mindset bar)**:
+
+| Surface | Mitigation |
+|---|---|
+| Memory exhaustion via big frame | 64 KiB default inbound frame cap |
+| CPU DoS via JSON-parse spinning | 120 frames/min rolling inbound rate limit |
+| Slow consumer fills outbound | `socket.bufferedAmount` checked before each send; close 1013 over 8 MiB default |
+| Half-open TCP | Application-level heartbeat ping; close 1001 on timeout |
+| Hostile binary frames | Rejected with policy-violation 1008 |
+| Hostile JSON / unknown frame | Closed with protocol-error 1002 |
+| Hostile cursor / fields | Validated; close reasons NEVER echo input |
+| Subscribed once per socket | Re-subscribe closes with protocol-error |
+| Subscriber throws inside callback | Isolated per the broker contract; other subs unaffected |
+| Broker buffer flood | `onOverflow` fires once; adapter closes 1013 |
+
+**Authentication**. The runtime layer authenticates the WebSocket
+upgrade using the same Phase 4.3 `authorizeRequest` against the
+multi-token registry. The adapter receives the pre-authorized
+`tokenId` — it does NOT re-authenticate. Constant-time-across-all-tokens
+property of `authorizeRequest` continues to hold for the upgrade.
+
+**Privacy-safe error frames**. Every close reason and every `error`
+frame carries a fixed machine-readable code from a small enum
+(`invalid-cursor`, `invalid-subscribe`, `backpressure-overflow`,
+`broker-overflow`, `heartbeat-timeout`, ...). NEVER the offending
+input. Per the Phase 3.1 privacy-safe-logging doctrine.
+
+**Module layout**:
+
+- `apps/bridge-service/src/stream-broker.ts` — pure broker.
+- `apps/bridge-service/src/stream-socket.ts` — WebSocketLike adapter.
+- `BridgeService` constructor option `streamBroker` wires the broker
+  into `acceptDelivery`. Duplicates and rejections are NEVER
+  published (the broker would emit phantom records). A broker failure
+  is isolated — store wrote successfully so we do not roll back; the
+  subscriber's next backlog read is authoritative.
+- Tests: `apps/bridge-service/src/stream-broker.test.ts` (18 tests),
+  `apps/bridge-service/src/stream-socket.test.ts` (28 tests).
+- Exit report: `docs/implementation/phase-4.4-exit-report.md`.
+
+**Deferred for Phase 4.4.1+**:
+
+- Persistent per-token streaming rate limit (broker-level rate limit,
+  parallel to Phase 4.3's HTTP-level one). Today the adapter caps
+  inbound frames per minute per socket; an attacker with many sockets
+  could still fan out. Future slice extends `BridgeHttpRateLimiter`
+  to streaming.
+- SSE / long-polling alternate transports for clients that cannot
+  open WebSockets (e.g. some hostile-firewall scenarios). The
+  broker and `attachBridgeStreamSocket` are designed so an SSE
+  adapter is a thin wrapper sharing the same broker handshake.
+- Catch-up `GET` with cursor in the URL path for CDN-cacheable backlog
+  reads (matches Electric's URL-as-offset pattern). Today backlog
+  goes over `POST /inbound` (or over the WebSocket itself); a
+  GET surface is an additive future slice.

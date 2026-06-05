@@ -56,12 +56,45 @@ Implemented today:
   - in-memory store,
   - JSON file store,
   - PGlite SQL store.
+- Phase 4.1 — `BridgeAdmissionGateway` wires the Phase 1.64
+  transport-admission engine into `BridgeService.acceptDelivery`,
+  running admission AFTER signature verification (so a forged
+  envelope cannot burn a legitimate producer's per-peer rate-limit
+  budget) and BEFORE the store mutation.
+- Phase 4.2 — `AdmissionStateStore` interface with
+  `InMemoryAdmissionStateStore` and `JsonFileAdmissionStateStore`
+  (atomic temp-then-rename, 0o600 perms) implementations;
+  `admitAndPersist` fail-closed save discipline;
+  `BridgeAdmissionGateway.create()` async factory pre-loads
+  persisted state and refuses to start on corruption.
+- Phase 4.3 — HTTP-layer hardening: 1 MiB body size cap (enforced
+  via Content-Length AND streaming accumulation), multi-token
+  bearer auth registry with optional per-token `expiresAt` (legacy
+  single-token shape still supported), RFC 6750 `WWW-Authenticate`,
+  RFC 7231 `Retry-After`, per-token `BridgeHttpRateLimiter` built
+  on engine primitives (zero logic duplication), privacy-safe
+  response bodies that never echo payload or token contents.
+- Phase 4.4 — Durable Streams broker + WebSocket adapter on top of
+  the inbound-read endpoint. `BridgeStreamBroker` is a pure
+  pub-sub primitive (store is the single source of truth; broker
+  never caches record bodies); a `buffering → goLive → live`
+  handshake closes the subscribe-vs-backlog race deterministically.
+  `attachBridgeStreamSocket(...)` is a runtime-agnostic
+  `WebSocketLike` adapter that reuses Phase 4.3 auth (delegated via
+  pre-authorized `tokenId`), enforces inbound frame size + rate
+  caps, application-level heartbeat with timeout, outbound
+  backpressure via `bufferedAmount`, and emits privacy-safe
+  error frames.
 
 Not implemented yet:
 
-- Production server runtime.
-- Authentication, authorization, abuse controls, or rate limiting around the bridge endpoint.
-- Durable Streams/WebSocket bridge reader/server.
+- Production server runtime (the HTTP / WebSocket binding layer;
+  framework-free handlers run inside any Web-standard runtime).
+- Persistent per-token streaming rate limit.
+- SSE / long-polling alternate transports.
+- GET-with-cursor backlog read for CDN-cacheable resumes.
+- Persistent token registry / hot rotation.
+- mTLS / OAuth2 / JWT auth schemes.
 - Encrypted mailbox actor.
 - Persistent peer/full P2P bridge integration.
 - Public index service.
