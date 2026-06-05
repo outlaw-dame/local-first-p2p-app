@@ -32,7 +32,7 @@ import type {
   AggregatorSubjectScore
 } from './events.js';
 import type { LocalReputationScore, LocalReputationState } from './computer.js';
-import type { SubjectKey } from './inputs.js';
+import { subjectRefToKey, type SubjectKey } from './inputs.js';
 
 export const AGGREGATED_REPUTATION_VIEW_VERSION =
   'lfp2p.reputation-aggregated-view.v1' as const;
@@ -114,11 +114,48 @@ export type ComputeAggregatedReputationInput = Readonly<{
    * ingestion).
    */
   aggregatorEvents: ReadonlyArray<AggregatorEventWithSource>;
+  /**
+   * Phase 1.8.8 — `reputation.aggregator.score.removed` events the
+   * runtime has received. Optional (defaults to empty). Same opt-in
+   * discipline as `aggregatorEvents`: removals from non-subscribed
+   * labelers are silently ignored.
+   *
+   * A removal evicts the matching `(publisherLabelerId, subject)`
+   * pair from the candidate set BEFORE composition. The local
+   * source's score for that subject is unaffected — doctrine
+   * non-negotiable "LOCAL ALWAYS #0" is preserved.
+   *
+   * A removal that does not match any current candidate (e.g.
+   * arrives before the publish, or the publish was never
+   * observed) is a no-op — the runtime fails open rather than
+   * throwing on a stale removal.
+   */
+  removalEvents?: ReadonlyArray<AggregatorRemovalEventWithSource>;
 }>;
 
 export type AggregatorEventWithSource = Readonly<{
   publisherLabelerId: string;
   event: Extract<ReputationEvent, { kind: 'reputation.aggregator.published' }>;
+}>;
+
+/**
+ * Phase 1.8.8 — `reputation.aggregator.score.removed` event with
+ * source attribution. Same plumbing convention as
+ * `AggregatorEventWithSource`: the upstream caller maps the event
+ * envelope's author to a stable labelerId during ingestion.
+ *
+ * When a removal event is observed:
+ *   - the matching `(publisherLabelerId, subject)` pair is purged
+ *     from the runtime's candidate set, so the labeler's score for
+ *     that subject no longer competes for placement in the view;
+ *   - the LOCAL source's score for that subject continues to win
+ *     when present (doctrine non-negotiable);
+ *   - removal events from labelers NOT in `subscriptions` are
+ *     silently ignored (opt-in discipline preserved).
+ */
+export type AggregatorRemovalEventWithSource = Readonly<{
+  publisherLabelerId: string;
+  event: Extract<ReputationEvent, { kind: 'reputation.aggregator.score.removed' }>;
 }>;
 
 /**
@@ -149,6 +186,9 @@ export function computeAggregatedReputation(
   if (!Array.isArray(input.aggregatorEvents)) {
     throw tsError('TS_INVALID_INPUT', 'input.aggregatorEvents must be an array');
   }
+  if (input.removalEvents !== undefined && !Array.isArray(input.removalEvents)) {
+    throw tsError('TS_INVALID_INPUT', 'input.removalEvents must be an array when supplied');
+  }
 
   // Build the priority map (subscribed labelerId → priority).
   // Subscriptions with priority 0 are silently dropped — local
@@ -170,7 +210,7 @@ export function computeAggregatedReputation(
     if (typeof evt.publisherLabelerId !== 'string') continue;
     if (!subscribedPriority.has(evt.publisherLabelerId)) continue;
     for (const subject of evt.event.subjects) {
-      const subjKey = subjectScoreKey(subject);
+      const subjKey = subjectRefToKey(subject.subject);
       let perSubject = candidates.get(subjKey);
       if (perSubject === undefined) {
         perSubject = new Map();
@@ -180,6 +220,22 @@ export function computeAggregatedReputation(
       // supersede earlier ones from the same labeler.
       perSubject.set(evt.publisherLabelerId, subject);
     }
+  }
+
+  // Phase 1.8.8 — apply removals AFTER the candidate set is built.
+  // Removals from non-subscribed labelers are silently ignored
+  // (opt-in discipline preserved). Stale removals (no matching
+  // candidate) are no-ops (fail open). After this pass, every
+  // remaining candidate is one the aggregator currently endorses.
+  const removalEvents = input.removalEvents ?? [];
+  for (const removal of removalEvents) {
+    if (typeof removal.publisherLabelerId !== 'string') continue;
+    if (!subscribedPriority.has(removal.publisherLabelerId)) continue;
+    const subjKey = subjectRefToKey(removal.event.subject);
+    const perSubject = candidates.get(subjKey);
+    if (perSubject === undefined) continue;
+    perSubject.delete(removal.publisherLabelerId);
+    if (perSubject.size === 0) candidates.delete(subjKey);
   }
 
   // Build the composed view. Iterate sorted local subject keys
@@ -249,47 +305,6 @@ export function computeAggregatedReputation(
 /* -------------------------------------------------------------------------- */
 /*                              helpers                                       */
 /* -------------------------------------------------------------------------- */
-
-/**
- * Stable string key derived from an `AggregatorSubjectScore`'s
- * subject ref. Mirrors `subjectRefToKey` but operates on the
- * AggregatorSubjectScore shape used in aggregator events.
- */
-function subjectScoreKey(score: AggregatorSubjectScore): SubjectKey {
-  const ref = score.subject;
-  switch (ref.type) {
-    case 'event':
-      return `event:${ref.eventId}`;
-    case 'actor':
-      return `actor:${ref.actorId}`;
-    case 'device':
-      return `device:${ref.deviceId}`;
-    case 'community':
-      return `community:${ref.communityId}`;
-    case 'thread':
-      return `thread:${ref.threadId}`;
-    case 'media':
-      return `media:${ref.mediaId}`;
-    case 'blob':
-      return ref.blockRef.source.kind === 'digest'
-        ? `blob:digest:${ref.blockRef.source.digest.algorithm}:${ref.blockRef.source.digest.digest}`
-        : `blob:cid:${ref.blockRef.source.link.cid}`;
-    case 'url':
-      return `url:${ref.normalizedUrl}`;
-    case 'domain':
-      return `domain:${ref.domain}`;
-    case 'topic':
-      return `topic:${ref.value}`;
-    case 'bridge':
-      return `bridge:${ref.bridgeId}`;
-    case 'relay':
-      return `relay:${ref.relayId}`;
-    case 'super-peer':
-      return `super-peer:${ref.superPeerId}`;
-    case 'policy-list':
-      return `policy-list:${ref.policyListId}`;
-  }
-}
 
 function clampUnitInterval(v: number): number {
   if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return 0;

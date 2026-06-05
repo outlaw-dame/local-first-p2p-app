@@ -401,3 +401,164 @@ describe('LABELER_KINDS includes the Phase 1.8.4 reputation-aggregator kind', ()
     expect(STANDARD_LABELER_CAPABILITIES).toContain('aggregate.reputation-scoring');
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/*       Phase 1.8.8 — aggregator score.removed consumption                   */
+/* -------------------------------------------------------------------------- */
+
+function removalEvent(
+  publisher: string,
+  actorId: string,
+  reason: 'revoked' | 'expired' | 'superseded' | 'algorithm-changed' = 'revoked'
+): {
+  publisherLabelerId: string;
+  event: Extract<ReputationEvent, { kind: 'reputation.aggregator.score.removed' }>;
+} {
+  return Object.freeze({
+    publisherLabelerId: publisher,
+    event: Object.freeze({
+      version: REPUTATION_EVENT_VERSION,
+      eventId: `evt_rep_rem_${publisher}_${actorId}`,
+      createdAt: FIXED_NOW_ISO,
+      kind: 'reputation.aggregator.score.removed' as const,
+      subject: Object.freeze({ type: 'actor' as const, actorId }),
+      reason
+    })
+  });
+}
+
+describe('computeAggregatedReputation — Phase 1.8.8 score.removed consumption', () => {
+  it('a subscribed removal evicts the matching subject/labeler pair from the view', () => {
+    const local = realLocalState([]);
+    const view = computeAggregatedReputation({
+      localState: local,
+      subscriptions: [{ labelerId: 'openrank', priority: 1 }],
+      aggregatorEvents: [
+        aggregatorEvent('openrank', [{ actorId: 'carol', score: 0.5, confidence: 0.7 }])
+      ],
+      removalEvents: [removalEvent('openrank', 'carol', 'revoked')]
+    });
+    expect(view.entries.has('actor:carol')).toBe(false);
+    // contributingLabelers should not list the labeler since none of its scores won.
+    expect(view.contributingLabelers).not.toContain('openrank');
+  });
+
+  it('a removal for one labeler does NOT affect a different labeler scoring the same subject', () => {
+    const local = realLocalState([]);
+    const view = computeAggregatedReputation({
+      localState: local,
+      subscriptions: [
+        { labelerId: 'openrank', priority: 2 },
+        { labelerId: 'community-curated', priority: 1 }
+      ],
+      aggregatorEvents: [
+        aggregatorEvent('openrank', [{ actorId: 'dave', score: 0.2, confidence: 0.8 }]),
+        aggregatorEvent('community-curated', [{ actorId: 'dave', score: 0.7, confidence: 0.9 }])
+      ],
+      removalEvents: [removalEvent('community-curated', 'dave', 'revoked')]
+    });
+    // community-curated's score is evicted; openrank's score survives.
+    const dave = view.entries.get('actor:dave')!;
+    expect(dave.sourceLabelerId).toBe('openrank');
+    expect(dave.score).toBe(0.2);
+  });
+
+  it('removals from non-subscribed labelers are silently ignored (opt-in discipline)', () => {
+    const local = realLocalState([]);
+    const view = computeAggregatedReputation({
+      localState: local,
+      subscriptions: [{ labelerId: 'openrank', priority: 1 }],
+      aggregatorEvents: [
+        aggregatorEvent('openrank', [{ actorId: 'eve', score: 0.5, confidence: 0.5 }])
+      ],
+      // 'attacker' is NOT subscribed. Its removal should not affect anything.
+      removalEvents: [removalEvent('attacker', 'eve', 'revoked')]
+    });
+    expect(view.entries.has('actor:eve')).toBe(true);
+    expect(view.entries.get('actor:eve')!.sourceLabelerId).toBe('openrank');
+  });
+
+  it('a removal arriving BEFORE its publish is a stale no-op (fail open)', () => {
+    const local = realLocalState([]);
+    const view = computeAggregatedReputation({
+      localState: local,
+      subscriptions: [{ labelerId: 'openrank', priority: 1 }],
+      // The candidate set is empty when removal is applied because the
+      // publish event isn't in the input. The runtime fails open
+      // rather than throwing.
+      aggregatorEvents: [],
+      removalEvents: [removalEvent('openrank', 'ghost', 'revoked')]
+    });
+    expect(view.entries.has('actor:ghost')).toBe(false);
+    expect(view.contributingLabelers).toEqual([LOCAL_REPUTATION_SOURCE]);
+  });
+
+  it('LOCAL ALWAYS WINS: an aggregator removal does NOT evict a locally-scored subject', () => {
+    const local = realLocalState([]);
+    // Bob is scored by the local computer.
+    expect(local.scores.has('actor:bob')).toBe(true);
+    const view = computeAggregatedReputation({
+      localState: local,
+      subscriptions: [{ labelerId: 'openrank', priority: 1 }],
+      aggregatorEvents: [
+        aggregatorEvent('openrank', [{ actorId: 'bob', score: 0.001, confidence: 0.9 }])
+      ],
+      removalEvents: [removalEvent('openrank', 'bob', 'revoked')]
+    });
+    // Bob keeps the local score regardless of the removal.
+    const bob = view.entries.get('actor:bob')!;
+    expect(bob.sourceLabelerId).toBe(LOCAL_REPUTATION_SOURCE);
+    expect(bob.priority).toBe(0);
+  });
+
+  it('every reason code is accepted by the runtime (no preference among reasons)', () => {
+    const reasons = ['revoked', 'expired', 'superseded', 'algorithm-changed'] as const;
+    for (const r of reasons) {
+      const local = realLocalState([]);
+      const view = computeAggregatedReputation({
+        localState: local,
+        subscriptions: [{ labelerId: 'openrank', priority: 1 }],
+        aggregatorEvents: [
+          aggregatorEvent('openrank', [{ actorId: 'frank', score: 0.5, confidence: 0.5 }])
+        ],
+        removalEvents: [removalEvent('openrank', 'frank', r)]
+      });
+      expect(view.entries.has('actor:frank')).toBe(false);
+    }
+  });
+
+  it('removalEvents not an array (non-undefined) throws TS_INVALID_INPUT', () => {
+    const local = realLocalState([]);
+    expect(() =>
+      computeAggregatedReputation({
+        localState: local,
+        subscriptions: [],
+        aggregatorEvents: [],
+        // @ts-expect-error: testing runtime guard
+        removalEvents: 'not-an-array'
+      })
+    ).toThrowError(/removalEvents must be an array when supplied/);
+  });
+
+  it('omitting removalEvents keeps existing behavior byte-identical (backward compat)', () => {
+    const local = realLocalState([]);
+    const withoutKey = computeAggregatedReputation({
+      localState: local,
+      subscriptions: [{ labelerId: 'openrank', priority: 1 }],
+      aggregatorEvents: [
+        aggregatorEvent('openrank', [{ actorId: 'gwen', score: 0.5, confidence: 0.5 }])
+      ]
+    });
+    const withEmpty = computeAggregatedReputation({
+      localState: local,
+      subscriptions: [{ labelerId: 'openrank', priority: 1 }],
+      aggregatorEvents: [
+        aggregatorEvent('openrank', [{ actorId: 'gwen', score: 0.5, confidence: 0.5 }])
+      ],
+      removalEvents: []
+    });
+    expect(JSON.stringify([...withoutKey.entries.entries()])).toBe(
+      JSON.stringify([...withEmpty.entries.entries()])
+    );
+  });
+});

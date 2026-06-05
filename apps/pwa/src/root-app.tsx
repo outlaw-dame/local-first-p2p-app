@@ -53,6 +53,8 @@ import {
 import { IdentityAudit } from './pwa-identity-audit.js';
 import { TrustSafetySettings } from './pwa-trust-safety-settings.js';
 import { emitContactCardPublishedEvent } from './pwa-identity-emit.js';
+import { PwaReputationSettings } from './pwa-reputation-settings.js';
+import { PwaReputationView } from './pwa-reputation-view.js';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -703,6 +705,14 @@ function HomePage(): JSX.Element {
 
       {identity ? (
         <TrustSafetySettings store={store} subscriberActorId={identity.identityId} />
+      ) : null}
+
+      {identity ? (
+        <PwaReputationSettings store={store} />
+      ) : null}
+
+      {identity ? (
+        <PwaReputationView store={store} observerActorId={identity.identityId} />
       ) : null}
     </Page>
   );

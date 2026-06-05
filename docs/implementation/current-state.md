@@ -363,6 +363,25 @@ Phase 1.8.7 — Dexie v8 persistence + PWA emit + settings UI:
 - `apps/pwa/src/pwa-reputation-settings.tsx` ships functional React component with 3 sub-sections: spam-gate thresholds with live warnings, observation/attestation emit forms surfacing the device-local privacy notice prominently, aggregator subscription list with add/unsubscribe + live warnings.
 - 34 new adversarial tests across pwa-reputation-state (22) + pwa-reputation-emit (12).
 
+Phase 1.8.8 — aggregator `score.removed` consumption:
+
+- `aggregator-runtime.ts` extends with `AggregatorRemovalEventWithSource` + optional `removalEvents` on `ComputeAggregatedReputationInput`. Removals applied after candidate-set construction; non-subscribed-labeler removals silently dropped (opt-in discipline preserved); stale removals (no matching candidate) fail open as no-op; LOCAL-ALWAYS-#0 invariant preserved across removals.
+- Subject-key canonicalization consolidated: previously-private `subjectScoreKey` deleted in favor of canonical `subjectRefToKey` (single source of truth across the reputation graph track — no duplicate switch statements).
+- 8 new adversarial tests.
+
+Phase 1.8.9 — PWA computed-state visualization panel:
+
+- New `pwa-reputation-view-model.ts` ships `buildReputationView` that loads via `loadReputationEvents`, projects through pure `projectEventsToGraphInputs`, runs `computeReputation`, decorates rows with Phase 1.8.3 stable band string + raw score + confidence + seed distance. Aggregator events skipped here (feed the 1.8.4 runtime instead). Default seed: observer at strength 1.0.
+- Subject-key canonicalization delegated to canonical `subjectRefToKey` — no drift, no duplication.
+- Deep-frozen output per Phase 3.2.
+- React component `pwa-reputation-view.tsx` renders rows sorted descending by score with `band` as the privacy-safe display string.
+- 11 new view-model tests.
+
+Phase 1.8.10 — root settings integration + threat-model row updates:
+
+- `apps/pwa/src/root-app.tsx` now mounts `PwaReputationSettings` + `PwaReputationView` after the existing `TrustSafetySettings`. The full Phase 1.8 PWA surface is now user-reachable from the main page.
+- `docs/threat-model/trust-safety-and-abuse.md` gains a new "Phase 1.8 reputation graph (1.8.1 – 1.8.10)" section documenting 12 attack-class mitigations each citing the pinned-by-test name + file.
+
 Phase 1.8.3 — surface integration (admission band + curation downrank + spam gate):
 
 - `getReputationBand(score) → 'high' | 'mid' | 'low' | 'untrusted'` per doctrine thresholds (0.5/0.1/0.01); NaN/Infinity/negative collapse to `'untrusted'` (fail closed).

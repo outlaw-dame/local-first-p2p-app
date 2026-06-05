@@ -390,3 +390,171 @@ Phase 1.66 labeler runtime, and the Phase 1.67 moderation runtime.
   resolved queue item to overturn a decision without an appeal.
   Mitigation: re-resolve is rejected at apply time; appeals go
   through Phase 1.63's `SafetyAppeal` lifecycle, not the queue.
+
+### Phase 1.8 reputation graph (1.8.1 – 1.8.10)
+
+The reputation graph track (see
+`docs/protocol/reputation-graph-doctrine.md`) adds a graph-aware
+per-user trust score that augments the existing per-peer / per-author
+signals. Every attack class below has at least one pinned adversarial
+test; the test name is cited in parentheses so a regression breaking
+the mitigation surfaces immediately in the suite.
+
+- **Sybil cluster (vanilla EigenTrust attack)**: an attacker spins
+  up many fake accounts and has them mutually endorse each other
+  with high satisfaction counts.
+  Mitigation: personalized PageRank with a per-user seed vector
+  (Phase 1.8.2). Sybils disconnected from the user's contact
+  graph score ≈ zero regardless of internal endorsement volume.
+  Pinned by `disconnected sybil cluster scores ~zero regardless of
+  internal endorsements`
+  (`reputation-graph-computer.test.ts`).
+
+- **Weakly-connected sybil with foothold**: an attacker manages a
+  single weak observation from the user into the sybil cluster
+  and then uses internal high-volume endorsements to inflate
+  reach.
+  Mitigation: the weak foothold edge is non-attested (observation
+  only) and gets multiplied by `pathQualityDamping`; the cluster's
+  internal endorsements are also non-attested and dampened.
+  Pinned by `sybil cluster connected via a single weak observation
+  gets a much lower score than the connected real subject`
+  (`reputation-graph-computer.test.ts`).
+
+- **Feedback clique (closed mutual-endorsement ring)**: N accounts
+  agree to rate each other maximally with no outbound trust to
+  anyone else.
+  Mitigation: closed-SCC detection via iterative Tarjan + per-
+  member multiplicative `(1 / N)^cliquePenaltyExponent` (default
+  exponent 0.5 → `1 / √N` per-member penalty).
+  Pinned by `closed SCC of size 3 is penalized` +
+  `SCC with an outbound edge to a non-member is NOT penalized`
+  (`reputation-graph-sybil-hardening.test.ts`).
+
+- **Community-structure / eigenvector-centrality attack**: an
+  attacker positions a sybil near pre-trusted seeds to inherit
+  centrality.
+  Mitigation: path-quality damping multiplies non-attested edges
+  by `pathQualityDamping` (default 0.7) BEFORE row normalization;
+  multi-edge rows favor attested edges over observation-only ones.
+  Pinned by `within an observer row with both attested + observation-only
+  edges, attested gets more weight`
+  (`reputation-graph-sybil-hardening.test.ts`).
+
+- **Negative-valence shield**: an attacker tries to mask a path
+  as "attested" by emitting a negative-valence attestation about
+  the subject (which technically is an attestation event).
+  Mitigation: only positive valence counts as "attested" for the
+  damping shield. Negative + dispute attestations do NOT shield
+  an edge from path damping.
+  Pinned by `negative-valence attestations do NOT shield
+  non-attestation damping`
+  (`reputation-graph-sybil-hardening.test.ts`).
+
+- **Trust laundering via short-lived hot accounts**: an attacker
+  spins up an account, generates a burst of high-volume
+  observations / interactions in a short window, then disposes
+  of it (or the attacker's existing high-volume bursty behavior
+  inflates trust faster than realistic engagement).
+  Mitigation: time-bucket compression aggregates observations by
+  `floor(windowEndMs / observationBucketMs)` (default 24 h) per
+  `(observer, subject)` pair, then applies a `sqrt`-style concave
+  compression per bucket. A single 10 000-burst contributes
+  ~100 units; the same volume spread across 10 buckets contributes
+  ~316 units — spread is rewarded > 3× over burst.
+  Pinned by `a single 10_000-burst contributes less than 10 × 1000-spread`
+  (`reputation-graph-sybil-hardening.test.ts`).
+
+- **Fingerprint amplifier evasion / mimicry**: an attacker
+  publishes a `contact.verified-in-person` attestation about a
+  subject they have NOT actually verified out of band, hoping to
+  earn the fingerprint amplifier.
+  Mitigation: the doctrine treats `contact.verified-in-person`
+  and `contact.long-term-correspondence` as the SIGNALS that
+  trigger the amplifier, but the attestation itself is signed by
+  the issuer's device — so a false claim only inflates the trust
+  weight of edges the issuer themselves observes. Their
+  downstream consumers (subscribers / inbound peers) must already
+  trust the issuer for the amplifier to take effect. This is by
+  design: the doctrine's "one signal an on-chain protocol cannot
+  replicate" exists precisely because the trust comes from the
+  real out-of-band human relationship, not the protocol-level
+  flag.
+  Pinned by `contact.verified-in-person attestation outweighs
+  community.contributor of same strength` +
+  `FINGERPRINT_VERIFIED_CONTEXT_TAGS includes the documented set + is frozen`
+  (`reputation-graph-sybil-hardening.test.ts`).
+
+- **Hostile aggregator publishing biased scores**: a subscribed
+  reputation aggregator publishes scores designed to over- or
+  under-rank specific subjects.
+  Mitigation: doctrine non-negotiable LOCAL ALWAYS PRIORITY 0
+  (Phase 1.8.4). For every subject in the user's local
+  `LocalReputationState`, the local score wins regardless of the
+  aggregator's opinion. Aggregator scores are also clamped to
+  `[0, 1]` at the runtime boundary as defense-in-depth.
+  Pinned by `a subject scored by the local computer takes the
+  local score regardless of aggregator opinion` +
+  `aggregator-published score outside [0, 1] is clamped`
+  (`reputation-graph-aggregator-runtime.test.ts`).
+
+- **Unsubscribed-labeler injection**: an attacker publishes
+  reputation events under a labeler id the user has NOT
+  subscribed to, attempting to influence the composed view.
+  Mitigation: aggregator events from non-subscribed labelers are
+  silently dropped at the runtime boundary; the user has not
+  opted in.
+  Pinned by `aggregator events from non-subscribed labelers are
+  silently dropped`
+  (`reputation-graph-aggregator-runtime.test.ts`).
+
+- **Reserved-sentinel impersonation**: a labeler publishes under
+  the reserved id `__local__`, attempting to claim the local
+  source's privileged priority-0 slot.
+  Mitigation: PWA subscription validator rejects the reserved
+  sentinel outright; aggregator runtime treats any priority-0
+  subscription as silently dropped (only the local computer owns
+  that slot).
+  Pinned by `LOCAL ALWAYS WINS: reserved sentinel labeler id is
+  rejected outright` (`pwa-reputation-state.test.ts`) +
+  `subscriptions with priority 0 are silently dropped`
+  (`reputation-graph-aggregator-runtime.test.ts`).
+
+- **Stale-removal weaponization**: an attacker emits a
+  `reputation.aggregator.score.removed` event before any matching
+  publish, hoping the runtime throws or misbehaves.
+  Mitigation: stale removals (no matching candidate at apply
+  time) are no-ops. The runtime fails open rather than throwing.
+  Pinned by `a removal arriving BEFORE its publish is a stale no-op
+  (fail open)` (`reputation-graph-aggregator-runtime.test.ts`).
+
+- **Score-shape forgery**: a labeler publishes an aggregator
+  event whose per-subject `score` or `confidence` is outside the
+  documented `[0, 1]` range (NaN, negative, > 1) to manipulate
+  composition.
+  Mitigation: Phase 1.8.1 validator rejects out-of-range values
+  at the protocol layer; defense-in-depth clamping at the runtime
+  boundary catches anything that slips through.
+  Pinned by `aggregator-published score outside [0, 1] is clamped`
+  (`reputation-graph-aggregator-runtime.test.ts`).
+
+- **Reputation graph privacy leak**: observations / attestations
+  about other peers carry sensitive social-graph topology
+  information.
+  Mitigation: doctrine non-negotiable "default privacy =
+  device-local" enforced structurally at the PWA emit layer
+  (Phase 1.8.7). The helpers do NOT cross-publish; persisted
+  events live in the local Dexie log only. A future cross-device
+  sync flow is gated behind explicit user opt-in.
+  Pinned by `DEVICE_LOCAL_PRIVACY_NOTICE — frozen content the UI
+  MUST surface` (`pwa-reputation-state.test.ts`).
+
+- **Replay equivalence regression (correctness, not malicious)**:
+  any change to the reputation pipeline that causes two replays
+  of the same event log to produce different scores would silently
+  poison every consumer.
+  Mitigation: pinned by `same input thrice produces three
+  byte-identical states` +
+  `hardening pipeline preserves byte-identical output across
+  replays` (`reputation-graph-computer.test.ts` +
+  `reputation-graph-sybil-hardening.test.ts`).
