@@ -21,6 +21,28 @@ export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 export type JsonObject = { readonly [key: string]: JsonValue };
 
+export const PRIVATE_PAYLOAD_ENVELOPE_VERSION = 'lfp2p.private-payload.envelope.v1' as const;
+export type PrivatePayloadEnvelopeVersion = typeof PRIVATE_PAYLOAD_ENVELOPE_VERSION;
+export type PrivatePayloadEnvelopeAlgorithm = 'aes-gcm-256';
+export type KeyAgreementAlgorithm = 'x25519-v1';
+
+export type PayloadKeyRecipientWrap = Readonly<{
+  recipientIdentityId: string;
+  recipientDeviceId: string;
+  keyAgreement: KeyAgreementAlgorithm;
+  wrappedKey: string;
+  wrappingKeyRef: string;
+}>;
+
+export type PrivatePayloadEnvelopeV1 = Readonly<{
+  version: PrivatePayloadEnvelopeVersion;
+  algorithm: PrivatePayloadEnvelopeAlgorithm;
+  ciphertext: string;
+  nonce: string;
+  keyId: string;
+  recipientWraps?: ReadonlyArray<PayloadKeyRecipientWrap>;
+}>;
+
 export type SourceRef = Readonly<{
   sourceId: string;
   sequence?: number;
@@ -94,6 +116,7 @@ export function validateUnsignedEvent(event: UnsignedEventEnvelope): void {
   requireSafePositiveInteger(event.schemaVersion, 'schemaVersion');
   assertJsonObject(event.payload, 'payload');
   validatePayloadForKind(event.kind, event.payload, event.privacy);
+  validatePayloadPrivacyScope(event.privacy, event.kind, event.payload);
   event.refs?.forEach(validateSourceRef);
 }
 
@@ -244,6 +267,196 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
     default:
       break;
   }
+}
+
+function validatePayloadPrivacyScope(privacy: PrivacyScope, kind: EventKind, payload: JsonObject): void {
+  if (privacy === 'device-local' || privacy === 'public') {
+    if (looksLikePrivatePayloadEnvelope(payload)) {
+      throw new Error(`${kind} with privacy ${privacy} must not contain a private payload envelope`);
+    }
+    return;
+  }
+
+  if (privacy === 'self') {
+    if (kind.startsWith('identity.')) {
+      return;
+    }
+    if (!looksLikePrivatePayloadEnvelope(payload)) {
+      throw new Error(`${kind} with privacy ${privacy} must contain a private payload envelope`);
+    }
+    validatePrivatePayloadEnvelope(payload);
+    return;
+  }
+
+  if (privacy === 'dm' || privacy === 'group') {
+    if (!looksLikePrivatePayloadEnvelope(payload)) {
+      throw new Error(`${kind} with privacy ${privacy} must contain a private payload envelope`);
+    }
+    validatePrivatePayloadEnvelope(payload);
+    return;
+  }
+
+  throw new Error(`Unsupported privacy scope: ${privacy}`);
+}
+
+function validatePrivatePayloadEnvelope(value: JsonObject): PrivatePayloadEnvelopeV1 {
+  const envelope = assertJsonObject(value, 'payload');
+  const allowedKeys = new Set(['version', 'algorithm', 'ciphertext', 'nonce', 'keyId', 'recipientWraps']);
+  Object.keys(envelope).forEach((key) => {
+    if (!allowedKeys.has(key)) {
+      throw new Error(`payload contains unsupported private payload envelope field: ${key}`);
+    }
+  });
+
+  const version = requireNonEmptyString(envelope.version, 'payload.version');
+  if (version !== PRIVATE_PAYLOAD_ENVELOPE_VERSION) {
+    throw new Error(`Unsupported private payload envelope version: ${String(version)}`);
+  }
+
+  const algorithm = requireNonEmptyString(envelope.algorithm, 'payload.algorithm');
+  if (algorithm !== 'aes-gcm-256') {
+    throw new Error(`Unsupported private payload envelope algorithm: ${String(algorithm)}`);
+  }
+
+  const ciphertext = requireNonEmptyString(envelope.ciphertext, 'payload.ciphertext');
+  validateBase64Url(ciphertext, 'payload.ciphertext');
+
+  const nonce = requireNonEmptyString(envelope.nonce, 'payload.nonce');
+  const decodedNonce = validateBase64Url(nonce, 'payload.nonce');
+  if (decodedNonce.byteLength !== 12) {
+    throw new Error('payload.nonce must decode to 12 bytes');
+  }
+
+  const keyId = requireNonEmptyString(envelope.keyId, 'payload.keyId');
+
+  let recipientWraps: ReadonlyArray<PayloadKeyRecipientWrap> | undefined;
+  if (envelope.recipientWraps !== undefined) {
+    if (!Array.isArray(envelope.recipientWraps)) {
+      throw new Error('payload.recipientWraps must be an array');
+    }
+    if (envelope.recipientWraps.length === 0) {
+      throw new Error('payload.recipientWraps must not be empty when present');
+    }
+
+    const seenDeviceIds = new Set<string>();
+    recipientWraps = envelope.recipientWraps.map((wrap, index) => {
+      if (wrap === null || typeof wrap !== 'object' || Array.isArray(wrap)) {
+        throw new Error(`payload.recipientWraps[${index}] must be an object`);
+      }
+      const record = wrap as Record<string, unknown>;
+      const recipientIdentityId = requireNonEmptyString(
+        record.recipientIdentityId,
+        `payload.recipientWraps[${index}].recipientIdentityId`
+      );
+      const recipientDeviceId = requireNonEmptyString(
+        record.recipientDeviceId,
+        `payload.recipientWraps[${index}].recipientDeviceId`
+      );
+
+      if (seenDeviceIds.has(recipientDeviceId)) {
+        throw new Error(`payload.recipientWraps contains duplicate recipientDeviceId: ${recipientDeviceId}`);
+      }
+      seenDeviceIds.add(recipientDeviceId);
+
+      const keyAgreement = requireNonEmptyString(
+        record.keyAgreement,
+        `payload.recipientWraps[${index}].keyAgreement`
+      );
+      if (keyAgreement !== 'x25519-v1') {
+        throw new Error(
+          `Unsupported key agreement algorithm at payload.recipientWraps[${index}].keyAgreement: ${keyAgreement}`
+        );
+      }
+
+      const wrappedKey = requireNonEmptyString(
+        record.wrappedKey,
+        `payload.recipientWraps[${index}].wrappedKey`
+      );
+      validateBase64Url(wrappedKey, `payload.recipientWraps[${index}].wrappedKey`);
+
+      const wrappingKeyRef = requireNonEmptyString(
+        record.wrappingKeyRef,
+        `payload.recipientWraps[${index}].wrappingKeyRef`
+      );
+
+      Object.keys(record).forEach((key) => {
+        const allowedWrapKeys = new Set([
+          'recipientIdentityId',
+          'recipientDeviceId',
+          'keyAgreement',
+          'wrappedKey',
+          'wrappingKeyRef'
+        ]);
+        if (!allowedWrapKeys.has(key)) {
+          throw new Error(
+            `payload.recipientWraps[${index}] contains unsupported field: ${key}`
+          );
+        }
+      });
+
+      return {
+        recipientIdentityId,
+        recipientDeviceId,
+        keyAgreement: keyAgreement as KeyAgreementAlgorithm,
+        wrappedKey,
+        wrappingKeyRef
+      };
+    });
+  }
+
+  return {
+    version: PRIVATE_PAYLOAD_ENVELOPE_VERSION,
+    algorithm: 'aes-gcm-256',
+    ciphertext,
+    nonce,
+    keyId,
+    ...(recipientWraps === undefined ? {} : { recipientWraps })
+  };
+}
+
+function looksLikePrivatePayloadEnvelope(value: JsonObject): boolean {
+  return (
+    typeof value.version === 'string' &&
+    typeof value.algorithm === 'string' &&
+    typeof value.ciphertext === 'string' &&
+    typeof value.nonce === 'string' &&
+    typeof value.keyId === 'string'
+  );
+}
+
+function validateBase64Url(value: string, label: string): Uint8Array {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new Error(`${label} must be base64url with no padding`);
+  }
+  return decodeBase64Url(value, label);
+}
+
+function decodeBase64Url(value: string, label: string): Uint8Array {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+
+  try {
+    if (typeof atob === 'function') {
+      const binary = atob(padded);
+      return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    }
+  } catch {
+    // fall through to Buffer fallback
+  }
+
+  const globalBuffer = (globalThis as any).Buffer;
+  if (typeof globalBuffer === 'function') {
+    return Uint8Array.from(globalBuffer.from(padded, 'base64'));
+  }
+
+  throw new Error(`${label} could not be decoded from base64url`);
+}
+
+function requireNonEmptyString(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+  return value;
 }
 
 function requirePrivacyForIdentityEvent(privacy: PrivacyScope, kind: EventKind): void {
