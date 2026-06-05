@@ -4,13 +4,104 @@ export type BridgeServiceRole = 'stateful-edge-actor' | 'persistent-availability
 export type BridgeDeliveryStatus = 'confirmed' | 'conflicted' | 'rejected';
 export type BridgeStoreKind = 'memory' | 'json-file' | 'pglite';
 
-export type BridgeHttpAuthConfig = Readonly<{
+/**
+ * Single-token configuration (the legacy shape, kept for backward
+ * compatibility with pre-Phase-4.3 deployments). New deployments
+ * SHOULD use the multi-token form below so the operator can rotate
+ * a token without restart and revoke a compromised token without
+ * affecting others.
+ */
+export type BridgeHttpAuthConfigLegacy = Readonly<{
   scheme: 'bearer';
   token: string;
 }>;
 
+/**
+ * A single bearer-token credential within a multi-token registry.
+ *
+ * - `id` is operator-supplied and stable. Logged when authentication
+ *   succeeds or fails (per the Phase 3.1 privacy-safe-logging
+ *   doctrine: the id is metadata, not a secret; the token value is
+ *   the secret and is never logged).
+ * - `token` is the bearer credential. Constant-time compared.
+ * - `label` is optional human-readable text for operator dashboards.
+ * - `expiresAt`, when set, is the ISO-8601 instant at which the
+ *   token stops being valid. Expired tokens are treated identically
+ *   to unknown tokens in the response (same status code, same body)
+ *   so a caller cannot distinguish "expired" from "invalid" by
+ *   probing.
+ */
+export type BridgeAuthToken = Readonly<{
+  id: string;
+  token: string;
+  label?: string;
+  expiresAt?: string;
+}>;
+
+/**
+ * Multi-token configuration. The bridge accepts any token in the
+ * `tokens` array that matches by constant-time comparison and is not
+ * expired. Tokens are identified by `id` after a successful match so
+ * downstream layers (rate-limit, audit) can key by the stable id
+ * rather than the secret value.
+ */
+export type BridgeHttpAuthConfigMulti = Readonly<{
+  scheme: 'bearer';
+  tokens: ReadonlyArray<BridgeAuthToken>;
+}>;
+
+export type BridgeHttpAuthConfig =
+  | BridgeHttpAuthConfigLegacy
+  | BridgeHttpAuthConfigMulti;
+
 export type BridgeHttpHandlerOptions = Readonly<{
   auth?: BridgeHttpAuthConfig;
+  /**
+   * Phase 4.3 — maximum HTTP request body size in bytes. Requests
+   * above this size are rejected with 413 BEFORE the body is parsed
+   * or stored. When omitted defaults to 1 MiB (matches the bridge
+   * admission engine's `DEFAULT_MAX_BYTES_BY_SURFACE.bridge`).
+   *
+   * The cap is enforced via Content-Length pre-check AND streaming
+   * accumulation cap, so a missing or lying Content-Length cannot
+   * bypass it.
+   */
+  maxRequestBytes?: number;
+  /**
+   * Phase 4.3 — optional per-token HTTP rate limiter. When set,
+   * every authenticated request consumes one token from the
+   * `tokenId`'s bucket; exhaustion responds with 429 + Retry-After.
+   * Implemented on top of the engine's `tryConsume` primitive so the
+   * exponential-backoff semantics are identical to the per-peer
+   * admission limiter.
+   */
+  httpRateLimiter?: BridgeHttpRateLimiterHandle;
+  /**
+   * Phase 4.3 — reference clock. Defaults to `() => Date.now()`. Tests
+   * inject a deterministic clock to exercise expiry + rate-limit
+   * recovery without real time progression.
+   */
+  now?: () => number;
+}>;
+
+/**
+ * Opaque rate-limiter handle, declared here to keep
+ * `BridgeHttpHandlerOptions` free of a cycle with the
+ * `http-hardening` implementation file.
+ */
+export type BridgeHttpRateLimiterHandle = Readonly<{
+  consume: (
+    tokenId: string,
+    nowMs: number
+  ) => Readonly<{
+    allowed: boolean;
+    /**
+     * Epoch ms after which the next request from this token will
+     * be allowed. Always >= nowMs when `allowed` is false; 0 when
+     * `allowed` is true.
+     */
+    retryAfterMs: number;
+  }>;
 }>;
 
 export type BridgeDeliveryRequest = Readonly<{

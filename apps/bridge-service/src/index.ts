@@ -6,3 +6,4 @@ export * from './service.js';
 export * from './dev-bridge.js';
 export * from './admission-gateway.js';
 export * from './admission-state-store.js';
+export * from './http-hardening.js';

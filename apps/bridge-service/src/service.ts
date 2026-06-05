@@ -1,10 +1,20 @@
 import { verifySignedEventEnvelope } from '@lfp2p/crypto';
 import { type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
+import {
+  DEFAULT_MAX_REQUEST_BYTES,
+  authorizeRequest,
+  badRequestSizeHeaderResponse,
+  checkDeclaredContentLength,
+  normalizeAuthConfig,
+  readRequestBodyWithCap,
+  tooLargeResponse,
+  tooManyRequestsResponse,
+  type AuthorizationOutcome
+} from './http-hardening.js';
 import { InMemoryBridgeStore } from './stores.js';
 import {
   type BridgeDeliveryRequest,
   type BridgeDeliveryResponse,
-  type BridgeHttpAuthConfig,
   type BridgeHttpHandlerOptions,
   type BridgeInboundReadRequest,
   type BridgeInboundReadResponse,
@@ -30,9 +40,9 @@ import {
 export const DEFAULT_BRIDGE_INBOUND_READ_LIMIT = 100;
 export const MAX_BRIDGE_INBOUND_READ_LIMIT = 500;
 
-const AUTHORIZATION_HEADER = 'authorization';
-const BEARER_AUTH_PREFIX = 'Bearer ';
-const MAX_BRIDGE_AUTH_TOKEN_LENGTH = 4_096;
+// (Phase 4.3) The bearer-token header constants and length cap live in
+// `./http-hardening.ts` so the auth implementation is a single source
+// of truth.
 
 type JsonResponseHeaders = Readonly<Record<string, string>>;
 
@@ -198,11 +208,33 @@ export async function handleBridgeDeliveryRequest(
     return jsonResponse({ status: 'rejected', idempotencyKey: 'unknown', reason: 'Method not allowed' }, 405);
   }
 
-  const auth = authorizeBridgeHttpRequest(request, options);
-  if (auth.status === 'misconfigured') return bridgeAuthMisconfiguredResponse();
-  if (auth.status === 'unauthorized') return bridgeDeliveryUnauthorizedResponse();
+  // Backward-compat: pre-Phase-4.3 tests pass `null` as the options
+  // arg; treat that as a misconfigured server rather than throwing.
+  if (!isRecord(options)) return bridgeAuthMisconfiguredResponse();
 
-  const parsed = await parseDeliveryRequestJson(request);
+  // Phase 4.3 — cheap-first ordering: size cap → auth → rate-limit
+  // → body read with streaming cap → existing flow. Each cheaper
+  // check runs first so a hostile client cannot DoS the heavier
+  // ones.
+  const maxBytes = options.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES;
+  const declared = checkDeclaredContentLength(request, maxBytes);
+  if (declared.status === 'too-large') return tooLargeResponse();
+  if (declared.status === 'invalid') return badRequestSizeHeaderResponse();
+
+  const authResult = phaseFourThreeAuthorize(request, options);
+  if (authResult.status === 'misconfigured') return bridgeAuthMisconfiguredResponse();
+  if (authResult.status === 'unauthorized') return bridgeDeliveryUnauthorizedResponse();
+
+  if (options.httpRateLimiter !== undefined) {
+    const nowMs = (options.now ?? Date.now)();
+    const decision = options.httpRateLimiter.consume(authResult.tokenId, nowMs);
+    if (!decision.allowed) return tooManyRequestsResponse(decision.retryAfterMs);
+  }
+
+  const body = await readRequestBodyWithCap(request, maxBytes);
+  if (body.status === 'too-large') return tooLargeResponse();
+
+  const parsed = parseDeliveryRequestJsonFromText(request, body.text);
   if (parsed.status === 'invalid') {
     return jsonResponse({ status: 'rejected', idempotencyKey: parsed.idempotencyKey, reason: parsed.reason }, 400);
   }
@@ -219,11 +251,30 @@ export async function handleBridgeInboundReadRequest(
 ): Promise<Response> {
   if (request.method !== 'POST') return jsonResponse({ reason: 'Method not allowed' }, 405);
 
-  const auth = authorizeBridgeHttpRequest(request, options);
-  if (auth.status === 'misconfigured') return bridgeAuthMisconfiguredResponse();
-  if (auth.status === 'unauthorized') return bridgeReadUnauthorizedResponse();
+  // Backward-compat: pre-Phase-4.3 tests pass `null` as the options
+  // arg; treat that as a misconfigured server rather than throwing.
+  if (!isRecord(options)) return bridgeAuthMisconfiguredResponse();
 
-  const parsed = await parseInboundReadRequestJson(request);
+  // Same cheap-first ordering as the delivery handler.
+  const maxBytes = options.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES;
+  const declared = checkDeclaredContentLength(request, maxBytes);
+  if (declared.status === 'too-large') return tooLargeResponse();
+  if (declared.status === 'invalid') return badRequestSizeHeaderResponse();
+
+  const authResult = phaseFourThreeAuthorize(request, options);
+  if (authResult.status === 'misconfigured') return bridgeAuthMisconfiguredResponse();
+  if (authResult.status === 'unauthorized') return bridgeReadUnauthorizedResponse();
+
+  if (options.httpRateLimiter !== undefined) {
+    const nowMs = (options.now ?? Date.now)();
+    const decision = options.httpRateLimiter.consume(authResult.tokenId, nowMs);
+    if (!decision.allowed) return tooManyRequestsResponse(decision.retryAfterMs);
+  }
+
+  const body = await readRequestBodyWithCap(request, maxBytes);
+  if (body.status === 'too-large') return tooLargeResponse();
+
+  const parsed = parseInboundReadRequestJsonFromText(body.text);
   if (parsed.status === 'invalid') return jsonResponse({ reason: parsed.reason }, 400);
 
   try {
@@ -231,6 +282,54 @@ export async function handleBridgeInboundReadRequest(
   } catch {
     return jsonResponse({ reason: 'Bridge inbound read failed' }, 503);
   }
+}
+
+/**
+ * Backward-compatible 401 body for the delivery endpoint. Pre-Phase-4.3
+ * tests assert the exact shape including `idempotencyKey: 'unknown'`.
+ */
+function bridgeDeliveryUnauthorizedResponse(): Response {
+  return jsonResponse(
+    { status: 'rejected', idempotencyKey: 'unknown', reason: 'Unauthorized' },
+    401,
+    { 'www-authenticate': 'Bearer realm="lfp2p-bridge"' }
+  );
+}
+
+/**
+ * Backward-compatible 401 body for the inbound-read endpoint. The
+ * read endpoint has no idempotencyKey concept; the body is the
+ * legacy shape `{ reason: 'Unauthorized' }`.
+ */
+function bridgeReadUnauthorizedResponse(): Response {
+  return jsonResponse({ reason: 'Unauthorized' }, 401, {
+    'www-authenticate': 'Bearer realm="lfp2p-bridge"'
+  });
+}
+
+/**
+ * Authorize a request via the Phase 4.3 multi-token registry, with
+ * backward compat for the legacy single-token shape. Returns a
+ * sentinel `__anonymous__` tokenId when no auth config is supplied,
+ * so the downstream rate-limiter and audit have a stable key. A
+ * misconfigured auth (caught by `normalizeAuthConfig`) becomes a
+ * 503 — operator action required.
+ */
+function phaseFourThreeAuthorize(
+  request: Request,
+  options: BridgeHttpHandlerOptions
+): AuthorizationOutcome {
+  if (options.auth === undefined) {
+    return Object.freeze({ status: 'authorized', tokenId: '__anonymous__' });
+  }
+  let normalized;
+  try {
+    normalized = normalizeAuthConfig(options.auth);
+  } catch {
+    return Object.freeze({ status: 'misconfigured' });
+  }
+  const nowMs = (options.now ?? Date.now)();
+  return authorizeRequest(request, normalized, nowMs);
 }
 
 export const bridgeServicePlaceholder = {
@@ -244,59 +343,29 @@ function statusCodeForBridgeResponse(response: BridgeDeliveryResponse): number {
   return 422;
 }
 
-function authorizeBridgeHttpRequest(
+// Phase 4.3: the legacy authorizeBridgeHttpRequest /
+// isValidBridgeHttpAuthConfig / isValidBridgeAuthToken /
+// constantTimeEqual helpers were inlined here pre-Phase-4.3. They
+// were superseded by the multi-token registry in
+// `./http-hardening.ts`, which is the single source of truth for
+// auth shape validation, constant-time comparison, and token-format
+// rules. We deliberately do NOT keep both paths to satisfy the
+// project's "no duplicate code" standard.
+
+/**
+ * Phase 4.3 — text-taking variant. The handler reads the body via
+ * `readRequestBodyWithCap` so the cap fires even for chunked / no-
+ * Content-Length uploads; this function then parses the already-
+ * read text.
+ */
+function parseDeliveryRequestJsonFromText(
   request: Request,
-  options: unknown
-): Readonly<{ status: 'authorized' | 'unauthorized' | 'misconfigured' }> {
-  if (!isRecord(options)) return { status: 'misconfigured' };
-  const auth = options.auth;
-  if (auth === undefined) return { status: 'authorized' };
-  if (!isValidBridgeHttpAuthConfig(auth)) return { status: 'misconfigured' };
-
-  const header = request.headers.get(AUTHORIZATION_HEADER);
-  if (header === null || header.slice(0, BEARER_AUTH_PREFIX.length).toLowerCase() !== BEARER_AUTH_PREFIX.toLowerCase()) {
-    return { status: 'unauthorized' };
-  }
-
-  const presented = header.slice(BEARER_AUTH_PREFIX.length);
-  if (!isValidBridgeAuthToken(presented)) return { status: 'unauthorized' };
-  return constantTimeEqual(presented, auth.token) ? { status: 'authorized' } : { status: 'unauthorized' };
-}
-
-function isValidBridgeHttpAuthConfig(auth: unknown): auth is BridgeHttpAuthConfig {
-  return isRecord(auth) && auth.scheme === 'bearer' && typeof auth.token === 'string' && isValidBridgeAuthToken(auth.token);
-}
-
-function isValidBridgeAuthToken(token: string): boolean {
-  if (token.length === 0 || token.length > MAX_BRIDGE_AUTH_TOKEN_LENGTH) return false;
-  for (const char of token) {
-    const codePoint = char.codePointAt(0);
-    if (codePoint === undefined || codePoint < 33 || codePoint > 126) return false;
-  }
-  return true;
-}
-
-function constantTimeEqual(left: string, right: string): boolean {
-  const encoder = new TextEncoder();
-  const leftBytes = encoder.encode(left);
-  const rightBytes = encoder.encode(right);
-  if (leftBytes.length !== rightBytes.length) return false;
-
-  let difference = 0;
-  for (let index = 0; index < leftBytes.length; index += 1) {
-    difference |= leftBytes[index]! ^ rightBytes[index]!;
-  }
-  return difference === 0;
-}
-
-async function parseDeliveryRequestJson(
-  request: Request
-): Promise<
+  text: string
+):
   | Readonly<{ status: 'valid'; request: BridgeDeliveryRequest }>
-  | Readonly<{ status: 'invalid'; idempotencyKey: string; reason: string }>
-> {
+  | Readonly<{ status: 'invalid'; idempotencyKey: string; reason: string }> {
   try {
-    const parsed: unknown = await request.json();
+    const parsed: unknown = JSON.parse(text);
     if (!isRecord(parsed)) return invalid('unknown', 'Request body must be a JSON object');
     const idempotencyKey = coerceString(parsed.idempotencyKey, 'idempotencyKey');
     const target = coerceString(parsed.target, 'target');
@@ -311,14 +380,13 @@ async function parseDeliveryRequestJson(
   }
 }
 
-async function parseInboundReadRequestJson(
-  request: Request
-): Promise<
+function parseInboundReadRequestJsonFromText(
+  text: string
+):
   | Readonly<{ status: 'valid'; request: BridgeInboundReadRequest }>
-  | Readonly<{ status: 'invalid'; reason: string }>
-> {
+  | Readonly<{ status: 'invalid'; reason: string }> {
   try {
-    const parsed: unknown = await request.json();
+    const parsed: unknown = JSON.parse(text);
     if (!isRecord(parsed)) return invalidRead('Request body must be a JSON object');
     const sourceId = coerceString(parsed.sourceId, 'sourceId');
     const streamId = coerceString(parsed.streamId, 'streamId');
@@ -366,24 +434,8 @@ function jsonResponse(body: unknown, status: number, headers: JsonResponseHeader
   });
 }
 
-function bridgeDeliveryUnauthorizedResponse(): Response {
-  return jsonResponse(
-    { status: 'rejected', idempotencyKey: 'unknown', reason: 'Unauthorized' },
-    401,
-    bridgeUnauthorizedHeaders()
-  );
-}
-
-function bridgeReadUnauthorizedResponse(): Response {
-  return jsonResponse({ reason: 'Unauthorized' }, 401, bridgeUnauthorizedHeaders());
-}
-
 function bridgeAuthMisconfiguredResponse(): Response {
   return jsonResponse({ reason: 'Bridge auth misconfigured' }, 503);
-}
-
-function bridgeUnauthorizedHeaders(): JsonResponseHeaders {
-  return { 'www-authenticate': 'Bearer realm="lfp2p-bridge"' };
 }
 
 function invalid(idempotencyKey: string, reason: string): Readonly<{ status: 'invalid'; idempotencyKey: string; reason: string }> {

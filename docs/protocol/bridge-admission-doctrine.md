@@ -223,6 +223,83 @@ is documented but is NOT a substitute for a real transport-level
 peer in production: per-peer rate limits and reputation only
 function correctly when distinct peers map to distinct ids.
 
+### HTTP-layer hardening (Phase 4.3)
+
+The Phase 4.1 admission engine runs AFTER the bridge has parsed the
+delivery body. Without Phase 4.3, a hostile client could:
+
+- POST a 1 GB body and consume the bridge's memory before admission
+  even sees the envelope;
+- repeatedly probe with random tokens; the bridge already used
+  constant-time comparison but had no quota, so a credential-stuffing
+  attack burned no budget at the HTTP layer;
+- mount a slow-loris or chunked-encoding attack to bypass naive
+  `Content-Length` checks.
+
+Phase 4.3 closes these by adding three cheap-first checks BEFORE the
+admission engine runs:
+
+1. **Content-Length pre-check** rejects with `413 Payload Too Large`
+   when the declared length exceeds `maxRequestBytes` (default
+   1 MiB, matching the engine's `DEFAULT_MAX_BYTES_BY_SURFACE.bridge`).
+   Malformed Content-Length headers (non-integer, leading garbage,
+   absurdly long) become `400 Bad Request`.
+2. **Streaming body cap** enforces the same byte limit while reading
+   the body, so a chunked-encoded upload that omits or lies about
+   Content-Length still cannot exceed the cap. The reader is cancelled
+   as soon as the accumulator crosses the cap; no further bytes are
+   buffered.
+3. **Multi-token bearer auth registry** with optional per-token
+   `expiresAt`. The legacy single-token shape continues to work
+   unchanged; multi-token is preferred for production. Expired tokens
+   are treated identically to unknown tokens in the response so a
+   prober cannot fingerprint the registry. Constant-time comparison
+   runs against EVERY token in the registry per request — even when
+   the first matches — so a timing oracle cannot leak registry size
+   or position.
+
+After successful auth the request flows through the per-token rate
+limiter (also Phase 4.3), then the streaming body read, then the
+existing parse + admission + store flow.
+
+#### Response-shape discipline (privacy-safe)
+
+- `401 Unauthorized` body is identical for every failure mode (no
+  token, malformed header, unknown token, expired token). The
+  `WWW-Authenticate: Bearer realm="lfp2p-bridge"` header is always
+  present (RFC 6750 §3).
+- `413 Payload Too Large` body never echoes payload contents.
+- `429 Too Many Requests` body never echoes token contents; the
+  `Retry-After` header (RFC 7231 §7.1.3) carries the cooldown in
+  whole seconds, clamped to `[1, 3600]` so a cooldown bug cannot
+  advise the client to sleep for years.
+- `503 Service Unavailable` is reserved for operator misconfiguration
+  (auth shape invalid, options arg `null` from a legacy caller).
+
+#### Per-token rate limiter
+
+`BridgeHttpRateLimiter` is built on the engine's
+`createRateLimitBucket` + `tryConsume` primitives (Phase 1.64). The
+exponential-backoff math, self-healing on first success, and refill
+semantics are byte-for-byte identical to the admission engine's
+per-peer limiter — no logic duplication.
+
+Per-token buckets live in process memory only. A future slice may
+persist them via the same `AdmissionStateStore` pattern; today a
+restart resets all HTTP-layer buckets but the admission engine's
+per-peer budgets remain durable (Phase 4.2).
+
+#### Operator misconfiguration
+
+- An auth config whose `tokens` array is empty, contains duplicate
+  ids, contains a token with non-ASCII characters, or contains a
+  malformed `expiresAt`, throws at `normalizeAuthConfig` time. The
+  handler surfaces this as `503 Bridge auth misconfigured` rather
+  than failing open.
+- A `null` options arg (sometimes supplied by older callers) is
+  treated as misconfigured rather than throwing a TypeError. Tests
+  pin this.
+
 ### State persistence (Phase 4.2)
 
 Phase 4.1 held `TransportAdmissionState` in process memory only.
