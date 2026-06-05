@@ -12,3 +12,5 @@ export * from './config.js';
 export * from './computer.js';
 export * from './surface-integration.js';
 export * from './spam-gate.js';
+export * from './sybil-hardening.js';
+export * from './aggregator-runtime.js';

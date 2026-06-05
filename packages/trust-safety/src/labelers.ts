@@ -61,6 +61,14 @@ export const LABELER_KINDS = [
   'attestation',
   'community-aggregator',
   'media-scanner',
+  // Phase 1.8.4 — labelers that publish `reputation.aggregator.published`
+  // events. Slots into the Phase 1.66 labeler stack; the user-side
+  // computer (the local-personalized EigenTrust output) is ALWAYS
+  // labeler-priority #0 and external aggregators stack below per
+  // the user's chosen priority. See
+  // `docs/protocol/reputation-graph-doctrine.md` and the
+  // `reputation-graph/aggregator-runtime.ts` module.
+  'reputation-aggregator',
   'unknown'
 ] as const;
 export type LabelerKind = (typeof LABELER_KINDS)[number];
@@ -205,7 +213,14 @@ export const STANDARD_LABELER_CAPABILITIES: ReadonlyArray<string> = Object.freez
   'attest.account-age',
   // aggregate.*
   'aggregate.community-list',
-  'aggregate.multi-labeler'
+  'aggregate.multi-labeler',
+  // Phase 1.8.4 — reputation-scoring capability. A labeler that
+  // declares this capability publishes `reputation.aggregator.published`
+  // events whose subjects + scores feed the Phase 1.66 labeler
+  // stack alongside the local-personalized EigenTrust output.
+  // OpenRank-derived adapters declare this capability under their
+  // own labeler profile.
+  'aggregate.reputation-scoring'
 ]);
 
 const CAPABILITY_ID_PATTERN = /^(detect|classify|scan|attest|aggregate|x)\.[a-z0-9][a-z0-9-]{0,63}(?:\.[a-z0-9][a-z0-9-]{0,63})*$/;

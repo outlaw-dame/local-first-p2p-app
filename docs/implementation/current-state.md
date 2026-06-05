@@ -325,6 +325,27 @@ Phase 1.8.2 — local personalized EigenTrust computer:
 - **Sybil-zero baseline pinned**: a disconnected sybil cluster scores ≈zero regardless of internal endorsement volume; a weakly-connected sybil never exceeds a real-attested subject.
 - 28 new adversarial tests covering: degenerate inputs, single-seed, happy-path personalization, sybil-zero baseline, revocation, time decay, personalization-actually-personalizes (doctrine non-negotiable #1), replay equivalence, frozen-walk, hard cap discipline, convergence, subjectRefToKey, nowIso handling.
 
+Phase 1.8.5 — sybil-hardening layers:
+
+- Four pure helpers in `sybil-hardening.ts` wired into the Phase 1.8.2 computer pipeline at distinct stages.
+- **Time-bucket compression** (`compressByTimeBucket`): observations bucketed by `floor(windowEndMs / observationBucketMs)` (default 24h) per (observer, subject) pair, then sqrt concave compression per bucket. A 10000-burst contributes ~100 trust units while 10×1000-spread contributes ~316 — spread is rewarded >3×, burst is penalized. Resists trust laundering via short-lived hot accounts.
+- **Path-quality damping + fingerprint amplifier** (`applyEdgeMultipliers`): runs BEFORE row-normalization. Non-attested edges × `pathQualityDamping` (default 0.7); single-edge rows unaffected (regression invariant); multi-edge rows favor attested edges. Fingerprint-verified attestations (`contact.verified-in-person` / `contact.long-term-correspondence`) × `fingerprintAmplifier` (default 1.5) — the doctrine's "one signal an on-chain protocol structurally cannot replicate." Negative-valence attestations do NOT shield an edge from damping.
+- **Tarjan SCC + clique penalty** (`findStronglyConnectedComponents` + `applyCliquePenalty`): iterative Tarjan with explicit work-stack (no JS stack overflow on large graphs); for every closed SCC of size ≥ 2 (no outbound edges to non-members), each member's score × `(1/size)^cliquePenaltyExponent` (default 0.5 → 1/√N penalty). Topology unchanged — seed-distance BFS still walks the original graph.
+- `ReputationGraphConfig` extended with `fingerprintAmplifier` ([1, 10]) + `observationBucketMs` ([1000ms, observationWindowMs]); both range-checked.
+- **All 144 pre-1.8.5 reputation tests continue to pass** — hardening preserves every previously-pinned invariant.
+- 26 new adversarial tests covering each layer + composition.
+
+Phase 1.8.4 — reputation aggregator labeler kind + stacking runtime:
+
+- `LABELER_KINDS` extended with `reputation-aggregator`; `STANDARD_LABELER_CAPABILITIES` extended with `aggregate.reputation-scoring`.
+- New `aggregator-runtime.ts`: `computeAggregatedReputation({ localState, subscriptions, aggregatorEvents }) → AggregatedReputationView`.
+- **Doctrine non-negotiable LOCAL ALWAYS #0 structurally enforced** via sentinel `LOCAL_REPUTATION_SOURCE = '__local__'`. For every subject in `localState.scores`, local wins regardless of aggregator opinion; for every subject NOT in local, highest-priority subscribed aggregator wins (lower priority number = higher rank, ties broken by ascending labeler id).
+- **Opt-in discipline**: aggregator events from non-subscribed labelers silently dropped; subscriptions claiming priority 0 silently dropped (local owns that slot); non-integer / negative priorities silently dropped.
+- **Defense-in-depth clamping**: out-of-range aggregator scores clamped to [0, 1] even though Phase 1.8.1 validator rejects them.
+- **Privacy-safe source attribution per Phase 3.1**: entries expose stable labelerId only — never raw aggregator-event references.
+- The `AggregatorEventWithSource` shape IS the OpenRank adapter contract — a thin external HTTP-to-event mapper lives outside protocol core.
+- 19 new adversarial tests covering: local-always-#0 (3), priority stacking with tie-breaking (2), opt-in discipline (3), input validation (2), output integrity + frozen + version sentinel + contributingLabelers correctness (4), replay equivalence (1), clamping + privacy-safety (2), labeler taxonomy extension (2).
+
 Phase 1.8.3 — surface integration (admission band + curation downrank + spam gate):
 
 - `getReputationBand(score) → 'high' | 'mid' | 'low' | 'untrusted'` per doctrine thresholds (0.5/0.1/0.01); NaN/Infinity/negative collapse to `'untrusted'` (fail closed).

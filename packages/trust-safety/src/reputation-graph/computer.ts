@@ -65,6 +65,11 @@ import {
 } from './config.js';
 import type { ObserverKey, ReputationGraphInputs, SubjectKey } from './inputs.js';
 import { REPUTATION_LIMITS } from './constants.js';
+import {
+  applyCliquePenalty,
+  applyEdgeMultipliers,
+  compressByTimeBucket
+} from './sybil-hardening.js';
 
 export const LOCAL_REPUTATION_STATE_VERSION = 'lfp2p.reputation-graph.v1' as const;
 
@@ -121,7 +126,7 @@ export function computeReputation(inputs: ReputationGraphInputs): LocalReputatio
 
   // ---- Step 2: window + expiry cutoffs --------------------------------
   const observationCutoffMs = nowMs - config.observationWindowMs;
-  const liveObservations = inputs.observations.filter((o) => {
+  const filteredObservations = inputs.observations.filter((o) => {
     const winEndMs = parseIsoOrZero(o.windowEnd);
     return winEndMs >= observationCutoffMs;
   });
@@ -130,6 +135,14 @@ export function computeReputation(inputs: ReputationGraphInputs): LocalReputatio
     const expMs = parseIsoOrZero(a.expiresAt);
     return expMs >= nowMs;
   });
+
+  // ---- Step 2.5 (Phase 1.8.5): time-bucket burst compression ---------
+  // Aggregates observations by (observer, subject, bucket) and
+  // applies a sqrt-style concave compression so a single burst
+  // counts less than the same volume spread across multiple
+  // buckets. Resists "trust laundering" via short-lived hot
+  // accounts.
+  const liveObservations = compressByTimeBucket(filteredObservations, config);
 
   // ---- Step 3: aggregate raw weights ----------------------------------
   // raw[observer][subject] = signed contribution; negative or zero
@@ -156,10 +169,22 @@ export function computeReputation(inputs: ReputationGraphInputs): LocalReputatio
     addRaw(raw, a.observer, a.subject, delta);
   }
 
+  // ---- Step 3.5 (Phase 1.8.5): fingerprint amplifier + path damping ----
+  // Edges with a positive `contact.verified-in-person` /
+  // `contact.long-term-correspondence` attestation get a
+  // fingerprintAmplifier boost; edges with NO positive attestation
+  // get the pathQualityDamping multiplier. Both fold into the raw
+  // weights BEFORE row-normalization, so single-edge rows are
+  // unaffected (post-normalization weight is 1 regardless) and
+  // multi-edge rows favor attested + fingerprint edges. Closes the
+  // community-structure / eigenvector-centrality attack and gives
+  // out-of-band human verification a permanent path-weight boost.
+  const rawHardened = applyEdgeMultipliers(raw, unexpiredAttestations, config);
+
   // ---- Step 4: build node universe + truncate -------------------------
   const nodeSet = new Set<string>();
   for (const o of inputs.seedContacts) nodeSet.add(o.subject);
-  for (const [observer, edges] of raw) {
+  for (const [observer, edges] of rawHardened) {
     nodeSet.add(observer);
     for (const subject of edges.keys()) nodeSet.add(subject);
   }
@@ -176,7 +201,7 @@ export function computeReputation(inputs: ReputationGraphInputs): LocalReputatio
   // ---- Step 5: row-normalize the trust matrix C ------------------------
   // C[observer][subject] = normalized weight ∈ [0, 1] with Σ_subject C[observer][subject] = 1 OR 0.
   const C = new Map<ObserverKey, ReadonlyMap<SubjectKey, number>>();
-  for (const [observer, edges] of raw) {
+  for (const [observer, edges] of rawHardened) {
     if (!liveNodes.has(observer)) continue;
     // Filter edges to live subjects + cap to maxEdgesPerNode by
     // descending positive weight, ties broken by ascending subject id.
@@ -298,6 +323,21 @@ export function computeReputation(inputs: ReputationGraphInputs): LocalReputatio
     });
   }
 
+  // ---- Step 7.5 (Phase 1.8.5): clique penalty --------------------------
+  // For every SCC of size ≥ 2 with no outbound edges to nodes
+  // outside the SCC, multiply each member's eigenvector entry by
+  // `(1 / size)^cliquePenaltyExponent`. Closes the feedback-clique
+  // attack (N mutually-rating accounts pay a 1/√N penalty by
+  // default). Score-only modification — topology is unchanged so
+  // the subsequent BFS for seed distance still walks the original
+  // graph.
+  const tPenalized = applyCliquePenalty<{ score: number }>(
+    new Map([...t.entries()].map(([k, v]) => [k, { score: v }])),
+    C,
+    nodes,
+    config
+  );
+
   // ---- Step 8: seed-distance BFS --------------------------------------
   const seedDistance = computeSeedDistances(C, p, nodes);
 
@@ -317,7 +357,7 @@ export function computeReputation(inputs: ReputationGraphInputs): LocalReputatio
   // Insert in sorted node order so the Map's serialization order is
   // deterministic.
   for (const node of nodes) {
-    const rawT = t.get(node) ?? 0;
+    const rawT = tPenalized.get(node)?.score ?? 0;
     if (rawT <= 0) continue;
     const clamped = Math.min(1, Math.max(0, rawT));
     const obsN = observersPerSubject.get(node) ?? 0;

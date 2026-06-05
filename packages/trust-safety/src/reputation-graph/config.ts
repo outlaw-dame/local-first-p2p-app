@@ -72,10 +72,31 @@ export type ReputationGraphConfig = Readonly<{
   cliquePenaltyExponent: number;
   /**
    * Multiplier applied per non-attested hop in Phase 1.8.5 path-
-   * quality damping. Same forward-compat reasoning as
-   * `cliquePenaltyExponent`.
+   * quality damping. Edge re-weighting BEFORE row normalization:
+   * non-attested edges contribute `pathQualityDamping ×` their raw
+   * weight. Single-edge rows are unaffected (row-normalizes to 1
+   * regardless); multi-edge rows favor attested edges. Default 0.7.
    */
   pathQualityDamping: number;
+  /**
+   * Phase 1.8.5 — fingerprint amplifier. Edges backed by an
+   * attestation with `contextTag` `contact.verified-in-person` or
+   * `contact.long-term-correspondence` get their raw weight
+   * multiplied by this factor before row-normalization. Default
+   * 1.5. This is the doctrine's "one signal an on-chain protocol
+   * structurally cannot replicate" — out-of-band human verification
+   * earns a permanent path-weight boost.
+   */
+  fingerprintAmplifier: number;
+  /**
+   * Phase 1.8.5 — observation bucket size in ms. Observations from
+   * the same (observer, subject) within the same bucket are
+   * aggregated together, and a concave compression function (sqrt)
+   * is applied per-bucket so a 10000-count burst contributes far
+   * less than 10 × 1000-count buckets. Resists "trust laundering"
+   * via short-lived hot accounts. Default 24h.
+   */
+  observationBucketMs: number;
 }>;
 
 /**
@@ -91,7 +112,9 @@ export const DEFAULT_REPUTATION_CONFIG: ReputationGraphConfig = Object.freeze({
   observationWindowMs: 30 * 24 * 60 * 60 * 1_000, // 30 days
   timeDecayHalfLifeMs: 14 * 24 * 60 * 60 * 1_000, // 14 days
   cliquePenaltyExponent: 0.5,
-  pathQualityDamping: 0.7
+  pathQualityDamping: 0.7,
+  fingerprintAmplifier: 1.5,
+  observationBucketMs: 24 * 60 * 60 * 1_000 // 24h
 } as const);
 
 /**
@@ -150,6 +173,19 @@ export function resolveReputationGraphConfig(
 
   assertFiniteNumberInRange(merged.cliquePenaltyExponent, 'cliquePenaltyExponent', 0, 4);
   assertFiniteNumberInRange(merged.pathQualityDamping, 'pathQualityDamping', Number.EPSILON, 1);
+  // fingerprintAmplifier must be >= 1 — a value < 1 would penalize
+  // fingerprint-verified contacts, inverting the doctrine intent.
+  // Upper bound 10 prevents a misconfiguration that would dwarf
+  // all other signals.
+  assertFiniteNumberInRange(merged.fingerprintAmplifier, 'fingerprintAmplifier', 1, 10);
+  // observationBucketMs must be positive and ≤ observationWindowMs
+  // (a bucket longer than the window has zero buckets to compress).
+  assertSafePositiveInteger(
+    merged.observationBucketMs,
+    'observationBucketMs',
+    1_000,
+    merged.observationWindowMs
+  );
 
   return Object.freeze({ ...merged });
 }
