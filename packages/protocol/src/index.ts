@@ -43,6 +43,36 @@ export type PrivatePayloadEnvelopeV1 = Readonly<{
   recipientWraps?: ReadonlyArray<PayloadKeyRecipientWrap>;
 }>;
 
+/**
+ * Phase 5.0E follow-up — placeholder `PrivatePayloadEnvelopeV1`
+ * suitable for tests and fixtures that need to satisfy the
+ * `validatePayloadPrivacyScope` rule for `dm` / `group` / `self`
+ * (non-identity) privacy scopes but are NOT exercising real
+ * encryption. Produces a frozen envelope whose `nonce` decodes to
+ * 12 zero bytes and whose other fields validate cleanly.
+ *
+ * Production paths MUST NOT use this — it is intentionally
+ * lower-cased `placeholder` in the name to make accidental use
+ * obvious in code review. Real encryption flows ship via the
+ * `@lfp2p/crypto` Phase 5.0 envelope APIs.
+ */
+export function placeholderPrivatePayloadEnvelope(
+  overrides: Readonly<{ keyId?: string; ciphertext?: string }> = {}
+): JsonObject {
+  // Return a plain `JsonObject` (not a `PrivatePayloadEnvelopeV1`)
+  // so the helper's output is directly assignable to
+  // `CreateEventInput.payload`. The runtime shape passes
+  // `validatePrivatePayloadEnvelope` cleanly — defense-in-depth
+  // verified by the Phase 5.0E-follow-up tests that consume this.
+  return Object.freeze({
+    version: PRIVATE_PAYLOAD_ENVELOPE_VERSION as string,
+    algorithm: 'aes-gcm-256',
+    ciphertext: overrides.ciphertext ?? 'AAAA',
+    nonce: 'AAAAAAAAAAAAAAAA', // base64url of 12 zero bytes
+    keyId: overrides.keyId ?? 'placeholder-key'
+  });
+}
+
 export type SourceRef = Readonly<{
   sourceId: string;
   sequence?: number;
@@ -444,9 +474,10 @@ function decodeBase64Url(value: string, label: string): Uint8Array {
     // fall through to Buffer fallback
   }
 
-  const globalBuffer = (globalThis as any).Buffer;
-  if (typeof globalBuffer === 'function') {
-    return Uint8Array.from(globalBuffer.from(padded, 'base64'));
+  const globalBuffer = (globalThis as unknown as { Buffer?: { from(input: string, encoding: string): Uint8Array } })
+    .Buffer;
+  if (typeof globalBuffer === 'object' || typeof globalBuffer === 'function') {
+    return Uint8Array.from(globalBuffer!.from(padded, 'base64'));
   }
 
   throw new Error(`${label} could not be decoded from base64url`);

@@ -22,7 +22,11 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { signEventEnvelope, signingKeypairFromSeed } from '@lfp2p/crypto';
-import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
+import {
+  createUnsignedEvent,
+  placeholderPrivatePayloadEnvelope,
+  type SignedEventEnvelope
+} from '@lfp2p/protocol';
 import {
   ADMISSION_STATE_SNAPSHOT_VERSION,
   AdmissionStateCorruptError,
@@ -63,7 +67,9 @@ function signedNote(eventId: string): SignedEventEnvelope {
       deviceId: 'device:alice-phone',
       createdAt: '2026-06-04T00:00:00.000Z',
       privacy: 'group',
-      payload: { body: 'hi' }
+      // Phase 5.0E follow-up: `group` privacy requires a
+      // PrivatePayloadEnvelopeV1.
+      payload: placeholderPrivatePayloadEnvelope({ keyId: 'placeholder-state-store' })
     }),
     KEYPAIR
   );

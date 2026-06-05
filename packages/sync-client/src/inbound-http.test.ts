@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { signingKeypairFromSeed, signEventEnvelope } from '@lfp2p/crypto';
-import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
+import {
+  createUnsignedEvent,
+  type SignedEventEnvelope,
+  placeholderPrivatePayloadEnvelope
+} from '@lfp2p/protocol';
 import { createHttpBridgeInboundTransport, NonRetryableInboundSyncError } from './inbound-http.js';
 
 describe('createHttpBridgeInboundTransport', () => {
@@ -174,7 +178,8 @@ function makeSignedEvent(eventId: string): SignedEventEnvelope {
       deviceId: 'device:alice-phone',
       createdAt: '2026-05-24T00:00:00.000Z',
       privacy: 'dm',
-      payload: { body: eventId }
+      // Phase 5.0E follow-up: `dm` privacy requires a PrivatePayloadEnvelopeV1.
+      payload: placeholderPrivatePayloadEnvelope({ keyId: `placeholder-${eventId}` })
     }),
     keypair
   );

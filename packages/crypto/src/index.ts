@@ -8,8 +8,7 @@ import {
   validateSignedEvent,
   type PrivatePayloadEnvelopeV1,
   PRIVATE_PAYLOAD_ENVELOPE_VERSION,
-  type PayloadKeyRecipientWrap,
-  type KeyAgreementAlgorithm
+  type PayloadKeyRecipientWrap
 } from '@lfp2p/protocol';
 
 export type SigningKeypair = Readonly<{

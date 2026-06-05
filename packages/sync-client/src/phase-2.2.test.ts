@@ -25,6 +25,7 @@ import {
 } from '@lfp2p/identity';
 import {
   createUnsignedEvent,
+  placeholderPrivatePayloadEnvelope,
   type EventKind,
   type SignedEventEnvelope
 } from '@lfp2p/protocol';
@@ -207,7 +208,9 @@ describe('Phase 2.2 — listLocalIdentityEvents replay path', () => {
           deviceId: INITIAL_DEVICE,
           createdAt: '2026-06-03T00:02:00.000Z',
           privacy: 'self',
-          payload: { body: 'hi' }
+          // Phase 5.0E follow-up: non-identity `self`-privacy events
+          // require a PrivatePayloadEnvelopeV1.
+          payload: placeholderPrivatePayloadEnvelope({ keyId: 'placeholder-note-hi' })
         }),
         CONTROLLER
       );

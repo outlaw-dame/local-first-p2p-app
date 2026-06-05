@@ -226,7 +226,7 @@ describe('protocol event envelopes', () => {
             {
               recipientIdentityId: 'identity:alice',
               recipientDeviceId: 'device:alice-phone',
-              keyAgreement: 'x25519-v2' as any,
+              keyAgreement: 'x25519-v2' as unknown as 'x25519-v1',
               wrappedKey: 'aGVsbG8',
               wrappingKeyRef: 'device-key:alice-phone-enc'
             }

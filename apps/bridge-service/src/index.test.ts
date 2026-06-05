@@ -3,7 +3,11 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
-import { createUnsignedEvent, type PrivacyScope } from '@lfp2p/protocol';
+import {
+  createUnsignedEvent,
+  placeholderPrivatePayloadEnvelope,
+  type PrivacyScope
+} from '@lfp2p/protocol';
 import { BridgeService, handleBridgeDeliveryRequest, InMemoryBridgeService, JsonFileBridgeStore } from './index.js';
 
 const BRIDGE_AUTH_TOKEN = 'opaque-dev-value-123';
@@ -337,6 +341,13 @@ function makeRequest(
 
 function makeSignedEvent(input: { eventId: string; privacy: PrivacyScope }) {
   const keypair = generateSigningKeypair();
+  // Phase 5.0E follow-up: dm / group / self (non-identity kinds)
+  // require a PrivatePayloadEnvelopeV1.
+  const isPrivacyScopeRequiringEnvelope =
+    input.privacy === 'dm' || input.privacy === 'group' || input.privacy === 'self';
+  const payload = isPrivacyScopeRequiringEnvelope
+    ? placeholderPrivatePayloadEnvelope({ keyId: `placeholder-${input.eventId}` })
+    : { body: input.eventId };
   return signEventEnvelope(
     createUnsignedEvent({
       eventId: input.eventId,
@@ -345,7 +356,7 @@ function makeSignedEvent(input: { eventId: string; privacy: PrivacyScope }) {
       deviceId: `device:${keypair.publicKey.slice(0, 16)}`,
       createdAt: '2026-05-22T00:00:00.000Z',
       privacy: input.privacy,
-      payload: { body: input.eventId }
+      payload
     }),
     keypair
   );

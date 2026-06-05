@@ -20,6 +20,7 @@ import { signEventEnvelope, signingKeypairFromSeed } from '@lfp2p/crypto';
 import { createLocalFirstStore } from '@lfp2p/local-store';
 import {
   createUnsignedEvent,
+  placeholderPrivatePayloadEnvelope,
   type SignedEventEnvelope
 } from '@lfp2p/protocol';
 import { processInboundSyncBatch, type InboundSyncRecord } from './index.js';
@@ -54,7 +55,8 @@ function wellFormedRecord(
         deviceId: 'device:alice-phone',
         createdAt: '2026-06-03T00:00:00.000Z',
         privacy: 'dm',
-        payload: { body: 'ok' }
+        // Phase 5.0E follow-up: `dm` privacy requires a PrivatePayloadEnvelopeV1.
+        payload: placeholderPrivatePayloadEnvelope({ keyId: `placeholder-${eventId}` })
       }),
       CONTROLLER
     )

@@ -21,7 +21,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import { signEventEnvelope, signingKeypairFromSeed } from '@lfp2p/crypto';
-import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
+import {
+  createUnsignedEvent,
+  placeholderPrivatePayloadEnvelope,
+  type SignedEventEnvelope
+} from '@lfp2p/protocol';
 import {
   BridgeHttpRateLimiter,
   DEFAULT_MAX_REQUEST_BYTES,
@@ -48,7 +52,9 @@ function signedNote(eventId: string, body = 'hi'): SignedEventEnvelope {
       deviceId: 'device:alice-phone',
       createdAt: NOW_ISO,
       privacy: 'group',
-      payload: { body }
+      // Phase 5.0E follow-up: `group` privacy requires a
+      // PrivatePayloadEnvelopeV1.
+      payload: placeholderPrivatePayloadEnvelope({ keyId: body, ciphertext: 'AAAA' })
     }),
     KEYPAIR
   );

@@ -3,7 +3,11 @@ import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { signingKeypairFromSeed, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore } from '@lfp2p/local-store';
-import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
+import {
+  createUnsignedEvent,
+  placeholderPrivatePayloadEnvelope,
+  type SignedEventEnvelope
+} from '@lfp2p/protocol';
 import { processInboundSyncBatch, type InboundSyncRecord } from './index.js';
 
 if (typeof globalThis.indexedDB === 'undefined') {
@@ -285,7 +289,11 @@ describe('processInboundSyncBatch', () => {
       ...makeRecord('evt_inbound_signature_tampered', 'cursor-2', 2),
       event: {
         ...makeSignedEvent('evt_inbound_signature_tampered'),
-        payload: { body: 'tampered-after-sign' }
+        // Phase 5.0E follow-up: tamper with a DIFFERENT valid
+        // PrivatePayloadEnvelopeV1 shape so we hit the SIGNATURE
+        // verifier (the test's intent) rather than the new
+        // privacy-scope payload-shape gate.
+        payload: placeholderPrivatePayloadEnvelope({ keyId: 'tampered-after-sign' })
       }
     } as InboundSyncRecord;
 
@@ -334,7 +342,8 @@ function makeSignedEvent(eventId: string): SignedEventEnvelope {
       deviceId: 'device:alice-phone',
       createdAt: '2026-05-24T00:00:00.000Z',
       privacy: 'dm',
-      payload: { body: eventId }
+      // Phase 5.0E follow-up: `dm` privacy requires a PrivatePayloadEnvelopeV1.
+      payload: placeholderPrivatePayloadEnvelope({ keyId: `placeholder-${eventId}` })
     }),
     keypair
   );

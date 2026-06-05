@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore, type DexieLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
-import { createUnsignedEvent } from '@lfp2p/protocol';
+import { createUnsignedEvent, placeholderPrivatePayloadEnvelope } from '@lfp2p/protocol';
 import type { OutboxTransport } from '@lfp2p/sync-client';
 import { manualOutboxDeliveryActionEnabled, runManualOutboxDelivery } from './pwa-outbox-manual-gate.js';
 import { createPwaSendBudget } from './pwa-send-budget.js';
@@ -212,7 +212,8 @@ function makeSignedEvent(eventId: string) {
       deviceId: `device:${keypair.publicKey.slice(0, 16)}`,
       createdAt: '2026-05-25T00:00:00.000Z',
       privacy: 'dm',
-      payload: { body: eventId }
+      // Phase 5.0E follow-up: `dm` privacy requires a PrivatePayloadEnvelopeV1.
+      payload: placeholderPrivatePayloadEnvelope({ keyId: `placeholder-${eventId}` })
     }),
     keypair
   );

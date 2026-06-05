@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { InMemoryBridgeService, handleBridgeDeliveryRequest, handleBridgeInboundReadRequest } from '@lfp2p/bridge-service';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
-import { createUnsignedEvent } from '@lfp2p/protocol';
+import {
+  createUnsignedEvent,
+  placeholderPrivatePayloadEnvelope
+} from '@lfp2p/protocol';
 import { createHttpBridgeInboundTransport } from './inbound-http.js';
 import { createHttpBridgeTransport, processInboundSyncBatch, processOutboxBatch } from './index.js';
 
@@ -535,7 +538,14 @@ describe('HTTP bridge outbox integration', () => {
       const entry = await seedOutboxEntry(store, 'evt_http_bridge_rejected');
       const event = await store.getSignedEvent(entry.eventId);
       if (!event) throw new Error('Expected seeded signed event');
-      await store.putSignedEvent({ ...event, payload: { body: 'changed after signing' } });
+      // Phase 5.0E follow-up: tamper with a DIFFERENT valid
+      // PrivatePayloadEnvelopeV1 shape so we hit the SIGNATURE
+      // verifier (the test's intent) rather than the new privacy-
+      // scope payload-shape gate.
+      await store.putSignedEvent({
+        ...event,
+        payload: placeholderPrivatePayloadEnvelope({ keyId: 'changed-after-signing' })
+      });
       let requestCount = 0;
       const transport = createHttpBridgeTransport({
         endpoint: 'https://bridge.test/events',
@@ -619,7 +629,8 @@ function makeSignedEvent(eventId: string) {
       deviceId: `device:${keypair.publicKey.slice(0, 16)}`,
       createdAt: '2026-05-22T00:00:00.000Z',
       privacy: 'dm',
-      payload: { body: eventId }
+      // Phase 5.0E follow-up: `dm` privacy requires a PrivatePayloadEnvelopeV1.
+      payload: placeholderPrivatePayloadEnvelope({ keyId: `placeholder-${eventId}` })
     }),
     keypair
   );

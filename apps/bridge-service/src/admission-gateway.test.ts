@@ -20,7 +20,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import { signEventEnvelope, signingKeypairFromSeed } from '@lfp2p/crypto';
-import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
+import {
+  createUnsignedEvent,
+  placeholderPrivatePayloadEnvelope,
+  type SignedEventEnvelope
+} from '@lfp2p/protocol';
 import {
   BridgeAdmissionGateway,
   estimateEnvelopeByteSize
@@ -48,7 +52,12 @@ function signedNote(eventId: string, body = 'hello'): SignedEventEnvelope {
       deviceId: 'device:alice-phone',
       createdAt: '2026-06-04T00:00:00.000Z',
       privacy: 'group',
-      payload: { body }
+      // Phase 5.0E follow-up: `group` privacy requires a
+      // PrivatePayloadEnvelopeV1. The previous plaintext `body`
+      // parameter is now smuggled into `keyId` so the privacy-leak
+      // adversarial test below still has a sensitive string to scan
+      // for in the rejection reason.
+      payload: placeholderPrivatePayloadEnvelope({ keyId: body, ciphertext: 'AAAA' })
     }),
     KEYPAIR
   );
