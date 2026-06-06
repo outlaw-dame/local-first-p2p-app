@@ -39,6 +39,16 @@ import {
   emitAttestationPublished,
   emitObservationRecorded
 } from './pwa-reputation-emit.js';
+import {
+  DEFAULT_REPUTATION_SYNC_POLICY,
+  REPUTATION_SYNC_SCOPES,
+  REPUTATION_USER_EMIT_KINDS,
+  loadReputationSyncPolicy,
+  saveReputationSyncPolicy,
+  type ReputationSyncPolicy,
+  type ReputationSyncScope,
+  type ReputationUserEmitKind
+} from './pwa-reputation-sync-policy.js';
 
 type Store = ReturnType<typeof createLocalFirstStore>;
 
@@ -47,6 +57,24 @@ export type PwaReputationSettingsProps = Readonly<{ store: Store }>;
 export function PwaReputationSettings({
   store
 }: PwaReputationSettingsProps): JSX.Element {
+  // ---- Phase 1.8.13 cross-device sync policy ---------------------------
+  // Lazy initial state so SSR / Node test environments without
+  // localStorage fall through to the documented default rather than
+  // throwing at module load.
+  const [syncPolicy, setSyncPolicy] = useState<ReputationSyncPolicy>(
+    () => loadReputationSyncPolicy()
+  );
+  const updateSyncScope = useCallback(
+    (kind: ReputationUserEmitKind, next: ReputationSyncScope) => {
+      const updated = saveReputationSyncPolicy({
+        ...syncPolicy,
+        [kind]: next
+      });
+      setSyncPolicy(updated);
+    },
+    [syncPolicy]
+  );
+
   // ---- spam-gate thresholds --------------------------------------------
   const [spamThreshold, setSpamThreshold] = useState<number>(
     DEFAULT_SPAM_GATE_CONFIG.spamScoreThreshold
@@ -148,6 +176,37 @@ export function PwaReputationSettings({
 
   return (
     <>
+      <BlockTitle>Cross-device sync policy (Phase 1.8.13)</BlockTitle>
+      <Block strong>
+        <p>
+          <strong>Default:</strong> every reputation event stays on
+          this device. You can elevate specific kinds to
+          <em> account-local</em> so they sync across your own
+          devices. The <em>account-local</em> flow itself ships
+          when the Phase 5.0 private payload envelope lands — until
+          then, every kind is treated as <em>device-local</em>{' '}
+          regardless of what you choose here.
+        </p>
+        {REPUTATION_USER_EMIT_KINDS.map((kind) => (
+          <p key={kind}>
+            <strong>{kind}:</strong>{' '}
+            <select
+              value={syncPolicy[kind]}
+              onChange={(e) =>
+                updateSyncScope(kind, e.target.value as ReputationSyncScope)
+              }
+            >
+              {REPUTATION_SYNC_SCOPES.map((scope) => (
+                <option key={scope} value={scope}>
+                  {scope}
+                </option>
+              ))}
+            </select>{' '}
+            (default {DEFAULT_REPUTATION_SYNC_POLICY[kind]})
+          </p>
+        ))}
+      </Block>
+
       <BlockTitle>Spam-gate thresholds (Phase 1.8.3)</BlockTitle>
       <Block>
         <p>

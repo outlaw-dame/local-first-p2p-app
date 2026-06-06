@@ -382,6 +382,31 @@ Phase 1.8.10 — root settings integration + threat-model row updates:
 - `apps/pwa/src/root-app.tsx` now mounts `PwaReputationSettings` + `PwaReputationView` after the existing `TrustSafetySettings`. The full Phase 1.8 PWA surface is now user-reachable from the main page.
 - `docs/threat-model/trust-safety-and-abuse.md` gains a new "Phase 1.8 reputation graph (1.8.1 – 1.8.10)" section documenting 12 attack-class mitigations each citing the pinned-by-test name + file.
 
+Phase 1.8.11 — `@lfp2p/openrank-adapter` package:
+
+- New workspace package that lives OUTSIDE protocol core per doctrine (adopting OpenRank as a primary dependency would centralise the trust root).
+- `createOpenRankAdapter` factory: validates inputs, returns frozen handle. `fetchAggregatorEvents` calls caller-supplied `fetcher` (adapter NEVER touches the network itself), validates response shape, clamps `score`/`confidence`/`observationCount`, drops malformed rows silently, normalises numeric Farcaster `fid` to `actor:fid:<n>`, sorts subjects for replay-determinism, splits over-cap batches into multiple `AggregatorEventWithSource` records.
+- 12 new tests including constructor validation, happy-path mapping, clamping (NaN/Infinity/negative/OOB), fail-closed on structural issues, end-to-end with the Phase 1.8.4 runtime.
+
+Phase 1.8.12 — sync-client inbound reputation ingestion:
+
+- New `packages/sync-client/src/inbound-reputation.ts` ships `processInboundReputationBatch` that admits aggregator events only from labelers in `subscribedLabelers` (Set). Opt-in discipline preserved.
+- Observation/attestation/revocation events dropped with `policy-not-subscribable` — cross-device sharing of those kinds is governed by the Phase 1.8.13 policy + future Phase 5.0 envelope wrapping.
+- Validator backstop + idempotent persistence on `eventId`. Result counts: `received`, `applied`, `dropped`, `rejected`, `errors`.
+- `REPUTATION_DROP_REASONS` frozen tuple. Public-surface re-exported via `packages/sync-client/src/index.ts`.
+- 13 new adversarial tests.
+
+Phase 1.8.13 — cross-device sync opt-in policy:
+
+- New `apps/pwa/src/pwa-reputation-sync-policy.ts` ships the user PREFERENCE layer.
+- `DEFAULT_REPUTATION_SYNC_POLICY` — every kind defaults to `device-local` (doctrine non-negotiable #2). `REPUTATION_SYNC_SCOPES` frozen tuple `'device-local' / 'account-local'` — **`public` is deliberately NOT a valid per-user choice** (broadcast publication is reserved for aggregator labelers).
+- `resolveReputationPrivacy(policy, kind, override?)` pure resolver — caller override > stored policy > doctrine default; unknown overrides fall through (defense-in-depth).
+- localStorage-backed persistence with injectable storage for tests, graceful absent-storage fallback (SSR/Node), fail-closed-on-read for corrupt blobs, save-normalises-before-writing so a corrupt blob CANNOT be persisted.
+- PWA UI: new "Cross-device sync policy" section in `PwaReputationSettings` with per-kind scope selectors surfacing the doctrine default + explicit "account-local flow ships when Phase 5.0 lands" notice.
+- 19 new tests.
+
+**Phase 1.8 is now fully complete — no remaining deferred items within the 1.8 track.** Envelope-wrapping for `account-local` reputation events depends on Phase 5.0 ADR-002 private payload envelope.
+
 Phase 1.8.3 — surface integration (admission band + curation downrank + spam gate):
 
 - `getReputationBand(score) → 'high' | 'mid' | 'low' | 'untrusted'` per doctrine thresholds (0.5/0.1/0.01); NaN/Infinity/negative collapse to `'untrusted'` (fail closed).

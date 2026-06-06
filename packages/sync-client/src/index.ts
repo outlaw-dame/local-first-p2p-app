@@ -677,3 +677,16 @@ function toIdentityControlState(current: StoredIdentityControlProjection) {
     ...(current.lastEventId === undefined ? {} : { lastEventId: current.lastEventId })
   };
 }
+
+// Phase 1.8.12 — re-export the reputation inbound pipeline so
+// callers receive the full sync-client surface from a single import.
+export {
+  REPUTATION_DROP_REASONS,
+  processInboundReputationBatch
+} from './inbound-reputation.js';
+export type {
+  InboundReputationRecord,
+  ProcessInboundReputationInput,
+  ProcessInboundReputationResult,
+  ReputationDropReason
+} from './inbound-reputation.js';
