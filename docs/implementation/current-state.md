@@ -405,6 +405,15 @@ Phase 1.8.13 — cross-device sync opt-in policy:
 - PWA UI: new "Cross-device sync policy" section in `PwaReputationSettings` with per-kind scope selectors surfacing the doctrine default + explicit "account-local flow ships when Phase 5.0 lands" notice.
 - 19 new tests.
 
+Phase 1.8.14 — reputation events as first-class protocol kinds + automatic sync-client dispatch:
+
+- `@lfp2p/protocol` `EVENT_KINDS` extended with the five reputation kinds. Privacy enforced per kind: aggregator events MUST be `public` (labelers broadcast); observation/attestation/revocation MUST be `device-local` or `self` (the `self` path is wrapped by Phase 5.0 envelope encryption).
+- Cross-pin defense at the protocol boundary: envelope `eventId` / `kind` / `createdAt` MUST match inner reputation payload. An envelope that drifts fails BEFORE bridge admission or persistence sees it.
+- `processInboundSyncBatch` extended with optional `subscribedLabelers: ReadonlySet<string>` + optional `labelerIdForAuthor` mapper. When supplied, aggregator envelopes from subscribed labelers are automatically projected to the trust-safety reputation log via `appendTrustSafetyReputationEvent`. Result gains optional `reputation: { applied, dropped, rejected, errors }` summary.
+- `appendTrustSafetyReputationEvent` now returns `{ status: 'stored' | 'skipped' }` so idempotent re-deliveries count as `dropped` not `applied` — honest count of NEW state.
+- End-to-end pinned: labeler outbox → in-memory bridge → inbound HTTP pull → `processInboundSyncBatch` → trust-safety reputation log. Replay-deterministic boundary preserved (the user-side `loadReputationEvents()` returns shape-identical events).
+- 11 new protocol-layer tests + 11 new sync-client routing tests + 3 new bridge E2E tests = **25 new tests**.
+
 **Phase 1.8 is now fully complete — no remaining deferred items within the 1.8 track.** Envelope-wrapping for `account-local` reputation events depends on Phase 5.0 ADR-002 private payload envelope.
 
 Phase 1.8.3 — surface integration (admission band + curation downrank + spam gate):

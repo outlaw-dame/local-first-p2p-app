@@ -9,8 +9,53 @@ const EVENT_KINDS = [
   'identity.contact-card.published',
   'contact.petname.set',
   'note.created',
-  'outbox.test.created'
+  'outbox.test.created',
+  // Phase 1.8.14 — reputation events promoted to first-class
+  // protocol kinds so they can ride SignedEventEnvelope, traverse
+  // bridge admission (Phase 1.64), and route automatically at the
+  // sync-client inbound layer. Structural-only validation here —
+  // semantic validation continues in `@lfp2p/trust-safety` at the
+  // persistence boundary (defense in depth).
+  'reputation.observation.recorded',
+  'reputation.attestation.published',
+  'reputation.attestation.revoked',
+  'reputation.aggregator.published',
+  'reputation.aggregator.score.removed'
 ] as const;
+
+/**
+ * Phase 1.8.14 — Doctrine-bound privacy rules for reputation kinds.
+ *
+ * Aggregator events are PUBLIC broadcasts from labelers (no other
+ * privacy makes semantic sense — a private aggregator score reaches
+ * no one). Observation / attestation / revocation events are the
+ * user's own counters / endorsements — doctrine non-negotiable #2
+ * keeps them `device-local` by default, with `self` reserved for the
+ * Phase 5.0 cross-device envelope wrapping.
+ *
+ * Enforced by `validatePayloadPrivacyScope` so any envelope built
+ * with the wrong privacy fails at the protocol boundary, NOT later.
+ */
+const REPUTATION_KIND_ALLOWED_PRIVACY = Object.freeze<
+  Readonly<Record<string, ReadonlyArray<PrivacyScope>>>
+>({
+  'reputation.aggregator.published': ['public'],
+  'reputation.aggregator.score.removed': ['public'],
+  'reputation.observation.recorded': ['device-local', 'self'],
+  'reputation.attestation.published': ['device-local', 'self'],
+  'reputation.attestation.revoked': ['device-local', 'self']
+});
+
+export const REPUTATION_EVENT_PAYLOAD_VERSION = 'lfp2p.reputation-event.v1' as const;
+export type ReputationEventPayloadVersion = typeof REPUTATION_EVENT_PAYLOAD_VERSION;
+
+function isReputationKind(kind: string): boolean {
+  return kind.startsWith('reputation.');
+}
+
+export function isReputationEventKind(value: unknown): boolean {
+  return typeof value === 'string' && isEventKind(value) && isReputationKind(value);
+}
 
 const PRIVACY_SCOPES = ['device-local', 'self', 'dm', 'group', 'public'] as const;
 
@@ -147,6 +192,14 @@ export function validateUnsignedEvent(event: UnsignedEventEnvelope): void {
   assertJsonObject(event.payload, 'payload');
   validatePayloadForKind(event.kind, event.payload, event.privacy);
   validatePayloadPrivacyScope(event.privacy, event.kind, event.payload);
+  // Reputation envelopes carry an inner payload that ALSO declares
+  // version/eventId/kind/createdAt — keep them pinned to the
+  // envelope's so an adversary cannot swap or drift the inner
+  // payload across the wire. Pinned BEFORE any downstream consumer
+  // can see drift.
+  if (isReputationKind(event.kind)) {
+    validateReputationEnvelopeConsistency(event);
+  }
   event.refs?.forEach(validateSourceRef);
 }
 
@@ -294,8 +347,57 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
       requireObjectString(payload, 'delegateDeviceId', kind);
       break;
     }
+    case 'reputation.observation.recorded':
+    case 'reputation.attestation.published':
+    case 'reputation.attestation.revoked':
+    case 'reputation.aggregator.published':
+    case 'reputation.aggregator.score.removed': {
+      requirePrivacyForReputationEvent(privacy, kind);
+      // Structural-only checks at the protocol boundary. Full
+      // semantic validation lives in `@lfp2p/trust-safety::
+      // validateReputationEvent`, which runs again at the
+      // persistence boundary. Keep these checks defensive: a
+      // malformed payload here must NOT crash the bridge admission
+      // engine — `validateReputationEnvelopeConsistency` re-asserts
+      // the cross-field pinning after this.
+      requireObjectExactString(
+        payload,
+        'version',
+        REPUTATION_EVENT_PAYLOAD_VERSION,
+        kind
+      );
+      requireObjectString(payload, 'eventId', kind);
+      requireObjectString(payload, 'kind', kind);
+      requireObjectIsoDate(payload, 'createdAt', kind);
+      break;
+    }
     default:
       break;
+  }
+}
+
+/**
+ * Phase 1.8.14 — cross-pin envelope.eventId / kind / createdAt to
+ * the inner reputation payload. Adversary defense: a labeler
+ * cannot swap the inner payload's identity-ish fields after signing
+ * without invalidating the envelope-level signature, but a corrupt
+ * builder could still produce a self-inconsistent envelope. Fail
+ * closed here so downstream `validateReputationEvent` never sees
+ * drift.
+ */
+function validateReputationEnvelopeConsistency(event: UnsignedEventEnvelope): void {
+  const payload = event.payload;
+  const payloadEventId = payload.eventId;
+  if (typeof payloadEventId !== 'string' || payloadEventId !== event.eventId) {
+    throw new Error(`${event.kind} payload.eventId must equal envelope.eventId`);
+  }
+  const payloadKind = payload.kind;
+  if (typeof payloadKind !== 'string' || payloadKind !== event.kind) {
+    throw new Error(`${event.kind} payload.kind must equal envelope.kind`);
+  }
+  const payloadCreatedAt = payload.createdAt;
+  if (typeof payloadCreatedAt !== 'string' || payloadCreatedAt !== event.createdAt) {
+    throw new Error(`${event.kind} payload.createdAt must equal envelope.createdAt`);
   }
 }
 
@@ -494,6 +596,33 @@ function requirePrivacyForIdentityEvent(privacy: PrivacyScope, kind: EventKind):
   if (privacy !== 'self') {
     throw new Error(`${kind} must use privacy scope self`);
   }
+}
+
+function requirePrivacyForReputationEvent(privacy: PrivacyScope, kind: EventKind): void {
+  const allowed = REPUTATION_KIND_ALLOWED_PRIVACY[kind];
+  if (allowed === undefined) {
+    // Unreachable — caller already pinned `kind` to one of the five
+    // reputation kinds via the switch above. Defense-in-depth only.
+    throw new Error(`${kind} has no privacy policy registered`);
+  }
+  if (!allowed.includes(privacy)) {
+    throw new Error(
+      `${kind} must use privacy scope ${allowed.join(' or ')} (got: ${privacy})`
+    );
+  }
+}
+
+function requireObjectExactString(
+  payload: JsonObject,
+  field: string,
+  expected: string,
+  kind: EventKind
+): string {
+  const value = requireObjectString(payload, field, kind);
+  if (value !== expected) {
+    throw new Error(`${kind} payload.${field} must equal ${expected} (got: ${value})`);
+  }
+  return value;
 }
 
 function requireObjectString(payload: JsonObject, field: string, kind: EventKind): string {

@@ -183,8 +183,17 @@ export async function processInboundReputationBatch(
     }
     // Persist. Idempotent on eventId.
     try {
-      await input.store.appendTrustSafetyReputationEvent(validated);
-      applied += 1;
+      const persistence = await input.store.appendTrustSafetyReputationEvent(validated);
+      // Phase 1.8.14 — count freshly inserted vs duplicate separately
+      // so callers can distinguish "new state" from "we already had
+      // this". Existing assertions on `applied` continue to pass for
+      // fresh-batch flows (no duplicates) — the per-record counting
+      // only shifts when an eventId genuinely repeats.
+      if (persistence.status === 'stored') {
+        applied += 1;
+      } else {
+        dropped += 1;
+      }
     } catch (err) {
       rejected += 1;
       errors.push({

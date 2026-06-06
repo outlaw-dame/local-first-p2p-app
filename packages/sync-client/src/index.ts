@@ -8,7 +8,8 @@ import {
 } from '@lfp2p/local-store';
 import { verifySignedEventEnvelope } from '@lfp2p/crypto';
 import { applyIdentityControlEvent, createEmptyIdentityControlState } from '@lfp2p/identity';
-import { type SignedEventEnvelope } from '@lfp2p/protocol';
+import { isReputationEventKind, type SignedEventEnvelope } from '@lfp2p/protocol';
+import { validateReputationEvent } from '@lfp2p/trust-safety';
 import {
   isAbortError,
   isNonRetryableHttpStatus,
@@ -104,12 +105,57 @@ export type ProcessInboundSyncInput = Readonly<{
   allowRewind?: boolean;
   expectedCheckpointKey?: SyncCheckpointKey;
   includeCheckpointAfter?: boolean;
+  /**
+   * Phase 1.8.14 — set of labeler ids the user has subscribed to.
+   * Aggregator-event envelopes whose mapped publisher id is NOT in
+   * this set are dropped at the reputation projection layer (the
+   * envelope is still stored + the checkpoint still advances; only
+   * the reputation log refrains from accepting it). Omitting this
+   * field disables automatic reputation projection entirely — useful
+   * for callers that handle reputation routing themselves.
+   */
+  subscribedLabelers?: ReadonlySet<string>;
+  /**
+   * Phase 1.8.14 — map envelope.author → publisherLabelerId. The
+   * default identity mapping (caller-omitted) treats `event.author`
+   * directly as the publisher labeler id, matching the convention
+   * used in Phase 1.66 labeler profiles. Provide a custom function
+   * to apply a tenant-specific mapping (e.g., DID → labeler-id).
+   */
+  labelerIdForAuthor?: (authorId: string) => string | undefined;
 }>;
 
 export type InboundSyncError = Readonly<{
   index: number;
   eventId?: string;
   reason: string;
+}>;
+
+/**
+ * Phase 1.8.14 — per-batch reputation dispatch summary. Surfaced
+ * only when the caller supplies `subscribedLabelers` to
+ * `processInboundSyncBatch`. Drop / reject counts are PRIVACY-SAFE
+ * (no raw payload bytes, no actor ids), satisfying Phase 3.1
+ * logging doctrine when the caller logs the summary as-is.
+ */
+export type InboundReputationDispatchSummary = Readonly<{
+  /** Reputation events appended to the trust-safety log. */
+  applied: number;
+  /**
+   * Dropped by opt-in policy: aggregator events from unsubscribed
+   * labelers, or observation/attestation/revocation events that
+   * cannot be safely cross-device replicated until Phase 5.0.
+   */
+  dropped: number;
+  /** Validation or persistence failures. */
+  rejected: number;
+  errors: ReadonlyArray<
+    Readonly<{
+      index: number;
+      eventId?: string;
+      reason: string;
+    }>
+  >;
 }>;
 
 export type ProcessInboundSyncResult = Readonly<{
@@ -119,6 +165,8 @@ export type ProcessInboundSyncResult = Readonly<{
   rejected: number;
   errors: readonly InboundSyncError[];
   checkpointAfter?: StoredSyncCheckpoint;
+  /** Present only when `subscribedLabelers` was passed in. */
+  reputation?: InboundReputationDispatchSummary;
 }>;
 
 export type PullAndProcessInboundSyncInput = SyncCheckpointKey &
@@ -219,6 +267,21 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
     input.expectedCheckpointKey === undefined ? undefined : normalizeSyncCheckpointKey(input.expectedCheckpointKey);
   let checkpointAfter: StoredSyncCheckpoint | undefined;
 
+  // Phase 1.8.14 — reputation routing is optional. We materialise
+  // the summary container only when the caller opts in by passing
+  // `subscribedLabelers`. This preserves backwards compatibility for
+  // every existing caller that doesn't care about reputation events
+  // (they continue seeing the original result shape with no
+  // `reputation` field).
+  const reputationRouting =
+    input.subscribedLabelers === undefined
+      ? undefined
+      : {
+          subscribed: input.subscribedLabelers,
+          labelerIdForAuthor: input.labelerIdForAuthor,
+          summary: mutableReputationSummary()
+        };
+
   if (expectedCheckpointKey !== undefined) {
     preflightInboundRecordsMatchCheckpointKey(input.records, expectedCheckpointKey);
   }
@@ -251,8 +314,26 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
           : {})
       });
       checkpointAfter = stored.checkpoint;
-      if (stored.status === 'stored') result.applied += 1;
-      else result.skipped += 1;
+      if (stored.status === 'stored') {
+        result.applied += 1;
+        // Phase 1.8.14 — reputation projection runs ONLY on freshly
+        // stored envelopes (idempotency: a duplicate envelope that
+        // was already replayed once must not double-apply at the
+        // reputation log either). We never throw from the projection
+        // — failures surface in the summary, not the batch result.
+        if (reputationRouting !== undefined && isReputationEventKind(record.event.kind)) {
+          await dispatchInboundReputationEnvelope({
+            store: input.store,
+            event: record.event,
+            index,
+            subscribed: reputationRouting.subscribed,
+            labelerIdForAuthor: reputationRouting.labelerIdForAuthor,
+            summary: reputationRouting.summary
+          });
+        }
+      } else {
+        result.skipped += 1;
+      }
     } catch (error) {
       if (error instanceof SyncCheckpointRejectedError && error.code === 'stale-sequence') {
         result.skipped += 1;
@@ -268,10 +349,18 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
     }
   }
 
-  if (input.includeCheckpointAfter === true && checkpointAfter !== undefined) {
-    return { ...result, checkpointAfter };
-  }
-  return result;
+  const reputationField =
+    reputationRouting === undefined
+      ? undefined
+      : freezeReputationSummary(reputationRouting.summary);
+
+  return {
+    ...result,
+    ...(input.includeCheckpointAfter === true && checkpointAfter !== undefined
+      ? { checkpointAfter }
+      : {}),
+    ...(reputationField === undefined ? {} : { reputation: reputationField })
+  };
 }
 
 export async function pullAndProcessInboundSyncBatch(
@@ -580,6 +669,105 @@ function mutableInboundProcessResult(): {
     rejected: 0,
     errors: []
   };
+}
+
+type MutableReputationSummary = {
+  applied: number;
+  dropped: number;
+  rejected: number;
+  errors: Array<{ index: number; eventId?: string; reason: string }>;
+};
+
+function mutableReputationSummary(): MutableReputationSummary {
+  return { applied: 0, dropped: 0, rejected: 0, errors: [] };
+}
+
+function freezeReputationSummary(
+  summary: MutableReputationSummary
+): InboundReputationDispatchSummary {
+  return Object.freeze({
+    applied: summary.applied,
+    dropped: summary.dropped,
+    rejected: summary.rejected,
+    errors: Object.freeze(summary.errors.map((e) => Object.freeze({ ...e })))
+  });
+}
+
+/**
+ * Phase 1.8.14 — apply the opt-in / drop-by-policy gate AFTER the
+ * envelope has been stored. Failures here surface in the reputation
+ * summary, NOT the outer batch result — the bridge inbound stream
+ * MUST keep making forward progress on the checkpoint even if the
+ * reputation projection trips on a single hostile event.
+ *
+ * Privacy-safe: the only error message that surfaces is the
+ * exception's message (from the trust-safety validator or store
+ * layer), never the raw payload. The Phase 3.1 logging doctrine is
+ * preserved.
+ */
+async function dispatchInboundReputationEnvelope(input: {
+  store: DexieLocalFirstStore;
+  event: SignedEventEnvelope;
+  index: number;
+  subscribed: ReadonlySet<string>;
+  labelerIdForAuthor: ((authorId: string) => string | undefined) | undefined;
+  summary: MutableReputationSummary;
+}): Promise<void> {
+  const { event, index, subscribed, labelerIdForAuthor, summary } = input;
+  // Aggregator events are the only network-distributable reputation
+  // family in 1.8.14. Observation / attestation / revocation are
+  // device-local by the protocol envelope rule (`requirePrivacyForReputationEvent`),
+  // so they would have failed envelope validation upstream if they
+  // arrived over the wire. As defense-in-depth, drop them here too.
+  if (
+    event.kind !== 'reputation.aggregator.published' &&
+    event.kind !== 'reputation.aggregator.score.removed'
+  ) {
+    summary.dropped += 1;
+    return;
+  }
+
+  // Subscription gate. Pinned to the *labeler id* per Phase 1.66.
+  // The default identity mapping treats the envelope's author as the
+  // labeler id when the caller doesn't pass a custom mapper.
+  const publisherLabelerId =
+    labelerIdForAuthor === undefined ? event.author : labelerIdForAuthor(event.author);
+  if (typeof publisherLabelerId !== 'string' || publisherLabelerId.length === 0) {
+    summary.dropped += 1;
+    return;
+  }
+  if (!subscribed.has(publisherLabelerId)) {
+    summary.dropped += 1;
+    return;
+  }
+
+  // Re-validate via the trust-safety semantic validator. The
+  // protocol's structural check at envelope construction already
+  // pinned eventId / kind / createdAt / version, so the inner
+  // payload IS shape-consistent — this call ensures it's also
+  // RANGE-correct (score bounds, subject enums, observation counts).
+  // A throw here surfaces as a rejected count + an error row.
+  try {
+    const reputationEvent = validateReputationEvent(event.payload);
+    const persistence = await input.store.appendTrustSafetyReputationEvent(reputationEvent);
+    // Idempotency-aware counting: a duplicate event (same eventId
+    // already in the reputation log) reports as `dropped`, not
+    // `applied` — preserves the invariant `summary.applied ===
+    // newly-inserted rows`. The reputation runtime computes from the
+    // stored rows so the projection's truthfulness is unaffected.
+    if (persistence.status === 'stored') {
+      summary.applied += 1;
+    } else {
+      summary.dropped += 1;
+    }
+  } catch (err) {
+    summary.rejected += 1;
+    summary.errors.push({
+      index,
+      eventId: event.eventId,
+      reason: (err as Error).message
+    });
+  }
 }
 
 function safeInboundEventId(record: unknown): { eventId: string } | Record<string, never> {

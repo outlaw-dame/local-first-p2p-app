@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalizeJson, createUnsignedEvent, validateUnsignedEvent } from './index.js';
+import {
+  REPUTATION_EVENT_PAYLOAD_VERSION,
+  canonicalizeJson,
+  createUnsignedEvent,
+  isReputationEventKind,
+  validateUnsignedEvent
+} from './index.js';
 
 describe('protocol event envelopes', () => {
   it('creates a deterministic unsigned event envelope', () => {
@@ -316,5 +322,220 @@ describe('protocol event envelopes', () => {
         }
       } as never)
     ).toThrow(/payload\.controllerPublicKey must be a non-empty string/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 1.8.14 — reputation events as first-class protocol kinds.
+//
+// These tests pin the protocol-boundary contract for reputation
+// envelopes:
+//
+//   1. Five reputation kinds are recognised at envelope construction.
+//   2. Aggregator events MUST be `public`; observation / attestation /
+//      revocation MUST be `device-local` or `self` (Phase 5.0 wraps
+//      `self` ones inside a private payload envelope; until then the
+//      doctrine default `device-local` is the only off-the-wire path).
+//   3. Inner payload `eventId` / `kind` / `createdAt` MUST pin to the
+//      envelope's counterparts. An envelope that drifts is rejected at
+//      the protocol boundary, BEFORE bridge admission or local
+//      persistence sees it.
+//   4. Inner payload `version` MUST be the documented sentinel
+//      `lfp2p.reputation-event.v1`.
+//
+// Structural-only checks here. The full semantic validation
+// (`@lfp2p/trust-safety::validateReputationEvent`) runs again at the
+// store boundary — defense in depth.
+// ---------------------------------------------------------------------------
+
+describe('reputation events as first-class protocol kinds', () => {
+  const baseAggregatorPayload = (overrides: Record<string, unknown> = {}) => ({
+    version: REPUTATION_EVENT_PAYLOAD_VERSION,
+    eventId: 'evt_rep_agg_001',
+    kind: 'reputation.aggregator.published',
+    createdAt: '2026-06-01T00:00:00.000Z',
+    algorithm: 'openrank.v1',
+    computedAt: '2026-06-01T00:00:00.000Z',
+    subjects: [
+      {
+        subject: { type: 'actor', actorId: 'actor_alice' },
+        score: 0.5,
+        confidence: 0.9,
+        observationCount: 10
+      }
+    ],
+    ...overrides
+  });
+
+  const baseObservationPayload = (overrides: Record<string, unknown> = {}) => ({
+    version: REPUTATION_EVENT_PAYLOAD_VERSION,
+    eventId: 'evt_rep_obs_001',
+    kind: 'reputation.observation.recorded',
+    createdAt: '2026-06-01T00:00:00.000Z',
+    subject: { type: 'actor', actorId: 'actor_alice' },
+    observationKind: 'outbox.useful',
+    satCount: 3,
+    unsatCount: 0,
+    windowStart: '2026-05-25T00:00:00.000Z',
+    windowEnd: '2026-06-01T00:00:00.000Z',
+    ...overrides
+  });
+
+  it('isReputationEventKind narrows the five reputation kinds (and only those)', () => {
+    expect(isReputationEventKind('reputation.observation.recorded')).toBe(true);
+    expect(isReputationEventKind('reputation.attestation.published')).toBe(true);
+    expect(isReputationEventKind('reputation.attestation.revoked')).toBe(true);
+    expect(isReputationEventKind('reputation.aggregator.published')).toBe(true);
+    expect(isReputationEventKind('reputation.aggregator.score.removed')).toBe(true);
+    expect(isReputationEventKind('note.created')).toBe(false);
+    expect(isReputationEventKind('reputation.unknown')).toBe(false);
+    expect(isReputationEventKind('reputation.')).toBe(false);
+    expect(isReputationEventKind('')).toBe(false);
+    expect(isReputationEventKind(null)).toBe(false);
+    expect(isReputationEventKind(42)).toBe(false);
+  });
+
+  it('accepts an aggregator.published envelope at privacy=public', () => {
+    const event = createUnsignedEvent({
+      eventId: 'evt_rep_agg_001',
+      kind: 'reputation.aggregator.published',
+      author: 'identity:openrank',
+      deviceId: 'device:openrank-runner',
+      createdAt: '2026-06-01T00:00:00.000Z',
+      privacy: 'public',
+      payload: baseAggregatorPayload()
+    });
+    expect(() => validateUnsignedEvent(event)).not.toThrow();
+  });
+
+  it('accepts an aggregator.score.removed envelope at privacy=public', () => {
+    const event = createUnsignedEvent({
+      eventId: 'evt_rep_rem_001',
+      kind: 'reputation.aggregator.score.removed',
+      author: 'identity:openrank',
+      deviceId: 'device:openrank-runner',
+      createdAt: '2026-06-02T00:00:00.000Z',
+      privacy: 'public',
+      payload: {
+        version: REPUTATION_EVENT_PAYLOAD_VERSION,
+        eventId: 'evt_rep_rem_001',
+        kind: 'reputation.aggregator.score.removed',
+        createdAt: '2026-06-02T00:00:00.000Z',
+        subject: { type: 'actor', actorId: 'actor_alice' },
+        reason: 'revoked'
+      }
+    });
+    expect(() => validateUnsignedEvent(event)).not.toThrow();
+  });
+
+  it('rejects aggregator events with privacy != public', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_rep_agg_001',
+        kind: 'reputation.aggregator.published',
+        author: 'identity:openrank',
+        deviceId: 'device:openrank-runner',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        privacy: 'device-local',
+        payload: baseAggregatorPayload()
+      })
+    ).toThrow(/must use privacy scope public/);
+  });
+
+  it('accepts an observation envelope at privacy=device-local', () => {
+    const event = createUnsignedEvent({
+      eventId: 'evt_rep_obs_001',
+      kind: 'reputation.observation.recorded',
+      author: 'identity:alice',
+      deviceId: 'device:alice-phone',
+      createdAt: '2026-06-01T00:00:00.000Z',
+      privacy: 'device-local',
+      payload: baseObservationPayload()
+    });
+    expect(() => validateUnsignedEvent(event)).not.toThrow();
+  });
+
+  it('rejects an observation envelope at privacy=public (must stay private)', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_rep_obs_001',
+        kind: 'reputation.observation.recorded',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        privacy: 'public',
+        payload: baseObservationPayload()
+      })
+    ).toThrow(/must use privacy scope device-local or self/);
+  });
+
+  it('rejects an aggregator envelope whose inner payload eventId drifts', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_rep_agg_001',
+        kind: 'reputation.aggregator.published',
+        author: 'identity:openrank',
+        deviceId: 'device:openrank-runner',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        privacy: 'public',
+        payload: baseAggregatorPayload({ eventId: 'evt_rep_agg_DRIFTED' })
+      })
+    ).toThrow(/payload\.eventId must equal envelope\.eventId/);
+  });
+
+  it('rejects an aggregator envelope whose inner payload kind drifts', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_rep_agg_001',
+        kind: 'reputation.aggregator.published',
+        author: 'identity:openrank',
+        deviceId: 'device:openrank-runner',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        privacy: 'public',
+        payload: baseAggregatorPayload({ kind: 'reputation.observation.recorded' })
+      })
+    ).toThrow(/payload\.kind must equal envelope\.kind/);
+  });
+
+  it('rejects an aggregator envelope whose inner payload createdAt drifts', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_rep_agg_001',
+        kind: 'reputation.aggregator.published',
+        author: 'identity:openrank',
+        deviceId: 'device:openrank-runner',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        privacy: 'public',
+        payload: baseAggregatorPayload({ createdAt: '2026-06-02T00:00:00.000Z' })
+      })
+    ).toThrow(/payload\.createdAt must equal envelope\.createdAt/);
+  });
+
+  it('rejects an envelope whose inner payload version is wrong', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_rep_agg_001',
+        kind: 'reputation.aggregator.published',
+        author: 'identity:openrank',
+        deviceId: 'device:openrank-runner',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        privacy: 'public',
+        payload: baseAggregatorPayload({ version: 'lfp2p.reputation-event.v2' })
+      })
+    ).toThrow(/payload\.version must equal lfp2p\.reputation-event\.v1/);
+  });
+
+  it('rejects reputation envelopes with non-string required identity fields', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_rep_agg_001',
+        kind: 'reputation.aggregator.published',
+        author: 'identity:openrank',
+        deviceId: 'device:openrank-runner',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        privacy: 'public',
+        payload: baseAggregatorPayload({ eventId: 42 })
+      })
+    ).toThrow(/payload\.eventId must be a non-empty string/);
   });
 });

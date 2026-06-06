@@ -135,7 +135,7 @@ describe('processInboundReputationBatch — aggregator publish flow', () => {
     expect(result.applied).toBe(0);
   });
 
-  it('idempotent on eventId: duplicate inbound is a silent no-op at the store layer', async () => {
+  it('idempotent on eventId: duplicate inbound is a silent no-op at the store layer (counted as dropped, not applied)', async () => {
     const store = freshStore('idem');
     const evt = aggregatorEvent('evt_dup', 'actor_x');
     const result1 = await processInboundReputationBatch({
@@ -144,13 +144,19 @@ describe('processInboundReputationBatch — aggregator publish flow', () => {
       subscribedLabelers: new Set(['openrank'])
     });
     expect(result1.applied).toBe(1);
+    expect(result1.dropped).toBe(0);
+    // Phase 1.8.14 — idempotency-aware counting. The duplicate event
+    // is persisted as a no-op at the store layer, and we now count
+    // that as `dropped` rather than `applied` so the result faithfully
+    // reflects "no NEW state landed". The reputation log still has
+    // exactly one row.
     const result2 = await processInboundReputationBatch({
       store,
       records: [{ publisherLabelerId: 'openrank', event: evt }],
       subscribedLabelers: new Set(['openrank'])
     });
-    expect(result2.applied).toBe(1);
-    // Only one row landed.
+    expect(result2.applied).toBe(0);
+    expect(result2.dropped).toBe(1);
     const rows = await store.loadReputationEvents();
     expect(rows).toHaveLength(1);
   });

@@ -169,6 +169,17 @@ export type PutSignedEventWithSyncCheckpointResult = Readonly<{
   checkpoint: StoredSyncCheckpoint;
 }>;
 
+/**
+ * Phase 1.8.14 — return shape for `appendTrustSafetyReputationEvent`.
+ * `'stored'` signals a fresh insert; `'skipped'` signals an
+ * idempotent no-op (an event with the same `eventId` was already
+ * persisted). Callers that don't care about the distinction can
+ * ignore the result safely.
+ */
+export type AppendTrustSafetyReputationEventResult = Readonly<{
+  status: 'stored' | 'skipped';
+}>;
+
 export type SyncCheckpointRejectedCode = 'stale-sequence' | 'cursor-mismatch';
 
 export type StoredIdentityControlDevice = Readonly<{
@@ -817,11 +828,19 @@ export class DexieLocalFirstStore {
   // duplicating any validation logic here.
   // -------------------------------------------------------------------
 
-  async appendTrustSafetyReputationEvent(event: ReputationEvent): Promise<void> {
+  async appendTrustSafetyReputationEvent(
+    event: ReputationEvent
+  ): Promise<AppendTrustSafetyReputationEventResult> {
     const validated = validateReputationEvent(event);
-    await this.transaction('rw', ['trustSafetyReputationEvents'], async () => {
+    return this.transaction('rw', ['trustSafetyReputationEvents'], async () => {
       const existing = await this.#db.trustSafetyReputationEvents.get(validated.eventId);
-      if (existing !== undefined) return; // idempotent
+      if (existing !== undefined) {
+        // Phase 1.8.14 — surface idempotency to callers so the
+        // sync-client routing can distinguish "applied" from
+        // "duplicate" without double-counting. Existing callers that
+        // ignore the return value continue to work unchanged.
+        return { status: 'skipped' };
+      }
       const sequence = await this.#db.trustSafetyReputationEvents.count();
       const row: StoredTrustSafetyReputationEvent = {
         eventId: validated.eventId,
@@ -831,6 +850,7 @@ export class DexieLocalFirstStore {
         event: validated
       };
       await this.#db.trustSafetyReputationEvents.add(row);
+      return { status: 'stored' };
     });
   }
 
