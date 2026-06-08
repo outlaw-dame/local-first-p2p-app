@@ -226,7 +226,7 @@ async function generateContentKey(keyId = `payload-key:${globalThis.crypto.rando
   const rawKey = toBase64Url(rawKeyBytes);
   const cryptoKey = await requireSubtleCrypto().importKey(
     'raw',
-    rawKeyBytes,
+    rawKeyBytes as Uint8Array<ArrayBuffer>,
     { name: 'AES-GCM' },
     false,
     ['encrypt', 'decrypt']
