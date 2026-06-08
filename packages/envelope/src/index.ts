@@ -93,6 +93,7 @@ export function resolveRecipients(identities: readonly RecipientIdentity[]): rea
       out.push(Object.freeze({
         recipientIdentityId: identityId,
         recipientDeviceId: deviceId,
+        // TODO before merge: validate this as a 32-byte X25519 public key, not merely a non-empty string.
         wrapPublicKey: requireText(device.wrapPublicKey, 'wrapPublicKey'),
         wrapKeyRef: requireText(device.wrapKeyRef, 'wrapKeyRef')
       }));
