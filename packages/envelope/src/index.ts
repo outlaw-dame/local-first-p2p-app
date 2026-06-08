@@ -210,7 +210,7 @@ export function summarizeEnvelopeEventForLog(event: UnsignedEventEnvelope | Sign
       recipientWrapCount: Array.isArray(payload.recipientWraps) ? payload.recipientWraps.length : 0
     }
   };
-  if (event.refs !== undefined) summary.refs = normalizeRefs(event.refs) as JsonValue;
+  if (event.refs !== undefined) summary.refs = normalizeRefs(event.refs);
   if ('signature' in event) summary.signature = { algorithm: event.signature.algorithm };
   return Object.freeze(summary) as JsonObject;
 }
@@ -264,9 +264,9 @@ function requireEnvelopeScope(value: PrivacyScope): EnvelopeScope {
   return value;
 }
 
-function normalizeRefs(refs: readonly SourceRef[] | undefined): readonly JsonObject[] {
-  if (refs === undefined) return Object.freeze([]);
-  return Object.freeze(refs.map((ref, index) => {
+function normalizeRefs(refs: readonly SourceRef[] | undefined): JsonObject[] {
+  if (refs === undefined) return [];
+  return refs.map((ref, index) => {
     const normalized: Record<string, JsonValue> = {
       sourceId: requireText(ref.sourceId, `refs[${index}].sourceId`)
     };
@@ -277,7 +277,7 @@ function normalizeRefs(refs: readonly SourceRef[] | undefined): readonly JsonObj
       normalized.hash = requireText(ref.hash, `refs[${index}].hash`);
     }
     return Object.freeze(normalized) as JsonObject;
-  }));
+  });
 }
 
 function requireText(value: string | undefined, label: string): string {
