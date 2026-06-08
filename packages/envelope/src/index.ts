@@ -191,6 +191,30 @@ export async function createSignedEnvelopeEvent(
   });
 }
 
+export function summarizeEnvelopeEventForLog(event: UnsignedEventEnvelope | SignedEventEnvelope): JsonObject {
+  const payload = event.payload as Record<string, unknown>;
+  const summary: Record<string, JsonValue> = {
+    version: event.version,
+    eventId: event.eventId,
+    kind: event.kind,
+    author: event.author,
+    deviceId: event.deviceId,
+    createdAt: event.createdAt,
+    lamport: event.lamport,
+    privacy: event.privacy,
+    schemaVersion: event.schemaVersion,
+    payload: {
+      envelope: event.privacy === 'self' || event.privacy === 'dm' || event.privacy === 'group',
+      version: typeof payload.version === 'string' ? payload.version : 'unknown',
+      algorithm: typeof payload.algorithm === 'string' ? payload.algorithm : 'unknown',
+      recipientWrapCount: Array.isArray(payload.recipientWraps) ? payload.recipientWraps.length : 0
+    }
+  };
+  if (event.refs !== undefined) summary.refs = normalizeRefs(event.refs) as JsonValue;
+  if ('signature' in event) summary.signature = { algorithm: event.signature.algorithm };
+  return Object.freeze(summary) as JsonObject;
+}
+
 type ContentKey = Readonly<{
   keyId: string;
   rawKey: string;
