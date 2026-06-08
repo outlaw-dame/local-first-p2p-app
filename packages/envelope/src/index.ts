@@ -24,6 +24,7 @@ export type EnvelopeScope = 'self' | 'dm' | 'group';
 export type RecipientDeviceStatus = 'active' | 'revoked';
 
 const AES_256_KEY_BYTES = 32;
+const WRAP_PUBLIC_KEY_BASE64URL_LENGTH = 43;
 
 export type RecipientDevice = Readonly<{
   deviceId: string;
@@ -93,7 +94,7 @@ export function resolveRecipients(identities: readonly RecipientIdentity[]): rea
       out.push(Object.freeze({
         recipientIdentityId: identityId,
         recipientDeviceId: deviceId,
-        wrapPublicKey: requireText(device.wrapPublicKey, 'wrapPublicKey'),
+        wrapPublicKey: requireWrapPublicKey(device.wrapPublicKey, 'wrapPublicKey'),
         wrapKeyRef: requireText(device.wrapKeyRef, 'wrapKeyRef')
       }));
     }
@@ -226,7 +227,7 @@ function normalizeRecipients(recipients: readonly ResolvedRecipient[]): readonly
     return Object.freeze({
       recipientIdentityId,
       recipientDeviceId,
-      wrapPublicKey: requireText(recipient.wrapPublicKey, `recipients[${index}].wrapPublicKey`),
+      wrapPublicKey: requireWrapPublicKey(recipient.wrapPublicKey, `recipients[${index}].wrapPublicKey`),
       wrapKeyRef: requireText(recipient.wrapKeyRef, `recipients[${index}].wrapKeyRef`)
     });
   }));
@@ -260,6 +261,23 @@ function requireText(value: string | undefined, label: string): string {
     throw new Error(`${label} must be a non-empty string`);
   }
   return value;
+}
+
+function requireWrapPublicKey(value: string | undefined, label: string): string {
+  const encoded = requireText(value, label).trim();
+  if (encoded.length !== WRAP_PUBLIC_KEY_BASE64URL_LENGTH) {
+    throw new Error(`${label} must be a 32-byte base64url wrapping public key`);
+  }
+  for (const char of encoded) {
+    const code = char.charCodeAt(0);
+    const isDigit = code >= 48 && code <= 57;
+    const isUpper = code >= 65 && code <= 90;
+    const isLower = code >= 97 && code <= 122;
+    if (!isDigit && !isUpper && !isLower && char !== '-' && char !== '_') {
+      throw new Error(`${label} must be base64url with no padding`);
+    }
+  }
+  return encoded;
 }
 
 function requireIsoDate(value: string, label: string): string {
