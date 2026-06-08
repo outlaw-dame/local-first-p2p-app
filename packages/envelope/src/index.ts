@@ -1,9 +1,29 @@
-import { canonicalizeJson, type EventKind, type JsonObject, type JsonValue, type PrivacyScope, type SourceRef } from '@lfp2p/protocol';
+import {
+  encryptPayloadEnvelope,
+  signEventEnvelope,
+  toBase64Url,
+  wrapPayloadKeyWithX25519,
+  type SigningKeypair
+} from '@lfp2p/crypto';
+import {
+  canonicalizeJson,
+  createUnsignedEvent,
+  type EventKind,
+  type JsonObject,
+  type JsonValue,
+  type PayloadKeyRecipientWrap,
+  type PrivacyScope,
+  type SignedEventEnvelope,
+  type SourceRef,
+  type UnsignedEventEnvelope
+} from '@lfp2p/protocol';
 
 export const PRIVATE_PAYLOAD_AAD_VERSION = 'lfp2p.private-payload.aad.v1' as const;
 
 export type EnvelopeScope = 'self' | 'dm' | 'group';
 export type RecipientDeviceStatus = 'active' | 'revoked';
+
+const AES_256_KEY_BYTES = 32;
 
 export type RecipientDevice = Readonly<{
   deviceId: string;
@@ -35,6 +55,29 @@ export type PrivatePayloadAadInput = Readonly<{
   schemaVersion?: number;
   refs?: readonly SourceRef[];
 }>;
+
+export type CreateEnvelopeEventInput = PrivatePayloadAadInput &
+  Readonly<{
+    privacy: EnvelopeScope;
+    plaintextPayload: JsonObject;
+    recipients: readonly ResolvedRecipient[];
+    keyId?: string;
+  }>;
+
+export type CreateSignedEnvelopeEventInput = CreateEnvelopeEventInput &
+  Readonly<{
+    signingKeypair: SigningKeypair;
+  }>;
+
+export type EnvelopeEventBuildResult = Readonly<{
+  event: UnsignedEventEnvelope;
+  aad: string;
+  keyId: string;
+  recipientDeviceIds: readonly string[];
+}>;
+
+export type SignedEnvelopeEventBuildResult = Omit<EnvelopeEventBuildResult, 'event'> &
+  Readonly<{ event: SignedEventEnvelope }>;
 
 export function resolveRecipients(identities: readonly RecipientIdentity[]): readonly ResolvedRecipient[] {
   const out: ResolvedRecipient[] = [];
@@ -85,6 +128,110 @@ export function buildPrivatePayloadAad(input: PrivatePayloadAadInput): string {
   });
 }
 
+export async function createEnvelopeEvent(input: CreateEnvelopeEventInput): Promise<EnvelopeEventBuildResult> {
+  const privacy = requireEnvelopeScope(input.privacy);
+  const recipients = normalizeRecipients(input.recipients);
+  const lamport = input.lamport ?? 0;
+  const schemaVersion = input.schemaVersion ?? 1;
+  const aad = buildPrivatePayloadAad({
+    eventId: input.eventId,
+    kind: input.kind,
+    author: input.author,
+    deviceId: input.deviceId,
+    createdAt: input.createdAt,
+    lamport,
+    privacy,
+    schemaVersion,
+    ...(input.refs === undefined ? {} : { refs: input.refs })
+  });
+  const contentKey = await generateContentKey(input.keyId);
+  const recipientWraps = recipients.map<PayloadKeyRecipientWrap>((recipient) => ({
+    recipientIdentityId: recipient.recipientIdentityId,
+    recipientDeviceId: recipient.recipientDeviceId,
+    keyAgreement: 'x25519-v1',
+    wrappedKey: wrapPayloadKeyWithX25519(contentKey.rawKey, recipient.wrapPublicKey),
+    wrappingKeyRef: recipient.wrapKeyRef
+  }));
+  const payload = await encryptPayloadEnvelope(
+    input.plaintextPayload,
+    aad,
+    contentKey.cryptoKey,
+    contentKey.keyId,
+    recipientWraps
+  );
+  const event = createUnsignedEvent({
+    eventId: input.eventId,
+    kind: input.kind,
+    author: input.author,
+    deviceId: input.deviceId,
+    createdAt: input.createdAt,
+    lamport,
+    privacy,
+    schemaVersion,
+    payload: payload as unknown as JsonObject,
+    ...(input.refs === undefined ? {} : { refs: input.refs })
+  });
+
+  return Object.freeze({
+    event,
+    aad,
+    keyId: contentKey.keyId,
+    recipientDeviceIds: Object.freeze(recipients.map((recipient) => recipient.recipientDeviceId))
+  });
+}
+
+export async function createSignedEnvelopeEvent(
+  input: CreateSignedEnvelopeEventInput
+): Promise<SignedEnvelopeEventBuildResult> {
+  const built = await createEnvelopeEvent(input);
+  return Object.freeze({
+    ...built,
+    event: signEventEnvelope(built.event, input.signingKeypair)
+  });
+}
+
+type ContentKey = Readonly<{
+  keyId: string;
+  rawKey: string;
+  cryptoKey: CryptoKey;
+}>;
+
+async function generateContentKey(keyId = `payload-key:${globalThis.crypto.randomUUID()}`): Promise<ContentKey> {
+  const rawKeyBytes = globalThis.crypto.getRandomValues(new Uint8Array(AES_256_KEY_BYTES));
+  const rawKey = toBase64Url(rawKeyBytes);
+  const cryptoKey = await requireSubtleCrypto().importKey(
+    'raw',
+    new Uint8Array(Array.from(rawKeyBytes)),
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt', 'decrypt']
+  );
+  return Object.freeze({
+    keyId: requireText(keyId, 'keyId').trim(),
+    rawKey,
+    cryptoKey
+  });
+}
+
+function normalizeRecipients(recipients: readonly ResolvedRecipient[]): readonly ResolvedRecipient[] {
+  if (!Array.isArray(recipients) || recipients.length === 0) {
+    throw new Error('Envelope recipients must not be empty');
+  }
+  const seen = new Set<string>();
+  return Object.freeze(recipients.map((recipient, index) => {
+    const recipientIdentityId = requireText(recipient.recipientIdentityId, `recipients[${index}].recipientIdentityId`);
+    const recipientDeviceId = requireText(recipient.recipientDeviceId, `recipients[${index}].recipientDeviceId`);
+    if (seen.has(recipientDeviceId)) throw new Error(`Duplicate recipient device id: ${recipientDeviceId}`);
+    seen.add(recipientDeviceId);
+    return Object.freeze({
+      recipientIdentityId,
+      recipientDeviceId,
+      wrapPublicKey: requireText(recipient.wrapPublicKey, `recipients[${index}].wrapPublicKey`),
+      wrapKeyRef: requireText(recipient.wrapKeyRef, `recipients[${index}].wrapKeyRef`)
+    });
+  }));
+}
+
 function requireEnvelopeScope(value: PrivacyScope): EnvelopeScope {
   if (value !== 'self' && value !== 'dm' && value !== 'group') {
     throw new Error(`Envelope payload builder requires self, dm, or group privacy; got ${String(value)}`);
@@ -129,4 +276,10 @@ function requireSafeNonNegativeInteger(value: number, label: string): number {
 function requireSafePositiveInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a safe positive integer`);
   return value;
+}
+
+function requireSubtleCrypto(): SubtleCrypto {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) throw new Error('WebCrypto subtle crypto is required');
+  return subtle;
 }
