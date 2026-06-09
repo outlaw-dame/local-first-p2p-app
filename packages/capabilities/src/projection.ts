@@ -14,7 +14,7 @@ export type CapabilityProjectionGrantState = 'active' | 'revoked';
 export type CapabilityProjectionGrant = Readonly<{
   grant: CapabilityGrantV1;
   state: CapabilityProjectionGrantState;
-  revokedAt?: string;
+  revokedAt?: string | undefined;
   revocationIds: readonly string[];
 }>;
 

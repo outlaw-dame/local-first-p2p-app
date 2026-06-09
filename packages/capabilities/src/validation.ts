@@ -12,20 +12,14 @@ import {
   CAPABILITY_SCOPE_KINDS,
   type CapabilityAction,
   type CapabilityCaveat,
-  type CapabilityCaveatKind,
   type CapabilityGrantV1,
   type CapabilityInvocationV1,
   type CapabilityJsonValue,
-  type CapabilityPartyKind,
   type CapabilityPartyRef,
   type CapabilityProofRef,
-  type CapabilityProofScheme,
-  type CapabilityResourceKind,
   type CapabilityResourceRef,
-  type CapabilityRevocationReason,
   type CapabilityRevocationRef,
   type CapabilityRevocationV1,
-  type CapabilityScopeKind,
   type CapabilityScopeRef
 } from './types.js';
 

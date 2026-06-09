@@ -78,8 +78,8 @@ export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocation
   if (reasons.length > 0) return deny(grant.capabilityId, invocation.invocationId, dedupeReasons(reasons));
 
   return Object.freeze({
-    status: 'allow',
-    reasonCodes: Object.freeze(['capability.valid']),
+    status: 'allow' as const,
+    reasonCodes: ['capability.valid'] as const,
     capabilityId: grant.capabilityId,
     invocationId: invocation.invocationId,
     createdAt: new Date(now).toISOString(),
