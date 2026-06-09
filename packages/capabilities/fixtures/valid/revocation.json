@@ -1,0 +1,9 @@
+{
+  "version": "lfp2p.capability.revocation.v1",
+  "revocationId": "revoke:moderate-room:1",
+  "capabilityId": "cap:moderate-room:1",
+  "issuer": { "kind": "controller", "id": "controller:damon" },
+  "reasonCode": "superseded",
+  "createdAt": "2026-06-08T12:00:00.000Z",
+  "proofRefs": [{ "proofId": "proof:controller:2", "scheme": "native-signed-event" }]
+}
