@@ -39,10 +39,11 @@ describe('DexieLocalFirstStore envelope invariants', () => {
 
       await store.putSignedEvent(built.event);
       const stored = await store.getSignedEvent('evt-local-store-envelope-001');
-      const storedJson = JSON.stringify(stored);
+      expect(stored).toBeDefined();
+      const storedJson = JSON.stringify(stored!);
       const summaryJson = JSON.stringify(summarizeEnvelopeEventForLog(built.event));
 
-      expect(stored?.payload).toMatchObject({
+      expect(stored!.payload).toMatchObject({
         version: 'lfp2p.private-payload.envelope.v1',
         algorithm: 'aes-gcm-256'
       });
