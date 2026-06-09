@@ -1,0 +1,15 @@
+{
+  "version": "lfp2p.capability.grant.v1",
+  "capabilityId": "cap:moderate-room:1",
+  "issuer": { "kind": "controller", "id": "controller:damon" },
+  "audience": { "kind": "device", "id": "device:moderator-1" },
+  "resource": { "kind": "room", "id": "room:local-first" },
+  "actions": ["room.moderate"],
+  "scope": { "kind": "room", "id": "room:local-first" },
+  "caveats": [],
+  "expiresAt": "2026-06-09T12:00:00.000Z",
+  "delegationDepth": 0,
+  "nonce": "nonce:grant:1",
+  "proofRefs": [{ "proofId": "proof:controller:1", "scheme": "native-signed-event" }],
+  "createdAt": "2026-06-08T12:00:00.000Z"
+}
