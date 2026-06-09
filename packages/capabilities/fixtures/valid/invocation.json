@@ -1,0 +1,14 @@
+{
+  "version": "lfp2p.capability.invocation.v1",
+  "invocationId": "invoke:moderate-room:1",
+  "capabilityId": "cap:moderate-room:1",
+  "invoker": { "kind": "device", "id": "device:moderator-1" },
+  "device": { "kind": "device", "id": "device:moderator-1" },
+  "resource": { "kind": "room", "id": "room:local-first" },
+  "action": "room.moderate",
+  "scope": { "kind": "room", "id": "room:local-first" },
+  "argumentsDigest": "sha-256:abcdefghi",
+  "nonce": "nonce:invoke:1",
+  "createdAt": "2026-06-08T12:00:00.000Z",
+  "proofRefs": [{ "proofId": "proof:controller:1", "scheme": "native-signed-event" }]
+}
