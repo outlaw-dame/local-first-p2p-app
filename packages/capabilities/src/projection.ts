@@ -40,21 +40,23 @@ export function applyCapabilityGrant(
   const existing = projection.grants[grant.capabilityId];
   const priorRevocations = revocationsForCapability(projection, grant.capabilityId);
   if (existing?.state === 'revoked' || priorRevocations.length > 0) {
+    const revokedAt = existing?.revokedAt ?? priorRevocations[0]?.createdAt;
+    const revokedGrant: CapabilityProjectionGrant = {
+      grant: existing?.grant ?? grant,
+      state: 'revoked',
+      ...(revokedAt === undefined ? {} : { revokedAt }),
+      revocationIds: Object.freeze([
+        ...new Set([
+          ...(existing?.revocationIds ?? []),
+          ...priorRevocations.map((revocation) => revocation.revocationId)
+        ])
+      ])
+    };
     return freezeProjection({
       ...projection,
       grants: {
         ...projection.grants,
-        [grant.capabilityId]: {
-          grant: existing?.grant ?? grant,
-          state: 'revoked',
-          revokedAt: existing?.revokedAt ?? priorRevocations[0]?.createdAt,
-          revocationIds: Object.freeze([
-            ...new Set([
-              ...(existing?.revocationIds ?? []),
-              ...priorRevocations.map((revocation) => revocation.revocationId)
-            ])
-          ])
-        }
+        [grant.capabilityId]: revokedGrant
       }
     });
   }
