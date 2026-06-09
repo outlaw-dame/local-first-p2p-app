@@ -38,12 +38,23 @@ export function applyCapabilityGrant(
 ): CapabilityProjection {
   const grant = validateCapabilityGrant(value);
   const existing = projection.grants[grant.capabilityId];
-  if (existing?.state === 'revoked') {
+  const priorRevocations = revocationsForCapability(projection, grant.capabilityId);
+  if (existing?.state === 'revoked' || priorRevocations.length > 0) {
     return freezeProjection({
       ...projection,
       grants: {
         ...projection.grants,
-        [grant.capabilityId]: existing
+        [grant.capabilityId]: {
+          grant: existing?.grant ?? grant,
+          state: 'revoked',
+          revokedAt: existing?.revokedAt ?? priorRevocations[0]?.createdAt,
+          revocationIds: Object.freeze([
+            ...new Set([
+              ...(existing?.revocationIds ?? []),
+              ...priorRevocations.map((revocation) => revocation.revocationId)
+            ])
+          ])
+        }
       }
     });
   }
@@ -109,7 +120,7 @@ export function isCapabilityRevoked(
   capabilityId: string
 ): boolean {
   if (projection.grants[capabilityId]?.state === 'revoked') return true;
-  return Object.values(projection.revocations).some((revocation) => revocation.capabilityId === capabilityId);
+  return revocationsForCapability(projection, capabilityId).length > 0;
 }
 
 export function hasInvocationReplay(
@@ -117,6 +128,13 @@ export function hasInvocationReplay(
   invocationId: string
 ): boolean {
   return projection.invocationIds[invocationId] === true;
+}
+
+function revocationsForCapability(
+  projection: CapabilityProjection,
+  capabilityId: string
+): readonly CapabilityRevocationV1[] {
+  return Object.freeze(Object.values(projection.revocations).filter((revocation) => revocation.capabilityId === capabilityId));
 }
 
 function freezeProjection(projection: CapabilityProjection): CapabilityProjection {
