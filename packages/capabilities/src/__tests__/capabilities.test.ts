@@ -170,6 +170,18 @@ describe('@lfp2p/capabilities evaluation', () => {
     expect(first.reasonCodes).toContain('capability.expired');
     expect(first.createdAt).toBe(NOW);
   });
+
+  it('falls back to Unix epoch for createdAt when input.now is invalid', () => {
+    const decision = evaluateCapabilityInvocation({
+      grant: baseGrant(),
+      invocation: baseInvocation(),
+      now: 'invalid-date-string',
+      authorityContext: 'moderation'
+    });
+    expect(decision.status).toBe('deny');
+    expect(decision.reasonCodes).toContain('capability.malformed');
+    expect(decision.createdAt).toBe('1970-01-01T00:00:00.000Z');
+  });
 });
 
 describe('@lfp2p/capabilities projection', () => {

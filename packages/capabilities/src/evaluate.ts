@@ -36,7 +36,7 @@ export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocation
   const now = Number.isFinite(parsedNow) ? parsedNow : Number.NaN;
   const decisionCreatedAt = Number.isFinite(now)
     ? new Date(now).toISOString()
-    : input.now;
+    : '1970-01-01T00:00:00.000Z';
 
   if (!Number.isFinite(now)) {
     return deny('unknown', undefined, ['capability.malformed'], decisionCreatedAt);
