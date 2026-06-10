@@ -4,3 +4,4 @@ export * from './types.js';
 export * from './validation.js';
 export * from './evaluate.js';
 export * from './projection.js';
+export * from './reliance.js';
