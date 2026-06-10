@@ -124,6 +124,8 @@ importers:
         specifier: latest
         version: 8.0.16(@types/node@25.9.2)
 
+  packages/capabilities: {}
+
   packages/content-addressing: {}
 
   packages/crypto:
@@ -234,6 +236,9 @@ importers:
 
   packages/trust-safety:
     dependencies:
+      '@lfp2p/capabilities':
+        specifier: workspace:*
+        version: link:../capabilities
       '@lfp2p/content-addressing':
         specifier: workspace:*
         version: link:../content-addressing

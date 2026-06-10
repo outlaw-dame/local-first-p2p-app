@@ -33,15 +33,16 @@ export type EvaluateCapabilityInvocationInput = Readonly<{
 
 export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocationInput): CapabilityDecision {
   const parsedNow = Date.parse(input.now);
-  const isSafeDate = Number.isFinite(parsedNow) && parsedNow >= -8.64e15 && parsedNow <= 8.64e15;
-  const now = isSafeDate ? parsedNow : Number.NaN;
-  const decisionCreatedAt = isSafeDate
-    ? new Date(now).toISOString()
-    : '1970-01-01T00:00:00.000Z';
+  const MIN_SAFE_DATE_MS = -8.64e15;
+  const MAX_SAFE_DATE_MS = 8.64e15;
+  const isSafeDate = Number.isFinite(parsedNow) && parsedNow >= MIN_SAFE_DATE_MS && parsedNow <= MAX_SAFE_DATE_MS;
 
   if (!isSafeDate) {
-    return deny('unknown', undefined, ['capability.malformed'], decisionCreatedAt);
+    return deny('unknown', undefined, ['capability.malformed'], '1970-01-01T00:00:00.000Z');
   }
+
+  const now = parsedNow;
+  const decisionCreatedAt = new Date(now).toISOString();
 
   let grant: CapabilityGrantV1;
   let invocation: CapabilityInvocationV1;
