@@ -37,7 +37,7 @@ export function validateCapabilityRevocationRecord(value: unknown): CapabilityRe
 
 export class CapabilityDelegationGraph {
   public readonly grants: Map<string, CapabilityGrantV1> = new Map();
-  public readonly revocations: Map<string, CapabilityRevocationRecord[]> = new Map();
+  public readonly revocations: Map<string, readonly CapabilityRevocationRecord[]> = new Map();
 
   constructor(
     grants: readonly CapabilityGrantV1[] = [],
@@ -57,8 +57,7 @@ export class CapabilityDelegationGraph {
 
   public addRevocation(revocation: CapabilityRevocationRecord): void {
     const list = this.revocations.get(revocation.capabilityId) ?? [];
-    list.push(revocation);
-    this.revocations.set(revocation.capabilityId, list);
+    this.revocations.set(revocation.capabilityId, [...list, revocation]);
   }
 }
 
