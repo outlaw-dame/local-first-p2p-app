@@ -37,7 +37,7 @@ export function validateCapabilityRevocationRecord(value: unknown): CapabilityRe
 
 export class CapabilityDelegationGraph {
   public readonly grants: Map<string, CapabilityGrantV1> = new Map();
-  public readonly revocations: Map<string, CapabilityRevocationRecord> = new Map();
+  public readonly revocations: Map<string, CapabilityRevocationRecord[]> = new Map();
 
   constructor(
     grants: readonly CapabilityGrantV1[] = [],
@@ -47,7 +47,7 @@ export class CapabilityDelegationGraph {
       this.grants.set(grant.capabilityId, grant);
     }
     for (const revocation of revocations) {
-      this.revocations.set(revocation.capabilityId, revocation);
+      this.addRevocation(revocation);
     }
   }
 
@@ -56,7 +56,9 @@ export class CapabilityDelegationGraph {
   }
 
   public addRevocation(revocation: CapabilityRevocationRecord): void {
-    this.revocations.set(revocation.capabilityId, revocation);
+    const list = this.revocations.get(revocation.capabilityId) ?? [];
+    list.push(revocation);
+    this.revocations.set(revocation.capabilityId, list);
   }
 }
 
@@ -242,11 +244,13 @@ export function isDelegationPathValid(
       }
     }
 
-    const revocation = graph.revocations.get(grant.capabilityId);
-    if (revocation !== undefined && revocation.revokedBy === grant.issuer.id) {
-      const revokedAt = Date.parse(revocation.revokedAt);
-      if (!isNaN(revokedAt) && revokedAt <= parsedNow) {
-        return false;
+    const revocations = graph.revocations.get(grant.capabilityId) ?? [];
+    for (const revocation of revocations) {
+      if (revocation.revokedBy === grant.issuer.id) {
+        const revokedAt = Date.parse(revocation.revokedAt);
+        if (!isNaN(revokedAt) && revokedAt <= parsedNow) {
+          return false;
+        }
       }
     }
   }

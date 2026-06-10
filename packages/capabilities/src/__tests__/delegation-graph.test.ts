@@ -390,4 +390,35 @@ describe('delegation graph runtime', () => {
     // B has outstanding proofRefs so it is not a root, and parent A is missing. Should fail.
     expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
   });
+
+  it('does not allow unauthorized revocation to overwrite/bypass an authorized revocation', () => {
+    const grantA = mockGrant({
+      capabilityId: 'cap:A',
+      issuerId: 'actor:root',
+      audienceId: 'actor:A'
+    });
+    const graph = new CapabilityDelegationGraph([grantA]);
+
+    // 1. Add authorized revocation
+    const authorizedRevocation = validateCapabilityRevocationRecord({
+      capabilityId: 'cap:A',
+      revokedAt: '2026-06-08T10:00:00.000Z',
+      revokedBy: 'actor:root',
+      reason: 'Key compromised'
+    });
+    graph.addRevocation(authorizedRevocation);
+    expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(false); // Correctly revoked
+
+    // 2. Add unauthorized revocation (attacker attempt to overwrite)
+    const unauthorizedRevocation = validateCapabilityRevocationRecord({
+      capabilityId: 'cap:A',
+      revokedAt: '2026-06-08T10:00:00.000Z',
+      revokedBy: 'actor:attacker',
+      reason: 'Malicious overwrite'
+    });
+    graph.addRevocation(unauthorizedRevocation);
+
+    // This will currently return TRUE (bypass!) if vulnerable
+    expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(false);
+  });
 });
