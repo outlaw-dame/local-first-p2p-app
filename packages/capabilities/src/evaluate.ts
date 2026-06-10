@@ -33,12 +33,13 @@ export type EvaluateCapabilityInvocationInput = Readonly<{
 
 export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocationInput): CapabilityDecision {
   const parsedNow = Date.parse(input.now);
-  const now = Number.isFinite(parsedNow) ? parsedNow : Number.NaN;
-  const decisionCreatedAt = Number.isFinite(now)
+  const isSafeDate = Number.isFinite(parsedNow) && parsedNow >= -8.64e15 && parsedNow <= 8.64e15;
+  const now = isSafeDate ? parsedNow : Number.NaN;
+  const decisionCreatedAt = isSafeDate
     ? new Date(now).toISOString()
     : '1970-01-01T00:00:00.000Z';
 
-  if (!Number.isFinite(now)) {
+  if (!isSafeDate) {
     return deny('unknown', undefined, ['capability.malformed'], decisionCreatedAt);
   }
 
