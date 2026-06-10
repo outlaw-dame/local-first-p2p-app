@@ -31,10 +31,11 @@ export type EvaluateCapabilityInvocationInput = Readonly<{
   authorityContext: CapabilityAuthorityContext;
 }>;
 
+const MIN_SAFE_DATE_MS = -8.64e15;
+const MAX_SAFE_DATE_MS = 8.64e15;
+
 export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocationInput): CapabilityDecision {
   const parsedNow = Date.parse(input.now);
-  const MIN_SAFE_DATE_MS = -8.64e15;
-  const MAX_SAFE_DATE_MS = 8.64e15;
   const isSafeDate = Number.isFinite(parsedNow) && parsedNow >= MIN_SAFE_DATE_MS && parsedNow <= MAX_SAFE_DATE_MS;
 
   if (!isSafeDate) {
