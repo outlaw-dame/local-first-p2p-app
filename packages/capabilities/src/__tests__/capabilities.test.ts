@@ -182,6 +182,24 @@ describe('@lfp2p/capabilities evaluation', () => {
     expect(decision.reasonCodes).toContain('capability.malformed');
     expect(decision.createdAt).toBe('1970-01-01T00:00:00.000Z');
   });
+
+  it('falls back to Unix epoch and denies when input.now is out of safe ECMAScript Date bounds', () => {
+    const originalParse = Date.parse;
+    Date.parse = () => 8.64e15 + 1000;
+    try {
+      const decision = evaluateCapabilityInvocation({
+        grant: baseGrant(),
+        invocation: baseInvocation(),
+        now: 'some-date',
+        authorityContext: 'moderation'
+      });
+      expect(decision.status).toBe('deny');
+      expect(decision.reasonCodes).toContain('capability.malformed');
+      expect(decision.createdAt).toBe('1970-01-01T00:00:00.000Z');
+    } finally {
+      Date.parse = originalParse;
+    }
+  });
 });
 
 describe('@lfp2p/capabilities projection', () => {
