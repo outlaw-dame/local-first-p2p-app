@@ -155,6 +155,21 @@ describe('@lfp2p/capabilities evaluation', () => {
     });
     expect(decision.reasonCodes).toContain('capability.unsatisfied-caveat');
   });
+
+  it('returns deterministic denied decisions for identical inputs', () => {
+    const input = {
+      grant: baseGrant({ expiresAt: PAST }),
+      invocation: baseInvocation(),
+      now: NOW,
+      authorityContext: 'moderation' as const
+    };
+    const first = evaluateCapabilityInvocation(input);
+    const second = evaluateCapabilityInvocation(input);
+    expect(first).toEqual(second);
+    expect(first.status).toBe('deny');
+    expect(first.reasonCodes).toContain('capability.expired');
+    expect(first.createdAt).toBe(NOW);
+  });
 });
 
 describe('@lfp2p/capabilities projection', () => {
