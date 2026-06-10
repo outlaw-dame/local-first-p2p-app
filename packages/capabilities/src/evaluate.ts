@@ -32,7 +32,16 @@ export type EvaluateCapabilityInvocationInput = Readonly<{
 }>;
 
 export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocationInput): CapabilityDecision {
-  const now = parseDecisionTime(input.now);
+  const parsedNow = Date.parse(input.now);
+  const now = Number.isFinite(parsedNow) ? parsedNow : Number.NaN;
+  const decisionCreatedAt = Number.isFinite(now)
+    ? new Date(now).toISOString()
+    : input.now;
+
+  if (!Number.isFinite(now)) {
+    return deny('unknown', undefined, ['capability.malformed'], decisionCreatedAt);
+  }
+
   let grant: CapabilityGrantV1;
   let invocation: CapabilityInvocationV1;
   let revocations: readonly CapabilityRevocationV1[];
@@ -42,7 +51,7 @@ export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocation
     invocation = validateCapabilityInvocation(input.invocation);
     revocations = Object.freeze((input.revocations ?? []).map((revocation) => validateCapabilityRevocation(revocation)));
   } catch {
-    return deny('unknown', undefined, ['capability.malformed']);
+    return deny('unknown', undefined, ['capability.malformed'], decisionCreatedAt);
   }
 
   const reasons: CapabilityReasonCode[] = [];
@@ -75,7 +84,7 @@ export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocation
     }
   }
 
-  if (reasons.length > 0) return deny(grant.capabilityId, invocation.invocationId, dedupeReasons(reasons));
+  if (reasons.length > 0) return deny(grant.capabilityId, invocation.invocationId, dedupeReasons(reasons), decisionCreatedAt);
 
   return Object.freeze({
     status: 'allow' as const,
@@ -144,22 +153,18 @@ function sameScope(left: CapabilityGrantV1['scope'], right: CapabilityInvocation
   return left.kind === right.kind && left.id === right.id;
 }
 
-function parseDecisionTime(value: string): number {
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : Date.now();
-}
-
 function deny(
   capabilityId: string,
   invocationId: string | undefined,
-  reasonCodes: readonly CapabilityReasonCode[]
+  reasonCodes: readonly CapabilityReasonCode[],
+  createdAt: string
 ): CapabilityDecision {
   return Object.freeze({
     status: 'deny',
     reasonCodes: Object.freeze([...reasonCodes]),
     capabilityId,
     ...(invocationId === undefined ? {} : { invocationId }),
-    createdAt: new Date().toISOString()
+    createdAt
   });
 }
 
