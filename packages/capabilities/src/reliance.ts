@@ -51,10 +51,7 @@ export function evaluateCapabilityReliance(input: CapabilityRelianceInput): Capa
     return input.capabilityDecision;
   }
 
-  return Object.freeze({
-    ...input.capabilityDecision,
-    createdAt: input.capabilityDecision.createdAt
-  });
+  return input.capabilityDecision;
 }
 
 export function isBearcapForbiddenAction(action: CapabilityAction): boolean {
