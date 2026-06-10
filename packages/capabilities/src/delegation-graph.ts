@@ -119,7 +119,9 @@ export function buildCapabilityProofGraph(
 
     const parents = grant.proofRefs.filter(proof => graph.grants.has(proof.proofId));
     if (parents.length === 0) {
-      paths.push(createPath(newGrants));
+      if (grant.proofRefs.length === 0) {
+        paths.push(createPath(newGrants));
+      }
       return;
     }
 
@@ -181,8 +183,20 @@ export function validateDelegationStep(parent: CapabilityGrantV1, child: Capabil
     return false;
   }
 
-  // delegationDepth never increases
-  if (child.delegationDepth > parent.delegationDepth) {
+  // validity start (notBefore) never moves earlier
+  if (parent.notBefore !== undefined) {
+    if (child.notBefore === undefined) {
+      return false;
+    }
+    const parentNotBefore = Date.parse(parent.notBefore);
+    const childNotBefore = Date.parse(child.notBefore);
+    if (isNaN(parentNotBefore) || isNaN(childNotBefore) || childNotBefore < parentNotBefore) {
+      return false;
+    }
+  }
+
+  // parent must have delegation depth > 0 to delegate, and child depth must be strictly less than parent depth
+  if (parent.delegationDepth <= 0 || child.delegationDepth >= parent.delegationDepth) {
     return false;
   }
 
@@ -229,7 +243,7 @@ export function isDelegationPathValid(
     }
 
     const revocation = graph.revocations.get(grant.capabilityId);
-    if (revocation !== undefined) {
+    if (revocation !== undefined && revocation.revokedBy === grant.issuer.id) {
       const revokedAt = Date.parse(revocation.revokedAt);
       if (!isNaN(revokedAt) && revokedAt <= parsedNow) {
         return false;

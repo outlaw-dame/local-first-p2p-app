@@ -190,14 +190,16 @@ describe('delegation graph runtime', () => {
     const grantA = mockGrant({
       capabilityId: 'cap:A',
       issuerId: 'actor:root',
-      audienceId: 'actor:A'
+      audienceId: 'actor:A',
+      delegationDepth: 2
     });
 
     const grantB = mockGrant({
       capabilityId: 'cap:B',
       issuerId: 'actor:A',
       audienceId: 'actor:B',
-      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }]
+      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }],
+      delegationDepth: 1
     });
 
     const graph = new CapabilityDelegationGraph([grantA, grantB]);
@@ -221,21 +223,24 @@ describe('delegation graph runtime', () => {
     const grantA = mockGrant({
       capabilityId: 'cap:A',
       issuerId: 'actor:root',
-      audienceId: 'actor:A'
+      audienceId: 'actor:A',
+      delegationDepth: 3
     });
 
     const grantB = mockGrant({
       capabilityId: 'cap:B',
       issuerId: 'actor:A',
       audienceId: 'actor:B',
-      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }]
+      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }],
+      delegationDepth: 2
     });
 
     const grantC = mockGrant({
       capabilityId: 'cap:C',
       issuerId: 'actor:B',
       audienceId: 'actor:C',
-      proofRefs: [{ proofId: 'cap:B', scheme: 'native-signed-event' }]
+      proofRefs: [{ proofId: 'cap:B', scheme: 'native-signed-event' }],
+      delegationDepth: 1
     });
 
     const graph = new CapabilityDelegationGraph([grantA, grantB, grantC]);
@@ -269,5 +274,120 @@ describe('delegation graph runtime', () => {
 
     // Invalid time fails evaluation
     expect(isCapabilityAuthorized(graph, 'cap:A', 'invalid-date-string')).toBe(false);
+  });
+
+  it('fails when parent delegationDepth is 0', () => {
+    const grantA = mockGrant({
+      capabilityId: 'cap:A',
+      issuerId: 'actor:root',
+      audienceId: 'actor:A',
+      delegationDepth: 0
+    });
+    const grantB = mockGrant({
+      capabilityId: 'cap:B',
+      issuerId: 'actor:A',
+      audienceId: 'actor:B',
+      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }],
+      delegationDepth: 0
+    });
+    const graph = new CapabilityDelegationGraph([grantA, grantB]);
+    expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
+  });
+
+  it('fails when child delegationDepth is equal to parent delegationDepth', () => {
+    const grantA = mockGrant({
+      capabilityId: 'cap:A',
+      issuerId: 'actor:root',
+      audienceId: 'actor:A',
+      delegationDepth: 2
+    });
+    const grantB = mockGrant({
+      capabilityId: 'cap:B',
+      issuerId: 'actor:A',
+      audienceId: 'actor:B',
+      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }],
+      delegationDepth: 2
+    });
+    const graph = new CapabilityDelegationGraph([grantA, grantB]);
+    expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
+  });
+
+  it('fails notBefore escalation: parent has notBefore but child does not', () => {
+    const grantA = {
+      ...mockGrant({
+        capabilityId: 'cap:A',
+        issuerId: 'actor:root',
+        audienceId: 'actor:A'
+      }),
+      notBefore: '2026-06-08T10:00:00.000Z'
+    };
+    const grantB = mockGrant({
+      capabilityId: 'cap:B',
+      issuerId: 'actor:A',
+      audienceId: 'actor:B',
+      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }]
+    });
+    // grantB has no notBefore (undefined)
+    const graph = new CapabilityDelegationGraph([grantA, grantB]);
+    expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
+  });
+
+  it('fails notBefore escalation: child has earlier notBefore than parent', () => {
+    const grantA = {
+      ...mockGrant({
+        capabilityId: 'cap:A',
+        issuerId: 'actor:root',
+        audienceId: 'actor:A'
+      }),
+      notBefore: '2026-06-08T10:00:00.000Z'
+    };
+    const grantB = {
+      ...mockGrant({
+        capabilityId: 'cap:B',
+        issuerId: 'actor:A',
+        audienceId: 'actor:B',
+        proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }]
+      }),
+      notBefore: '2026-06-08T09:00:00.000Z' // earlier notBefore
+    };
+    const graph = new CapabilityDelegationGraph([grantA, grantB]);
+    expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
+  });
+
+  it('ignores revocation record issued by unauthorized actor', () => {
+    const grantA = mockGrant({
+      capabilityId: 'cap:A',
+      issuerId: 'actor:root',
+      audienceId: 'actor:A'
+    });
+    const graph = new CapabilityDelegationGraph([grantA]);
+
+    // Authorized before revocation
+    expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(true);
+
+    const revocation = validateCapabilityRevocationRecord({
+      capabilityId: 'cap:A',
+      revokedAt: '2026-06-08T10:00:00.000Z',
+      revokedBy: 'actor:attacker', // not the issuer (actor:root)
+      reason: 'Malicious revocation attempt'
+    });
+    graph.addRevocation(revocation);
+
+    // Should still be authorized because attacker is not the issuer
+    expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(true);
+  });
+
+  it('fails authorization if path contains outstanding proofRefs that are not in the graph', () => {
+    const grantB = mockGrant({
+      capabilityId: 'cap:B',
+      issuerId: 'actor:A',
+      audienceId: 'actor:B',
+      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }] // A is not in graph
+    });
+
+    const graph = new CapabilityDelegationGraph([grantB]);
+
+    // B has outstanding proofRefs so it is not a root, and parent A is missing. Should fail.
+    expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
   });
 });
