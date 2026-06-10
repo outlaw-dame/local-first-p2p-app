@@ -264,11 +264,17 @@ describe('resolveActiveLabelerSet — determinism + integrity', () => {
     expect(result.warnings.length).toBe(2);
   });
 
-  it('throws on structurally invalid input (non-array userSubscriptions, bad registry)', () => {
+  it('throws on structurally invalid input (non-array userSubscriptions, bad registry, null values)', () => {
     // @ts-expect-error: testing runtime guard
     expect(() => resolveActiveLabelerSet({ userSubscriptions: 'nope' })).toThrow(TrustSafetyError);
     // @ts-expect-error: testing runtime guard
     expect(() => resolveActiveLabelerSet({ registry: { version: 'x' } })).toThrow(TrustSafetyError);
+    // @ts-expect-error: testing runtime guard
+    expect(() => resolveActiveLabelerSet({ registry: null })).toThrow(TrustSafetyError);
+    // @ts-expect-error: testing runtime guard
+    expect(() => resolveActiveLabelerSet({ userSubscriptions: null })).toThrow(TrustSafetyError);
+    // @ts-expect-error: testing runtime guard
+    expect(() => resolveActiveLabelerSet({ mutedLabelerIds: null })).toThrow(TrustSafetyError);
   });
 });
 

@@ -168,15 +168,15 @@ export function resolveActiveLabelerSet(
   if (input === null || typeof input !== 'object') {
     throw tsError('TS_INVALID_INPUT', 'ResolveActiveLabelerSetInput must be a plain object');
   }
-  const registry = input.registry ?? DEFAULT_LABELER_REGISTRY;
+  const registry = input.registry === undefined ? DEFAULT_LABELER_REGISTRY : input.registry;
   if (registry === null || typeof registry !== 'object' || !Array.isArray(registry.entries)) {
     throw tsError('TS_INVALID_INPUT', 'input.registry must carry an entries array');
   }
-  const userSubscriptions = input.userSubscriptions ?? [];
+  const userSubscriptions = input.userSubscriptions === undefined ? [] : input.userSubscriptions;
   if (!Array.isArray(userSubscriptions)) {
     throw tsError('TS_INVALID_INPUT', 'input.userSubscriptions must be an array');
   }
-  const mutedLabelerIds = input.mutedLabelerIds ?? new Set<string>();
+  const mutedLabelerIds = input.mutedLabelerIds === undefined ? new Set<string>() : input.mutedLabelerIds;
   if (!(mutedLabelerIds instanceof Set)) {
     throw tsError('TS_INVALID_INPUT', 'input.mutedLabelerIds must be a Set when supplied');
   }
