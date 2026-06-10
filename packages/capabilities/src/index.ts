@@ -6,4 +6,4 @@ export * from './evaluate.js';
 export * from './projection.js';
 export * from './reliance.js';
 export * from './bearcaps.js';
-
+export * from './delegation-graph.js';
