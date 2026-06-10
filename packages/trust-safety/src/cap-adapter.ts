@@ -9,10 +9,19 @@ export type TrustSafetyCapInput = Readonly<{
 }>;
 
 export function evaluateTrustSafetyCap(input: TrustSafetyCapInput): Caps.CapabilityDecision {
-  return Caps.evaluateCapabilityReliance({
-    capabilityDecision: input.capabilityDecision,
-    credentialEvidence: input.credentialEvidence,
+  const payload: Caps.CapabilityRelianceInput = {
     action: input.capabilityAction,
     now: input.now
+  };
+  if (input.capabilityDecision !== undefined) {
+    return Caps.evaluateCapabilityReliance({
+      ...payload,
+      capabilityDecision: input.capabilityDecision,
+      ...(input.credentialEvidence === undefined ? {} : { credentialEvidence: input.credentialEvidence })
+    });
+  }
+  return Caps.evaluateCapabilityReliance({
+    ...payload,
+    ...(input.credentialEvidence === undefined ? {} : { credentialEvidence: input.credentialEvidence })
   });
 }
