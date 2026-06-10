@@ -14,3 +14,4 @@ export * from './surface-integration.js';
 export * from './spam-gate.js';
 export * from './sybil-hardening.js';
 export * from './aggregator-runtime.js';
+export * from './labeler-registry.js';

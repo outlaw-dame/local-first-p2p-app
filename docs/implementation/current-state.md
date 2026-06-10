@@ -414,6 +414,14 @@ Phase 1.8.14 — reputation events as first-class protocol kinds + automatic syn
 - End-to-end pinned: labeler outbox → in-memory bridge → inbound HTTP pull → `processInboundSyncBatch` → trust-safety reputation log. Replay-deterministic boundary preserved (the user-side `loadReputationEvents()` returns shape-identical events).
 - 11 new protocol-layer tests + 11 new sync-client routing tests + 3 new bridge E2E tests = **25 new tests**.
 
+Phase 1.8.15 — default labeler registry (LOCAL-ONLY default):
+
+- New `packages/trust-safety/src/reputation-graph/labeler-registry.ts` ships `DEFAULT_LABELER_REGISTRY` whose `entries` array is **empty**: no external party is privileged out of the box. This is doctrine non-negotiable #1 (no global trust authority) made executable — a test pins `DEFAULT_LABELER_REGISTRY.entries.length === 0` so a future edit smuggling a mandatory external labeler into the shipped default fails CI.
+- The local personalized-EigenTrust computer remains the only day-one signal; it wins priority 0 structurally inside `computeAggregatedReputation` and is NEVER a registry entry.
+- `resolveActiveLabelerSet({ registry?, userSubscriptions?, mutedLabelerIds? })` composes a distributor registry + the user's explicit subscriptions + the user's mute list into the effective `AggregatorSubscription[]`. Structural guarantees: `__local__` can never become a subscription; priority 0 is reserved (rejected, not silently bumped); a muted `labelerId` is excluded even if a default lists it (opt-out wins); user intent overrides distributor default for the same id; deterministic + deep-frozen output per Phase 3.2 with an audit-friendly `'distributor' | 'user'` origin per Phase 3.1; malformed rows dropped with a warning, structurally-invalid input throws `TrustSafetyError`.
+- Rationale (documented in the doctrine): a curated default bundle would make its curator a de-facto trust authority every user inherits — trades away non-negotiable #1. A distributor fork that wants different defaults supplies its own registry as an explicit, auditable product decision rather than a hidden one.
+- 22 new adversarial tests including the `entries.length === 0` structural pin + end-to-end with `computeAggregatedReputation`. Exit report: `docs/implementation/phase-1.8.15-exit-report.md`.
+
 **Phase 1.8 is now fully complete — no remaining deferred items within the 1.8 track.** Envelope-wrapping for `account-local` reputation events depends on Phase 5.0 ADR-002 private payload envelope.
 
 Phase 1.8.3 — surface integration (admission band + curation downrank + spam gate):
