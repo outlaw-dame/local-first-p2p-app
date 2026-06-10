@@ -12,9 +12,9 @@ export type CredentialEvidenceRef = Readonly<{
 }>;
 
 export type CapabilityRelianceInput = Readonly<{
-  capabilityDecision?: CapabilityDecision;
-  capabilityProofs?: readonly CapabilityProofRef[];
-  credentialEvidence?: readonly CredentialEvidenceRef[];
+  capabilityDecision?: CapabilityDecision | undefined;
+  capabilityProofs?: readonly CapabilityProofRef[] | undefined;
+  credentialEvidence?: readonly CredentialEvidenceRef[] | undefined;
   action: CapabilityAction;
   now: string;
 }>;
@@ -45,10 +45,6 @@ export function evaluateCapabilityReliance(input: CapabilityRelianceInput): Capa
       ['capability.bearcap-forbidden-for-action'],
       createdAt
     );
-  }
-
-  if (input.capabilityDecision.status !== 'allow') {
-    return input.capabilityDecision;
   }
 
   return input.capabilityDecision;
