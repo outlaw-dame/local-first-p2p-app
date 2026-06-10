@@ -48,6 +48,9 @@ export {
 } from './refs.js';
 export type { ActorRef, CapabilityProofRef, CredentialRef, ReporterRef } from './refs.js';
 
+export { evaluateTrustSafetyCap } from './cap-adapter.js';
+export type { TrustSafetyCapInput } from './cap-adapter.js';
+
 export {
   CURATION_ACTIONS,
   LABEL_CATEGORIES,
