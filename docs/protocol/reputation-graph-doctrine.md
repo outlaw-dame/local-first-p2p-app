@@ -375,6 +375,50 @@ require explicit user opt-in to fetch (defaults configurable).
 | Fingerprint amplifier verified against Phase 2.3 contact-verification events |
 | Threat-model row from `threat-model.md` updated with each mitigation citing the test |
 
+## Default labeler registry (Phase 1.8.15)
+
+The non-negotiable made executable: **no external party is privileged
+out of the box.**
+
+`@lfp2p/trust-safety` ships `DEFAULT_LABELER_REGISTRY` — and its
+`entries` array is **empty**. A brand-new device consults ONLY its
+own local personalized-EigenTrust computer (Phase 1.8.2), which wins
+priority 0 structurally inside `computeAggregatedReputation`. There is
+no shipped seed-set, no mandatory aggregator, no global trust
+authority that every user inherits. A test
+(`reputation-graph-labeler-registry.test.ts`) pins
+`DEFAULT_LABELER_REGISTRY.entries.length === 0` so a future edit that
+smuggles a mandatory external labeler into the shipped default fails
+CI.
+
+What the registry *mechanism* provides is an explicit, opt-out-able
+way to add external labelers:
+
+- A **distributor** (e.g. a fork that wants to ship a curated bundle)
+  constructs its OWN `DefaultLabelerRegistry` and passes it to
+  `resolveActiveLabelerSet`. It does not mutate the shipped constant.
+- A **user** adds subscriptions explicitly; their entries override a
+  distributor default for the same `labelerId` (the user is sovereign
+  over their own stack).
+- `resolveActiveLabelerSet({ registry?, userSubscriptions?, mutedLabelerIds? })`
+  composes the three into the effective `AggregatorSubscription[]`
+  that feeds the Phase 1.8.4 runtime. Structural guarantees: the
+  `__local__` sentinel can never become a subscription; priority 0 is
+  reserved (entries claiming it are rejected, not silently bumped into
+  a live slot); a muted `labelerId` is excluded even if a default
+  lists it (opt-out always wins); output is deterministic + deep-frozen
+  per Phase 3.2; every active entry carries an audit-friendly
+  `'distributor' | 'user'` origin per Phase 3.1.
+
+Why local-only and not a curated default bundle: shipping N
+independent labelers pre-subscribed would give a brand-new user (with
+no contacts yet) immediate signal — but at the cost of making whoever
+curates that bundle a de-facto trust authority every user inherits
+until they mute it. That trades away non-negotiable #1. The chosen
+posture keeps the trust root strictly on-device; a distributor fork
+that wants different defaults can supply its own registry, openly, as
+an explicit product decision rather than a hidden one.
+
 ## Deferred work (post-Phase 1.8)
 
 - **Cross-device reputation state sharing** within one user's identity
