@@ -7,3 +7,4 @@ export * from './projection.js';
 export * from './reliance.js';
 export * from './bearcaps.js';
 export * from './delegation-graph.js';
+export * from './ucan-mapping.js';
