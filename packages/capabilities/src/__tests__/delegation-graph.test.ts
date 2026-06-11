@@ -33,7 +33,7 @@ function mockGrant(opts: {
     caveats: [],
     expiresAt: opts.expiresAt ?? '2026-06-09T00:00:00.000Z',
     delegationDepth: opts.delegationDepth ?? 2,
-    nonce: Math.random().toString(),
+    nonce: `nonce:${opts.capabilityId}`,
     proofRefs: opts.proofRefs ?? [],
     createdAt: '2026-06-08T00:00:00.000Z'
   };
@@ -73,9 +73,10 @@ describe('delegation graph runtime', () => {
 
     const paths = buildCapabilityProofGraph(graph, 'cap:C');
     expect(paths).toHaveLength(1);
-    expect(paths[0].grants.map(g => g.capabilityId)).toEqual(['cap:A', 'cap:B', 'cap:C']);
+    expect(paths[0]?.grants.map(g => g.capabilityId)).toEqual(['cap:A', 'cap:B', 'cap:C']);
 
-    expect(isDelegationPathValid(graph, paths[0], NOW)).toBe(true);
+    expect(paths[0]).toBeDefined();
+    expect(isDelegationPathValid(graph, paths[0]!, NOW)).toBe(true);
     expect(isCapabilityAuthorized(graph, 'cap:C', NOW)).toBe(true);
   });
 
@@ -132,7 +133,7 @@ describe('delegation graph runtime', () => {
       issuerId: 'actor:A',
       audienceId: 'actor:B',
       proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }],
-      expiresAt: '2026-06-10T00:00:00.000Z' // expires later
+      expiresAt: '2026-06-10T00:00:00.000Z'
     });
 
     const graph = new CapabilityDelegationGraph([grantA, grantB]);
@@ -152,7 +153,7 @@ describe('delegation graph runtime', () => {
       issuerId: 'actor:A',
       audienceId: 'actor:B',
       proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }],
-      delegationDepth: 2 // depth increased
+      delegationDepth: 2
     });
 
     const graph = new CapabilityDelegationGraph([grantA, grantB]);
@@ -204,7 +205,6 @@ describe('delegation graph runtime', () => {
 
     const graph = new CapabilityDelegationGraph([grantA, grantB]);
 
-    // Authorized before revocation
     expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(true);
 
     const revocation = validateCapabilityRevocationRecord({
@@ -215,7 +215,6 @@ describe('delegation graph runtime', () => {
     });
     graph.addRevocation(revocation);
 
-    // Invalidated after revocation
     expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
   });
 
@@ -257,7 +256,6 @@ describe('delegation graph runtime', () => {
     });
     graph.addRevocation(revocationB);
 
-    // A remains valid, but B and C are invalidated
     expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(true);
     expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
     expect(isCapabilityAuthorized(graph, 'cap:C', NOW)).toBe(false);
@@ -272,7 +270,6 @@ describe('delegation graph runtime', () => {
     });
     const graph = new CapabilityDelegationGraph([grant]);
 
-    // Invalid time fails evaluation
     expect(isCapabilityAuthorized(graph, 'cap:A', 'invalid-date-string')).toBe(false);
   });
 
@@ -327,7 +324,6 @@ describe('delegation graph runtime', () => {
       audienceId: 'actor:B',
       proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }]
     });
-    // grantB has no notBefore (undefined)
     const graph = new CapabilityDelegationGraph([grantA, grantB]);
     expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
   });
@@ -348,7 +344,7 @@ describe('delegation graph runtime', () => {
         audienceId: 'actor:B',
         proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }]
       }),
-      notBefore: '2026-06-08T09:00:00.000Z' // earlier notBefore
+      notBefore: '2026-06-08T09:00:00.000Z'
     };
     const graph = new CapabilityDelegationGraph([grantA, grantB]);
     expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
@@ -362,18 +358,16 @@ describe('delegation graph runtime', () => {
     });
     const graph = new CapabilityDelegationGraph([grantA]);
 
-    // Authorized before revocation
     expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(true);
 
     const revocation = validateCapabilityRevocationRecord({
       capabilityId: 'cap:A',
       revokedAt: '2026-06-08T10:00:00.000Z',
-      revokedBy: 'actor:attacker', // not the issuer (actor:root)
+      revokedBy: 'actor:attacker',
       reason: 'Malicious revocation attempt'
     });
     graph.addRevocation(revocation);
 
-    // Should still be authorized because attacker is not the issuer
     expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(true);
   });
 
@@ -382,12 +376,11 @@ describe('delegation graph runtime', () => {
       capabilityId: 'cap:B',
       issuerId: 'actor:A',
       audienceId: 'actor:B',
-      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }] // A is not in graph
+      proofRefs: [{ proofId: 'cap:A', scheme: 'native-signed-event' }]
     });
 
     const graph = new CapabilityDelegationGraph([grantB]);
 
-    // B has outstanding proofRefs so it is not a root, and parent A is missing. Should fail.
     expect(isCapabilityAuthorized(graph, 'cap:B', NOW)).toBe(false);
   });
 
@@ -399,7 +392,6 @@ describe('delegation graph runtime', () => {
     });
     const graph = new CapabilityDelegationGraph([grantA]);
 
-    // 1. Add authorized revocation
     const authorizedRevocation = validateCapabilityRevocationRecord({
       capabilityId: 'cap:A',
       revokedAt: '2026-06-08T10:00:00.000Z',
@@ -407,9 +399,8 @@ describe('delegation graph runtime', () => {
       reason: 'Key compromised'
     });
     graph.addRevocation(authorizedRevocation);
-    expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(false); // Correctly revoked
+    expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(false);
 
-    // 2. Add unauthorized revocation (attacker attempt to overwrite)
     const unauthorizedRevocation = validateCapabilityRevocationRecord({
       capabilityId: 'cap:A',
       revokedAt: '2026-06-08T10:00:00.000Z',
@@ -418,7 +409,6 @@ describe('delegation graph runtime', () => {
     });
     graph.addRevocation(unauthorizedRevocation);
 
-    // This will currently return TRUE (bypass!) if vulnerable
     expect(isCapabilityAuthorized(graph, 'cap:A', NOW)).toBe(false);
   });
 });
