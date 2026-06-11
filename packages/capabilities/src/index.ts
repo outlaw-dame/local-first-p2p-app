@@ -8,3 +8,7 @@ export * from './reliance.js';
 export * from './bearcaps.js';
 export * from './delegation-graph.js';
 export * from './ucan-mapping.js';
+export * from './proof-registry.js';
+export * from './trust-registry.js';
+export * from './vc-authority-binding.js';
+export * from './authority-profiles.js';
