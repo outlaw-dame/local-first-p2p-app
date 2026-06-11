@@ -2,6 +2,9 @@ import { capabilityError } from './errors.js';
 import type {
   CapabilityGrantV1
 } from './types.js';
+import {
+  validateCapabilityGrant
+} from './validation.js';
 
 export type CapabilityDelegationEdge = Readonly<{
   from: string;
@@ -44,7 +47,7 @@ export class CapabilityDelegationGraph {
     revocations: readonly CapabilityRevocationRecord[] = []
   ) {
     for (const grant of grants) {
-      this.grants.set(grant.capabilityId, grant);
+      this.addGrant(grant);
     }
     for (const revocation of revocations) {
       this.addRevocation(revocation);
@@ -52,12 +55,14 @@ export class CapabilityDelegationGraph {
   }
 
   public addGrant(grant: CapabilityGrantV1): void {
-    this.grants.set(grant.capabilityId, grant);
+    const validated = validateCapabilityGrant(grant);
+    this.grants.set(validated.capabilityId, validated);
   }
 
   public addRevocation(revocation: CapabilityRevocationRecord): void {
-    const list = this.revocations.get(revocation.capabilityId) ?? [];
-    this.revocations.set(revocation.capabilityId, [...list, revocation]);
+    const validated = validateCapabilityRevocationRecord(revocation);
+    const list = this.revocations.get(validated.capabilityId) ?? [];
+    this.revocations.set(validated.capabilityId, Object.freeze([...list, validated]));
   }
 }
 
@@ -147,57 +152,53 @@ function createPath(grants: CapabilityGrantV1[]): CapabilityDelegationPath {
       });
     }
   }
-  return {
-    edges,
-    grants
-  };
+  return Object.freeze({
+    edges: Object.freeze(edges),
+    grants: Object.freeze(grants)
+  });
 }
 
 export function validateDelegationStep(parent: CapabilityGrantV1, child: CapabilityGrantV1): boolean {
-  // child issuer must match parent audience
-  if (child.issuer.kind !== parent.audience.kind || child.issuer.id !== parent.audience.id) {
+  const validParent = validateCapabilityGrant(parent);
+  const validChild = validateCapabilityGrant(child);
+
+  if (validChild.issuer.kind !== validParent.audience.kind || validChild.issuer.id !== validParent.audience.id) {
     return false;
   }
 
-  // child resource must match parent resource
-  if (child.resource.kind !== parent.resource.kind || child.resource.id !== parent.resource.id) {
+  if (validChild.resource.kind !== validParent.resource.kind || validChild.resource.id !== validParent.resource.id) {
     return false;
   }
 
-  // action subset never expands
-  const parentActions = new Set(parent.actions);
-  for (const action of child.actions) {
+  const parentActions = new Set(validParent.actions);
+  for (const action of validChild.actions) {
     if (!parentActions.has(action)) {
       return false;
     }
   }
 
-  // scope never expands (identical scope kind and ID)
-  if (child.scope.kind !== parent.scope.kind || child.scope.id !== parent.scope.id) {
+  if (validChild.scope.kind !== validParent.scope.kind || validChild.scope.id !== validParent.scope.id) {
     return false;
   }
 
-  // expiry never extends
-  const parentExpiry = Date.parse(parent.expiresAt);
-  const childExpiry = Date.parse(child.expiresAt);
-  if (isNaN(parentExpiry) || isNaN(childExpiry) || childExpiry > parentExpiry) {
+  const parentExpiry = Date.parse(validParent.expiresAt);
+  const childExpiry = Date.parse(validChild.expiresAt);
+  if (!Number.isFinite(parentExpiry) || !Number.isFinite(childExpiry) || childExpiry > parentExpiry) {
     return false;
   }
 
-  // validity start (notBefore) never moves earlier
-  if (parent.notBefore !== undefined) {
-    if (child.notBefore === undefined) {
+  if (validParent.notBefore !== undefined) {
+    if (validChild.notBefore === undefined) {
       return false;
     }
-    const parentNotBefore = Date.parse(parent.notBefore);
-    const childNotBefore = Date.parse(child.notBefore);
-    if (isNaN(parentNotBefore) || isNaN(childNotBefore) || childNotBefore < parentNotBefore) {
+    const parentNotBefore = Date.parse(validParent.notBefore);
+    const childNotBefore = Date.parse(validChild.notBefore);
+    if (!Number.isFinite(parentNotBefore) || !Number.isFinite(childNotBefore) || childNotBefore < parentNotBefore) {
       return false;
     }
   }
 
-  // parent must have delegation depth > 0 to delegate, and child depth must be strictly less than parent depth
-  if (parent.delegationDepth <= 0 || child.delegationDepth >= parent.delegationDepth) {
+  if (validParent.delegationDepth <= 0 || validChild.delegationDepth >= validParent.delegationDepth) {
     return false;
   }
 
@@ -232,13 +233,13 @@ export function isDelegationPathValid(
 
   for (const grant of path.grants) {
     const expiresAt = Date.parse(grant.expiresAt);
-    if (isNaN(expiresAt) || expiresAt <= parsedNow) {
+    if (!Number.isFinite(expiresAt) || expiresAt <= parsedNow) {
       return false;
     }
 
     if (grant.notBefore !== undefined) {
       const notBefore = Date.parse(grant.notBefore);
-      if (isNaN(notBefore) || notBefore > parsedNow) {
+      if (!Number.isFinite(notBefore) || notBefore > parsedNow) {
         return false;
       }
     }
@@ -247,7 +248,7 @@ export function isDelegationPathValid(
     for (const revocation of revocations) {
       if (revocation.revokedBy === grant.issuer.id) {
         const revokedAt = Date.parse(revocation.revokedAt);
-        if (!isNaN(revokedAt) && revokedAt <= parsedNow) {
+        if (Number.isFinite(revokedAt) && revokedAt <= parsedNow) {
           return false;
         }
       }
