@@ -236,7 +236,7 @@ function validateJsonValue(value: unknown, label: string): CapabilityJsonValue {
   return deepFreeze(out);
 }
 
-function assertPlainObject(value: unknown, label: string): Record<string, unknown> {
+export function assertPlainObject(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw capabilityError('CAP_INVALID_INPUT', `${label} must be a plain object`);
   }
@@ -257,7 +257,7 @@ function assertVersion<const T extends string>(value: unknown, expected: T, labe
   return expected;
 }
 
-function assertId(value: unknown, label: string): string {
+export function assertId(value: unknown, label: string): string {
   return assertBoundedText(value, label, MAX_ID_LENGTH, 'CAP_INVALID_ID');
 }
 
@@ -271,18 +271,18 @@ function assertBoundedText(value: unknown, label: string, max: number, code: 'CA
   return trimmed;
 }
 
-function assertTimestamp(value: unknown, label: string): string {
+export function assertTimestamp(value: unknown, label: string): string {
   const text = assertBoundedText(value, label, MAX_REF_LENGTH, 'CAP_INVALID_ID');
   if (!Number.isFinite(Date.parse(text))) throw capabilityError('CAP_INVALID_TIMESTAMP', `${label} must be a valid timestamp`);
   return text;
 }
 
-function optionalTimestamp(value: unknown, label: string): string | undefined {
+export function optionalTimestamp(value: unknown, label: string): string | undefined {
   if (value === undefined) return undefined;
   return assertTimestamp(value, label);
 }
 
-function assertDigest(value: unknown, label: string): string {
+export function assertDigest(value: unknown, label: string): string {
   const text = assertBoundedText(value, label, MAX_REF_LENGTH, 'CAP_INVALID_ID');
   if (!DIGEST_RE.test(text)) throw capabilityError('CAP_INVALID_DIGEST', `${label} must be a supported digest ref`);
   return text;
@@ -295,14 +295,14 @@ function assertSafeNonNegativeInteger(value: unknown, label: string): number {
   return value as number;
 }
 
-function assertOneOf<const T extends readonly string[]>(value: unknown, allowed: T, label: string, code: 'CAP_INVALID_ENUM' | 'CAP_INVALID_ACTION' | 'CAP_INVALID_PARTY' | 'CAP_INVALID_RESOURCE' | 'CAP_INVALID_SCOPE' | 'CAP_INVALID_CAVEAT' | 'CAP_INVALID_PROOF'): T[number] {
+export function assertOneOf<const T extends readonly string[]>(value: unknown, allowed: T, label: string, code: 'CAP_INVALID_ENUM' | 'CAP_INVALID_ACTION' | 'CAP_INVALID_PARTY' | 'CAP_INVALID_RESOURCE' | 'CAP_INVALID_SCOPE' | 'CAP_INVALID_CAVEAT' | 'CAP_INVALID_PROOF'): T[number] {
   if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) {
     throw capabilityError(code, `${label} is not supported`);
   }
   return value as T[number];
 }
 
-function deepFreeze<T>(value: T): T {
+export function deepFreeze<T>(value: T): T {
   if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
   for (const item of Object.values(value as Record<string, unknown>)) deepFreeze(item);
   return Object.freeze(value);

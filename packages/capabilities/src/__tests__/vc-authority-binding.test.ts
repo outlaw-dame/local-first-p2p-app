@@ -35,7 +35,13 @@ describe('vc authority binding', () => {
   });
 
   it('fails closed for expired bindings and invalid evaluator time', () => {
-    const expired = validateVcAuthorityBinding(binding({ expiresAt: NOW }));
+    // Bind a credential issued before NOW that expires AT NOW — the
+    // construction-time guard requires `expiresAt > issuedAt`, so we
+    // backdate `issuedAt`. Evaluating `isVcBindingEligibleForAction`
+    // AT NOW must report not-eligible (the binding has just expired).
+    const expired = validateVcAuthorityBinding(
+      binding({ issuedAt: '2026-06-08T11:00:00.000Z', expiresAt: NOW })
+    );
     expect(isVcBindingEligibleForAction(expired, 'community.member.remove', NOW)).toBe(false);
     expect(isVcBindingEligibleForAction(expired, 'community.member.remove', 'bad-time')).toBe(false);
   });
