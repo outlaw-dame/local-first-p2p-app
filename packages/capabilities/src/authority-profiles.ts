@@ -23,30 +23,30 @@ export const AUTHORITY_DELEGATION_PROFILES: readonly AuthorityDelegationProfile[
   Object.freeze({
     profileId: 'relay',
     authorityKind: 'relay',
-    allowedActions: Object.freeze(['relay.forward-envelope', 'relay.cache-object']),
+    allowedActions: Object.freeze<readonly CapabilityAction[]>(['relay.forward-envelope', 'relay.cache-object']),
     maxDelegationDepth: 0,
-    mayDelegateTo: Object.freeze([])
+    mayDelegateTo: Object.freeze<readonly CapabilityPartyKind[]>([])
   }),
   Object.freeze({
     profileId: 'bridge',
     authorityKind: 'bridge',
-    allowedActions: Object.freeze(['bridge.store-bundle', 'bridge.forward-envelope', 'bridge.publish-admission-decision']),
+    allowedActions: Object.freeze<readonly CapabilityAction[]>(['bridge.store-bundle', 'bridge.forward-envelope', 'bridge.publish-admission-decision']),
     maxDelegationDepth: 0,
-    mayDelegateTo: Object.freeze(['relay'])
+    mayDelegateTo: Object.freeze<readonly CapabilityPartyKind[]>(['relay'])
   }),
   Object.freeze({
     profileId: 'super-peer',
     authorityKind: 'super-peer',
-    allowedActions: Object.freeze(['super-peer.store-bundle', 'relay.forward-envelope', 'relay.cache-object']),
+    allowedActions: Object.freeze<readonly CapabilityAction[]>(['super-peer.store-bundle', 'relay.forward-envelope', 'relay.cache-object']),
     maxDelegationDepth: 1,
-    mayDelegateTo: Object.freeze(['relay'])
+    mayDelegateTo: Object.freeze<readonly CapabilityPartyKind[]>(['relay'])
   }),
   Object.freeze({
     profileId: 'community-moderator',
     authorityKind: 'actor',
-    allowedActions: Object.freeze(['community.member.approve', 'community.member.remove', 'label.issue', 'label.revoke', 'report.resolve', 'appeal.resolve', 'room.moderate']),
+    allowedActions: Object.freeze<readonly CapabilityAction[]>(['community.member.approve', 'community.member.remove', 'label.issue', 'label.revoke', 'report.resolve', 'appeal.resolve', 'room.moderate']),
     maxDelegationDepth: 0,
-    mayDelegateTo: Object.freeze([])
+    mayDelegateTo: Object.freeze<readonly CapabilityPartyKind[]>([])
   })
 ]);
 

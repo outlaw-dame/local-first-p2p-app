@@ -1,7 +1,82 @@
+/**
+ * Proof Registry — canonical provenance + verification-state store for
+ * capability proofs.
+ *
+ * Today a `CapabilityProofRef` is just `{ proofId, scheme }` — a
+ * dangling pointer. The grant says "there is a UCAN proof with id X"
+ * but nothing records who issued it, when it expires, its content
+ * digest, or whether it actually verifies. That is why
+ * `reliance.ts` treats `capability.unverified-proof` as a blanket
+ * deny: there is nothing to verify against.
+ *
+ * This module adds the missing record:
+ *
+ *   - `CapabilityProofRecord` — issuer / subject / issuedAt /
+ *     expiresAt / revokedAt / digest / verificationState.
+ *   - A pure, immutable `ProofRegistry` with `registerProof`,
+ *     `getProof`, `verifyProof`, `revokeProof`.
+ *
+ * Design constraints (match the rest of `@lfp2p/capabilities`):
+ *
+ *   1. **Zero dependencies.** The package depends on nothing, so this
+ *      module performs NO cryptography itself. `verifyProof` takes an
+ *      INJECTED `CapabilityProofVerifier` — the caller (who holds
+ *      `@lfp2p/crypto`) supplies the actual ed25519 / signature-chain
+ *      check. A verifier that cannot speak to a scheme returns
+ *      `undefined`, which resolves to `unverified` — an honest "we
+ *      have not verified this", never a false `verified`.
+ *
+ *   2. **Honest verification scope.** Only schemes a supplied
+ *      verifier can assess become `verified` / `invalid`. UCAN, VC,
+ *      zcap-ld, bearcap, and manual-local-policy proofs stay
+ *      `unverified` until a dedicated verifier exists — the registry
+ *      never pretends to have validated a credential format it cannot
+ *      check.
+ *
+ *   3. **Deterministic, crypto-independent gates win first.** A
+ *      revoked proof is `revoked` and an expired proof is `expired`
+ *      regardless of cryptographic validity — those are stronger,
+ *      cheaper, fail-closed signals. Verification only runs when the
+ *      proof is neither revoked nor expired.
+ *
+ *   4. **Pure + frozen** per the Phase 3.2 replay/frozen-walk
+ *      discipline. Every operation returns a NEW frozen registry +
+ *      record; nothing mutates in place. Replaying the same
+ *      operations on a second device yields byte-identical state.
+ */
 import { capabilityError } from './errors.js';
-import type { CapabilityPartyRef, CapabilityProofScheme } from './types.js';
-import { validatePartyRef } from './validation.js';
+import {
+  CAPABILITY_PROOF_SCHEMES,
+  type CapabilityPartyRef,
+  type CapabilityProofRef,
+  type CapabilityProofScheme
+} from './types.js';
+import {
+  assertDigest,
+  assertId,
+  assertOneOf,
+  assertPlainObject,
+  assertTimestamp,
+  deepFreeze,
+  optionalTimestamp,
+  validatePartyRef
+} from './validation.js';
 
+export const CAPABILITY_PROOF_REGISTRY_VERSION = 'lfp2p.capability.proof-registry.v1' as const;
+export type CapabilityProofRegistryVersion = typeof CAPABILITY_PROOF_REGISTRY_VERSION;
+
+/**
+ * The five verification states.
+ *
+ *   - `unverified` — recorded, but not yet cryptographically checked
+ *     (or no verifier exists for the scheme). The honest default.
+ *   - `verified`   — an injected verifier confirmed the proof's
+ *     cryptographic validity AND it is neither expired nor revoked.
+ *   - `expired`    — `now >= expiresAt`. Time invalidated it.
+ *   - `revoked`    — explicitly revoked (carries `revokedAt`).
+ *   - `invalid`    — an injected verifier rejected it (bad signature,
+ *     broken chain, subject mismatch, …).
+ */
 export const CAPABILITY_PROOF_VERIFICATION_STATES = [
   'unverified',
   'verified',
@@ -9,203 +84,350 @@ export const CAPABILITY_PROOF_VERIFICATION_STATES = [
   'revoked',
   'invalid'
 ] as const;
+export type CapabilityProofVerificationState =
+  (typeof CAPABILITY_PROOF_VERIFICATION_STATES)[number];
 
-export type CapabilityProofVerificationState = (typeof CAPABILITY_PROOF_VERIFICATION_STATES)[number];
+/**
+ * Severity order, most → least severe (least → most trustworthy).
+ * Used by `summarizeProofStates` to fold many proof states into the
+ * single worst (least trustworthy) state, so a capability backed by
+ * one revoked proof is treated as revoked even if its other proofs
+ * verify. Fail-closed by construction.
+ */
+const VERIFICATION_SEVERITY: readonly CapabilityProofVerificationState[] = [
+  'revoked',
+  'invalid',
+  'expired',
+  'unverified',
+  'verified'
+];
 
 export type CapabilityProofRecord = Readonly<{
+  proofId: string;
+  scheme: CapabilityProofScheme;
+  /** The party that issued the underlying proof. */
+  issuer: CapabilityPartyRef;
+  /** The party the proof is about / vouches for. */
+  subject: CapabilityPartyRef;
+  issuedAt: string;
+  expiresAt: string;
+  /** Present iff the proof has been revoked. */
+  revokedAt?: string;
+  /** Content digest of the underlying proof bytes (`sha-256:…`). */
+  digest: string;
+  verificationState: CapabilityProofVerificationState;
+}>;
+
+export type RegisterProofInput = Readonly<{
   proofId: string;
   scheme: CapabilityProofScheme;
   issuer: CapabilityPartyRef;
   subject: CapabilityPartyRef;
   issuedAt: string;
-  expiresAt?: string;
+  expiresAt: string;
   revokedAt?: string;
   digest: string;
-  verificationState: CapabilityProofVerificationState;
 }>;
 
-export type CapabilityProofRegistry = Readonly<{
-  proofs: Readonly<Record<string, CapabilityProofRecord>>;
+/**
+ * The cryptographic verdict an injected verifier may return. It
+ * speaks ONLY to cryptographic validity — expiry and revocation are
+ * handled deterministically by the registry, not the verifier.
+ * Returning `undefined` (or omitting the verifier) means "this
+ * verifier cannot assess this scheme" → resolves to `unverified`.
+ */
+export type CapabilityProofCryptoVerdict = 'verified' | 'invalid';
+export type CapabilityProofVerifier = (
+  record: CapabilityProofRecord
+) => CapabilityProofCryptoVerdict | undefined;
+
+export type VerifyProofOptions = Readonly<{
+  now: string;
+  verifier?: CapabilityProofVerifier;
 }>;
 
-const DIGEST_RE = /^(sha-256|sha-512|blake3):[A-Za-z0-9_-]{8,512}$/u;
-const PROOF_SCHEMES: readonly CapabilityProofScheme[] = [
-  'native-signed-event',
-  'identity-control-log',
-  'ucan',
-  'zcap-ld',
-  'vc',
-  'bearcap',
-  'manual-local-policy'
-];
+export type ProofRegistry = Readonly<{
+  version: CapabilityProofRegistryVersion;
+  proofs: ReadonlyMap<string, CapabilityProofRecord>;
+}>;
 
-export function createEmptyProofRegistry(): CapabilityProofRegistry {
-  return Object.freeze({ proofs: Object.freeze({}) });
+export type ProofRegistryResult = Readonly<{
+  registry: ProofRegistry;
+  record: CapabilityProofRecord;
+}>;
+
+/* -------------------------------------------------------------------------- */
+/*                                 factory                                    */
+/* -------------------------------------------------------------------------- */
+
+export function createProofRegistry(): ProofRegistry {
+  return Object.freeze({
+    version: CAPABILITY_PROOF_REGISTRY_VERSION,
+    proofs: freezeMap(new Map())
+  });
 }
 
-export function validateCapabilityProofRecord(value: unknown): CapabilityProofRecord {
-  const record = assertPlainObject(value, 'CapabilityProofRecord');
-  const proofId = assertId(record.proofId, 'CapabilityProofRecord.proofId');
-  const scheme = assertScheme(record.scheme);
-  const issuer = validatePartyRef(record.issuer, 'CapabilityProofRecord.issuer');
-  const subject = validatePartyRef(record.subject, 'CapabilityProofRecord.subject');
-  const issuedAt = assertTimestamp(record.issuedAt, 'CapabilityProofRecord.issuedAt');
-  const expiresAt = record.expiresAt === undefined ? undefined : assertTimestamp(record.expiresAt, 'CapabilityProofRecord.expiresAt');
-  if (expiresAt !== undefined && Date.parse(expiresAt) <= Date.parse(issuedAt)) {
-    throw capabilityError('CAP_INVALID_TIMESTAMP', 'CapabilityProofRecord.expiresAt must be after issuedAt');
-  }
-  const revokedAt = record.revokedAt === undefined ? undefined : assertTimestamp(record.revokedAt, 'CapabilityProofRecord.revokedAt');
-  const digest = assertDigest(record.digest, 'CapabilityProofRecord.digest');
-  const verificationState = assertVerificationState(record.verificationState);
+/* -------------------------------------------------------------------------- */
+/*                              registerProof                                 */
+/* -------------------------------------------------------------------------- */
 
-  return Object.freeze({
+/**
+ * Record a new proof. Proofs are immutable once registered — a
+ * duplicate `proofId` throws (use `verifyProof` / `revokeProof` to
+ * advance state). The initial state is `revoked` when `revokedAt` is
+ * supplied, otherwise `unverified` (the honest default — registration
+ * does not imply verification).
+ */
+export function registerProof(registry: ProofRegistry, input: unknown): ProofRegistryResult {
+  assertRegistry(registry);
+  const record = validateRegisterProofInput(input);
+  if (registry.proofs.has(record.proofId)) {
+    throw capabilityError('CAP_DUPLICATE_VALUE', `proofId ${record.proofId} is already registered`);
+  }
+  const next = new Map(registry.proofs);
+  next.set(record.proofId, record);
+  return freezeResult(registry.version, next, record);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                getProof                                    */
+/* -------------------------------------------------------------------------- */
+
+export function getProof(
+  registry: ProofRegistry,
+  proofId: string
+): CapabilityProofRecord | undefined {
+  assertRegistry(registry);
+  return registry.proofs.get(assertId(proofId, 'proofId'));
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               verifyProof                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Compute and persist the live verification state of a proof.
+ *
+ * Precedence (fail-closed; deterministic gates before cryptography):
+ *   1. `revokedAt` present              → `revoked`
+ *   2. `now >= expiresAt`               → `expired`
+ *   3. injected verifier says `invalid` → `invalid`
+ *   4. injected verifier says `verified`→ `verified`
+ *   5. no verifier / verifier abstains  → `unverified`
+ *
+ * Returns a new registry with the proof's `verificationState`
+ * updated. Pure: the input registry is untouched.
+ */
+export function verifyProof(
+  registry: ProofRegistry,
+  proofId: string,
+  options: VerifyProofOptions
+): ProofRegistryResult {
+  assertRegistry(registry);
+  const id = assertId(proofId, 'proofId');
+  const existing = registry.proofs.get(id);
+  if (existing === undefined) {
+    throw capabilityError('CAP_INVALID_INPUT', `unknown proofId ${id}`);
+  }
+  if (options === null || typeof options !== 'object') {
+    throw capabilityError('CAP_INVALID_INPUT', 'verifyProof options must be an object');
+  }
+  const now = assertTimestamp(options.now, 'verifyProof.now');
+  if (options.verifier !== undefined && typeof options.verifier !== 'function') {
+    throw capabilityError('CAP_INVALID_INPUT', 'verifyProof.verifier must be a function');
+  }
+
+  const state = computeVerificationState(existing, now, options.verifier);
+  if (state === existing.verificationState) {
+    // No-op transition. Return the ORIGINAL registry reference (not
+    // a fresh allocation) so callers can detect "nothing changed"
+    // via reference equality and skip downstream work cheaply.
+    return Object.freeze({ registry, record: existing });
+  }
+  const updated = deepFreeze({ ...existing, verificationState: state });
+  const next = new Map(registry.proofs);
+  next.set(id, updated);
+  return freezeResult(registry.version, next, updated);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               revokeProof                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Revoke a proof. Monotonic: revoking an already-revoked proof keeps
+ * the original `revokedAt` (the first revocation wins) and is a
+ * no-op. Sets `verificationState` to `revoked`.
+ */
+export function revokeProof(
+  registry: ProofRegistry,
+  proofId: string,
+  options: Readonly<{ revokedAt: string }>
+): ProofRegistryResult {
+  assertRegistry(registry);
+  const id = assertId(proofId, 'proofId');
+  const existing = registry.proofs.get(id);
+  if (existing === undefined) {
+    throw capabilityError('CAP_INVALID_INPUT', `unknown proofId ${id}`);
+  }
+  if (options === null || typeof options !== 'object') {
+    throw capabilityError('CAP_INVALID_INPUT', 'revokeProof options must be an object');
+  }
+  const revokedAt = assertTimestamp(options.revokedAt, 'revokeProof.revokedAt');
+
+  if (existing.revokedAt !== undefined) {
+    // Already revoked — monotonic no-op. Return the ORIGINAL
+    // registry reference so callers can detect "nothing changed"
+    // via reference equality.
+    return Object.freeze({ registry, record: existing });
+  }
+  const updated = deepFreeze({ ...existing, revokedAt, verificationState: 'revoked' as const });
+  const next = new Map(registry.proofs);
+  next.set(id, updated);
+  return freezeResult(registry.version, next, updated);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                       aggregate over a set of proofs                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Fold the registry's view of a capability's `proofRefs` into a
+ * single worst-case (least trustworthy) state, so a downstream
+ * authority decision can gate on one value.
+ *
+ *   - An empty ref list → `unverified` (no proof backs the claim).
+ *   - A ref pointing at a proof not in the registry → `unverified`
+ *     (we hold no provenance for it; fail closed).
+ *   - Otherwise the most-severe state across all referenced proofs
+ *     (revoked > invalid > expired > unverified > verified).
+ *
+ * This is the value `reliance.ts` consults to turn its blanket
+ * `unverified-proof` deny into a real verification outcome.
+ */
+export function summarizeProofStates(
+  registry: ProofRegistry,
+  refs: readonly CapabilityProofRef[]
+): CapabilityProofVerificationState {
+  assertRegistry(registry);
+  if (!Array.isArray(refs)) {
+    throw capabilityError('CAP_INVALID_PROOF', 'refs must be an array');
+  }
+  if (refs.length === 0) return 'unverified';
+  let worstIndex = VERIFICATION_SEVERITY.indexOf('verified'); // start at most trustworthy
+  for (const ref of refs) {
+    if (ref === null || typeof ref !== 'object') {
+      throw capabilityError('CAP_INVALID_PROOF', 'each ref must be an object');
+    }
+    // Defense-in-depth: validate via the same `assertId` the rest of
+    // the capability system uses (length cap + prototype-pollution /
+    // forbidden-key guard) before letting the value touch the
+    // registry map.
+    const proofId = assertId(ref.proofId, 'ref.proofId');
+    const record = registry.proofs.get(proofId);
+    const state: CapabilityProofVerificationState =
+      record === undefined ? 'unverified' : record.verificationState;
+    const idx = VERIFICATION_SEVERITY.indexOf(state);
+    if (idx < worstIndex) worstIndex = idx;
+  }
+  return VERIFICATION_SEVERITY[worstIndex] as CapabilityProofVerificationState;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                internals                                   */
+/* -------------------------------------------------------------------------- */
+
+function computeVerificationState(
+  record: CapabilityProofRecord,
+  now: string,
+  verifier: CapabilityProofVerifier | undefined
+): CapabilityProofVerificationState {
+  if (record.revokedAt !== undefined) return 'revoked';
+  const nowMs = Date.parse(now);
+  const expMs = Date.parse(record.expiresAt);
+  if (Number.isFinite(nowMs) && Number.isFinite(expMs) && nowMs >= expMs) {
+    return 'expired';
+  }
+  // Defensive: an injected verifier is foreign code. A throw must
+  // not crash the registry (DoS), and we treat it as `invalid` —
+  // more severe than `unverified` in `summarizeProofStates`'s
+  // worst-case fold, so a buggy/adversarial verifier gates the
+  // reliance decision MORE aggressively (fail closed).
+  let verdict: CapabilityProofCryptoVerdict | undefined;
+  try {
+    verdict = verifier?.(record);
+  } catch {
+    return 'invalid';
+  }
+  if (verdict === 'verified') return 'verified';
+  if (verdict === 'invalid') return 'invalid';
+  return 'unverified';
+}
+
+function validateRegisterProofInput(value: unknown): CapabilityProofRecord {
+  const record = assertPlainObject(value, 'RegisterProofInput');
+  const proofId = assertId(record.proofId, 'RegisterProofInput.proofId');
+  const scheme = assertOneOf(
+    record.scheme,
+    CAPABILITY_PROOF_SCHEMES,
+    'RegisterProofInput.scheme',
+    'CAP_INVALID_PROOF'
+  );
+  const issuer = validatePartyRef(record.issuer, 'RegisterProofInput.issuer');
+  const subject = validatePartyRef(record.subject, 'RegisterProofInput.subject');
+  const issuedAt = assertTimestamp(record.issuedAt, 'RegisterProofInput.issuedAt');
+  const expiresAt = assertTimestamp(record.expiresAt, 'RegisterProofInput.expiresAt');
+  if (Date.parse(issuedAt) >= Date.parse(expiresAt)) {
+    throw capabilityError('CAP_INVALID_TIMESTAMP', 'RegisterProofInput.issuedAt must be before expiresAt');
+  }
+  const revokedAt = optionalTimestamp(record.revokedAt, 'RegisterProofInput.revokedAt');
+  if (revokedAt !== undefined && Date.parse(revokedAt) < Date.parse(issuedAt)) {
+    throw capabilityError('CAP_INVALID_TIMESTAMP', 'RegisterProofInput.revokedAt must not predate issuedAt');
+  }
+  const digest = assertDigest(record.digest, 'RegisterProofInput.digest');
+  const verificationState: CapabilityProofVerificationState =
+    revokedAt === undefined ? 'unverified' : 'revoked';
+
+  return deepFreeze({
     proofId,
     scheme,
     issuer,
     subject,
     issuedAt,
-    ...(expiresAt === undefined ? {} : { expiresAt }),
+    expiresAt,
     ...(revokedAt === undefined ? {} : { revokedAt }),
     digest,
     verificationState
   });
 }
 
-export function registerProof(
-  registry: CapabilityProofRegistry,
-  proof: CapabilityProofRecord | unknown
-): CapabilityProofRegistry {
-  const validated = validateCapabilityProofRecord(proof);
-  const existing = registry.proofs[validated.proofId];
-  if (existing !== undefined && existing.digest !== validated.digest) {
-    throw capabilityError('CAP_DUPLICATE_VALUE', 'proofId already exists with a different digest');
+function assertRegistry(registry: ProofRegistry): void {
+  if (
+    registry === null ||
+    typeof registry !== 'object' ||
+    registry.version !== CAPABILITY_PROOF_REGISTRY_VERSION ||
+    !(registry.proofs instanceof Map)
+  ) {
+    throw capabilityError('CAP_INVALID_INPUT', 'invalid ProofRegistry');
   }
-  return freezeRegistry({
-    proofs: {
-      ...registry.proofs,
-      [validated.proofId]: mergeProof(existing, validated)
-    }
+}
+
+function freezeResult(
+  version: CapabilityProofRegistryVersion,
+  proofs: Map<string, CapabilityProofRecord>,
+  record: CapabilityProofRecord
+): ProofRegistryResult {
+  return Object.freeze({
+    registry: Object.freeze({ version, proofs: freezeMap(proofs) }),
+    record
   });
 }
 
-export function getProof(
-  registry: CapabilityProofRegistry,
-  proofId: string
-): CapabilityProofRecord | undefined {
-  return registry.proofs[assertId(proofId, 'proofId')];
-}
-
-export function verifyProof(
-  registry: CapabilityProofRegistry,
-  proofId: string,
-  now: string
-): CapabilityProofRegistry {
-  const parsedNow = Date.parse(now);
-  if (!Number.isFinite(parsedNow)) {
-    throw capabilityError('CAP_INVALID_TIMESTAMP', 'now must be a valid timestamp');
-  }
-  const existing = getRequiredProof(registry, proofId);
-  const nextState = deriveState(existing, parsedNow);
-  return freezeRegistry({
-    proofs: {
-      ...registry.proofs,
-      [existing.proofId]: Object.freeze({ ...existing, verificationState: nextState })
-    }
-  });
-}
-
-export function revokeProof(
-  registry: CapabilityProofRegistry,
-  proofId: string,
-  revokedAt: string
-): CapabilityProofRegistry {
-  const parsedRevokedAt = Date.parse(revokedAt);
-  if (!Number.isFinite(parsedRevokedAt)) {
-    throw capabilityError('CAP_INVALID_TIMESTAMP', 'revokedAt must be a valid timestamp');
-  }
-  const existing = getRequiredProof(registry, proofId);
-  return freezeRegistry({
-    proofs: {
-      ...registry.proofs,
-      [existing.proofId]: Object.freeze({
-        ...existing,
-        revokedAt,
-        verificationState: 'revoked' as const
-      })
-    }
-  });
-}
-
-function mergeProof(existing: CapabilityProofRecord | undefined, next: CapabilityProofRecord): CapabilityProofRecord {
-  if (existing === undefined) return next;
-  if (existing.verificationState === 'revoked') return existing;
-  if (next.verificationState === 'revoked') return next;
-  return next;
-}
-
-function deriveState(proof: CapabilityProofRecord, now: number): CapabilityProofVerificationState {
-  if (proof.revokedAt !== undefined && Date.parse(proof.revokedAt) <= now) return 'revoked';
-  if (proof.expiresAt !== undefined && Date.parse(proof.expiresAt) <= now) return 'expired';
-  if (proof.verificationState === 'invalid') return 'invalid';
-  return 'verified';
-}
-
-function getRequiredProof(registry: CapabilityProofRegistry, proofId: string): CapabilityProofRecord {
-  const proof = getProof(registry, proofId);
-  if (proof === undefined) {
-    throw capabilityError('CAP_INVALID_PROOF', 'proof is not registered');
-  }
-  return proof;
-}
-
-function freezeRegistry(registry: CapabilityProofRegistry): CapabilityProofRegistry {
-  const proofs: Record<string, CapabilityProofRecord> = {};
-  for (const [id, proof] of Object.entries(registry.proofs)) proofs[id] = Object.freeze(proof);
-  return Object.freeze({ proofs: Object.freeze(proofs) });
-}
-
-function assertPlainObject(value: unknown, label: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw capabilityError('CAP_INVALID_INPUT', `${label} must be a plain object`);
-  }
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) {
-    throw capabilityError('CAP_INVALID_INPUT', `${label} must be a plain object`);
-  }
-  return value as Record<string, unknown>;
-}
-
-function assertId(value: unknown, label: string): string {
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    throw capabilityError('CAP_INVALID_ID', `${label} must be a non-empty string`);
-  }
-  return value.trim();
-}
-
-function assertTimestamp(value: unknown, label: string): string {
-  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
-    throw capabilityError('CAP_INVALID_TIMESTAMP', `${label} must be a valid timestamp`);
-  }
-  return value;
-}
-
-function assertDigest(value: unknown, label: string): string {
-  if (typeof value !== 'string' || !DIGEST_RE.test(value)) {
-    throw capabilityError('CAP_INVALID_DIGEST', `${label} must be a supported digest ref`);
-  }
-  return value;
-}
-
-function assertScheme(value: unknown): CapabilityProofScheme {
-  if (typeof value !== 'string' || !PROOF_SCHEMES.includes(value as CapabilityProofScheme)) {
-    throw capabilityError('CAP_INVALID_PROOF', 'proof scheme is not supported');
-  }
-  return value as CapabilityProofScheme;
-}
-
-function assertVerificationState(value: unknown): CapabilityProofVerificationState {
-  if (typeof value !== 'string' || !(CAPABILITY_PROOF_VERIFICATION_STATES as readonly string[]).includes(value)) {
-    throw capabilityError('CAP_INVALID_ENUM', 'verificationState is not supported');
-  }
-  return value as CapabilityProofVerificationState;
+function freezeMap(
+  map: Map<string, CapabilityProofRecord>
+): ReadonlyMap<string, CapabilityProofRecord> {
+  // A Map's internal slots stay mutable, but freezing the object
+  // restores the structural marker discipline used across the
+  // codebase (Phase 3.2). Callers receive it typed ReadonlyMap.
+  return Object.freeze(map) as ReadonlyMap<string, CapabilityProofRecord>;
 }

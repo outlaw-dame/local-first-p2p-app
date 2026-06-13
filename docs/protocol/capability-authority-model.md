@@ -393,6 +393,91 @@ Rules:
 - proof refs do not elevate authority without successful verification and trust-policy reliance;
 - unknown proof schemes may be preserved but must not authorize actions.
 
+## Proof registry
+
+A `CapabilityProofRef` is only a pointer. The **proof registry**
+(`proof-registry.ts`) is the canonical place that records *what a
+proof actually is* and *whether it can be relied upon*. It turns the
+blanket `capability.unverified-proof` deny into a real verification
+outcome.
+
+`CapabilityProofRecord`:
+
+```ts
+proofId
+scheme
+issuer            // party that issued the underlying proof
+subject           // party the proof vouches for
+issuedAt
+expiresAt
+revokedAt?        // present iff revoked
+digest            // content digest of the proof bytes (sha-256:…)
+verificationState
+```
+
+Verification states:
+
+```text
+unverified   recorded but not cryptographically checked (honest default)
+verified     an injected verifier confirmed validity, not expired, not revoked
+expired      now >= expiresAt
+revoked      explicitly revoked (carries revokedAt)
+invalid      an injected verifier rejected it (bad signature / chain / subject)
+```
+
+Registry operations (all pure; every op returns a NEW frozen
+registry + record, Phase 3.2 replay discipline):
+
+```text
+createProofRegistry()
+registerProof(registry, input)         immutable: duplicate proofId throws
+getProof(registry, proofId)
+verifyProof(registry, proofId, opts)   computes + persists the live state
+revokeProof(registry, proofId, opts)   monotonic; first revocation wins
+summarizeProofStates(registry, refs)   worst-case fold for the reliance gate
+```
+
+Non-negotiable rules:
+
+- **The registry performs no cryptography itself.** `@lfp2p/capabilities`
+  has zero dependencies; `verifyProof` takes an *injected*
+  `CapabilityProofVerifier` supplied by a caller that holds the crypto
+  (e.g. `@lfp2p/crypto` for `native-signed-event`). A verifier that
+  cannot assess a scheme returns `undefined` → `unverified`. The
+  registry **never** reports `verified` on its own.
+- **Honest verification scope.** UCAN, VC, zcap-ld, bearcap, and
+  manual-local-policy proofs stay `unverified` until a dedicated
+  verifier exists. The registry does not pretend to validate a
+  credential format it cannot check.
+- **Deterministic gates beat cryptography.** `verifyProof` precedence
+  is: `revoked` → `expired` → verifier verdict (`invalid` /
+  `verified`) → `unverified`. A revoked or expired proof can never be
+  reported `verified`.
+- **Fail-closed aggregation.** `summarizeProofStates` folds a
+  capability's `proofRefs` to the *worst* (least trustworthy) state —
+  severity `revoked > invalid > expired > unverified > verified`. An
+  empty ref list, or a ref pointing at a proof not in the registry,
+  is `unverified`.
+
+### Reliance gate
+
+`evaluateCapabilityReliance` accepts an optional `proofsState` (the
+output of `summarizeProofStates`). When supplied and not `verified`,
+it overrides an otherwise-allowing decision and denies:
+`revoked → capability.revoked`, `expired → capability.expired`,
+`invalid`/`unverified → capability.unverified-proof`. Omitting
+`proofsState` preserves the pre-registry behaviour exactly — the
+provenance gate is opt-in, never a silent behaviour change.
+
+### Proof record vs grant
+
+A grant *carries* `proofRefs`; the registry *resolves* them. The grant
+is the authority claim; the proof record is the evidence ledger that
+says whether the claim's evidence holds. They are deliberately
+separate: a grant is immutable once issued, but a proof's
+`verificationState` is time-relative and revocable, so it lives in the
+mutable-by-replay registry, not baked into the grant.
+
 ## Bearcap profile
 
 Bearcaps are possession URLs or tokens. They are explicitly weaker than signed capability grants and must be limited to short-lived low-risk flows.
