@@ -193,6 +193,18 @@ importers:
         specifier: latest
         version: 6.2.5
 
+  packages/native-proof-verifier:
+    dependencies:
+      '@lfp2p/capabilities':
+        specifier: workspace:*
+        version: link:../capabilities
+      '@lfp2p/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@lfp2p/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+
   packages/openrank-adapter:
     dependencies:
       '@lfp2p/trust-safety':
