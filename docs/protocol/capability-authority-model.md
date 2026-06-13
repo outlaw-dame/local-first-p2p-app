@@ -478,6 +478,61 @@ separate: a grant is immutable once issued, but a proof's
 `verificationState` is time-relative and revocable, so it lives in the
 mutable-by-replay registry, not baked into the grant.
 
+## VC authority bindings
+
+A Verifiable Credential is one possible proof scheme
+(`scheme: 'vc'`). The VC authority binding (`vc-authority-binding.ts`)
+records that a *specific* VC, already in the proof registry, was the
+claimed evidence behind a *specific* capability.
+
+`VcAuthorityBindingV1`:
+
+```ts
+version            // lfp2p.capability.vc-authority-binding.v1
+bindingId
+vcProofId          // points at a proof registry record with scheme: 'vc'
+capabilityId       // the grant this VC supports as evidence
+claimSubject
+claimType          // free-form bounded string (VC vocabularies differ)
+claimDigest        // pins the exact claim payload bytes
+recordedAt
+```
+
+Registry operations (pure, immutable, frozen):
+
+```text
+createVcBindingRegistry()
+registerVcBinding(registry, input)         immutable: duplicate bindingId throws
+getBinding(registry, bindingId)
+getBindingsForCapability(registry, capId)  sorted ascending by bindingId
+getBindingsForVc(registry, vcProofId)      sorted ascending by bindingId
+resolveVcBindings(bindings, proofs, capId) joins with the proof registry
+```
+
+Non-negotiable rules:
+
+- **A binding is EVIDENCE, never authority.** Registering a binding
+  cannot grant or upgrade authority. The existing
+  `capability.vc-only-authority-denied` gate in `reliance.ts` stays
+  unchanged — authority comes only from a capability decision.
+- **Scope-creep prevention.** A VC supports only the capabilities a
+  binding explicitly names. The same VC cannot be silently reused as
+  evidence for unrelated capabilities — a caller must register a NEW
+  binding, leaving an audit trail.
+- **Honest audit posture.** `resolveVcBindings` joins the binding
+  registry with the proof registry and surfaces the proof's live
+  `verificationState`. Fail-closed in three places:
+  - A binding whose `vcProofId` is **not** in the proof registry
+    resolves to `unverified` (never silently assumed verified).
+  - A binding whose referenced proof has `scheme !== 'vc'` is dropped
+    — a non-VC proof is never silently re-interpreted as VC evidence.
+  - A binding whose referenced proof has a `subject` that differs
+    from the binding's `claimSubject` is dropped — a verified
+    credential about one party MUST NOT be reported as verified
+    evidence about another (confused-deputy defense).
+  Mismatches drop quietly so a single bad row cannot poison the audit
+  surface for the others.
+
 ## Bearcap profile
 
 Bearcaps are possession URLs or tokens. They are explicitly weaker than signed capability grants and must be limited to short-lived low-risk flows.
