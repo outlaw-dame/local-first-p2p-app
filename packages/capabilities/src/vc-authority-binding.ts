@@ -37,10 +37,11 @@
  *   - Replay-deterministic per Phase 3.2 — same ops, same output.
  */
 import { capabilityError } from './errors.js';
-import type {
-  CapabilityProofRecord,
-  CapabilityProofVerificationState,
-  ProofRegistry
+import {
+  CAPABILITY_PROOF_REGISTRY_VERSION,
+  type CapabilityProofRecord,
+  type CapabilityProofVerificationState,
+  type ProofRegistry
 } from './proof-registry.js';
 import type { CapabilityPartyRef } from './types.js';
 import {
@@ -203,10 +204,14 @@ export function resolveVcBindings(
   // non-null object would slip past the previous check and then
   // crash on `proofsRegistry.proofs.get(...)` with an unhandled
   // TypeError. Match proof-registry.ts's own `assertRegistry`
-  // discipline and require an actual `Map` at `.proofs`.
+  // discipline and require an actual `Map` at `.proofs`. Also pin
+  // the version sentinel — a future proof-registry v2 with different
+  // semantics must not be silently consumed here (addresses gemini
+  // review on the closed-stack PR).
   if (
     proofsRegistry === null ||
     typeof proofsRegistry !== 'object' ||
+    proofsRegistry.version !== CAPABILITY_PROOF_REGISTRY_VERSION ||
     !(proofsRegistry.proofs instanceof Map)
   ) {
     throw capabilityError('CAP_INVALID_INPUT', 'invalid proofs registry');
@@ -227,18 +232,23 @@ export function resolveVcBindings(
       // surface for the others.
       continue;
     }
-    // Subject-mismatch defense (codex review on PR #75). If the proof
-    // registry's recorded `subject` for this VC differs from the
-    // binding's `claimSubject`, a verified credential about one party
-    // would be reported as verified evidence about another party —
-    // the confused-deputy hazard the whole binding layer exists to
+    // Subject-mismatch defense (codex review on PR #75, extended by
+    // gemini review on PR #77). If the proof registry's recorded
+    // `subject` for this VC differs from the binding's
+    // `claimSubject`, a verified credential about one party would be
+    // reported as verified evidence about another party — the
+    // confused-deputy hazard the whole binding layer exists to
     // prevent. Drop the entry quietly, same as the scheme mismatch
     // above; a single mis-bound row must not poison the audit
     // surface for the others.
-    if (
-      proof.subject.kind !== binding.claimSubject.kind ||
-      proof.subject.id !== binding.claimSubject.id
-    ) {
+    //
+    // We compare ALL four `CapabilityPartyRef` fields — kind, id,
+    // and the optional cryptographic pins `digest` and
+    // `publicKeyRef`. If a credential's subject pins a specific
+    // public key (or digest) and the binding's claim subject pins a
+    // different one (or none), they are NOT the same party for
+    // authority purposes — even if their string id collides.
+    if (!partyRefsEqual(proof.subject, binding.claimSubject)) {
       continue;
     }
     out.push(Object.freeze({ binding, proofState: proof.verificationState, proof }));
@@ -329,6 +339,28 @@ function filterFrozenSorted(
     a.bindingId < b.bindingId ? -1 : a.bindingId > b.bindingId ? 1 : 0
   );
   return Object.freeze(out);
+}
+
+/**
+ * Strict equality across every field of a `CapabilityPartyRef`,
+ * including the optional `digest` and `publicKeyRef` cryptographic
+ * pins. Two refs that share `kind`+`id` but differ in pinned key /
+ * digest are NOT the same party for authority purposes — accepting
+ * them as equal would let a credential pinned to one key vouch for
+ * another key with the same identity string.
+ *
+ * Treats `undefined` consistently: a missing pin on one side and a
+ * present pin on the other side counts as a mismatch (more strict
+ * than === alone, which `undefined !== 'sha-256:...'` already
+ * handles correctly, but stated explicitly so the rule is obvious).
+ */
+function partyRefsEqual(a: CapabilityPartyRef, b: CapabilityPartyRef): boolean {
+  return (
+    a.kind === b.kind &&
+    a.id === b.id &&
+    a.digest === b.digest &&
+    a.publicKeyRef === b.publicKeyRef
+  );
 }
 
 function freezeMap(

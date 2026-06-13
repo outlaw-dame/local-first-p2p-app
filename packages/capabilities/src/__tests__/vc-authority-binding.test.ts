@@ -56,13 +56,17 @@ function bindingInput(overrides: Partial<RegisterVcBindingInput> = {}): Register
 
 function registerVc(
   proofId: string,
-  overrides: { revokedAt?: string; expiresAt?: string } = {}
+  overrides: {
+    revokedAt?: string;
+    expiresAt?: string;
+    subject?: CapabilityPartyRef;
+  } = {}
 ) {
   return registerProof(createProofRegistry(), {
     proofId,
     scheme: 'vc',
     issuer: ISSUER,
-    subject: SUBJECT,
+    subject: overrides.subject ?? SUBJECT,
     issuedAt: '2026-06-01T00:00:00.000Z',
     expiresAt: overrides.expiresAt ?? '2026-12-31T00:00:00.000Z',
     ...(overrides.revokedAt === undefined ? {} : { revokedAt: overrides.revokedAt }),
@@ -263,6 +267,54 @@ describe('resolveVcBindings — joins binding with proof registry', () => {
     expect(resolveVcBindings(bindings, proofs, 'cap:room:1')).toEqual([]);
   });
 
+  it('drops a subject mismatch on publicKeyRef even when kind+id match (gemini security-high)', () => {
+    // The VC proof is about Damon-PINNED-TO-KEY-A. The binding
+    // claims Damon (no key pinned). A bearer of the binding could
+    // try to use a different Damon-shaped credential (Damon-PINNED-
+    // TO-KEY-B) and have the resolver pretend it's verified. The
+    // confused-deputy defense MUST drop this — kind+id alone is not
+    // enough when a credential pins a key.
+    const proofs = registerVc('proof:vc:1', {
+      subject: { ...SUBJECT, publicKeyRef: 'device-key:damon-laptop-A' }
+    }).registry;
+    const { registry: bindings } = registerVcBinding(
+      createVcBindingRegistry(),
+      // claimSubject lacks the publicKeyRef pin — mismatch
+      bindingInput({ bindingId: 'b:no-key-pin' })
+    );
+    expect(resolveVcBindings(bindings, proofs, 'cap:room:1')).toEqual([]);
+  });
+
+  it('drops a subject mismatch on digest even when kind+id match (gemini security-high)', () => {
+    const proofs = registerVc('proof:vc:1', {
+      subject: { ...SUBJECT, digest: 'sha-256:aaaabbbbccccdddd' }
+    }).registry;
+    const { registry: bindings } = registerVcBinding(
+      createVcBindingRegistry(),
+      bindingInput({
+        bindingId: 'b:digest-mismatch',
+        claimSubject: { ...SUBJECT, digest: 'sha-256:1111222233334444' }
+      })
+    );
+    expect(resolveVcBindings(bindings, proofs, 'cap:room:1')).toEqual([]);
+  });
+
+  it('matches when ALL four CapabilityPartyRef fields agree, including pins', () => {
+    const pinned: CapabilityPartyRef = {
+      ...SUBJECT,
+      digest: 'sha-256:aaaabbbbccccdddd',
+      publicKeyRef: 'device-key:damon-laptop-A'
+    };
+    const proofs = registerVc('proof:vc:1', { subject: pinned }).registry;
+    const { registry: bindings } = registerVcBinding(
+      createVcBindingRegistry(),
+      bindingInput({ bindingId: 'b:full-match', claimSubject: pinned })
+    );
+    const resolved = resolveVcBindings(bindings, proofs, 'cap:room:1');
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]?.proofState).toBe('unverified');
+  });
+
   it('returns frozen output', () => {
     const { registry: proofs } = registerVc('proof:vc:1');
     const { registry: bindings } = registerVcBinding(createVcBindingRegistry(), bindingInput());
@@ -288,6 +340,21 @@ describe('resolveVcBindings — joins binding with proof registry', () => {
     expect(() =>
       // @ts-expect-error: testing runtime guard
       resolveVcBindings(registry, { proofs: {} }, 'cap:room:1')
+    ).toThrow(CapabilityError);
+  });
+
+  it('throws CapabilityError when proofsRegistry.version is wrong (version sentinel; gemini medium)', () => {
+    const { registry } = registerVcBinding(createVcBindingRegistry(), bindingInput());
+    // A future proof-registry v2 with different semantics must not
+    // be silently consumed here. The registry-shape guard accepts
+    // only the v1 sentinel.
+    expect(() =>
+      resolveVcBindings(
+        registry,
+        // @ts-expect-error: testing runtime version-sentinel guard
+        { version: 'lfp2p.capability.proof-registry.v2', proofs: new Map() },
+        'cap:room:1'
+      )
     ).toThrow(CapabilityError);
   });
 });
