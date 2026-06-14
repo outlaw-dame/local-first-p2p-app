@@ -478,6 +478,42 @@ separate: a grant is immutable once issued, but a proof's
 `verificationState` is time-relative and revocable, so it lives in the
 mutable-by-replay registry, not baked into the grant.
 
+### Plug-in verifiers
+
+The registry's `verifyProof` takes an *injected*
+`CapabilityProofVerifier` and never performs cryptography itself. A
+verifier is a pure function `(record) → 'verified' | 'invalid' | undefined`:
+
+- `'verified'` — the verifier confirms the underlying proof's
+  cryptographic validity, AND deterministic gates (not revoked, not
+  expired) pass.
+- `'invalid'` — the verifier rejects the proof (bad signature,
+  broken chain, subject mismatch, …).
+- `undefined` — the verifier abstains (cannot speak to this scheme,
+  or the underlying bytes are not yet available). Resolves to
+  `unverified` at the registry — never to a false `verified`.
+
+A verifier abstaining on a scheme it can't assess is the **whole
+point** of the injection design: it lets multiple verifiers compose
+without any one of them silently promoting a proof. Schemes the
+project ships:
+
+- **`@lfp2p/native-proof-verifier`** — fills the slot for
+  `native-signed-event` proofs only, using `@lfp2p/crypto`'s
+  ed25519 `verifySignedEventEnvelope`. Provides
+  `createNativeProofVerifier({ resolveSignedEvent, issuerMatches? })`
+  and a `composeVerifiers(...)` helper so future scheme verifiers
+  (UCAN, VC, zcap-ld) can be layered without modifying any existing
+  ones. The package is intentionally honest: it never claims to
+  verify a scheme it does not understand, and abstains rather than
+  asserting `invalid` when the caller does not hold the underlying
+  event bytes.
+- UCAN, VC, zcap-ld, bearcap, manual-local-policy verifiers — not
+  shipped. Until a dedicated verifier exists for those schemes,
+  proofs of those schemes stay `unverified`. The proof registry's
+  `summarizeProofStates` worst-case fold ensures that surfaces as
+  `capability.unverified-proof` at the reliance gate (fail closed).
+
 ## VC authority bindings
 
 A Verifiable Credential is one possible proof scheme
