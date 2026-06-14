@@ -137,6 +137,33 @@ describe('createNativeProofVerifier — scheme dispatch (abstain on non-native)'
   });
 });
 
+describe('createNativeProofVerifier — structural-soundness guards (gemini medium on #79)', () => {
+  const verifier = createNativeProofVerifier({ resolveSignedEvent: () => makeEvent() });
+
+  it('returns invalid (fail closed) when scheme matches but proofId is missing', () => {
+    // @ts-expect-error: testing structural guard
+    const record = nativeRecord({ proofId: undefined });
+    expect(verifier(record)).toBe('invalid');
+  });
+
+  it('returns invalid when scheme matches but proofId is an empty string', () => {
+    expect(verifier(nativeRecord({ proofId: '' }))).toBe('invalid');
+  });
+
+  it('returns invalid when issuer is missing or non-object', () => {
+    // @ts-expect-error: testing structural guard
+    expect(verifier(nativeRecord({ issuer: null }))).toBe('invalid');
+    // @ts-expect-error: testing structural guard
+    expect(verifier(nativeRecord({ issuer: 'identity:alice' }))).toBe('invalid');
+  });
+
+  it('returns invalid when issuer.id is missing or empty', () => {
+    // @ts-expect-error: testing structural guard
+    expect(verifier(nativeRecord({ issuer: { kind: 'actor' } }))).toBe('invalid');
+    expect(verifier(nativeRecord({ issuer: { kind: 'actor', id: '' } }))).toBe('invalid');
+  });
+});
+
 describe('createNativeProofVerifier — abstain semantics (caller does not hold the bytes)', () => {
   it('abstains when resolveSignedEvent returns undefined', () => {
     const verifier = createNativeProofVerifier({ resolveSignedEvent: () => undefined });
@@ -287,5 +314,24 @@ describe('assertNativeProofDigest', () => {
     await expect(
       assertNativeProofDigest({ digest: 'sha-256:nope' }, event)
     ).rejects.toThrow(/digest mismatch/);
+  });
+
+  it('throws TypeError when record is null or lacks a string digest (gemini medium on #79)', async () => {
+    const event = makeEvent();
+    await expect(
+      // @ts-expect-error: testing runtime guard
+      assertNativeProofDigest(null, event)
+    ).rejects.toThrow(TypeError);
+    await expect(
+      // @ts-expect-error: testing runtime guard
+      assertNativeProofDigest({}, event)
+    ).rejects.toThrow(TypeError);
+  });
+
+  it('throws TypeError when event is null', async () => {
+    await expect(
+      // @ts-expect-error: testing runtime guard
+      assertNativeProofDigest({ digest: 'sha-256:whatever' }, null)
+    ).rejects.toThrow(TypeError);
   });
 });

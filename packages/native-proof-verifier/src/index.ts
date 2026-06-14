@@ -133,6 +133,25 @@ export function createNativeProofVerifier(
   return function verifyNativeProof(record) {
     if (record === null || typeof record !== 'object') return undefined;
     if (record.scheme !== 'native-signed-event') return undefined;
+    // Structural-soundness guard for the scheme we own. Once we've
+    // accepted scheme === 'native-signed-event', a malformed record
+    // (missing/non-string proofId, missing issuer, missing issuer.id)
+    // is a positive fail: we DO claim this scheme and we cannot
+    // verify what's been given to us. Returning `'invalid'` (rather
+    // than `undefined`/abstain) is more defensive — abstaining would
+    // resolve to `unverified` and could let a broken record sneak
+    // past the reliance gate as merely-not-yet-checked. Per gemini
+    // review on PR #79.
+    if (
+      typeof record.proofId !== 'string' ||
+      record.proofId.length === 0 ||
+      record.issuer === null ||
+      typeof record.issuer !== 'object' ||
+      typeof record.issuer.id !== 'string' ||
+      record.issuer.id.length === 0
+    ) {
+      return 'invalid';
+    }
     let event: SignedEventEnvelope | undefined;
     try {
       event = resolveSignedEvent(record.proofId);
@@ -219,6 +238,16 @@ export async function assertNativeProofDigest(
   record: Pick<CapabilityProofRecord, 'digest'>,
   event: SignedEventEnvelope
 ): Promise<string> {
+  // Defensive input guards (per gemini review on PR #79). A null or
+  // structurally-broken input should produce a clear TypeError, not
+  // an opaque downstream crash inside `canonicalizeJson` or
+  // `sha256Base64Url`.
+  if (record === null || typeof record !== 'object' || typeof record.digest !== 'string') {
+    throw new TypeError('assertNativeProofDigest: record must have a string `digest`');
+  }
+  if (event === null || typeof event !== 'object') {
+    throw new TypeError('assertNativeProofDigest: event must be a SignedEventEnvelope');
+  }
   const canonical = canonicalizeJson(event);
   const computed = await sha256Base64Url(canonical);
   const expected = stripDigestPrefix(record.digest);
