@@ -171,7 +171,16 @@ export type AuthorityTrustView = Readonly<{
 export const AUTHORITY_PRECHECK_REASONS = [
   'capability-deny',
   'reputation-untrusted',
-  'identity-revoked'
+  /**
+   * The identity-control posture says the party is in ANY state
+   * other than `active` — including `revoked`, `rotated`, or
+   * `unknown`. Per the identity-control doctrine, only an `active`
+   * device key authorizes events; everything else fails closed at
+   * the pre-check. (Resolved per chatgpt-codex review on PR #80 —
+   * the previous `identity-revoked` reason missed `rotated` /
+   * `unknown` and let those fall through to `continue`.)
+   */
+  'identity-not-active'
 ] as const;
 export type AuthorityPrecheckReason = (typeof AUTHORITY_PRECHECK_REASONS)[number];
 
@@ -192,11 +201,18 @@ export type AuthorityPrecheckReason = (typeof AUTHORITY_PRECHECK_REASONS)[number
  *   - `worstCasePrecheck` is `'block'` iff:
  *       - the capability posture's `decision` is `'deny'`, OR
  *       - the reputation posture's `band` is `'untrusted'`, OR
- *       - the identity posture's `status` is `'revoked'`.
- *     Any other combination — including all three resolvers omitted
- *     — yields `'continue'`. A `'continue'` pre-check is NEVER a
- *     positive trust signal; it just means "no hard-fail surfaced
- *     here; the caller must still run the normal capability gate".
+ *       - the identity posture's `status` is anything other than
+ *         `'active'` — `'revoked'`, `'rotated'`, or `'unknown'` all
+ *         block. (Only an `active` device key authorizes events per
+ *         the identity-control doctrine; everything else fails
+ *         closed.) An ABSENT identity posture, however, contributes
+ *         nothing — that means no resolver was supplied or the
+ *         resolver returned `undefined`, i.e. the identity layer was
+ *         not consulted at all.
+ *     Any other combination yields `'continue'`. A `'continue'`
+ *     pre-check is NEVER a positive trust signal; it just means "no
+ *     hard-fail surfaced here; the caller must still run the normal
+ *     capability gate".
  */
 export function composeAuthorityView(
   input: ComposeAuthorityViewOptions
@@ -221,7 +237,18 @@ export function composeAuthorityView(
   const blockReasons: AuthorityPrecheckReason[] = [];
   if (capabilityPosture?.decision === 'deny') blockReasons.push('capability-deny');
   if (reputationPosture?.band === 'untrusted') blockReasons.push('reputation-untrusted');
-  if (identityPosture?.status === 'revoked') blockReasons.push('identity-revoked');
+  // Identity-control: only `active` is authorized to act. `revoked`,
+  // `rotated`, and `unknown` all block — per the identity-control
+  // doctrine, a rotated key no longer authorizes future events, and
+  // `unknown` means the identity layer was asked and explicitly
+  // could not confirm the device — fail closed. (An ABSENT identity
+  // posture, by contrast, means no resolver was supplied or the
+  // resolver returned `undefined`, i.e. the identity layer was not
+  // consulted at all — that contributes nothing, which is why this
+  // check is gated on the posture existing.)
+  if (identityPosture !== undefined && identityPosture.status !== 'active') {
+    blockReasons.push('identity-not-active');
+  }
   const worstCasePrecheck: AuthorityPrecheckOutcome =
     blockReasons.length === 0 ? 'continue' : 'block';
 

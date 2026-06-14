@@ -152,7 +152,7 @@ without re-deriving them:
   A `worstCasePrecheck: 'block' | 'continue'` field caches the
   fail-closed pre-check from the doctrine: `'block'` iff at least one
   source surfaced a hard signal (`capability-deny` /
-  `reputation-untrusted` / `identity-revoked`). A `'continue'`
+  `reputation-untrusted` / `identity-not-active`). A `'continue'`
   pre-check is **never** a positive trust signal — it just means the
   fast path found no hard-fail and the caller must still run the
   normal capability gate.
