@@ -43,9 +43,12 @@
  * those packages to these shapes — keeping the boundary clean.
  */
 import { capabilityError } from './errors.js';
-import type { CapabilityPartyRef } from './types.js';
-import { validatePartyRef } from './validation.js';
-import type { CapabilityDecisionStatus } from './types.js';
+import {
+  CAPABILITY_DECISION_STATUSES,
+  type CapabilityDecisionStatus,
+  type CapabilityPartyRef
+} from './types.js';
+import { assertPlainObject, validatePartyRef } from './validation.js';
 
 export const AUTHORITY_VIEW_VERSION = 'lfp2p.capability.authority-view.v1' as const;
 export type AuthorityViewVersion = typeof AUTHORITY_VIEW_VERSION;
@@ -237,7 +240,9 @@ export function composeAuthorityView(
 /* -------------------------------------------------------------------------- */
 
 function assertOptions(input: unknown): asserts input is ComposeAuthorityViewOptions {
-  if (input === null || typeof input !== 'object') {
+  // `typeof [] === 'object'` in JS — guard against arrays slipping
+  // past the object check. (Per gemini review on PR #80.)
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw capabilityError('CAP_INVALID_INPUT', 'composeAuthorityView: input must be an object');
   }
   const record = input as Record<string, unknown>;
@@ -257,13 +262,10 @@ function assertOptions(input: unknown): asserts input is ComposeAuthorityViewOpt
 
 function validateCapabilityPosture(value: unknown): CapabilityPosture | undefined {
   if (value === undefined) return undefined;
-  if (value === null || typeof value !== 'object') {
-    throw capabilityError(
-      'CAP_INVALID_INPUT',
-      'CapabilityPosture: resolver must return an object or undefined'
-    );
-  }
-  const record = value as Record<string, unknown>;
+  // assertPlainObject also guards against arrays + non-Object
+  // prototypes + forbidden keys (e.g. __proto__). Defense in depth
+  // against prototype pollution per gemini review on PR #80.
+  const record = assertPlainObject(value, 'CapabilityPosture');
   if (record.source !== 'capability') {
     throw capabilityError(
       'CAP_INVALID_ENUM',
@@ -289,13 +291,9 @@ function validateCapabilityPosture(value: unknown): CapabilityPosture | undefine
 
 function validateReputationPosture(value: unknown): ReputationPosture | undefined {
   if (value === undefined) return undefined;
-  if (value === null || typeof value !== 'object') {
-    throw capabilityError(
-      'CAP_INVALID_INPUT',
-      'ReputationPosture: resolver must return an object or undefined'
-    );
-  }
-  const record = value as Record<string, unknown>;
+  // assertPlainObject also guards against arrays + non-Object
+  // prototypes + forbidden keys per gemini review on PR #80.
+  const record = assertPlainObject(value, 'ReputationPosture');
   if (record.source !== 'reputation') {
     throw capabilityError(
       'CAP_INVALID_ENUM',
@@ -319,13 +317,9 @@ function validateReputationPosture(value: unknown): ReputationPosture | undefine
 
 function validateIdentityPosture(value: unknown): IdentityPosture | undefined {
   if (value === undefined) return undefined;
-  if (value === null || typeof value !== 'object') {
-    throw capabilityError(
-      'CAP_INVALID_INPUT',
-      'IdentityPosture: resolver must return an object or undefined'
-    );
-  }
-  const record = value as Record<string, unknown>;
+  // assertPlainObject also guards against arrays + non-Object
+  // prototypes + forbidden keys per gemini review on PR #80.
+  const record = assertPlainObject(value, 'IdentityPosture');
   if (record.source !== 'identity-control') {
     throw capabilityError(
       'CAP_INVALID_ENUM',
@@ -348,13 +342,13 @@ function validateIdentityPosture(value: unknown): IdentityPosture | undefined {
 }
 
 function isCapabilityDecision(value: string): value is CapabilityPostureDecision {
+  // Reuse the canonical statuses from `./types.js` so a future
+  // addition to `CAPABILITY_DECISION_STATUSES` is automatically
+  // supported here, with no drift surface. Per gemini review on
+  // PR #80.
   return (
-    value === 'allow' ||
-    value === 'warn' ||
-    value === 'require-confirmation' ||
-    value === 'quarantine' ||
-    value === 'deny' ||
-    value === 'unknown'
+    value === 'unknown' ||
+    (CAPABILITY_DECISION_STATUSES as readonly string[]).includes(value)
   );
 }
 

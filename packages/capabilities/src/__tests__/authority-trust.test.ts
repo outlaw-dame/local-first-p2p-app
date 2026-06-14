@@ -334,6 +334,56 @@ describe('composeAuthorityView — input guards', () => {
 /*                          enum-integrity sanity                             */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/*    regression: prototype-pollution + array-input guards (gemini #80)       */
+/* -------------------------------------------------------------------------- */
+
+describe('regression — gemini #80: prototype-pollution + array-input defense', () => {
+  it('rejects an input that is an array (typeof [] === "object" hazard)', () => {
+    expect(() =>
+      // @ts-expect-error: testing runtime guard
+      composeAuthorityView([{ authority: AUTHORITY, now: NOW }])
+    ).toThrow(CapabilityError);
+  });
+
+  it('rejects a CapabilityPosture delivered with prototype pollution via __proto__', () => {
+    expect(() =>
+      composeAuthorityView({
+        authority: AUTHORITY,
+        now: NOW,
+        resolveCapabilityPosture: () =>
+          // Construct a literal whose own-property __proto__ is set
+          // — the same JSON-parse-shape that landed real exploits in
+          // other codebases.
+          // @ts-expect-error: testing runtime guard
+          ({ source: 'capability', decision: 'allow', __proto__: { polluted: true } })
+      })
+    ).toThrow(CapabilityError);
+  });
+
+  it('rejects a ReputationPosture delivered as an array (defense in depth)', () => {
+    expect(() =>
+      composeAuthorityView({
+        authority: AUTHORITY,
+        now: NOW,
+        // @ts-expect-error: testing runtime guard
+        resolveReputationPosture: () => [{ source: 'reputation', band: 'high' }]
+      })
+    ).toThrow(CapabilityError);
+  });
+
+  it('rejects an IdentityPosture delivered with a forbidden key on the object', () => {
+    expect(() =>
+      composeAuthorityView({
+        authority: AUTHORITY,
+        now: NOW,
+        // @ts-expect-error: testing runtime guard
+        resolveIdentityPosture: () => ({ source: 'identity-control', status: 'active', constructor: 'evil' })
+      })
+    ).toThrow(CapabilityError);
+  });
+});
+
 describe('exported enums', () => {
   it('reputation bands exactly match Phase 1.8.3 doctrine values', () => {
     expect([...REPUTATION_POSTURE_BANDS]).toEqual(['high', 'mid', 'low', 'untrusted']);
