@@ -141,11 +141,21 @@ without re-deriving them:
   graph, **proof registry**, reliance).
 - **Reputation trust**: implemented (Phase 1.8, complete).
 - **Identity-control trust**: implemented (Phase 2.1–2.3).
-- **Trust registry**: **not started — gated on this doc.** Build it
-  only as the read-only composition/policy layer described above. If
-  a proposed trust-registry design would re-derive scores, re-derive
-  identity state, or make a trust level an authority input, it is out
-  of bounds and must be redesigned first.
+- **Trust registry**: implemented as a **read-only composition
+  layer** in `packages/capabilities/src/trust-registry.ts`. The
+  module exposes a single function `composeAuthorityView({ authority,
+  now, resolveCapabilityPosture?, resolveReputationPosture?,
+  resolveIdentityPosture? }) → AuthorityTrustView`. Each posture is
+  *labelled by source*; the layer mints no trust facts of its own;
+  there is no `setAuthorityTrust`, no `trustState` field, and no
+  boolean trust predicate (the doctrine-forbidden ACL-style surface).
+  A `worstCasePrecheck: 'block' | 'continue'` field caches the
+  fail-closed pre-check from the doctrine: `'block'` iff at least one
+  source surfaced a hard signal (`capability-deny` /
+  `reputation-untrusted` / `identity-revoked`). A `'continue'`
+  pre-check is **never** a positive trust signal — it just means the
+  fast path found no hard-fail and the caller must still run the
+  normal capability gate.
 
 ## References
 
