@@ -185,14 +185,14 @@ describe('worstCasePrecheck — fail closed iff a source says no', () => {
     expect(view.blockReasons).toEqual(['reputation-untrusted']);
   });
 
-  it('identity revoked → block with identity-revoked reason', () => {
+  it('identity revoked → block with identity-not-active reason', () => {
     const view = composeAuthorityView({
       authority: AUTHORITY,
       now: NOW,
       resolveIdentityPosture: identityRevoked
     });
     expect(view.worstCasePrecheck).toBe('block');
-    expect(view.blockReasons).toEqual(['identity-revoked']);
+    expect(view.blockReasons).toEqual(['identity-not-active']);
   });
 
   it('multiple sources blocking → all reasons surface, in deterministic order', () => {
@@ -207,7 +207,7 @@ describe('worstCasePrecheck — fail closed iff a source says no', () => {
     expect(view.blockReasons).toEqual([
       'capability-deny',
       'reputation-untrusted',
-      'identity-revoked'
+      'identity-not-active'
     ]);
   });
 
@@ -219,7 +219,45 @@ describe('worstCasePrecheck — fail closed iff a source says no', () => {
       resolveIdentityPosture: identityRevoked
     });
     expect(view.worstCasePrecheck).toBe('block');
-    expect(view.blockReasons).toEqual(['identity-revoked']);
+    expect(view.blockReasons).toEqual(['identity-not-active']);
+  });
+
+  it('identity status "rotated" blocks (codex review on PR #80 — rotated keys do not authorize)', () => {
+    const view = composeAuthorityView({
+      authority: AUTHORITY,
+      now: NOW,
+      resolveIdentityPosture: () => ({ source: 'identity-control', status: 'rotated' })
+    });
+    expect(view.worstCasePrecheck).toBe('block');
+    expect(view.blockReasons).toEqual(['identity-not-active']);
+  });
+
+  it('identity status "unknown" blocks (subsystem was asked and explicitly cannot confirm — fail closed)', () => {
+    const view = composeAuthorityView({
+      authority: AUTHORITY,
+      now: NOW,
+      resolveIdentityPosture: () => ({ source: 'identity-control', status: 'unknown' })
+    });
+    expect(view.worstCasePrecheck).toBe('block');
+    expect(view.blockReasons).toEqual(['identity-not-active']);
+  });
+
+  it('an ABSENT identity posture is distinct from an "unknown" status — absence contributes nothing', () => {
+    // Resolver omitted entirely — caller did not consult identity.
+    // No identity reason should surface; pre-check stays "continue".
+    const view = composeAuthorityView({ authority: AUTHORITY, now: NOW });
+    expect(view.worstCasePrecheck).toBe('continue');
+    expect(view.identityPosture).toBeUndefined();
+  });
+
+  it('resolver returning undefined is also "absent" — contributes nothing', () => {
+    const view = composeAuthorityView({
+      authority: AUTHORITY,
+      now: NOW,
+      resolveIdentityPosture: () => undefined
+    });
+    expect(view.worstCasePrecheck).toBe('continue');
+    expect(view.identityPosture).toBeUndefined();
   });
 });
 
@@ -401,7 +439,7 @@ describe('exported enums', () => {
     expect([...AUTHORITY_PRECHECK_REASONS]).toEqual([
       'capability-deny',
       'reputation-untrusted',
-      'identity-revoked'
+      'identity-not-active'
     ]);
   });
 });
