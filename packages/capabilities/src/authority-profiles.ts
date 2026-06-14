@@ -80,6 +80,83 @@ export function assertProfileAllowsAction(profileId: AuthorityProfileId, action:
   }
 }
 
+/**
+ * Specification of a delegated child grant for chain-validation.
+ * Captures the three properties a delegation must respect:
+ *
+ *   - `childKind`: the party kind receiving the delegation
+ *   - `actions`: the actions the child claims
+ *   - `depth`: the child grant's own `delegationDepth`
+ *
+ * `validateDelegationChain(parent, child)` (below) asserts the
+ * delegation does not escalate privilege, drop attenuation, or
+ * exceed the parent's permitted depth.
+ */
+export type DelegationChildSpec = Readonly<{
+  childKind: CapabilityPartyKind;
+  actions: readonly CapabilityAction[];
+  depth: number;
+}>;
+
+/**
+ * Pin the three structural rules of a single delegation step:
+ *
+ *   1. **No privilege escalation.** The child's party kind must be
+ *      one of `parent.mayDelegateTo`. Throws `CAP_INVALID_PARTY`
+ *      otherwise. This is the rule that makes `relay → super-peer`
+ *      structurally impossible regardless of what a malformed grant
+ *      claims.
+ *
+ *   2. **Action attenuation.** Every action in the child grant
+ *      must appear in `parent.allowedActions`. A child cannot
+ *      acquire actions its delegator does not itself hold. Throws
+ *      `CAP_INVALID_ACTION` on the first violation.
+ *
+ *   3. **Depth monotonic.** The child's `depth` must be strictly
+ *      less than `parent.maxDelegationDepth`. A profile with
+ *      `maxDelegationDepth === 0` therefore CANNOT re-delegate to
+ *      anyone, regardless of `mayDelegateTo`. Throws
+ *      `CAP_INVALID_NUMBER`.
+ *
+ * Pure on its inputs; no side effects. Caller is expected to have
+ * already validated the actions list through their normal grant
+ * validation; `validateDelegationChain` only enforces the
+ * relationship between two grants.
+ */
+export function validateDelegationChain(
+  parent: AuthorityDelegationProfile,
+  child: DelegationChildSpec
+): void {
+  const parentProfile = validateAuthorityProfile(parent);
+  if (child === null || typeof child !== 'object') {
+    throw capabilityError('CAP_INVALID_INPUT', 'DelegationChildSpec must be a plain object');
+  }
+  const spec = child as Record<string, unknown>;
+  const childKind = assertPartyKind(spec.childKind);
+  if (!parentProfile.mayDelegateTo.includes(childKind)) {
+    throw capabilityError(
+      'CAP_INVALID_PARTY',
+      `${parentProfile.profileId} may not delegate to ${childKind} (privilege escalation)`
+    );
+  }
+  const actions = assertActions(spec.actions);
+  for (const action of actions) {
+    if (!parentProfile.allowedActions.includes(action)) {
+      throw capabilityError(
+        'CAP_INVALID_ACTION',
+        `child action ${action} is not in parent's allowedActions (attenuation violated)`
+      );
+    }
+  }
+  const depth = assertNonNegativeInteger(spec.depth, 'DelegationChildSpec.depth');
+  if (depth >= parentProfile.maxDelegationDepth) {
+    throw capabilityError(
+      'CAP_INVALID_NUMBER',
+      `child depth ${depth} must be < parent maxDelegationDepth ${parentProfile.maxDelegationDepth}`
+    );
+  }
+}
+
 function assertPlainObject(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw capabilityError('CAP_INVALID_INPUT', `${label} must be a plain object`);

@@ -180,6 +180,26 @@ Rules for future implementation:
 - expiry must be no later than parent expiry;
 - unknown caveats in a parent chain fail closed.
 
+### Profile-level enforcement (today)
+
+`authority-profiles.ts` ships single-step delegation enforcement
+that does not depend on the full delegation-of-delegation runtime
+above. `validateDelegationChain(parent, child)` asserts the three
+structural rules of one delegation hop:
+
+1. **No privilege escalation** — `child.childKind ∈ parent.mayDelegateTo`,
+   so e.g. a relay cannot mint a super-peer grant regardless of what
+   a malformed envelope claims.
+2. **Action attenuation** — `child.actions ⊆ parent.allowedActions`,
+   so a child can only hold actions the parent itself holds.
+3. **Depth monotonic** — `child.depth < parent.maxDelegationDepth`,
+   which makes a profile with `maxDelegationDepth === 0` unable to
+   re-delegate to anyone, regardless of `mayDelegateTo`.
+
+Each rule throws a stable `CapabilityError` code
+(`CAP_INVALID_PARTY` / `CAP_INVALID_ACTION` / `CAP_INVALID_NUMBER`)
+so callers can audit privilege-escalation attempts privacy-safely.
+
 ## Party refs
 
 ```ts
