@@ -528,11 +528,36 @@ project ships:
   verify a scheme it does not understand, and abstains rather than
   asserting `invalid` when the caller does not hold the underlying
   event bytes.
-- UCAN, VC, zcap-ld, bearcap, manual-local-policy verifiers — not
+- **`@lfp2p/ucan-verifier`** — fills the slot for the `ucan` scheme.
+  Provides `createUcanVerifier({ resolveUcanToken, maxChainDepth?, now? })`
+  which:
+  - parses a JWT-shape UCAN (`header.payload.signature` base64url),
+  - resolves `payload.iss` as `did:key:z…` (Ed25519 multicodec
+    `0xed01` only — other DID methods and multibase prefixes
+    resolve to `'invalid'`),
+  - verifies the Ed25519 signature over the on-wire signing input
+    via `@lfp2p/crypto`'s new `verifyEd25519` primitive,
+  - enforces `payload.iss === record.issuer.id` (the leaf token's
+    issuer must equal the registry record's),
+  - walks the `prf` delegation chain enforcing
+    `child.iss === parent.aud`, `child.exp ≤ parent.exp`, and
+    `child.att ⊆ parent.att` for every link,
+  - rejects on bounded chain-depth overrun (default 16),
+  - rejects any `prf` entry that is not a parseable inline JWT (no
+    silent skips on CIDs/IPFS refs in v1).
+
+  Honest v1 scope: Ed25519 only, `did:key` only, inline-JWT
+  `prf` only, no CBOR / UCAN 0.10+. The package never returns
+  `'verified'` on a token whose scheme it cannot fully assess; for
+  every non-UCAN scheme it abstains so it composes cleanly with the
+  native verifier via `composeVerifiers(...)`.
+
+- VC, zcap-ld, bearcap, manual-local-policy verifiers — not
   shipped. Until a dedicated verifier exists for those schemes,
   proofs of those schemes stay `unverified`. The proof registry's
   `summarizeProofStates` worst-case fold ensures that surfaces as
   `capability.unverified-proof` at the reliance gate (fail closed).
+  See issue #84 for the design notes on each.
 
 ## VC authority bindings
 

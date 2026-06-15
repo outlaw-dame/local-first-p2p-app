@@ -255,6 +255,19 @@ importers:
         specifier: workspace:*
         version: link:../content-addressing
 
+  packages/ucan-verifier:
+    dependencies:
+      '@lfp2p/capabilities':
+        specifier: workspace:*
+        version: link:../capabilities
+      '@lfp2p/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+    devDependencies:
+      tweetnacl:
+        specifier: ^1.0.3
+        version: 1.0.3
+
   packages/ui:
     dependencies:
       '@lfp2p/design-tokens':

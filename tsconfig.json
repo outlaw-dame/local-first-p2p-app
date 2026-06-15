@@ -7,6 +7,7 @@
     { "path": "packages/trust-safety" },
     { "path": "packages/openrank-adapter" },
     { "path": "packages/native-proof-verifier" },
+    { "path": "packages/ucan-verifier" },
     { "path": "packages/crypto" },
     { "path": "packages/envelope" },
     { "path": "packages/design-tokens" },
