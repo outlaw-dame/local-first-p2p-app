@@ -174,6 +174,27 @@ describe('validateDelegationChain — single-step delegation rules', () => {
     ).toThrow(CapabilityError);
   });
 
+  it('regression: rejects array-shaped child spec (gemini #82 — assertPlainObject defends against arrays)', () => {
+    const parent = getAuthorityProfile('super-peer');
+    expect(() =>
+      // @ts-expect-error: testing runtime guard
+      validateDelegationChain(parent, [{ childKind: 'relay', actions: ['relay.forward-envelope'], depth: 0 }])
+    ).toThrow(CapabilityError);
+  });
+
+  it('regression: rejects child spec carrying a forbidden prototype-pollution key', () => {
+    const parent = getAuthorityProfile('super-peer');
+    expect(() =>
+      validateDelegationChain(parent, {
+        childKind: 'relay',
+        actions: ['relay.forward-envelope'],
+        depth: 0,
+        // @ts-expect-error: testing prototype-pollution guard
+        __proto__: { polluted: true }
+      })
+    ).toThrow(CapabilityError);
+  });
+
   it('does not mutate the parent profile (pure)', () => {
     const parent = getAuthorityProfile('super-peer');
     const before = JSON.stringify(parent);

@@ -128,10 +128,11 @@ export function validateDelegationChain(
   child: DelegationChildSpec
 ): void {
   const parentProfile = validateAuthorityProfile(parent);
-  if (child === null || typeof child !== 'object') {
-    throw capabilityError('CAP_INVALID_INPUT', 'DelegationChildSpec must be a plain object');
-  }
-  const spec = child as Record<string, unknown>;
+  // Use the file's assertPlainObject helper — it also guards against
+  // arrays and non-Object prototypes, and is the consistent pattern
+  // across this package's other validators. Addresses the gemini
+  // review on PR #82.
+  const spec = assertPlainObject(child, 'DelegationChildSpec');
   const childKind = assertPartyKind(spec.childKind);
   if (!parentProfile.mayDelegateTo.includes(childKind)) {
     throw capabilityError(
