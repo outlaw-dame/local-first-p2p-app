@@ -111,6 +111,32 @@ export function verifyDetachedJsonSignature(payload: JsonValue, signature: Detac
   }
 }
 
+/**
+ * Verify a raw Ed25519 detached signature over arbitrary bytes.
+ *
+ * Wraps `tweetnacl.sign.detached.verify` with strict length guards
+ * (Ed25519 public keys are 32 bytes, signatures are 64 bytes). All
+ * thrown errors are caught and surfaced as `false` so a single
+ * malformed input cannot crash the caller — fail closed.
+ *
+ * Used by `@lfp2p/ucan-verifier` (and other future scheme verifiers)
+ * to verify signatures over signing-input strings, where the
+ * envelope/JSON wrappers in this module don't fit.
+ */
+export function verifyEd25519(
+  message: Uint8Array,
+  signature: Uint8Array,
+  publicKey: Uint8Array
+): boolean {
+  try {
+    if (publicKey.byteLength !== nacl.sign.publicKeyLength) return false;
+    if (signature.byteLength !== nacl.sign.signatureLength) return false;
+    return nacl.sign.detached.verify(message, signature, publicKey);
+  } catch {
+    return false;
+  }
+}
+
 export async function generateNonExtractableAesGcmKey(): Promise<CryptoKey> {
   return requireSubtleCrypto().generateKey({ name: 'AES-GCM', length: 256 }, false, [
     'encrypt',
