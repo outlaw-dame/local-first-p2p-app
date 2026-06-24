@@ -1,0 +1,14 @@
+{
+  "name": "@lfp2p/identity-control-log-verifier",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": {
+    "@lfp2p/capabilities": "workspace:*",
+    "@lfp2p/crypto": "workspace:*",
+    "@lfp2p/identity": "workspace:*",
+    "@lfp2p/protocol": "workspace:*"
+  }
+}
