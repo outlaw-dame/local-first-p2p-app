@@ -1,6 +1,6 @@
 # Phase 0 Current-State Addendum
 
-- Status: Draft
+- Status: Superseded by Phase 1 verifier summary for proof-verifier scheme state
 - Date: 2026-06-23
 - Scope: documentation reconciliation after Issue #84 completion and adaptive reachability planning
 
@@ -10,13 +10,19 @@
 
 ## Recent verifier state
 
-Issue #84 has been closed. The capability proof verifier track now has these live verifier schemes:
+Issue #84 has been closed. At Phase 0 time, the capability proof verifier track had native, UCAN, and VC verifier schemes live. Later PRs added restricted zcap-ld verification and bearcap possession-confirmation support.
 
-- native signed-event proof verifier;
-- UCAN verifier;
-- VC verifier.
+Current verifier scheme behavior is documented in:
 
-The UCAN verifier supports the bounded v1 UCAN path documented in its PR. The VC verifier supports the deliberately narrow `DataIntegrityProof` + `eddsa-jcs-2022` path. zcap-ld and bearcap remain intentionally unsupported/abstaining unless future ADRs decide otherwise.
+```txt
+docs/implementation/phase-1-capability-proof-verifier-completion.md
+```
+
+Correct current summary:
+
+- `native-signed-event`, `ucan`, `vc`, and restricted `zcap-ld` can reach `verified` when their strict profile verifies;
+- `bearcap` can reach `possession-confirmed`, never `verified`;
+- `manual-local-policy` remains local-policy-only unless a future ADR changes it.
 
 Documentation and implementation work should not describe capability credential verification as purely shape-only anymore. Shape-only reserved refs still exist in older trust/safety types, but the capability proof verifier registry now has multiple concrete implementations.
 
