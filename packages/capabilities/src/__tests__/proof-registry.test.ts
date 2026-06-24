@@ -122,6 +122,13 @@ describe('verifyProof — verification state machine', () => {
     expect(record.verificationState).toBe('verified');
   });
 
+  it('a verifier returning "possession-confirmed" → possession-confirmed (new tier)', () => {
+    const { registry } = registerProof(createProofRegistry(), input());
+    const possess: CapabilityProofVerifier = () => 'possession-confirmed';
+    const { record } = verifyProof(registry, 'proof:native:1', { now: NOW, verifier: possess });
+    expect(record.verificationState).toBe('possession-confirmed');
+  });
+
   it('native proof with a rejecting verifier → invalid', () => {
     const { registry } = registerProof(createProofRegistry(), input());
     const { record } = verifyProof(registry, 'proof:native:1', { now: NOW, verifier: rejectAll });
@@ -269,6 +276,34 @@ describe('summarizeProofStates — worst-case aggregation (fail closed)', () => 
     ).toBe('revoked');
   });
 
+  it('possession-confirmed sits strictly between unverified and verified in severity', () => {
+    let reg = createProofRegistry();
+    reg = registerProof(reg, input({ proofId: 'verif' })).registry;
+    reg = registerProof(reg, input({ proofId: 'poss', scheme: 'bearcap' })).registry;
+    reg = registerProof(reg, input({ proofId: 'unv' })).registry;
+    reg = verifyProof(reg, 'verif', { now: NOW, verifier: verifyAll }).registry;
+    const possess: CapabilityProofVerifier = (r) =>
+      r.scheme === 'bearcap' ? 'possession-confirmed' : undefined;
+    reg = verifyProof(reg, 'poss', { now: NOW, verifier: possess }).registry;
+    // 'unv' stays unverified (no verifier).
+
+    // {verified, possession-confirmed} → possession-confirmed (drops below verified)
+    expect(
+      summarizeProofStates(reg, [
+        { proofId: 'verif', scheme: 'native-signed-event' },
+        { proofId: 'poss', scheme: 'bearcap' }
+      ])
+    ).toBe('possession-confirmed');
+
+    // {possession-confirmed, unverified} → unverified (still more severe than possession-confirmed)
+    expect(
+      summarizeProofStates(reg, [
+        { proofId: 'poss', scheme: 'bearcap' },
+        { proofId: 'unv', scheme: 'native-signed-event' }
+      ])
+    ).toBe('unverified');
+  });
+
   it('severity order: invalid outranks expired outranks unverified outranks verified', () => {
     let reg = createProofRegistry();
     reg = registerProof(reg, input({ proofId: 'inv' })).registry;
@@ -326,8 +361,8 @@ describe('reliance gate wired to the registry', () => {
     expect(decision.reasonCodes).toEqual(['capability.expired']);
   });
 
-  it('invalid and unverified both deny with capability.unverified-proof', () => {
-    for (const state of ['invalid', 'unverified'] as const) {
+  it('invalid, unverified, and possession-confirmed all deny with capability.unverified-proof', () => {
+    for (const state of ['invalid', 'unverified', 'possession-confirmed'] as const) {
       const decision = evaluateCapabilityReliance({
         capabilityDecision: allowed,
         proofsState: state,
@@ -351,9 +386,10 @@ describe('reliance gate wired to the registry', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('verification-state enum integrity', () => {
-  it('exposes exactly the five documented states', () => {
+  it('exposes exactly the six documented states', () => {
     expect([...CAPABILITY_PROOF_VERIFICATION_STATES]).toEqual([
       'unverified',
+      'possession-confirmed',
       'verified',
       'expired',
       'revoked',

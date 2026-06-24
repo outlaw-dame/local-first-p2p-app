@@ -635,12 +635,73 @@ project ships:
   surface and resolve to `'invalid'` because the proof registry
   stores delegation grants, not invocation acts.
 
-- bearcap, manual-local-policy verifiers — not shipped. Until a
-  dedicated verifier exists for those schemes, proofs of those
-  schemes stay `unverified`. The proof registry's
-  `summarizeProofStates` worst-case fold ensures that surfaces as
-  `capability.unverified-proof` at the reliance gate (fail closed).
-  See issue #84 for the design notes on each.
+- **`@lfp2p/bearcap-verifier`** — fills the slot for the `bearcap`
+  scheme (bearer capabilities: share URLs, API keys, magic-link
+  tokens, Macaroons, OAuth-style bearer tokens).
+  Provides `createBearcapVerifier({ resolveBearcap })` which:
+  - SHA-256s the resolved token bytes and compares to the
+    registry record's `digest` (`'sha-256:<base64url>'` format)
+    using constant-time comparison (no timing oracle),
+  - **never returns `'verified'`** — bearcaps are
+    possession-as-authorization, with NO cryptographic identity
+    binding. On match the verifier returns the new
+    `'possession-confirmed'` verdict tier (see below).
+  - Honest v1 scope: SHA-256 digests only. The registry accepts
+    `sha-512` and `blake3` prefixes too, but the v1 bearcap
+    verifier won't pretend to verify a hash it didn't compute —
+    those resolve to `'invalid'`.
+
+  ## The `'possession-confirmed'` verdict tier
+
+  Bearcaps required a new tier in the registry's verification-
+  state enum, sitting STRICTLY BETWEEN `'unverified'` and
+  `'verified'` in the severity table:
+
+  ```
+  most-severe → least-severe
+  revoked > invalid > expired > unverified
+         > possession-confirmed > verified
+  ```
+
+  Semantic:
+  - `'verified'`            — cryptographic identity binding
+                             confirmed (UCAN/VC/zcap-ld/native).
+  - `'possession-confirmed'` — the caller demonstrated possession
+                             of bytes whose digest matches the
+                             registry's `digest` field. No
+                             identity binding (anyone who knows
+                             the token bytes produces this
+                             verdict).
+  - `'unverified'`          — we never checked.
+
+  The reliance gate's existing `proofsState !== 'verified'`
+  check treats `'possession-confirmed'` as fail-closed for
+  AUTHORITY decisions — a bearcap by itself cannot grant
+  authority, only confirm "the bytes match what we registered."
+  The reason code at the gate folds to
+  `capability.unverified-proof` (no separate code; an authority
+  decision based on a bearcap is still unverifiable as
+  AUTHORITY). The distinction lives in the registry's audit
+  state so consumers can tell *we checked the only thing this
+  scheme admits and it matched* from *we never checked*.
+
+  Combined with the pre-existing `BEARCAP_FORBIDDEN_ACTION_PREFIXES`
+  guard in the reliance gate (bearcaps are denied for
+  `identity.*`, `community.role.*`, `label.*`, `relay.*`,
+  `super-peer.*` actions regardless of state), the model is:
+  *bearcap can witness a bytes-match, but cannot establish
+  authority on its own, and is forbidden outright for
+  high-privilege scopes.*
+
+- `manual-local-policy` verifier — not shipped, and deliberately
+  not implementable as a cryptographic verifier. A
+  `manual-local-policy` "proof" IS the local trust decision (a
+  human clicked Allow); there is no cryptographic content
+  separate from the registry record itself. A verifier returning
+  `'verified'` would only mean "the local state records this was
+  allowed," which is identical to the registry holding the
+  record. The reliance pathway for manual decisions belongs in
+  the local admission layer, not in the proof registry.
 
 ## VC authority bindings
 
