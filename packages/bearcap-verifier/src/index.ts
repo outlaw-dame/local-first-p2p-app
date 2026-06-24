@@ -163,18 +163,19 @@ export function createBearcapVerifier(
  * caller could probe `record.digest` byte-by-byte by submitting
  * candidate tokens and measuring how long the comparison takes.
  *
- * Both inputs are base64url-encoded SHA-256 digests (43 chars), so
- * we always walk the longer length and accumulate diffs in a single
- * bitfield. Length differences are also folded in so a longer
- * candidate cannot short-circuit.
+ * Length is NOT secret here: the actual digest computed by this
+ * verifier is always 43 chars (base64url of a 32-byte SHA-256), and
+ * `record.digest`'s payload length is a property of the registry
+ * record itself (visible to anyone with read access). An early
+ * length-mismatch exit is therefore safe and lets the body loop
+ * remain branchless XOR accumulation, which JITs reliably to
+ * straight-line code. Caught by gemini review on PR #89.
  */
 function constantTimeEqual(a: string, b: string): boolean {
-  const len = Math.max(a.length, b.length);
-  let diff = a.length ^ b.length;
-  for (let i = 0; i < len; i += 1) {
-    const ac = i < a.length ? a.charCodeAt(i) : 0;
-    const bc = i < b.length ? b.charCodeAt(i) : 0;
-    diff |= ac ^ bc;
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return diff === 0;
 }
