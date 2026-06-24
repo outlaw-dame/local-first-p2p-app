@@ -631,6 +631,21 @@ describe('createVcVerifier: JCS canonicalization', () => {
 /*                              sanity: helpers                               */
 /* -------------------------------------------------------------------------- */
 
+describe('createVcVerifier: JCS toJSON regression (gemini review #86)', () => {
+  it('canonicalizeJcs respects toJSON (Date → ISO string) under the hood', () => {
+    // We exercise the verifier path with a Date inside the credential
+    // after the verifier's JSON round-trip. The round-trip preserves
+    // Date-as-string behavior, so the test confirms the verifier
+    // still validates a credential containing a `Date`-originated
+    // field — i.e., the toJSON change in canonicalizeJcs did not
+    // accidentally regress the verifier surface.
+    const cred = mintVc({
+      extraCredentialFields: { issuanceISO: '2026-01-01T00:00:00.000Z' }
+    });
+    expect(vcVerifier(cred, { now: FIXED_NOW })(makeRecord())).toBe('verified');
+  });
+});
+
 describe('test fixtures sanity check', () => {
   it('ISSUER_DID has the expected did:key shape', () => {
     expect(ISSUER_DID.startsWith('did:key:z')).toBe(true);

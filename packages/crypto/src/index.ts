@@ -176,19 +176,24 @@ export function decodeBase58Btc(input: string): Uint8Array | undefined {
     const digit = BASE58_BTC_MAP.get(ch);
     if (digit === undefined) return undefined;
     let carry = digit;
-    for (let j = bytes.length - 1; j >= 0; j -= 1) {
+    // `bytes` is stored little-endian (least-significant byte at
+    // index 0). This lets us grow with O(1) `push` instead of the
+    // O(N) `unshift` a most-significant-first layout would need.
+    for (let j = 0; j < bytes.length; j += 1) {
       const cur = (bytes[j] as number) * 58 + carry;
       bytes[j] = cur & 0xff;
       carry = cur >>> 8;
     }
     while (carry > 0) {
-      bytes.unshift(carry & 0xff);
+      bytes.push(carry & 0xff);
       carry >>>= 8;
     }
   }
+  // Reverse on copy-out so the result is the standard big-endian
+  // byte sequence (multibase / multicodec semantics).
   const out = new Uint8Array(leadingZeros + bytes.length);
   for (let i = 0; i < bytes.length; i += 1) {
-    out[leadingZeros + i] = bytes[i] as number;
+    out[leadingZeros + i] = bytes[bytes.length - 1 - i] as number;
   }
   return out;
 }
@@ -272,6 +277,19 @@ function canonicalizeJcsImpl(value: unknown): string {
   }
   if (typeof value === 'string') {
     return JSON.stringify(value);
+  }
+  // Mirror JSON.stringify's `toJSON` hook: Date, class instances
+  // implementing toJSON, etc. serialize via their replacement value.
+  // Safe in this codebase's verifier path because callers JSON
+  // round-trip untrusted inputs first; here we only invoke toJSON
+  // on objects the caller chose to pass to us directly.
+  if (
+    typeof value === 'object' &&
+    typeof (value as { toJSON?: unknown }).toJSON === 'function'
+  ) {
+    return canonicalizeJcsImpl(
+      (value as { toJSON: () => unknown }).toJSON()
+    );
   }
   if (Array.isArray(value)) {
     const parts = new Array<string>(value.length);
