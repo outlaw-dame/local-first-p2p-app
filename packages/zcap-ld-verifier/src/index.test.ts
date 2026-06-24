@@ -698,6 +698,97 @@ describe('createZcapLdVerifier: delegation link integrity', () => {
 });
 
 /* -------------------------------------------------------------------------- */
+/*           regression: attenuation bypass via inheriting intermediate       */
+/*                       (gemini review #87 CRITICAL)                         */
+/* -------------------------------------------------------------------------- */
+
+describe('createZcapLdVerifier: inheriting-intermediate attenuation (regression)', () => {
+  it('invalid when grandchild expands actions through a mid that omits allowedAction', () => {
+    // root grants ['read']; mid inherits (no allowedAction); leaf
+    // claims ['write']. Without the inheritance-propagation fix the
+    // mid call would drop ctx.childAllowedActions, letting the leaf
+    // sneak 'write' past root's ['read'] grant.
+    const root = mintZcap({
+      id: 'urn:zcap:root',
+      controller: ROOT_DID,
+      signerKp: ROOT_KP,
+      allowedAction: ['read']
+    });
+    const mid = mintZcap({
+      id: 'urn:zcap:mid',
+      controller: MID_DID,
+      signerKp: ROOT_KP,
+      signerDid: ROOT_DID,
+      parentCapability: root
+      // intentionally NO allowedAction
+    });
+    const leaf = mintZcap({
+      id: 'urn:zcap:leaf',
+      controller: LEAF_DID,
+      signerKp: MID_KP,
+      signerDid: MID_DID,
+      parentCapability: mid,
+      allowedAction: ['write'] // expansion attempt
+    });
+    expect(vfor(leaf, { now: FIXED_NOW })(makeRecord())).toBe('invalid');
+  });
+
+  it('invalid when grandchild expands expiry through a mid that omits expires', () => {
+    const root = mintZcap({
+      id: 'urn:zcap:root',
+      controller: ROOT_DID,
+      signerKp: ROOT_KP,
+      expires: '2027-01-01T00:00:00Z'
+    });
+    const mid = mintZcap({
+      id: 'urn:zcap:mid',
+      controller: MID_DID,
+      signerKp: ROOT_KP,
+      signerDid: ROOT_DID,
+      parentCapability: root
+      // intentionally NO expires
+    });
+    const leaf = mintZcap({
+      id: 'urn:zcap:leaf',
+      controller: LEAF_DID,
+      signerKp: MID_KP,
+      signerDid: MID_DID,
+      parentCapability: mid,
+      expires: '2099-01-01T00:00:00Z' // expansion attempt
+    });
+    expect(vfor(leaf, { now: FIXED_NOW })(makeRecord())).toBe('invalid');
+  });
+
+  it('verifies the legitimate inherit case (mid inherits, leaf within bounds)', () => {
+    // Same shape as the attack but leaf stays within root's grant.
+    const root = mintZcap({
+      id: 'urn:zcap:root',
+      controller: ROOT_DID,
+      signerKp: ROOT_KP,
+      allowedAction: ['read', 'write'],
+      expires: '2027-01-01T00:00:00Z'
+    });
+    const mid = mintZcap({
+      id: 'urn:zcap:mid',
+      controller: MID_DID,
+      signerKp: ROOT_KP,
+      signerDid: ROOT_DID,
+      parentCapability: root
+    });
+    const leaf = mintZcap({
+      id: 'urn:zcap:leaf',
+      controller: LEAF_DID,
+      signerKp: MID_KP,
+      signerDid: MID_DID,
+      parentCapability: mid,
+      allowedAction: ['read'],
+      expires: '2026-12-01T00:00:00Z'
+    });
+    expect(vfor(leaf, { now: FIXED_NOW })(makeRecord())).toBe('verified');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /*                          parentCapability shape                            */
 /* -------------------------------------------------------------------------- */
 

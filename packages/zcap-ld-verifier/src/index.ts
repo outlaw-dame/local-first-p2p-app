@@ -334,14 +334,22 @@ function verifyZcapChain(
     return 'invalid';
   } else {
     // Inline parent — recurse.
+    //
+    // SECURITY: when this link omits `allowedAction` or `expires`,
+    // it "inherits" from above — which means the DESCENDANT's
+    // constraint must continue propagating up so the parent still
+    // sees it. Falling back to undefined here would drop the
+    // descendant's claim at the first intermediate that inherits,
+    // letting a grandchild expand actions or expiry beyond what
+    // the root ever granted. Caught by gemini review on PR #87.
     const parentVerdict = verifyZcapChain(parent, {
       expectedLeafController: ctx.expectedLeafController,
       expectedRootController: ctx.expectedRootController,
       depthRemaining: ctx.depthRemaining - 1,
       nowMs: ctx.nowMs,
       childTarget: z.invocationTarget,
-      childAllowedActions: myActions ?? undefined,
-      childExpiresMs: myExpiresMs,
+      childAllowedActions: myActions ?? ctx.childAllowedActions,
+      childExpiresMs: myExpiresMs ?? ctx.childExpiresMs,
       childVerificationMethodBase: vmBase
     });
     if (parentVerdict !== 'verified') return 'invalid';
