@@ -62,7 +62,7 @@
 import type {
   CapabilityProofRecord
 } from '@lfp2p/capabilities';
-import { verifyEd25519 } from '@lfp2p/crypto';
+import { didKeyToEd25519PublicKey, verifyEd25519 } from '@lfp2p/crypto';
 
 export type CapabilityProofCryptoVerdict = 'verified' | 'invalid';
 export type CapabilityProofVerifier = (
@@ -361,71 +361,6 @@ function decodeJsonSegment<T>(
     return undefined;
   }
   return guard(json) ? json : undefined;
-}
-
-/* -------------------------------------------------------------------------- */
-/*                              did:key parsing                               */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Parse a `did:key:z<multibase-multicodec-pubkey>` into the raw
- * Ed25519 public key bytes. Returns `undefined` for any other
- * format. Multicodec prefix for Ed25519 is the varint `0xed 0x01`
- * followed by 32 bytes of public key.
- */
-function didKeyToEd25519PublicKey(did: string): Uint8Array | undefined {
-  if (typeof did !== 'string') return undefined;
-  if (!did.startsWith('did:key:z')) return undefined;
-  const body = did.slice('did:key:z'.length);
-  const decoded = decodeBase58Btc(body);
-  if (decoded === undefined) return undefined;
-  // Multicodec Ed25519 prefix = 0xed 0x01.
-  if (
-    decoded.byteLength !== 2 + 32 ||
-    decoded[0] !== 0xed ||
-    decoded[1] !== 0x01
-  ) {
-    return undefined;
-  }
-  return decoded.slice(2);
-}
-
-const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-const BASE58_MAP: ReadonlyMap<string, number> = (() => {
-  const m = new Map<string, number>();
-  for (let i = 0; i < BASE58_ALPHABET.length; i += 1) m.set(BASE58_ALPHABET[i] as string, i);
-  return m;
-})();
-
-function decodeBase58Btc(input: string): Uint8Array | undefined {
-  if (input.length === 0) return new Uint8Array();
-  let leadingZeros = 0;
-  while (leadingZeros < input.length && input[leadingZeros] === '1') leadingZeros += 1;
-  // Iterative base conversion: treat the input as base-58, convert
-  // to a base-256 byte array. We use a "big number" represented as
-  // a number[] of base-256 digits, most-significant first.
-  const bytes: number[] = [];
-  for (let i = 0; i < input.length; i += 1) {
-    const ch = input[i];
-    if (ch === undefined) return undefined;
-    const digit = BASE58_MAP.get(ch);
-    if (digit === undefined) return undefined;
-    let carry = digit;
-    for (let j = bytes.length - 1; j >= 0; j -= 1) {
-      const cur = (bytes[j] as number) * 58 + carry;
-      bytes[j] = cur & 0xff;
-      carry = cur >>> 8;
-    }
-    while (carry > 0) {
-      bytes.unshift(carry & 0xff);
-      carry >>>= 8;
-    }
-  }
-  const out = new Uint8Array(leadingZeros + bytes.length);
-  for (let i = 0; i < bytes.length; i += 1) {
-    out[leadingZeros + i] = bytes[i] as number;
-  }
-  return out;
 }
 
 /* -------------------------------------------------------------------------- */

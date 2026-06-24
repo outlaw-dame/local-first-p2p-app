@@ -1,4 +1,5 @@
 import nacl from 'tweetnacl';
+import { sha256 as nobleSha256 } from '@noble/hashes/sha256';
 import {
   canonicalizeJson,
   type JsonValue,
@@ -135,6 +136,185 @@ export function verifyEd25519(
   } catch {
     return false;
   }
+}
+
+/**
+ * Synchronous SHA-256 over raw bytes. Returns the 32-byte digest.
+ *
+ * SubtleCrypto's `digest('SHA-256', …)` is async, which doesn't fit
+ * the synchronous `CapabilityProofVerifier` slot used by the proof
+ * registry. `@noble/hashes` is an audited, dependency-free
+ * implementation widely used across the TS ecosystem (viem, ethers,
+ * @noble/curves).
+ */
+export function sha256(input: Uint8Array): Uint8Array {
+  return nobleSha256(input);
+}
+
+/**
+ * Decode a base58btc string (the Bitcoin alphabet, no leading byte)
+ * into raw bytes. Returns `undefined` for any character outside the
+ * alphabet so the caller can fail-closed on malformed input rather
+ * than guessing.
+ *
+ * Iterative big-number conversion — no recursion, no eval. Empty
+ * input returns an empty array. Leading `'1'` characters round-trip
+ * to leading `0x00` bytes per the standard.
+ *
+ * Used by `didKeyToEd25519PublicKey` and (re-exported for) UCAN/VC
+ * scheme verifiers that decode `did:key:z…` issuers.
+ */
+export function decodeBase58Btc(input: string): Uint8Array | undefined {
+  if (typeof input !== 'string') return undefined;
+  if (input.length === 0) return new Uint8Array();
+  let leadingZeros = 0;
+  while (leadingZeros < input.length && input[leadingZeros] === '1') leadingZeros += 1;
+  const bytes: number[] = [];
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i];
+    if (ch === undefined) return undefined;
+    const digit = BASE58_BTC_MAP.get(ch);
+    if (digit === undefined) return undefined;
+    let carry = digit;
+    // `bytes` is stored little-endian (least-significant byte at
+    // index 0). This lets us grow with O(1) `push` instead of the
+    // O(N) `unshift` a most-significant-first layout would need.
+    for (let j = 0; j < bytes.length; j += 1) {
+      const cur = (bytes[j] as number) * 58 + carry;
+      bytes[j] = cur & 0xff;
+      carry = cur >>> 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>>= 8;
+    }
+  }
+  // Reverse on copy-out so the result is the standard big-endian
+  // byte sequence (multibase / multicodec semantics).
+  const out = new Uint8Array(leadingZeros + bytes.length);
+  for (let i = 0; i < bytes.length; i += 1) {
+    out[leadingZeros + i] = bytes[bytes.length - 1 - i] as number;
+  }
+  return out;
+}
+
+const BASE58_BTC_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const BASE58_BTC_MAP: ReadonlyMap<string, number> = (() => {
+  const m = new Map<string, number>();
+  for (let i = 0; i < BASE58_BTC_ALPHABET.length; i += 1) {
+    m.set(BASE58_BTC_ALPHABET[i] as string, i);
+  }
+  return m;
+})();
+
+/**
+ * Parse a `did:key:z<multibase-multicodec-pubkey>` into the raw
+ * Ed25519 public key bytes (32 bytes). Returns `undefined` for any
+ * other DID method, multibase prefix, or multicodec — strictly
+ * Ed25519 only. Other algorithms are an explicit non-goal of the
+ * proof-verifier slots and must fail closed, not fall through.
+ *
+ * Multicodec prefix for Ed25519 = varint `0xed 0x01` followed by 32
+ * pubkey bytes.
+ */
+export function didKeyToEd25519PublicKey(did: string): Uint8Array | undefined {
+  if (typeof did !== 'string') return undefined;
+  const PREFIX = 'did:key:z';
+  if (!did.startsWith(PREFIX)) return undefined;
+  const body = did.slice(PREFIX.length);
+  const decoded = decodeBase58Btc(body);
+  if (decoded === undefined) return undefined;
+  if (decoded.byteLength !== 2 + 32 || decoded[0] !== 0xed || decoded[1] !== 0x01) {
+    return undefined;
+  }
+  return decoded.slice(2);
+}
+
+/**
+ * RFC 8785 JSON Canonicalization Scheme (JCS).
+ *
+ * Produces a deterministic, byte-stable canonical JSON string for a
+ * JSON value (the kind of value you would get from `JSON.parse`).
+ * Used by `eddsa-jcs-2022` VC verification — where signer and
+ * verifier MUST agree on the exact bytes to hash — and exposed for
+ * any future scheme verifier that needs JCS canonicalization
+ * without dragging in a JSON-LD canonicalization library.
+ *
+ * Rules:
+ *   - object keys sorted by UTF-16 code unit (JS default string sort)
+ *   - no whitespace anywhere
+ *   - strings serialized per RFC 8259 (JSON.stringify is compliant
+ *     in modern V8 / WebKit / SpiderMonkey for the JSON character
+ *     subset that JCS targets)
+ *   - finite numbers serialized per ECMAScript Number-to-String
+ *     (which RFC 8785 §3.2.2.3 specifies)
+ *   - undefined values inside objects are skipped (mirrors
+ *     JSON.stringify); undefined as the top-level input throws
+ *   - non-finite numbers (NaN, ±Infinity) throw — they cannot be
+ *     canonicalized into valid JSON
+ *
+ * The function walks `Object.keys()` only, so inherited properties
+ * (prototype pollution) cannot influence the output. Plain objects
+ * and arrays only — typed arrays / Maps / Sets are out of scope and
+ * will be treated as plain objects (the caller is responsible for
+ * passing JSON-shaped input).
+ */
+export function canonicalizeJcs(value: unknown): string {
+  if (value === undefined) {
+    throw new TypeError('canonicalizeJcs: top-level value cannot be undefined');
+  }
+  return canonicalizeJcsImpl(value);
+}
+
+function canonicalizeJcsImpl(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new TypeError('canonicalizeJcs: non-finite numbers cannot be canonicalized');
+    }
+    return JSON.stringify(value);
+  }
+  if (typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+  // Mirror JSON.stringify's `toJSON` hook: Date, class instances
+  // implementing toJSON, etc. serialize via their replacement value.
+  // Safe in this codebase's verifier path because callers JSON
+  // round-trip untrusted inputs first; here we only invoke toJSON
+  // on objects the caller chose to pass to us directly.
+  if (
+    typeof value === 'object' &&
+    typeof (value as { toJSON?: unknown }).toJSON === 'function'
+  ) {
+    return canonicalizeJcsImpl(
+      (value as { toJSON: () => unknown }).toJSON()
+    );
+  }
+  if (Array.isArray(value)) {
+    const parts = new Array<string>(value.length);
+    for (let i = 0; i < value.length; i += 1) {
+      const v = value[i];
+      // JSON.stringify replaces undefined array entries with `null`;
+      // RFC 8785 does the same. Match that behavior.
+      parts[i] = v === undefined ? 'null' : canonicalizeJcsImpl(v);
+    }
+    return '[' + parts.join(',') + ']';
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj).sort();
+    const parts: string[] = [];
+    for (const k of keys) {
+      const v = obj[k];
+      if (v === undefined) continue;
+      parts.push(JSON.stringify(k) + ':' + canonicalizeJcsImpl(v));
+    }
+    return '{' + parts.join(',') + '}';
+  }
+  throw new TypeError(
+    `canonicalizeJcs: unsupported value type '${typeof value}'`
+  );
 }
 
 export async function generateNonExtractableAesGcmKey(): Promise<CryptoKey> {
