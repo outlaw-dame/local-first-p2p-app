@@ -589,9 +589,55 @@ project ships:
   lookup is also out of scope — the proof registry's deterministic
   `revokedAt` gate is the authoritative revocation surface.
 
-- zcap-ld, bearcap, manual-local-policy verifiers — not shipped.
-  Until a dedicated verifier exists for those schemes, proofs of
-  those schemes stay `unverified`. The proof registry's
+- **`@lfp2p/zcap-ld-verifier`** — fills the slot for the
+  `zcap-ld` scheme (Authorization Capabilities for Linked Data).
+  Provides `createZcapLdVerifier({ resolveCapability, maxChainDepth?, now? })`
+  which:
+  - walks the `parentCapability` chain (inline only — string ID
+    refs are out of scope for v1) up to a bounded depth (default
+    16),
+  - enforces zcap-ld v1 `@context`, required fields (`id`,
+    `controller`, `invocationTarget`), and `proofPurpose ===
+    'capabilityDelegation'`,
+  - accepts ONLY `DataIntegrityProof` + `cryptosuite ===
+    'eddsa-jcs-2022'` — the same JCS (RFC 8785) pipeline shared
+    with `@lfp2p/vc-verifier`. URDNA2015-based variants
+    (`Ed25519Signature2020`, `eddsa-rdfc-2022`, etc.) resolve to
+    `'invalid'` because shipping URDNA2015 + a JSON-LD context
+    resolver inside a synchronous verifier slot is
+    architecturally incompatible (would need async context
+    resolution or a pinned offline context cache),
+  - pins root identity: the root zcap's `controller` MUST equal
+    `record.issuer.id` and the root MUST be self-signed (vmBase
+    === root.controller),
+  - pins leaf identity: the leaf zcap's `controller` MUST equal
+    `record.subject.id`,
+  - enforces per-link delegation invariants:
+    `child.proof.verificationMethod` base DID === `parent.controller`
+    (the delegator signed); `child.invocationTarget` is exact-match
+    or slash-bounded URL-prefix subset of `parent.invocationTarget`
+    (no escape to a sibling resource); `child.allowedAction` is a
+    string-set subset of `parent.allowedAction` (`'*'` =
+    all-actions; absent = inherit); `child.expires` ≤
+    `parent.expires` (no expiry expansion); `expires` strictly in
+    the future at the current clock,
+  - decodes the `proofValue` as multibase `z<base58btc>` 64-byte
+    Ed25519 signature and verifies via
+    `sha256(JCS(proofConfig)) || sha256(JCS(unsecuredDoc))`
+    per the W3C VC-DI eddsa-jcs-2022 spec.
+
+  Honest v1 scope: `eddsa-jcs-2022` only (deliberately avoids
+  URDNA2015), `did:key` only, inline `parentCapability` only,
+  single-proof + delegation-purpose only. URL-prefix attenuation
+  uses exact-match-or-slash-bounded-prefix (intentionally
+  conservative — full URI canonicalization is out of scope for
+  v1). Invocation proofs (`capabilityInvocation`) are a separate
+  surface and resolve to `'invalid'` because the proof registry
+  stores delegation grants, not invocation acts.
+
+- bearcap, manual-local-policy verifiers — not shipped. Until a
+  dedicated verifier exists for those schemes, proofs of those
+  schemes stay `unverified`. The proof registry's
   `summarizeProofStates` worst-case fold ensures that surfaces as
   `capability.unverified-proof` at the reliance gate (fail closed).
   See issue #84 for the design notes on each.

@@ -9,6 +9,7 @@
     { "path": "packages/native-proof-verifier" },
     { "path": "packages/ucan-verifier" },
     { "path": "packages/vc-verifier" },
+    { "path": "packages/zcap-ld-verifier" },
     { "path": "packages/crypto" },
     { "path": "packages/envelope" },
     { "path": "packages/design-tokens" },

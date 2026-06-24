@@ -296,6 +296,19 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
 
+  packages/zcap-ld-verifier:
+    dependencies:
+      '@lfp2p/capabilities':
+        specifier: workspace:*
+        version: link:../capabilities
+      '@lfp2p/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+    devDependencies:
+      tweetnacl:
+        specifier: ^1.0.3
+        version: 1.0.3
+
 packages:
 
   '@babel/code-frame@7.29.7':
