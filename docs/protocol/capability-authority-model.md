@@ -552,9 +552,46 @@ project ships:
   every non-UCAN scheme it abstains so it composes cleanly with the
   native verifier via `composeVerifiers(...)`.
 
-- VC, zcap-ld, bearcap, manual-local-policy verifiers — not
-  shipped. Until a dedicated verifier exists for those schemes,
-  proofs of those schemes stay `unverified`. The proof registry's
+- **`@lfp2p/vc-verifier`** — fills the slot for the `vc` scheme
+  (W3C Verifiable Credentials).
+  Provides `createVcVerifier({ resolveCredential, now? })` which:
+  - extracts and matches `credential.issuer` (string DID or
+    `{ id }` form) against the registry record's `issuer.id`,
+  - extracts and matches `credentialSubject.id` against the
+    registry record's `subject.id` (single-subject credentials
+    only — multi-subject is out of scope for v1),
+  - enforces VC-DM 2.0 (`validFrom`/`validUntil`) AND VC-DM 1.1
+    (`issuanceDate`/`expirationDate`) time windows when present,
+    with `now === validUntil` treated as expired (fail-closed),
+  - accepts ONLY `proof.type === 'DataIntegrityProof'` with
+    `cryptosuite === 'eddsa-jcs-2022'` — any other proof type or
+    cryptosuite is `'invalid'`, not abstain, because the scheme
+    has already been claimed,
+  - resolves `proof.verificationMethod` (with any fragment stripped)
+    as a `did:key:z…` whose base DID MUST equal the credential
+    issuer — preventing a did:key holder from signing credentials
+    "as" any other issuer,
+  - decodes the multibase `z<base58btc>` `proofValue` to a raw
+    64-byte Ed25519 signature,
+  - canonicalizes both the credential (sans `proof`) and the proof
+    options (sans `proofValue`) via JCS (RFC 8785) using the new
+    shared `canonicalizeJcs` helper in `@lfp2p/crypto`, computes
+    `sha256(proofConfig) || sha256(unsecuredDoc)` (per the W3C
+    VC-DI eddsa-jcs-2022 spec), and verifies the signature via
+    `verifyEd25519`.
+
+  Honest v1 scope: `eddsa-jcs-2022` only (deliberately avoids
+  JSON-LD URDNA2015 canonicalization), `did:key` only, single-proof
+  + single-subject only. Other proof types
+  (`Ed25519Signature2020`, `JsonWebSignature2020`,
+  `eddsa-rdfc-2022`, `ecdsa-rdfc-2019`, BBS variants) are explicit
+  non-goals and resolve to `'invalid'`. Status-list / revocation
+  lookup is also out of scope — the proof registry's deterministic
+  `revokedAt` gate is the authoritative revocation surface.
+
+- zcap-ld, bearcap, manual-local-policy verifiers — not shipped.
+  Until a dedicated verifier exists for those schemes, proofs of
+  those schemes stay `unverified`. The proof registry's
   `summarizeProofStates` worst-case fold ensures that surfaces as
   `capability.unverified-proof` at the reliance gate (fail closed).
   See issue #84 for the design notes on each.
