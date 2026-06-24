@@ -70,18 +70,19 @@ The next implementation order should be:
 6. bridge resumability hardening;
 7. adaptive reachability descriptor schemas;
 8. transport abstraction;
-9. WebRTC signaling;
-10. WebRTC DataChannel sync;
-11. WebRTC media tracks;
-12. MLS-protected group messaging;
-13. encrypted mailbox;
-14. optional tunnel adapter;
-15. super-peer availability design;
-16. optional content-addressed fetchers;
-17. temporary infrastructure flow;
-18. production bridge;
-19. full-peer/native runtime;
-20. Holepunch/Bare adapter under full-peer runtime.
+9. bridge capability modules;
+10. WebRTC signaling;
+11. WebRTC DataChannel sync;
+12. WebRTC media tracks;
+13. MLS-protected group messaging;
+14. encrypted mailbox;
+15. optional tunnel adapter;
+16. super-peer availability design;
+17. optional content-addressed fetchers;
+18. temporary infrastructure flow;
+19. production bridge;
+20. full-peer/native runtime;
+21. Holepunch/Bare adapter under full-peer runtime.
 
 ## Documentation warning
 
