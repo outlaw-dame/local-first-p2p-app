@@ -86,7 +86,15 @@ function proofStateReasonCode(state: CapabilityProofVerificationState): Capabili
       return 'capability.expired';
     case 'invalid':
     case 'unverified':
+    case 'possession-confirmed':
     case 'verified':
+      // `possession-confirmed` is intentionally folded into the
+      // unverified-proof deny code at the reliance gate: even though
+      // the registry confirmed bytes-match, no cryptographic
+      // identity binding exists, so this scheme cannot establish
+      // authority by itself. The distinct state lives in the
+      // registry record for auditors; the reliance verdict
+      // collapses it to "unverified-proof" for the authority gate.
       return 'capability.unverified-proof';
     default:
       // Defense-in-depth against runtime type erasure (an untrusted

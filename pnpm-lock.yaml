@@ -124,6 +124,15 @@ importers:
         specifier: latest
         version: 8.1.0(@types/node@26.0.0)
 
+  packages/bearcap-verifier:
+    dependencies:
+      '@lfp2p/capabilities':
+        specifier: workspace:*
+        version: link:../capabilities
+      '@lfp2p/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+
   packages/capabilities: {}
 
   packages/content-addressing: {}

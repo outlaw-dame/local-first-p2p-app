@@ -66,19 +66,31 @@ export const CAPABILITY_PROOF_REGISTRY_VERSION = 'lfp2p.capability.proof-registr
 export type CapabilityProofRegistryVersion = typeof CAPABILITY_PROOF_REGISTRY_VERSION;
 
 /**
- * The five verification states.
+ * The six verification states.
  *
  *   - `unverified` — recorded, but not yet cryptographically checked
  *     (or no verifier exists for the scheme). The honest default.
+ *   - `possession-confirmed` — an injected verifier confirmed that
+ *     the caller demonstrated possession of bytes whose digest
+ *     matches `record.digest`, but the scheme does NOT support
+ *     cryptographic identity binding (bearer tokens, share URLs,
+ *     pre-signed secrets). Strictly weaker than `verified`: the
+ *     reliance gate must NOT treat it as authority-establishing,
+ *     because anyone who saw the token bytes at any point produces
+ *     the same verdict. It exists so that auditors and registry
+ *     consumers can distinguish "we never checked" from "we
+ *     checked the only thing this scheme admits."
  *   - `verified`   — an injected verifier confirmed the proof's
- *     cryptographic validity AND it is neither expired nor revoked.
+ *     cryptographic validity (signature + identity binding) AND it
+ *     is neither expired nor revoked. The strongest verdict.
  *   - `expired`    — `now >= expiresAt`. Time invalidated it.
  *   - `revoked`    — explicitly revoked (carries `revokedAt`).
  *   - `invalid`    — an injected verifier rejected it (bad signature,
- *     broken chain, subject mismatch, …).
+ *     broken chain, subject mismatch, digest mismatch, …).
  */
 export const CAPABILITY_PROOF_VERIFICATION_STATES = [
   'unverified',
+  'possession-confirmed',
   'verified',
   'expired',
   'revoked',
@@ -93,12 +105,21 @@ export type CapabilityProofVerificationState =
  * single worst (least trustworthy) state, so a capability backed by
  * one revoked proof is treated as revoked even if its other proofs
  * verify. Fail-closed by construction.
+ *
+ * `possession-confirmed` sits BETWEEN `unverified` and `verified`:
+ * more informative than "we never checked" (it confirms the bytes
+ * match what was registered) but strictly weaker than cryptographic
+ * authority verification. The reliance gate's existing
+ * `proofsState !== 'verified'` check therefore treats it as
+ * fail-closed for AUTHORITY decisions while the registry still
+ * surfaces the distinction in its audit state.
  */
 const VERIFICATION_SEVERITY: readonly CapabilityProofVerificationState[] = [
   'revoked',
   'invalid',
   'expired',
   'unverified',
+  'possession-confirmed',
   'verified'
 ];
 
@@ -130,13 +151,24 @@ export type RegisterProofInput = Readonly<{
 }>;
 
 /**
- * The cryptographic verdict an injected verifier may return. It
- * speaks ONLY to cryptographic validity — expiry and revocation are
- * handled deterministically by the registry, not the verifier.
- * Returning `undefined` (or omitting the verifier) means "this
- * verifier cannot assess this scheme" → resolves to `unverified`.
+ * The verdict an injected verifier may return.
+ *
+ *   - `'verified'`            — full cryptographic verification
+ *                               (signature + identity binding).
+ *   - `'possession-confirmed'` — the scheme does not admit
+ *                               cryptographic authority verification
+ *                               (bearer tokens) but the verifier
+ *                               confirmed the bytes match
+ *                               `record.digest`. Strictly weaker
+ *                               than `'verified'`.
+ *   - `'invalid'`             — the verifier rejected the proof.
+ *   - `undefined`             — this verifier cannot assess this
+ *                               scheme → resolves to `unverified`.
+ *
+ * Expiry and revocation are handled deterministically by the
+ * registry, not the verifier.
  */
-export type CapabilityProofCryptoVerdict = 'verified' | 'invalid';
+export type CapabilityProofCryptoVerdict = 'verified' | 'possession-confirmed' | 'invalid';
 export type CapabilityProofVerifier = (
   record: CapabilityProofRecord
 ) => CapabilityProofCryptoVerdict | undefined;
@@ -360,6 +392,7 @@ function computeVerificationState(
     return 'invalid';
   }
   if (verdict === 'verified') return 'verified';
+  if (verdict === 'possession-confirmed') return 'possession-confirmed';
   if (verdict === 'invalid') return 'invalid';
   return 'unverified';
 }
