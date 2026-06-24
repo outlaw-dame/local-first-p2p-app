@@ -19,6 +19,7 @@ Phase 0 originally captured the native + UCAN + VC state, but later verifier wor
 | `vc` | `@lfp2p/vc-verifier` | `verified`, `invalid`, or abstain | Cryptographic authority when verified | Supports W3C VC `DataIntegrityProof` with `eddsa-jcs-2022`, `did:key` issuers/verification methods, JCS canonicalization, and no network status-list lookup. Other VC proof types fail closed as invalid. |
 | `zcap-ld` | `@lfp2p/zcap-ld-verifier` | `verified`, `invalid`, or abstain | Cryptographic authority when verified | Supports a deliberately narrow zcap-ld path: inline parent capability chain, `DataIntegrityProof`, `eddsa-jcs-2022`, `did:key`, bounded depth, and no URDNA2015/context resolver. Other zcap-ld proof shapes fail closed as invalid. |
 | `bearcap` | `@lfp2p/bearcap-verifier` | `possession-confirmed`, `invalid`, or abstain | Not cryptographic authority | Digest-match possession proof only. It must never return `verified`; the reliance gate must continue to treat `possession-confirmed` as insufficient for authority decisions. |
+| `identity-control-log` | none | abstain / remains unverified | Planned / identity-control policy only | Valid proof scheme but no Phase 1 verifier package. Do not promote identity-control-log proofs to verified until a future ADR defines the verifier, replay bounds, and identity-control log binding rules. |
 | `manual-local-policy` | none | abstain / remains unverified unless handled by local policy | Local policy only | Registry should not promote this to cryptographic verification without a later doctrine. |
 
 ## Registry invariants
@@ -62,6 +63,12 @@ Bearcap verifier output is `possession-confirmed` only when the caller presents 
 
 The reliance gate must not treat `possession-confirmed` as equivalent to `verified`.
 
+## identity-control-log decision
+
+`identity-control-log` is a valid proof scheme, but it does not have a Phase 1 verifier package.
+
+Keep it unverified until a future ADR defines exactly how identity-control log material is resolved, replayed, bounded, and bound to the proof registry record. That future work must not silently treat existence of an identity-control event as authority without checking identity state, device-key status, revocation, rotation, and replay ordering.
+
 ## Documentation corrections from Phase 0
 
 Any docs saying `zcap-ld` and `bearcap` are merely abstaining are stale after PRs #87 and #89.
@@ -71,6 +78,7 @@ Correct wording:
 ```txt
 native, UCAN, VC, and restricted zcap-ld can reach `verified`.
 bearcap can reach `possession-confirmed`, never `verified`.
+identity-control-log remains unverified until a future verifier ADR/package exists.
 manual-local-policy remains local-policy-only unless a future ADR changes it.
 ```
 
@@ -92,7 +100,8 @@ Before Phase 2 starts, confirm:
 3. zcap-ld docs do not imply URDNA2015 support.
 4. VC docs do not imply remote `credentialStatus` lookup.
 5. UCAN docs do not imply CBOR / UCAN 0.10+ support.
-6. Verifier package exports do not leak network/client dependencies into `@lfp2p/capabilities`.
+6. Identity-control-log docs do not imply a verifier exists yet.
+7. Verifier package exports do not leak network/client dependencies into `@lfp2p/capabilities`.
 
 ## Next phase
 
