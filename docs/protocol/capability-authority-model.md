@@ -922,8 +922,110 @@ The first package implementation must include tests for:
 - bearcap forbidden-action denial;
 - replayed invocation denial.
 
+## Wiring the reliance gate into a relying application
+
+The proof registry, the verifier suite, and the reliance gate are
+designed to plug together at three injection points. The complete
+end-to-end recipe — composing all six scheme verifiers, running
+`verifyProof` against a registered record, folding via
+`summarizeProofStates`, and asking the reliance gate for a final
+decision through the trust-safety adapter — looks like this:
+
+```ts
+import {
+  createProofRegistry,
+  registerProof,
+  verifyProof
+} from '@lfp2p/capabilities';
+import {
+  composeVerifiers,
+  createNativeProofVerifier
+} from '@lfp2p/native-proof-verifier';
+import { createUcanVerifier } from '@lfp2p/ucan-verifier';
+import { createVcVerifier } from '@lfp2p/vc-verifier';
+import { createZcapLdVerifier } from '@lfp2p/zcap-ld-verifier';
+import { createBearcapVerifier } from '@lfp2p/bearcap-verifier';
+import { createIdentityControlLogVerifier } from '@lfp2p/identity-control-log-verifier';
+import { evaluateTrustSafetyCap } from '@lfp2p/trust-safety';
+
+// 1. Compose every scheme verifier the relying party recognizes.
+//    Order matters only when two verifiers can both speak to the
+//    same scheme — list the more authoritative one first.
+const verifier = composeVerifiers(
+  createNativeProofVerifier({ resolveSignedEvent }),
+  createUcanVerifier({ resolveUcanToken }),
+  createVcVerifier({ resolveCredential }),
+  createZcapLdVerifier({ resolveCapability }),
+  createBearcapVerifier({ resolveBearcap }),
+  createIdentityControlLogVerifier({ resolveIdentityControlLog })
+);
+
+// 2. Register a proof and run verification. Both operations return
+//    a NEW frozen registry — the prior one is unchanged (this is
+//    the Phase 3.2 frozen-walk discipline).
+let registry = createProofRegistry();
+registry = registerProof(registry, proofInput).registry;
+registry = verifyProof(registry, proofInput.proofId, {
+  now: nowIso,
+  verifier
+}).registry;
+
+// 3. Ask the gate. The adapter folds (registry, capabilityProofs)
+//    into the aggregate proofsState and forwards everything to
+//    evaluateCapabilityReliance. An allow decision is preserved
+//    only if proofsState === 'verified'; everything else denies.
+const decision = evaluateTrustSafetyCap({
+  capabilityDecision: allowingDecision,
+  capabilityAction: 'room.moderate',
+  now: nowIso,
+  proofRegistry: registry,
+  capabilityProofs: [{ proofId: proofInput.proofId, scheme: proofInput.scheme }]
+});
+```
+
+The adapter input also accepts a pre-computed `proofsState` when
+the caller has already folded the registry (e.g., a persisted
+audit-row snapshot). If both `proofsState` and
+`(proofRegistry, capabilityProofs)` are supplied, the explicit
+`proofsState` wins — let an audit-stored verdict assert itself
+over a re-fold of the current registry. If neither is supplied,
+the adapter omits `proofsState` and the gate preserves its
+pre-registry behaviour exactly — the proof-provenance gate stays
+opt-in.
+
+The reliance gate denies on any `proofsState !== 'verified'`:
+
+| `proofsState`            | Reason code at the gate          |
+|--------------------------|----------------------------------|
+| `verified`               | (allow passes through)           |
+| `possession-confirmed`   | `capability.unverified-proof`    |
+| `unverified`             | `capability.unverified-proof`    |
+| `invalid`                | `capability.unverified-proof`    |
+| `expired`                | `capability.expired`             |
+| `revoked`                | `capability.revoked`             |
+
+`possession-confirmed` is intentionally folded into
+`capability.unverified-proof` at this gate — bearer schemes
+witness possession but cannot establish cryptographic authority.
+The distinct state lives in the registry's audit surface so
+consumers can tell *"we checked the only thing this scheme
+admits and it matched"* from *"we never checked."*
+
 ## Current implementation boundary
 
-The existing identity-control log has direct capability grant/revoke projection. This document does not replace it. The next implementation should add a dedicated `packages/capabilities` package and later connect it to identity-control and trust-policy evaluation.
+`@lfp2p/capabilities` (proof registry + reliance gate),
+`@lfp2p/trust-safety/cap-adapter` (the relying-app entry point),
+and all six scheme verifiers (`native-proof-verifier`,
+`ucan-verifier`, `vc-verifier`, `zcap-ld-verifier`,
+`bearcap-verifier`, `identity-control-log-verifier`) have
+shipped. `manual-local-policy` is deliberately not implemented as
+a cryptographic verifier — see the doctrine note above.
 
-Until that package lands, any `CapabilityProofRef` or `CredentialRef` in trust-safety code remains shape-only evidence and must not elevate authority.
+The identity-control log retains its own direct capability
+grant/revoke projection (used internally by the
+`identity-control-log` scheme verifier). The reliance gate
+remains opt-in: a `CapabilityProofRef` or `CredentialRef` carried
+in trust-safety storage payloads is shape-only evidence by
+default and elevates authority only when the relying caller
+explicitly passes `(proofRegistry, capabilityProofs)` or
+`proofsState` to `evaluateTrustSafetyCap`.
