@@ -90,5 +90,16 @@ function resolveProofsState(
   if (input.proofRegistry !== undefined && input.capabilityProofs !== undefined) {
     return Caps.summarizeProofStates(input.proofRegistry, input.capabilityProofs);
   }
+  // SECURITY: a caller who passes non-empty capabilityProofs without
+  // a registry has signaled intent to gate on proofs but cannot have
+  // satisfied that gate (no registry to look the refs up in). Fail
+  // closed to 'unverified' rather than silently dropping the
+  // assertion. An EMPTY refs array is treated as "no proofs to
+  // verify on this decision" — that's a positive assertion of
+  // nothing-to-check, distinct from missing-registry-with-refs.
+  // Gemini review on PR #92.
+  if (input.capabilityProofs !== undefined && input.capabilityProofs.length > 0) {
+    return 'unverified';
+  }
   return undefined;
 }

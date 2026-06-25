@@ -177,12 +177,28 @@ describe('trust-safety capability adapter: proofs-state pathway', () => {
     expect(decision).toEqual(ALLOWED);
   });
 
-  it('capabilityProofs alone (no registry) is ignored at fold time — no proofsState computed', () => {
+  it('capabilityProofs alone (no registry) fails CLOSED with capability.unverified-proof (gemini #92)', () => {
+    // Security regression test: a caller who names proofs to verify
+    // but supplies no registry has signaled gate intent without the
+    // means to satisfy it. Must NOT silently drop the assertion.
     const decision = evaluateTrustSafetyCap({
       capabilityDecision: ALLOWED,
       capabilityAction: 'room.moderate',
       now: NOW,
       capabilityProofs: [{ proofId: 'proof:native:1', scheme: 'native-signed-event' }]
+    });
+    expect(decision.status).toBe('deny');
+    expect(decision.reasonCodes).toEqual(['capability.unverified-proof']);
+  });
+
+  it('an empty capabilityProofs array (no registry) preserves pre-registry behaviour', () => {
+    // Empty array is a positive assertion of "no proofs to verify on
+    // this decision" — distinct from missing-registry-with-refs.
+    const decision = evaluateTrustSafetyCap({
+      capabilityDecision: ALLOWED,
+      capabilityAction: 'room.moderate',
+      now: NOW,
+      capabilityProofs: []
     });
     expect(decision).toEqual(ALLOWED);
   });

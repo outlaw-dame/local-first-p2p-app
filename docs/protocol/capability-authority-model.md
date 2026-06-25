@@ -988,10 +988,28 @@ the caller has already folded the registry (e.g., a persisted
 audit-row snapshot). If both `proofsState` and
 `(proofRegistry, capabilityProofs)` are supplied, the explicit
 `proofsState` wins — let an audit-stored verdict assert itself
-over a re-fold of the current registry. If neither is supplied,
-the adapter omits `proofsState` and the gate preserves its
-pre-registry behaviour exactly — the proof-provenance gate stays
-opt-in.
+over a re-fold of the current registry.
+
+### Fail-closed input resolution
+
+`TrustSafetyCapInput` is fail-closed on partial proof-state input
+shapes:
+
+| Input shape | Resolved `proofsState` |
+|---|---|
+| `proofsState` supplied | the supplied value (wins over fold) |
+| `proofRegistry` + `capabilityProofs` supplied | `summarizeProofStates(registry, refs)` |
+| `capabilityProofs` non-empty, no `proofRegistry` | `'unverified'` (gate intent signaled without means to satisfy it) |
+| `capabilityProofs` empty array | `undefined` (positive assertion of nothing-to-check) |
+| `proofRegistry` alone | `undefined` (registry held in scope, no refs to look up) |
+| Neither pathway supplied | `undefined` (pre-registry behaviour preserved) |
+
+The "refs without registry" case is the one a relying app is most
+likely to get wrong by accident — a caller who has named specific
+proofs to verify but didn't construct a registry has stated gate
+intent it cannot satisfy. Silently dropping the assertion would
+fail open; the adapter resolves it to `'unverified'` so the
+reliance gate denies with `capability.unverified-proof`.
 
 The reliance gate denies on any `proofsState !== 'verified'`:
 
