@@ -693,6 +693,70 @@ project ships:
   authority on its own, and is forbidden outright for
   high-privilege scopes.*
 
+- **`@lfp2p/identity-control-log-verifier`** — fills the slot for
+  the `identity-control-log` scheme (capabilities granted by an
+  identity controller's signed event log).
+  Provides `createIdentityControlLogVerifier({ resolveIdentityControlLog, now?, issuerMatches?, subjectMatches? })`
+  plus a public helper `identityControlLogProofDigest(event)` so
+  callers can compute the canonical `sha-256:…` digest of an
+  `identity.capability.granted` event at registration time.
+
+  The verifier walks the controller's `identity.*` event log,
+  rebuilds an `IdentityControlState` projection via
+  `seedIdentityControlProjection`, locates the
+  `identity.capability.granted` event whose `eventId` matches
+  `record.proofId`, and returns `'verified'` iff ALL of:
+
+  - every event in the log verifies its own Ed25519 signature
+    (`verifySignedEventEnvelope`);
+  - the matched event's `kind === 'identity.capability.granted'`;
+  - the registered digest matches
+    `sha-256:base64url(sha256(canonicalizeJson(event)))`;
+  - the projection STILL holds the grant: capability status is
+    `'granted'`, delegate device status is `'active'`, and the
+    grant's `payload.expiresAt` is strictly in the future
+    (boundary `now === expiresAt` is expired, matching the other
+    verifiers);
+  - the registry record's `issuer` (kind === `'controller'`)
+    matches `projection.controllerPublicKey` by either `id` or
+    `publicKeyRef` (default strategy; overridable);
+  - the registry record's `subject` (kind === `'device'`)
+    matches the grant's `payload.delegateDeviceId` (default
+    strategy; overridable).
+
+  Custom `issuerMatches` / `subjectMatches` strategies can be
+  injected for non-default identity-controller schemes; both
+  defenses run in a try/catch so a throwing strategy resolves
+  to `'invalid'` rather than crashing the registry.
+
+  ### Trust-boundary discipline
+
+  This verifier deliberately bridges **identity-control** into
+  **capability-authority** in the narrow direction the
+  doctrine permits: the identity controller IS the authority for
+  delegations to their own devices, so consulting the controller-
+  signed event log to verify "did the controller grant this
+  capability to this device, and is the grant still live?" is a
+  legitimate cryptographic authority check — not a boundary
+  violation. The `issuer.kind === 'controller'` +
+  `subject.kind === 'device'` pins enforce this scope: any other
+  party kinds resolve to `'invalid'`. Cross-identity delegations
+  (controller → another identity's device) belong to the
+  `ucan` / `zcap-ld` schemes, not this one.
+
+  ### Honest v1 scope
+
+  - Single-identity control log only. The verifier walks one
+    controller's events; cross-identity attestations are out of
+    scope.
+  - Ed25519 signatures only (inherited from
+    `verifySignedEventEnvelope`).
+  - SHA-256 digests only.
+  - No status-list / revocation lookup beyond what the projection
+    expresses: an `identity.capability.revoked` event in the log
+    flips the projection's `capabilities[capabilityId].status` to
+    `'revoked'`, which the verifier reads as `'invalid'`.
+
 - `manual-local-policy` verifier — not shipped, and deliberately
   not implementable as a cryptographic verifier. A
   `manual-local-policy` "proof" IS the local trust decision (a

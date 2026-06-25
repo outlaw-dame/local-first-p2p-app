@@ -11,6 +11,7 @@
     { "path": "packages/vc-verifier" },
     { "path": "packages/zcap-ld-verifier" },
     { "path": "packages/bearcap-verifier" },
+    { "path": "packages/identity-control-log-verifier" },
     { "path": "packages/crypto" },
     { "path": "packages/envelope" },
     { "path": "packages/design-tokens" },
