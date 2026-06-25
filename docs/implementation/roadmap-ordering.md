@@ -27,11 +27,15 @@ authority and verifier foundations
 → encrypted mailbox
 → optional tunnel adapter
 → super-peer availability
+→ P2P runtime adapter doctrine
 → optional content-addressed fetchers
 → temporary infrastructure flow
 → production bridge
 → full-peer/native runtime
-→ Holepunch/Bare adapter under full-peer runtime
+→ Holepunch/Bare/Pear adapter
+→ Hypercore/Corestore replication substrate
+→ local discovery + HyperDHT + peer hints
+→ peer-assisted bundle delivery
 → media, rooms, search, public/social runtime
 ```
 
@@ -44,7 +48,7 @@ authority and verifier foundations
 
 ## Phase 1 — capability proof verifier completion gate
 
-Recent verifier work means native, UCAN, and VC verifier paths are live. zcap-ld and bearcap remain intentionally unsupported/abstaining unless future ADRs decide otherwise.
+Recent verifier work means native, UCAN, VC, restricted zcap-ld, and bearcap verifier paths exist. Bearcap produces `possession-confirmed`, not `verified`; identity-control-log remains unverified until a future verifier ADR/package exists.
 
 Required next work:
 
@@ -53,7 +57,7 @@ Required next work:
 - composition tests;
 - claimed-but-invalid fail-closed tests;
 - unsupported-scheme abstain tests;
-- zcap-ld dependency/canonicalization decision.
+- zcap-ld profile/canonicalization boundary documentation.
 
 ## Phase 2 — private/account-local encryption envelope
 
@@ -264,6 +268,21 @@ Required work:
 - group replication boundaries;
 - no-latest-state-authority rule.
 
+## Phase 15A — P2P runtime adapter doctrine
+
+Document how external P2P systems fit below protocol authority before adding runtime dependencies.
+
+Required work:
+
+- P2P runtime adapter ADR;
+- runtime adapter boundary doctrine;
+- selective replication doctrine inspired by Willow;
+- trusted-device/discovery lessons inspired by Syncthing;
+- local discovery and PeX-like peer hint safety;
+- `lfp2p://` portable reference direction;
+- peer-assisted delivery boundaries;
+- explicit rule that runtime keys are subordinate to controller/device-authorized replication keys.
+
 ## Phase 16 — optional content-addressed fetchers
 
 IPFS-compatible storage remains optional storage/fetch infrastructure.
@@ -337,18 +356,65 @@ Required work:
 - cross-device identity event sync;
 - hardware-backed key adapter path.
 
-## Phase 20A — Holepunch/Bare adapter
+## Phase 20A — Holepunch / Bare / Pear adapter
 
-Holepunch/Bare belongs under full-peer runtime. It is a runtime substrate and adapter path, not protocol authority.
+Holepunch/Bare/Pear belongs under full-peer runtime. It is a runtime substrate and adapter path, not protocol authority.
 
 Required work:
 
 - package boundary outside protocol packages;
+- Pear/Bare process boundary decision;
+- Holepunch connection lifecycle design;
+- runtime identity binding to controller/device-authorized replication keys;
 - descriptor integration;
-- storage/runtime mapping;
+- secure-channel assumptions and threat model;
 - direct stream mapping to `PeerTransport` / `PeerSession`;
-- super-peer compatibility;
+- fallback behavior;
 - security tests for wrong peer key, malformed stream, replay, revoked device, scope widening, and private payload encryption.
+
+## Phase 20B — Hypercore / Corestore replication substrate
+
+Hypercore/Corestore may provide storage and replication substrate for full peers. It must not become protocol authority.
+
+Required work:
+
+- mapping from ObjectRef/BundleRef/BlockRef to adapter-local storage;
+- feed/key authorization records;
+- feed lifecycle and rotation behavior;
+- deterministic apply after feed read;
+- encrypted/private payload handling;
+- public/group/private storage separation;
+- garbage collection and retention policy;
+- fixtures mapping protocol refs to substrate coordinates.
+
+## Phase 20C — local discovery + HyperDHT + PeX-like peer hints
+
+Discovery yields candidates, not trust.
+
+Required work:
+
+- mDNS/LSD descriptor advertisement for local peers;
+- HyperDHT descriptor discovery for native/full peers;
+- privacy-scoped PeX-like peer hints;
+- descriptor expiry and revocation behavior;
+- fingerprint/petname pairing UX integration;
+- unknown peer neutral/constrained policy;
+- abuse controls for hint flooding;
+- tests for private-scope leakage prevention.
+
+## Phase 20D — peer-assisted bundle delivery
+
+Peer-assisted delivery moves bytes, not authority.
+
+Required work:
+
+- eligible content classes;
+- capability checks for encrypted private/group bundles;
+- bandwidth and device constraints;
+- congestion-aware scheduling inspired by µTP/LEDBAT;
+- verification after fetch;
+- failover to bridge/super-peer/storage hints;
+- tests for byte verification and private plaintext exclusion.
 
 ## Later phases
 
