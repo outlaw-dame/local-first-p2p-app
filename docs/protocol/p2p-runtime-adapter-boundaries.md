@@ -3,6 +3,7 @@
 - Status: Draft
 - Date: 2026-06-24
 - Related ADR: `docs/adr/009-p2p-runtime-adapters-and-selective-replication-v1.md`
+- Related implementation plan: `docs/implementation/p2p-technology-integration-plan.md`
 
 ## Purpose
 
@@ -81,7 +82,7 @@ Forbidden:
 
 ## Pear/Holepunch boundary
 
-Pear/Holepunch may provide runtime packaging, peer reachability, NAT traversal, DHT discovery, and native full-peer operation.
+Pear/Holepunch may provide runtime packaging, peer reachability, NAT traversal, discovery, and native full-peer operation.
 
 Pear/Holepunch must not own:
 
@@ -133,8 +134,7 @@ Allowed contents:
 
 Forbidden contents:
 
-- private keys;
-- bearer secrets;
+- secrets;
 - private plaintext;
 - claims that bypass capability checks;
 - claims that override object freshness/trust policy.
@@ -165,6 +165,6 @@ If a runtime already uses Noise or equivalent secure channels, use that rather t
 
 ## Implementation rule
 
-Do not import Holepunch, Hypercore, Pear, DHT, WebRTC, or storage-provider runtime dependencies into protocol, identity, trust-safety, or content-addressing packages unless a later ADR explicitly changes the boundary.
+Do not import runtime SDKs into protocol, identity, trust-safety, or content-addressing packages unless a later ADR explicitly changes the boundary.
 
 Runtime dependencies belong in runtime adapter packages or apps.
