@@ -278,7 +278,7 @@ Required work:
 - runtime adapter boundary doctrine;
 - selective replication doctrine inspired by Willow;
 - trusted-device/discovery lessons inspired by Syncthing;
-- local discovery and peer-hint safety;
+- local discovery and PeX-like peer hint safety;
 - `lfp2p://` portable reference direction;
 - peer-assisted delivery boundaries;
 - explicit rule that runtime keys are subordinate to controller/device-authorized replication keys.
@@ -387,7 +387,7 @@ Required work:
 - garbage collection and retention policy;
 - fixtures mapping protocol refs to substrate coordinates.
 
-## Phase 20C — local discovery + HyperDHT + peer hints
+## Phase 20C — local discovery + HyperDHT + PeX-like peer hints
 
 Discovery yields candidates, not trust.
 
