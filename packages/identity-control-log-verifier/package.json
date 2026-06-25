@@ -3,12 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/verifier.ts" },
+  "exports": { ".": "./src/index.ts" },
   "scripts": { "build": "tsc -p tsconfig.json" },
   "dependencies": {
     "@lfp2p/capabilities": "workspace:*",
     "@lfp2p/crypto": "workspace:*",
     "@lfp2p/identity": "workspace:*",
     "@lfp2p/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "tweetnacl": "^1.0.3"
   }
 }

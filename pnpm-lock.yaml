@@ -183,6 +183,25 @@ importers:
         specifier: latest
         version: 6.2.5
 
+  packages/identity-control-log-verifier:
+    dependencies:
+      '@lfp2p/capabilities':
+        specifier: workspace:*
+        version: link:../capabilities
+      '@lfp2p/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@lfp2p/identity':
+        specifier: workspace:*
+        version: link:../identity
+      '@lfp2p/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+    devDependencies:
+      tweetnacl:
+        specifier: ^1.0.3
+        version: 1.0.3
+
   packages/local-store:
     dependencies:
       '@lfp2p/crypto':
