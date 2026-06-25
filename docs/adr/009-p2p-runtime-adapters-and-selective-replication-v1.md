@@ -5,6 +5,8 @@
 - Related docs:
   - `docs/adr/008-adaptive-reachability-and-ephemeral-infrastructure-v1.md`
   - `docs/protocol/infrastructure-capability-surfaces.md`
+  - `docs/protocol/p2p-runtime-adapter-boundaries.md`
+  - `docs/implementation/p2p-technology-integration-plan.md`
   - `docs/implementation/roadmap-ordering.md`
   - `docs/architecture/architecture-identity.md`
 
@@ -223,7 +225,4 @@ This ADR does not:
 
 ## Required follow-up
 
-- Add `docs/protocol/p2p-runtime-adapter-boundaries.md`.
-- Add `docs/implementation/p2p-technology-integration-plan.md`.
-- Update `docs/implementation/roadmap-ordering.md` with Phase 15A and expanded Phase 20A-20D.
 - Add a future threat model before runtime implementation.
