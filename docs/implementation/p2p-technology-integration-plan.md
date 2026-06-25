@@ -26,9 +26,9 @@ The protocol authority remains identity, capabilities, content references, trust
 | mDNS / LSD | Phase 6/15A/20C | Local discovery descriptors for same-network sync. |
 | ICE/STUN/TURN | Phase 9-11 | Browser/WebRTC path. |
 | PeX | Phase 6/20C | Privacy-scoped peer hints. |
-| Magnet-style references | Phase 16/21 | Local-first `lfp2p://` / `web+lfp2p://` refs over ObjectRef/BundleRef. |
-| µTP / LEDBAT ideas | Phase 20/21 scheduling | Background transfer scheduling inspiration. |
-| Peer-assisted delivery | Phase 20D/21 | Public/cacheable and encrypted capability-scoped bundles only. |
+| Magnet-style references | Phase 16 / Later phases | Local-first `lfp2p://` / `web+lfp2p://` refs over ObjectRef/BundleRef. |
+| µTP / LEDBAT ideas | Phase 20D / Later phases | Background transfer scheduling inspiration. |
+| Peer-assisted delivery | Phase 20D / Later phases | Public/cacheable and encrypted capability-scoped bundles only. |
 
 ## Phase 15A — P2P runtime adapter doctrine
 
