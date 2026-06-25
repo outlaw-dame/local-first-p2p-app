@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createUnsignedEvent, type PrivatePayloadEnvelopeV1 } from '@lfp2p/protocol';
+import {
+  createUnsignedEvent,
+  type JsonObject,
+  type PrivatePayloadEnvelopeV1
+} from '@lfp2p/protocol';
 import {
   buildPrivatePayloadAad,
   decryptPrivatePayload,
@@ -86,7 +90,7 @@ describe('@lfp2p/private-payload', () => {
       createdAt: CONTEXT.createdAt,
       privacy: CONTEXT.privacy,
       schemaVersion: CONTEXT.schemaVersion,
-      payload: payload as unknown as Record<string, unknown>
+      payload: payload as unknown as JsonObject
     });
 
     expect(event.payload.version).toBe('lfp2p.private-payload.envelope.v1');
