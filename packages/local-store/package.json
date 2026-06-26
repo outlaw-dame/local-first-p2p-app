@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@lfp2p/capabilities": "workspace:*",
     "@lfp2p/crypto": "workspace:*",
     "@lfp2p/envelope": "workspace:^",
     "@lfp2p/protocol": "workspace:*",

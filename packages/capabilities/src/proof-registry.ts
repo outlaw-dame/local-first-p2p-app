@@ -397,6 +397,106 @@ function computeVerificationState(
   return 'unverified';
 }
 
+/**
+ * Reconstruct a `ProofRegistry` from a set of already-stamped
+ * `CapabilityProofRecord`s — the inverse of "iterate registry.proofs".
+ *
+ * Use this when loading a persisted registry from disk: each row in
+ * the table is a fully-stamped record (issuer, subject, digest,
+ * expires, verificationState). The factory rehydrates them into a
+ * frozen registry as-is, without running any verifier or mutating
+ * any state. Verification IS local-per-device by doctrine — the
+ * persisted `verificationState` is the cache of "what THIS device's
+ * verifier stack decided last time"; loading it back trusts that
+ * cache.
+ *
+ * Validation:
+ *   - Every record is validated through the same field-level
+ *     guards as `registerProof`: scheme is in the enum, party refs
+ *     are well-formed, digest matches DIGEST_RE, timestamps parse.
+ *   - `verificationState` must be in
+ *     `CAPABILITY_PROOF_VERIFICATION_STATES` — a corrupt row at
+ *     rest cannot inject an unknown state value.
+ *   - Duplicate `proofId` throws — the persistence-layer index has
+ *     this as its primary key, so a duplicate signals storage
+ *     corruption or programmer error, not a recoverable case.
+ *
+ * Pure on inputs; the returned registry is deep-frozen.
+ */
+export function seedProofRegistry(records: Iterable<unknown>): ProofRegistry {
+  if (records === null || typeof records !== 'object' || typeof (records as Iterable<unknown>)[Symbol.iterator] !== 'function') {
+    throw capabilityError('CAP_INVALID_INPUT', 'seedProofRegistry: records must be iterable');
+  }
+  const map = new Map<string, CapabilityProofRecord>();
+  for (const raw of records as Iterable<unknown>) {
+    const record = validateStoredProofRecord(raw);
+    if (map.has(record.proofId)) {
+      throw capabilityError(
+        'CAP_DUPLICATE_VALUE',
+        `seedProofRegistry: duplicate proofId ${record.proofId}`
+      );
+    }
+    map.set(record.proofId, record);
+  }
+  return Object.freeze({
+    version: CAPABILITY_PROOF_REGISTRY_VERSION,
+    proofs: freezeMap(map)
+  });
+}
+
+/**
+ * Validates an already-stamped record. Mirrors
+ * `validateRegisterProofInput` but ALSO accepts (and enforces) the
+ * `verificationState` field instead of deriving it. Used by
+ * `seedProofRegistry` only — for fresh registrations the derived
+ * version in `validateRegisterProofInput` is correct.
+ */
+function validateStoredProofRecord(value: unknown): CapabilityProofRecord {
+  const record = assertPlainObject(value, 'StoredProofRecord');
+  const proofId = assertId(record.proofId, 'StoredProofRecord.proofId');
+  const scheme = assertOneOf(
+    record.scheme,
+    CAPABILITY_PROOF_SCHEMES,
+    'StoredProofRecord.scheme',
+    'CAP_INVALID_PROOF'
+  );
+  const issuer = validatePartyRef(record.issuer, 'StoredProofRecord.issuer');
+  const subject = validatePartyRef(record.subject, 'StoredProofRecord.subject');
+  const issuedAt = assertTimestamp(record.issuedAt, 'StoredProofRecord.issuedAt');
+  const expiresAt = assertTimestamp(record.expiresAt, 'StoredProofRecord.expiresAt');
+  if (Date.parse(issuedAt) >= Date.parse(expiresAt)) {
+    throw capabilityError(
+      'CAP_INVALID_TIMESTAMP',
+      'StoredProofRecord.issuedAt must be before expiresAt'
+    );
+  }
+  const revokedAt = optionalTimestamp(record.revokedAt, 'StoredProofRecord.revokedAt');
+  if (revokedAt !== undefined && Date.parse(revokedAt) < Date.parse(issuedAt)) {
+    throw capabilityError(
+      'CAP_INVALID_TIMESTAMP',
+      'StoredProofRecord.revokedAt must not predate issuedAt'
+    );
+  }
+  const digest = assertDigest(record.digest, 'StoredProofRecord.digest');
+  const verificationState = assertOneOf(
+    record.verificationState,
+    CAPABILITY_PROOF_VERIFICATION_STATES,
+    'StoredProofRecord.verificationState',
+    'CAP_INVALID_PROOF'
+  );
+  return deepFreeze({
+    proofId,
+    scheme,
+    issuer,
+    subject,
+    issuedAt,
+    expiresAt,
+    ...(revokedAt === undefined ? {} : { revokedAt }),
+    digest,
+    verificationState
+  });
+}
+
 function validateRegisterProofInput(value: unknown): CapabilityProofRecord {
   const record = assertPlainObject(value, 'RegisterProofInput');
   const proofId = assertId(record.proofId, 'RegisterProofInput.proofId');
