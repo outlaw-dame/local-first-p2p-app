@@ -37,6 +37,10 @@ authority and verifier foundations
 → local discovery + HyperDHT + peer hints
 → peer-assisted bundle delivery
 → media, rooms, search, public/social runtime
+→ semantic discovery protocol
+→ semantic runtime evaluation
+→ semantic runtime adapter interfaces
+→ reference semantic implementation
 ```
 
 ## Phase 0 — documentation alignment
@@ -416,11 +420,75 @@ Required work:
 - failover to bridge/super-peer/storage hints;
 - tests for byte verification and private plaintext exclusion.
 
-## Later phases
+## Phase 21 — media, rooms, search, and public/social runtime foundations
 
-After these foundations:
+After the runtime and delivery foundations, define higher-level application-facing object families and projections.
+
+Required work:
 
 - media manifests and attachment pipeline;
 - rooms/groups UX;
-- search objects and local-first search;
+- search objects and local-first search foundations;
 - public/social/feed runtime.
+
+## Phase 22 — semantic discovery protocol
+
+Define engine-agnostic semantic discovery primitives for implementations built on the protocol.
+
+Required work:
+
+- semantic discovery ADR;
+- searchable object metadata;
+- semantic capability descriptors;
+- embedding artifact metadata;
+- query intent records;
+- privacy and capability filtering rules;
+- trust/moderation integration points;
+- selective replication rules for semantic artifacts;
+- explicit rule that semantic indexes are projections, not source of truth.
+
+## Phase 23 — semantic runtime evaluation
+
+Evaluate candidate semantic runtimes against protocol requirements before selecting reference adapters.
+
+Required work:
+
+- QVAC evaluation;
+- SQLite + FTS5 + vector-extension baseline evaluation;
+- embedded/native/browser compatibility comparison;
+- incremental indexing and deletion handling benchmarks;
+- capability-aware filtering benchmarks;
+- local-only/account-local/public index behavior;
+- dependency/license review;
+- offline and local-first behavior review;
+- P2P/delegated inference safety review where applicable.
+
+## Phase 24 — semantic runtime adapter interfaces
+
+Define swappable runtime interfaces after protocol semantics and evaluation criteria are stable.
+
+Required work:
+
+- semantic index provider interface;
+- embedding provider interface;
+- lexical search provider interface;
+- hybrid retrieval provider interface;
+- query planner interface;
+- result authorization filter interface;
+- index lifecycle hooks;
+- migration/versioning hooks;
+- test fixtures that engines must pass.
+
+## Phase 25 — reference semantic implementation
+
+Build a reference implementation using the selected runtime strategy while preserving engine independence.
+
+Required work:
+
+- reference local index implementation;
+- reference embedding pipeline;
+- reference hybrid retrieval path;
+- protocol-shaped benchmark fixtures;
+- privacy/capability regression tests;
+- deletion/tombstone invalidation tests;
+- documentation for alternate engine implementations.
