@@ -73,6 +73,10 @@ Every semantic query path must apply the same authorization rules as object acce
 
 Private object existence, plaintext, embeddings, and account-local indexes must not be exposed without the relevant capability and local policy approval.
 
+## Local storage rule
+
+Semantic artifacts derived from scoped objects must be stored with the same or stricter scope as their sources. They are local-only by default and must be invalidated when source state, tombstones, capabilities, model version, or local policy requires it.
+
 ## Replication rule
 
 Indexes and embeddings are local-only by default.
@@ -81,4 +85,4 @@ They may be regenerated locally, shared for public objects, or replicated under 
 
 ## Engine independence
 
-A conforming implementation may use QVAC, SQLite plus vector extensions, Tantivy/Lucene, LanceDB, another engine, or no semantic engine at all, provided protocol privacy and authorization semantics are preserved.
+A conforming implementation may use QVAC, PGlite, SQLite plus vector extensions, Tantivy/Lucene, LanceDB, another engine, or no semantic engine at all, provided protocol privacy and authorization semantics are preserved.
