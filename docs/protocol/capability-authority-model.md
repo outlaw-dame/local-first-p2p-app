@@ -756,14 +756,49 @@ project ships:
     deliberately NOT swallowed — a transient write failure must
     surface so the caller can retry or fail closed.
 
-  The recommended inbound-pipeline wiring is to call
-  `registerIdentityCapabilityProof` whenever the sync handler
-  observes an `identity.*` event; the helper's `false` return
-  for non-granted kinds makes a generic dispatch ergonomic.
-  After registration, the local app runs `verifyProof` against
-  the hydrated registry to refresh the per-device
-  `verificationState` cache — verification is local-per-device
-  by the persistence doctrine.
+  ### Built-in sync-client integration (step 3b)
+
+  `@lfp2p/sync-client`'s `processInboundSyncBatch` exposes the
+  recommended wiring through an opt-in config flag:
+
+  ```ts
+  await processInboundSyncBatch({
+    store,
+    records,
+    registerIdentityCapabilityProofs: true   // opt-in
+  });
+  ```
+
+  When set to `true`, every `identity.capability.granted` envelope
+  that the batch FRESHLY stores (i.e.,
+  `putSignedEventWithSyncCheckpoint` returned `'stored'`, not
+  `'skipped'`) is auto-dispatched through
+  `registerIdentityCapabilityProof` and persisted into the
+  `capabilityProofRecords` table.
+
+  - **Default is `false`.** Existing callers (and apps that do not
+    use the proof-registry pathway) see no behavior change and no
+    new field on the result.
+  - The result includes a `capabilityProofs` summary
+    (`{ applied, dropped, rejected, errors }`) only when the flag
+    is `true`. This mirrors the Phase 1.8.14 `reputation` summary
+    surface.
+  - **Replays are short-circuited** by the existing
+    `status === 'stored'` gate — a re-delivered envelope at the
+    same checkpoint cursor returns `'skipped'`, so the dispatcher
+    is NOT invoked again. This is the same idempotency mechanism
+    the reputation router relies on.
+  - **Failures do not abort the batch.** A malformed grant lands
+    in `summary.dropped`; a persistence-validator rejection lands
+    in `summary.rejected` with a privacy-safe error message
+    (Phase 3.1 doctrine). The bridge inbound stream MUST keep
+    advancing the checkpoint even when proof registration trips
+    on one hostile event.
+
+  After ingestion, the local app runs `verifyProof` against the
+  hydrated registry to refresh the per-device `verificationState`
+  cache — verification is local-per-device by the persistence
+  doctrine.
 
   ### Trust-boundary discipline
 

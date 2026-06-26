@@ -8,6 +8,7 @@ import {
 } from '@lfp2p/local-store';
 import { verifySignedEventEnvelope } from '@lfp2p/crypto';
 import { applyIdentityControlEvent, createEmptyIdentityControlState } from '@lfp2p/identity';
+import { registerIdentityCapabilityProof } from '@lfp2p/identity-control-log-verifier';
 import { isReputationEventKind, type SignedEventEnvelope } from '@lfp2p/protocol';
 import { validateReputationEvent } from '@lfp2p/trust-safety';
 import {
@@ -123,6 +124,30 @@ export type ProcessInboundSyncInput = Readonly<{
    * to apply a tenant-specific mapping (e.g., DID → labeler-id).
    */
   labelerIdForAuthor?: (authorId: string) => string | undefined;
+  /**
+   * Step 3b of the post-#84 follow-up — opt-in capability-proof
+   * auto-registration. When `true`, every `identity.capability.granted`
+   * envelope that lands FRESH (i.e., `putSignedEventWithSyncCheckpoint`
+   * returned `'stored'`, not `'skipped'`) is dispatched through
+   * `@lfp2p/identity-control-log-verifier`'s
+   * `registerIdentityCapabilityProof` helper and persisted into the
+   * Dexie v9 `capabilityProofRecords` table.
+   *
+   * The dispatch happens AFTER the envelope is stored (so a replay
+   * of the same event does not re-register the proof — the
+   * `'skipped'` status short-circuits the dispatcher). Failures
+   * surface in the `capabilityProofs` summary in the result, NOT in
+   * the outer batch result — the bridge inbound stream MUST keep
+   * advancing the checkpoint even when proof registration trips on
+   * one hostile or malformed grant.
+   *
+   * Default `false` so existing callers (and apps that do not use
+   * the proof-registry pathway) see no behavior change. Apps that
+   * rely on the trust-safety cap-adapter's proof-state gate should
+   * set this to `true` so the registry is populated as new grants
+   * arrive.
+   */
+  registerIdentityCapabilityProofs?: boolean;
 }>;
 
 export type InboundSyncError = Readonly<{
@@ -158,6 +183,42 @@ export type InboundReputationDispatchSummary = Readonly<{
   >;
 }>;
 
+/**
+ * Step 3b — per-batch capability-proof auto-registration summary.
+ * Surfaced only when the caller opts in via
+ * `registerIdentityCapabilityProofs: true`.
+ *
+ * Privacy-safe: error messages come from the
+ * `putCapabilityProofRecord` validator (the same one that gates
+ * fresh registrations), never raw payload bytes. Phase 3.1 logging
+ * doctrine is preserved as-is.
+ */
+export type InboundCapabilityProofDispatchSummary = Readonly<{
+  /** identity.capability.granted events registered into the proof registry. */
+  applied: number;
+  /**
+   * Granted events the helper could not derive a record from
+   * (malformed payload — `deriveProofFromIdentityCapabilityGranted`
+   * returned `undefined`). The envelope is still stored; we simply
+   * could not lift it into the registry shape.
+   */
+  dropped: number;
+  /**
+   * Store-side validation or write failures (e.g., the persistence
+   * layer's `validateStoredProofRecord` rejected a cross-field
+   * invariant). The envelope is still stored; the proof record is
+   * not.
+   */
+  rejected: number;
+  errors: ReadonlyArray<
+    Readonly<{
+      index: number;
+      eventId?: string;
+      reason: string;
+    }>
+  >;
+}>;
+
 export type ProcessInboundSyncResult = Readonly<{
   received: number;
   applied: number;
@@ -167,6 +228,8 @@ export type ProcessInboundSyncResult = Readonly<{
   checkpointAfter?: StoredSyncCheckpoint;
   /** Present only when `subscribedLabelers` was passed in. */
   reputation?: InboundReputationDispatchSummary;
+  /** Present only when `registerIdentityCapabilityProofs === true`. */
+  capabilityProofs?: InboundCapabilityProofDispatchSummary;
 }>;
 
 export type PullAndProcessInboundSyncInput = SyncCheckpointKey &
@@ -282,6 +345,16 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
           summary: mutableReputationSummary()
         };
 
+  // Step 3b — capability-proof auto-registration is opt-in. We
+  // materialise the summary container only when the caller passes
+  // `registerIdentityCapabilityProofs: true`, matching the
+  // Phase 1.8.14 reputation pattern: existing callers see no change
+  // in the result shape.
+  const capabilityProofRouting =
+    input.registerIdentityCapabilityProofs === true
+      ? { summary: mutableCapabilityProofSummary() }
+      : undefined;
+
   if (expectedCheckpointKey !== undefined) {
     preflightInboundRecordsMatchCheckpointKey(input.records, expectedCheckpointKey);
   }
@@ -331,6 +404,17 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
             summary: reputationRouting.summary
           });
         }
+        if (
+          capabilityProofRouting !== undefined &&
+          record.event.kind === 'identity.capability.granted'
+        ) {
+          await dispatchInboundCapabilityProofEnvelope({
+            store: input.store,
+            event: record.event,
+            index,
+            summary: capabilityProofRouting.summary
+          });
+        }
       } else {
         result.skipped += 1;
       }
@@ -353,13 +437,20 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
     reputationRouting === undefined
       ? undefined
       : freezeReputationSummary(reputationRouting.summary);
+  const capabilityProofField =
+    capabilityProofRouting === undefined
+      ? undefined
+      : freezeCapabilityProofSummary(capabilityProofRouting.summary);
 
   return {
     ...result,
     ...(input.includeCheckpointAfter === true && checkpointAfter !== undefined
       ? { checkpointAfter }
       : {}),
-    ...(reputationField === undefined ? {} : { reputation: reputationField })
+    ...(reputationField === undefined ? {} : { reputation: reputationField }),
+    ...(capabilityProofField === undefined
+      ? {}
+      : { capabilityProofs: capabilityProofField })
   };
 }
 
@@ -691,6 +782,63 @@ function freezeReputationSummary(
     rejected: summary.rejected,
     errors: Object.freeze(summary.errors.map((e) => Object.freeze({ ...e })))
   });
+}
+
+type MutableCapabilityProofSummary = {
+  applied: number;
+  dropped: number;
+  rejected: number;
+  errors: Array<{ index: number; eventId?: string; reason: string }>;
+};
+
+function mutableCapabilityProofSummary(): MutableCapabilityProofSummary {
+  return { applied: 0, dropped: 0, rejected: 0, errors: [] };
+}
+
+function freezeCapabilityProofSummary(
+  summary: MutableCapabilityProofSummary
+): InboundCapabilityProofDispatchSummary {
+  return Object.freeze({
+    applied: summary.applied,
+    dropped: summary.dropped,
+    rejected: summary.rejected,
+    errors: Object.freeze(summary.errors.map((e) => Object.freeze({ ...e })))
+  });
+}
+
+/**
+ * Step 3b — apply the opt-in capability-proof gate AFTER the
+ * envelope has been stored. Failures here surface in the
+ * capabilityProofs summary, NOT the outer batch result — the bridge
+ * inbound stream MUST keep advancing the checkpoint even when proof
+ * registration trips on one hostile or malformed grant.
+ *
+ * Privacy-safe: the only error message that surfaces is the
+ * underlying validator/store exception's message (the same that
+ * gates fresh registrations), never raw payload bytes. Phase 3.1
+ * logging doctrine is preserved.
+ */
+async function dispatchInboundCapabilityProofEnvelope(input: {
+  store: DexieLocalFirstStore;
+  event: SignedEventEnvelope;
+  index: number;
+  summary: MutableCapabilityProofSummary;
+}): Promise<void> {
+  const { store, event, index, summary } = input;
+  try {
+    const registered = await registerIdentityCapabilityProof(store, event);
+    if (registered) summary.applied += 1;
+    else summary.dropped += 1;
+  } catch (error) {
+    summary.rejected += 1;
+    summary.errors.push({
+      index,
+      ...(typeof event.eventId === 'string' && event.eventId.length > 0
+        ? { eventId: event.eventId }
+        : {}),
+      reason: error instanceof Error ? error.message : 'unknown'
+    });
+  }
 }
 
 /**
