@@ -729,6 +729,42 @@ project ships:
   defenses run in a try/catch so a throwing strategy resolves
   to `'invalid'` rather than crashing the registry.
 
+  ### Auto-registration from inbound events
+
+  The package also exposes the inverse direction — taking a
+  signed `identity.capability.granted` event off the wire and
+  producing a `CapabilityProofRecord` ready to persist:
+
+  ```ts
+  deriveProofFromIdentityCapabilityGranted(event): CapabilityProofRecord | undefined
+  registerIdentityCapabilityProof(store, event): Promise<boolean>
+  ```
+
+  - `deriveProofFromIdentityCapabilityGranted` is the pure
+    inverse of the verifier: it extracts `delegateDeviceId`,
+    `expiresAt`, and the signer's public key from a granted
+    event, computes the canonical proof digest, and returns a
+    fully-stamped record (`verificationState: 'unverified'` —
+    registration does NOT assert verification). Returns
+    `undefined` cleanly for any other event kind so a dispatch
+    loop can route the event elsewhere.
+  - `registerIdentityCapabilityProof` is the thin async wrapper
+    that calls the derivation function and (on success)
+    persists the record via the store's
+    `putCapabilityProofRecord`. Returns `true` if a record was
+    written, `false` for non-granted events. Store errors are
+    deliberately NOT swallowed — a transient write failure must
+    surface so the caller can retry or fail closed.
+
+  The recommended inbound-pipeline wiring is to call
+  `registerIdentityCapabilityProof` whenever the sync handler
+  observes an `identity.*` event; the helper's `false` return
+  for non-granted kinds makes a generic dispatch ergonomic.
+  After registration, the local app runs `verifyProof` against
+  the hydrated registry to refresh the per-device
+  `verificationState` cache — verification is local-per-device
+  by the persistence doctrine.
+
   ### Trust-boundary discipline
 
   This verifier deliberately bridges **identity-control** into
