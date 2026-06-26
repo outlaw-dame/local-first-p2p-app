@@ -16,6 +16,7 @@ The protocol stays engine-agnostic. The evaluation chooses reference implementat
 Initial candidates:
 
 - QVAC SDK;
+- PGlite with potential vector extensions;
 - SQLite + FTS5 + sqlite-vec or equivalent vector extension;
 - Tantivy/Lucene-style lexical engines;
 - LanceDB or similar embedded vector store;
@@ -52,12 +53,17 @@ Evaluate each candidate against:
 - capability-aware filtering;
 - account-local index support;
 - public index support;
+- scoped derived-artifact storage;
 - encrypted/private object handling;
 - provenance/explainability support;
 - deterministic testability;
 - dependency and license fit;
 - runtime isolation boundary;
 - P2P/delegated inference safety.
+
+## Local storage requirements
+
+Runtimes must treat semantic artifacts derived from scoped objects as scoped derived data. The evaluation must check local-only defaults, invalidation on source changes, and behavior when local policy changes.
 
 ## Required benchmark fixtures
 
@@ -82,6 +88,7 @@ The evaluation may conclude:
 - SQLite + FTS5 + sqlite-vec remains the reference local implementation;
 - QVAC becomes the preferred AI/provider adapter;
 - QVAC and SQLite-based search coexist for different workloads;
+- PGlite remains the projection-store baseline while another provider supplies vector retrieval;
 - another engine is better suited;
 - semantic discovery remains optional with no reference implementation yet.
 
