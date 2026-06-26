@@ -204,6 +204,9 @@ importers:
 
   packages/local-store:
     dependencies:
+      '@lfp2p/capabilities':
+        specifier: workspace:*
+        version: link:../capabilities
       '@lfp2p/crypto':
         specifier: workspace:*
         version: link:../crypto
