@@ -11,7 +11,7 @@
 
 The protocol needs semantic discovery support, but it must remain engine-agnostic.
 
-Implementations may use QVAC, SQLite/FTS/vector extensions, Tantivy/Lucene, LanceDB, custom local indexes, or no semantic engine.
+Implementations may use QVAC, PGlite, SQLite/FTS/vector extensions, Tantivy/Lucene, LanceDB, custom local indexes, or no semantic engine.
 
 ## Decision
 
@@ -32,6 +32,10 @@ The protocol must not require a specific engine, model, ranking algorithm, cloud
 ## Authority boundary
 
 Semantic indexes, embeddings, rankings, and results are not protocol source of truth. They are derived from signed objects, content references, capabilities, privacy scopes, trust policy, and deterministic apply rules.
+
+## Local derived-data boundary
+
+Semantic artifacts derived from scoped objects must inherit the same or stricter storage scope as their sources. They remain local-only by default and must be invalidated when source state or local policy requires it.
 
 ## QVAC boundary
 
