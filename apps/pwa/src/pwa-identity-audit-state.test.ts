@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import {
+  type CapabilityProofRecord,
+  seedProofRegistry
+} from '@lfp2p/capabilities';
 import type { StoredIdentityControlProjection } from '@lfp2p/local-store';
 import {
   buildIdentityAuditViewModel,
@@ -166,6 +170,116 @@ describe('Phase 2.3b — buildIdentityAuditViewModel', () => {
     expect(vm.contactCardPublication).toBeUndefined();
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/*                step 3c — proof-registry enrichment                         */
+/* -------------------------------------------------------------------------- */
+
+function makeIdentityControlLogProof(
+  proofId: string,
+  delegateDeviceId: string,
+  verificationState: CapabilityProofRecord['verificationState'] = 'unverified',
+  digest = `sha-256:${proofId.padEnd(43, 'A')}`
+): CapabilityProofRecord {
+  return {
+    proofId,
+    scheme: 'identity-control-log',
+    issuer: { id: 'identity:alice', kind: 'controller' },
+    subject: { id: delegateDeviceId, kind: 'device' },
+    issuedAt: '2026-06-02T00:00:00.000Z',
+    expiresAt: '2027-01-01T00:00:00.000Z',
+    digest,
+    verificationState
+  };
+}
+
+describe('step 3c — buildIdentityAuditViewModel proof-registry enrichment', () => {
+  it('omits proofState on every row when no registry is supplied (backwards compatible)', () => {
+    const vm = buildIdentityAuditViewModel(makeProjection());
+    for (const row of vm.capabilities) {
+      expect(row.proofState).toBeUndefined();
+    }
+  });
+
+  it('adds proofState to rows whose delegate device has identity-control-log proofs registered', () => {
+    const proof = makeIdentityControlLogProof('evt_grant_laptop', 'device:alice-laptop', 'verified');
+    const registry = seedProofRegistry([proof]);
+    const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
+
+    const laptopRow = vm.capabilities.find((c) => c.delegateDeviceId === 'device:alice-laptop');
+    expect(laptopRow?.proofState).toBeDefined();
+    expect(laptopRow?.proofState?.matchedProofIds).toEqual(['evt_grant_laptop']);
+    expect(laptopRow?.proofState?.verificationStates).toEqual(['verified']);
+  });
+
+  it('leaves proofState undefined on rows whose device has no matching proof', () => {
+    // Registry only has a proof for the laptop. The old-tablet rows
+    // should still have undefined proofState.
+    const proof = makeIdentityControlLogProof('evt_grant_laptop', 'device:alice-laptop');
+    const registry = seedProofRegistry([proof]);
+    const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
+
+    const tabletRows = vm.capabilities.filter(
+      (c) => c.delegateDeviceId === 'device:alice-old-tablet'
+    );
+    expect(tabletRows).not.toHaveLength(0);
+    for (const row of tabletRows) {
+      expect(row.proofState).toBeUndefined();
+    }
+  });
+
+  it('collects multiple proofs per device into parallel arrays, preserving the registry-iteration order', () => {
+    const p1 = makeIdentityControlLogProof('evt_grant_a', 'device:alice-laptop', 'verified');
+    const p2 = makeIdentityControlLogProof('evt_grant_b', 'device:alice-laptop', 'unverified');
+    const p3 = makeIdentityControlLogProof('evt_grant_c', 'device:alice-laptop', 'revoked');
+    // Revoked records require a revokedAt timestamp per the registry
+    // cross-field invariant.
+    const p3Revoked = { ...p3, revokedAt: '2026-06-04T00:00:00.000Z' };
+    const registry = seedProofRegistry([p1, p2, p3Revoked]);
+    const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
+
+    const row = vm.capabilities.find((c) => c.delegateDeviceId === 'device:alice-laptop');
+    expect(row?.proofState?.matchedProofIds).toEqual(['evt_grant_a', 'evt_grant_b', 'evt_grant_c']);
+    expect(row?.proofState?.verificationStates).toEqual(['verified', 'unverified', 'revoked']);
+  });
+
+  it('filters out proofs from other schemes (defense-in-depth)', () => {
+    const icProof = makeIdentityControlLogProof('evt_ic_laptop', 'device:alice-laptop');
+    const nativeProof: CapabilityProofRecord = {
+      ...icProof,
+      proofId: 'evt_native_match',
+      scheme: 'native-signed-event'
+    };
+    const registry = seedProofRegistry([icProof, nativeProof]);
+    const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
+    const row = vm.capabilities.find((c) => c.delegateDeviceId === 'device:alice-laptop');
+    // Native proof is dropped even though its subject.id matches.
+    expect(row?.proofState?.matchedProofIds).toEqual(['evt_ic_laptop']);
+  });
+
+  it('filters out proofs whose subject.kind !== "device" (defense-in-depth)', () => {
+    const proper = makeIdentityControlLogProof('evt_proper', 'device:alice-laptop');
+    const malformed: CapabilityProofRecord = {
+      ...proper,
+      proofId: 'evt_malformed',
+      subject: { id: 'device:alice-laptop', kind: 'actor' }
+    };
+    const registry = seedProofRegistry([proper, malformed]);
+    const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
+    const row = vm.capabilities.find((c) => c.delegateDeviceId === 'device:alice-laptop');
+    expect(row?.proofState?.matchedProofIds).toEqual(['evt_proper']);
+  });
+
+  it('empty registry → omits proofState on every row', () => {
+    const registry = seedProofRegistry([]);
+    const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
+    for (const row of vm.capabilities) {
+      expect(row.proofState).toBeUndefined();
+    }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 
 describe('Phase 2.3b — shortPublicKeyFingerprint', () => {
   it('returns the input unchanged when shorter than the truncation threshold', () => {

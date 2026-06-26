@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lfp2p/capabilities": "workspace:*",
     "@lfp2p/crypto": "workspace:*",
     "@lfp2p/design-tokens": "workspace:*",
     "@lfp2p/identity": "workspace:*",

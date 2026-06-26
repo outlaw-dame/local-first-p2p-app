@@ -18,6 +18,11 @@
  *    is concerned only with the *decisions* (is rotatable? what is
  *    the next epoch?) and never the UX presentation.
  */
+import type {
+  CapabilityProofRecord,
+  CapabilityProofVerificationState,
+  ProofRegistry
+} from '@lfp2p/capabilities';
 import type { StoredIdentityControlProjection } from '@lfp2p/local-store';
 
 /**
@@ -58,6 +63,29 @@ export type CapabilityAuditRow = Readonly<{
    * (no expiry OR expiry is in the future relative to `now`).
    */
   isActive: boolean;
+  /**
+   * Step 3c — proof-registry enrichment. Present when a
+   * `proofRegistry` was supplied to `buildIdentityAuditViewModel`.
+   *
+   * `matchedProofIds` lists every identity-control-log proof
+   * record whose `subject.id` equals this row's `delegateDeviceId`.
+   * Matching by `delegateDeviceId` (not `capabilityId`) is the only
+   * mapping the in-memory data exposes — `CapabilityProofRecord.proofId`
+   * is the granted-event id, which the projection does not carry.
+   * Per-row reads are therefore *device-grain*: if a device holds
+   * multiple grants, each row shows the same set.
+   *
+   * `verificationStates` is the parallel array of states, in the
+   * same order as `matchedProofIds`. Callers can fold to worst-case
+   * or render the distribution as they prefer.
+   *
+   * `undefined` when no registry was supplied OR when no
+   * identity-control-log records match the row's delegate device.
+   */
+  proofState?: {
+    matchedProofIds: ReadonlyArray<string>;
+    verificationStates: ReadonlyArray<CapabilityProofVerificationState>;
+  };
 }>;
 
 /**
@@ -97,7 +125,18 @@ export type IdentityAuditViewModel = Readonly<{
  */
 export function buildIdentityAuditViewModel(
   projection: StoredIdentityControlProjection | undefined,
-  options: Readonly<{ now?: number }> = {}
+  options: Readonly<{
+    now?: number;
+    /**
+     * Step 3c — first production consumer of the persisted proof
+     * registry. When supplied, every capability row in the view
+     * model is enriched with the verification states of every
+     * identity-control-log proof whose `subject.id` equals the
+     * row's `delegateDeviceId`. Omitted ⇒ no `proofState` field on
+     * any row (backwards compatible).
+     */
+    proofRegistry?: ProofRegistry;
+  }> = {}
 ): IdentityAuditViewModel {
   if (projection === undefined) {
     return Object.freeze({
@@ -134,10 +173,16 @@ export function buildIdentityAuditViewModel(
     return a.authorizedAt.localeCompare(b.authorizedAt);
   });
 
+  // Build a one-time device → matched-proofs index so the per-row
+  // enrichment is O(rows) instead of O(rows × proofs). Empty when no
+  // registry was supplied.
+  const proofsByDevice = indexIdentityControlLogProofsByDevice(options.proofRegistry);
+
   const capabilities = Object.values(projection.capabilities).map((cap) => {
     const expired =
       cap.expiresAt !== undefined && Date.parse(cap.expiresAt) <= now;
-    return Object.freeze({
+    const matched = proofsByDevice.get(cap.delegateDeviceId);
+    const base = {
       capabilityId: cap.capabilityId,
       delegateDeviceId: cap.delegateDeviceId,
       scope: cap.scope,
@@ -146,6 +191,14 @@ export function buildIdentityAuditViewModel(
       revokedAt: cap.revokedAt,
       expiresAt: cap.expiresAt,
       isActive: cap.status === 'granted' && !expired
+    };
+    if (matched === undefined) return Object.freeze(base);
+    return Object.freeze({
+      ...base,
+      proofState: Object.freeze({
+        matchedProofIds: Object.freeze(matched.map((r) => r.proofId)),
+        verificationStates: Object.freeze(matched.map((r) => r.verificationState))
+      })
     });
   });
   capabilities.sort((a, b) => a.capabilityId.localeCompare(b.capabilityId));
@@ -168,6 +221,34 @@ export function buildIdentityAuditViewModel(
     contactCardPublication,
     nextEpoch: projection.epoch + 1
   });
+}
+
+/**
+ * One-pass scan of the proof registry that builds a
+ * `deviceId → matching identity-control-log records` index.
+ *
+ * Filter rules:
+ *   - `scheme === 'identity-control-log'` (the only scheme we can
+ *     speak to from the identity-control projection)
+ *   - `subject.kind === 'device'` (defensive — defense-in-depth
+ *     against a malformed record landing in the registry)
+ *
+ * Returns an empty map when no registry is provided so callers can
+ * unconditionally read `.get(deviceId)`.
+ */
+function indexIdentityControlLogProofsByDevice(
+  registry: ProofRegistry | undefined
+): ReadonlyMap<string, ReadonlyArray<CapabilityProofRecord>> {
+  if (registry === undefined) return new Map();
+  const out = new Map<string, CapabilityProofRecord[]>();
+  for (const record of registry.proofs.values()) {
+    if (record.scheme !== 'identity-control-log') continue;
+    if (record.subject.kind !== 'device') continue;
+    const list = out.get(record.subject.id);
+    if (list === undefined) out.set(record.subject.id, [record]);
+    else list.push(record);
+  }
+  return out;
 }
 
 /**

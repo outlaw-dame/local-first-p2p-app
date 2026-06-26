@@ -800,6 +800,47 @@ project ships:
   cache — verification is local-per-device by the persistence
   doctrine.
 
+  ### First production read consumer (step 3c)
+
+  The PWA's identity audit panel
+  (`apps/pwa/src/pwa-identity-audit.tsx`) is the first production
+  surface that READS the persisted proof registry.
+
+  On mount, the audit panel calls `store.loadProofRegistry()`
+  alongside its existing `store.getIdentityControlProjection(...)`
+  call and passes the registry into `buildIdentityAuditViewModel`.
+  Each capability row in the rendered view is enriched with the
+  set of identity-control-log proof records whose `subject.id`
+  equals the row's `delegateDeviceId`:
+
+  ```ts
+  CapabilityAuditRow.proofState?: {
+    matchedProofIds: ReadonlyArray<string>;
+    verificationStates: ReadonlyArray<CapabilityProofVerificationState>;
+  }
+  ```
+
+  The match key is `subject.id === delegateDeviceId` — the only
+  device-grain mapping the in-memory projection exposes. (The
+  `CapabilityProofRecord.proofId` is the granted-event id, which
+  the `StoredIdentityControlProjection` does not carry; precise
+  per-capability matching is deferred to a future schema bump.)
+
+  The UI renders the enrichment as a `Proof registry: 1 verified`
+  (or `3 total (2 verified, 1 unverified)` etc.) footer beneath
+  each capability row. The proof-registry load is best-effort: a
+  failure surfaces in the status line but never blocks the
+  projection-driven rows from rendering.
+
+  This is **read-only audit display**, not enforcement. The
+  reliance gate (`evaluateTrustSafetyCap`) still has no
+  production caller; wiring it would require an enforcement
+  scenario this repo does not have today (no consumer is actually
+  gated on a capability decision). The step 3c demo proves the
+  pipeline works end-to-end — sync writes registered records,
+  Dexie persists them, the registry hydrates, and the audit panel
+  reads them — without inventing an enforcement scenario.
+
   ### Trust-boundary discipline
 
   This verifier deliberately bridges **identity-control** into

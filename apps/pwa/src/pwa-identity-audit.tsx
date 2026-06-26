@@ -21,6 +21,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Block, BlockTitle, Button, List, ListItem } from 'framework7-react';
+import type { ProofRegistry } from '@lfp2p/capabilities';
 import { generateSigningKeypair, type SigningKeypair } from '@lfp2p/crypto';
 import { type createLocalFirstStore, type StoredIdentityControlProjection } from '@lfp2p/local-store';
 import { emitDeviceRotatedEvent } from './pwa-identity-emit.js';
@@ -59,6 +60,10 @@ export function IdentityAudit({
   const [projection, setProjection] = useState<StoredIdentityControlProjection | undefined>(
     undefined
   );
+  // Step 3c — first production reader of the persisted proof
+  // registry. Loaded alongside the projection so the view-model can
+  // join capability rows with their registered proofs.
+  const [proofRegistry, setProofRegistry] = useState<ProofRegistry | undefined>(undefined);
   const [statusLine, setStatusLine] = useState<string>('');
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -67,6 +72,18 @@ export function IdentityAudit({
       setProjection(p);
     } catch (err) {
       setStatusLine(`Failed to load identity audit: ${formatError(err)}`);
+    }
+    // The proof-registry load is best-effort: a failure here MUST
+    // NOT block the audit panel from rendering the projection. We
+    // surface a separate status line so the user knows the
+    // enrichment is missing, but the projection-driven rows still
+    // appear.
+    try {
+      const registry = await store.loadProofRegistry();
+      setProofRegistry(registry);
+    } catch (err) {
+      setProofRegistry(undefined);
+      setStatusLine(`Proof registry unavailable: ${formatError(err)}`);
     }
   }, [identityId, store]);
 
@@ -77,7 +94,14 @@ export function IdentityAudit({
     void refresh();
   }, [refresh]);
 
-  const viewModel = useMemo(() => buildIdentityAuditViewModel(projection), [projection]);
+  const viewModel = useMemo(
+    () =>
+      buildIdentityAuditViewModel(
+        projection,
+        proofRegistry === undefined ? {} : { proofRegistry }
+      ),
+    [projection, proofRegistry]
+  );
 
   const onRotate = useCallback(
     async (deviceId: string): Promise<void> => {
@@ -167,7 +191,13 @@ export function IdentityAudit({
               key={row.capabilityId}
               title={row.capabilityId}
               subtitle={`${row.status}${row.isActive ? '' : ' / inactive'} • scope ${row.scope} • delegate ${row.delegateDeviceId}${row.expiresAt === undefined ? '' : ` • expires ${row.expiresAt}`}`}
-            />
+            >
+              {row.proofState === undefined ? null : (
+                <div slot="footer" className="lfp2p-muted-detail">
+                  Proof registry: {formatProofStateSummary(row.proofState)}
+                </div>
+              )}
+            </ListItem>
           ))
         )}
       </List>
@@ -204,4 +234,31 @@ export function IdentityAudit({
 function formatError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+/**
+ * Step 3c — collapse a row's proof-registry enrichment into a human
+ * subtitle. Reads `verificationStates` only; intentionally does NOT
+ * surface the raw `matchedProofIds` (event ids are noisy for the
+ * audit display and tend to drift over time).
+ *
+ * Empty array → `"no matching proofs"`. One state → `"1 verified"`.
+ * Multiple states → `"3 total (2 verified, 1 unverified)"` so the
+ * user can see at a glance whether the device has stale or invalid
+ * proofs lurking.
+ */
+function formatProofStateSummary(proofState: {
+  matchedProofIds: ReadonlyArray<string>;
+  verificationStates: ReadonlyArray<string>;
+}): string {
+  const states = proofState.verificationStates;
+  if (states.length === 0) return 'no matching proofs';
+  if (states.length === 1) return `1 ${states[0] ?? 'unknown'}`;
+  const counts = new Map<string, number>();
+  for (const state of states) {
+    counts.set(state, (counts.get(state) ?? 0) + 1);
+  }
+  const ordered = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const parts = ordered.map(([state, n]) => `${n} ${state}`);
+  return `${states.length} total (${parts.join(', ')})`;
 }
