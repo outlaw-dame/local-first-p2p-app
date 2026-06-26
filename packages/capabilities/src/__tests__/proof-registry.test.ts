@@ -486,6 +486,25 @@ describe('seedProofRegistry — reconstruct from stored records', () => {
     expect(() => seedProofRegistry(null as never)).toThrow(/must be iterable/);
   });
 
+  it('SECURITY (codex #95): rejects revokedAt + verificationState !== "revoked"', () => {
+    // A corrupt row at rest must NOT be able to launder a revoked
+    // proof past summarizeProofStates by claiming verificationState:
+    // "verified". The cross-field invariant matches register/revoke.
+    expect(() =>
+      seedProofRegistry([
+        { ...REC_A, revokedAt: NOW, verificationState: 'verified' }
+      ])
+    ).toThrow(/with revokedAt must have verificationState === "revoked"/);
+  });
+
+  it('SECURITY (codex #95): rejects verificationState === "revoked" without revokedAt', () => {
+    expect(() =>
+      seedProofRegistry([
+        { ...REC_A, verificationState: 'revoked' } // no revokedAt
+      ])
+    ).toThrow(/must carry revokedAt/);
+  });
+
   it('rehydrated registry composes with summarizeProofStates correctly', () => {
     const reg = seedProofRegistry([REC_A, REC_B]);
     // REC_A is 'verified', REC_B is 'unverified' — worst-case wins.

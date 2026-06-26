@@ -18,7 +18,8 @@ import {
 import {
   type CapabilityProofRecord,
   type ProofRegistry,
-  seedProofRegistry
+  seedProofRegistry,
+  validateStoredProofRecord
 } from '@lfp2p/capabilities';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
@@ -955,14 +956,13 @@ export class DexieLocalFirstStore {
    * loudly rather than poisoning the table at rest.
    */
   async putCapabilityProofRecord(record: CapabilityProofRecord): Promise<void> {
-    // `seedProofRegistry` validates the record + freezes its shape.
-    // We pull the validated copy back out so the row written to
-    // Dexie is the deep-frozen one (defense-in-depth against the
-    // caller's `record` being mutated after the call returns).
-    const validated = seedProofRegistry([record]).proofs.get(record.proofId);
-    if (validated === undefined) {
-      throw new Error('putCapabilityProofRecord: validated record missing (internal)');
-    }
+    // `validateStoredProofRecord` validates the record AND
+    // deep-freezes it, so the row written to Dexie is shielded
+    // from caller-side mutation after this call returns. Direct
+    // single-record validation avoids the throwaway 1-element
+    // registry/map allocations the `seedProofRegistry([record])`
+    // path used to do. Gemini review on PR #95.
+    const validated = validateStoredProofRecord(record);
     await this.#db.capabilityProofRecords.put(validated);
   }
 
@@ -1000,9 +1000,10 @@ export class DexieLocalFirstStore {
     const survivors: CapabilityProofRecord[] = [];
     for (const row of rows) {
       try {
-        const reg = seedProofRegistry([row]);
-        const validated = reg.proofs.get(row.proofId);
-        if (validated !== undefined) survivors.push(validated);
+        // Validate each row directly rather than building a
+        // throwaway 1-element registry per row. Gemini review on
+        // PR #95.
+        survivors.push(validateStoredProofRecord(row));
       } catch {
         // Corrupt at rest — drop. We deliberately do NOT log
         // (Phase 3.1 privacy-safe logging discipline) and we
@@ -1012,6 +1013,12 @@ export class DexieLocalFirstStore {
         continue;
       }
     }
+    // `seedProofRegistry` re-validates inputs, which catches a
+    // duplicate-proofId scenario (different rows for the same
+    // proofId — would signal a real storage-layer bug). The
+    // per-row validation above already gated each field; the
+    // duplicate check is the only remaining invariant left for
+    // the registry-level pass.
     return seedProofRegistry(survivors);
   }
 

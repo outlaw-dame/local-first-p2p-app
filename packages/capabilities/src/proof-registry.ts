@@ -447,11 +447,24 @@ export function seedProofRegistry(records: Iterable<unknown>): ProofRegistry {
 /**
  * Validates an already-stamped record. Mirrors
  * `validateRegisterProofInput` but ALSO accepts (and enforces) the
- * `verificationState` field instead of deriving it. Used by
- * `seedProofRegistry` only — for fresh registrations the derived
- * version in `validateRegisterProofInput` is correct.
+ * `verificationState` field instead of deriving it.
+ *
+ * Exported so persistence callers (e.g., `@lfp2p/local-store`) can
+ * validate a single record without paying the cost of building a
+ * throwaway one-element registry. The fresh-registration path
+ * (`registerProof`) still uses the derived version in
+ * `validateRegisterProofInput`.
+ *
+ * Cross-field invariant — `revokedAt` and `verificationState ===
+ * 'revoked'` are coupled. Both `registerProof` and `revokeProof`
+ * maintain `revokedAt iff verificationState === 'revoked'`; the
+ * persistence path must enforce the same so a corrupt row at rest
+ * (e.g., `revokedAt: '...', verificationState: 'verified'`) cannot
+ * launder a revoked proof past `summarizeProofStates` (which reads
+ * `record.verificationState` directly without re-checking
+ * `revokedAt`). Codex review on PR #95.
  */
-function validateStoredProofRecord(value: unknown): CapabilityProofRecord {
+export function validateStoredProofRecord(value: unknown): CapabilityProofRecord {
   const record = assertPlainObject(value, 'StoredProofRecord');
   const proofId = assertId(record.proofId, 'StoredProofRecord.proofId');
   const scheme = assertOneOf(
@@ -484,6 +497,18 @@ function validateStoredProofRecord(value: unknown): CapabilityProofRecord {
     'StoredProofRecord.verificationState',
     'CAP_INVALID_PROOF'
   );
+  if (revokedAt !== undefined && verificationState !== 'revoked') {
+    throw capabilityError(
+      'CAP_INVALID_PROOF',
+      'StoredProofRecord with revokedAt must have verificationState === "revoked"'
+    );
+  }
+  if (revokedAt === undefined && verificationState === 'revoked') {
+    throw capabilityError(
+      'CAP_INVALID_PROOF',
+      'StoredProofRecord with verificationState === "revoked" must carry revokedAt'
+    );
+  }
   return deepFreeze({
     proofId,
     scheme,

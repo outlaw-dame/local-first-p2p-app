@@ -225,6 +225,45 @@ describe('capability-proof persistence: loadProofRegistry', () => {
     expect(reg.proofs.has('corrupt')).toBe(false);
   });
 
+  it('SECURITY (codex #95): drops a row with revokedAt + verificationState === "verified" on load', async () => {
+    // A corrupt-at-rest row that claims verified but carries
+    // revokedAt would let summarizeProofStates lie about a revoked
+    // proof. The validator rejects the row; loadProofRegistry
+    // silently drops it. The reliance gate then sees the missing
+    // ref as 'unverified' and denies — fail closed.
+    const store = freshStore();
+    await store.putCapabilityProofRecord(record({ proofId: 'good' }));
+    const db = store as unknown as {
+      transaction: (
+        mode: 'rw',
+        tables: string[],
+        fn: (tx: { capabilityProofRecords: { put: (row: Record<string, unknown>) => Promise<unknown> } }) => Promise<unknown>
+      ) => Promise<unknown>;
+    };
+    await db.transaction('rw', ['capabilityProofRecords'], async (tx) => {
+      await tx.capabilityProofRecords.put({
+        proofId: 'corrupt-revoked-but-verified',
+        scheme: 'native-signed-event',
+        issuer: ISSUER,
+        subject: SUBJECT,
+        issuedAt: NOW,
+        expiresAt: LATER,
+        revokedAt: NOW, // revokedAt set...
+        digest: DIGEST_B,
+        verificationState: 'verified' // ...but state lies about it
+      });
+    });
+
+    // The corrupt row IS at rest.
+    expect((await store.listCapabilityProofRecords()).map((r) => r.proofId).sort()).toEqual(
+      ['corrupt-revoked-but-verified', 'good']
+    );
+    // …but loadProofRegistry drops it.
+    const reg = await store.loadProofRegistry();
+    expect(reg.proofs.has('good')).toBe(true);
+    expect(reg.proofs.has('corrupt-revoked-but-verified')).toBe(false);
+  });
+
   it('hydrated registry round-trips through verifyProof end-to-end', async () => {
     // Persist a record, hydrate, run verifyProof against the
     // hydrated registry — the verifier suite plays cleanly with the
