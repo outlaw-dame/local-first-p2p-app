@@ -71,6 +71,9 @@ importers:
 
   apps/pwa:
     dependencies:
+      '@lfp2p/capabilities':
+        specifier: workspace:*
+        version: link:../../packages/capabilities
       '@lfp2p/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
