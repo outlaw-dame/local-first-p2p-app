@@ -184,7 +184,7 @@ function makeIdentityControlLogProof(
   return {
     proofId,
     scheme: 'identity-control-log',
-    issuer: { id: 'identity:alice', kind: 'controller' },
+    issuer: { id: CONTROLLER_KEY, kind: 'controller' },
     subject: { id: delegateDeviceId, kind: 'device' },
     issuedAt: '2026-06-02T00:00:00.000Z',
     expiresAt: '2027-01-01T00:00:00.000Z',
@@ -273,6 +273,53 @@ describe('step 3c — buildIdentityAuditViewModel proof-registry enrichment', ()
   it('empty registry → omits proofState on every row', () => {
     const registry = seedProofRegistry([]);
     const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
+    for (const row of vm.capabilities) {
+      expect(row.proofState).toBeUndefined();
+    }
+  });
+
+  it('SECURITY (codex #100): drops records issued by a foreign controller', () => {
+    // Two records target the same device id; only the one whose
+    // issuer matches the audited identity's controllerPublicKey
+    // should land on the audit row. The other could be a contact's
+    // controller registering a grant for a device whose id happens
+    // to collide with one of ours.
+    const ours = makeIdentityControlLogProof('evt_ours', 'device:alice-laptop', 'verified');
+    const foreign: CapabilityProofRecord = {
+      ...ours,
+      proofId: 'evt_foreign',
+      issuer: { id: 'Ed25519_AttackerController_AAAAAAAAAAAAAAAAAA', kind: 'controller' }
+    };
+    const registry = seedProofRegistry([ours, foreign]);
+    const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
+    const row = vm.capabilities.find((c) => c.delegateDeviceId === 'device:alice-laptop');
+    expect(row?.proofState?.matchedProofIds).toEqual(['evt_ours']);
+  });
+
+  it('SECURITY (codex #100): drops records when issuer.kind !== "controller"', () => {
+    const proper = makeIdentityControlLogProof('evt_proper', 'device:alice-laptop');
+    const malformed: CapabilityProofRecord = {
+      ...proper,
+      proofId: 'evt_wrong_issuer_kind',
+      issuer: { id: CONTROLLER_KEY, kind: 'actor' } // wrong kind
+    };
+    const registry = seedProofRegistry([proper, malformed]);
+    const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
+    const row = vm.capabilities.find((c) => c.delegateDeviceId === 'device:alice-laptop');
+    expect(row?.proofState?.matchedProofIds).toEqual(['evt_proper']);
+  });
+
+  it('SECURITY (codex #100): drops ALL records when projection has no controllerPublicKey (pre-bootstrap)', () => {
+    // Without a controllerPublicKey we cannot identify "our" issuer,
+    // so the foreign-controller filter denies everything — safer
+    // than risking a cross-identity bleed in the display.
+    const projection = makeProjection();
+    const { controllerPublicKey: _omit, ...rest } = projection;
+    void _omit;
+    const preBootstrap: StoredIdentityControlProjection = rest;
+    const proof = makeIdentityControlLogProof('evt_anything', 'device:alice-laptop');
+    const registry = seedProofRegistry([proof]);
+    const vm = buildIdentityAuditViewModel(preBootstrap, { proofRegistry: registry });
     for (const row of vm.capabilities) {
       expect(row.proofState).toBeUndefined();
     }

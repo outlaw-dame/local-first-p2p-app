@@ -78,19 +78,27 @@ export function IdentityAudit({
     // surface a separate status line so the user knows the
     // enrichment is missing, but the projection-driven rows still
     // appear.
+    //
+    // Functional setStatusLine updaters preserve a higher-priority
+    // identity-audit error (set just above) instead of clobbering
+    // it, and clear the registry-specific status when a subsequent
+    // refresh succeeds. Gemini review on PR #100.
+    const proofStatusPrefix = 'Proof registry unavailable';
     try {
       const registry = await store.loadProofRegistry();
       setProofRegistry(registry);
+      setStatusLine((prev) => (prev.startsWith(proofStatusPrefix) ? '' : prev));
     } catch (err) {
       setProofRegistry(undefined);
-      setStatusLine(`Proof registry unavailable: ${formatError(err)}`);
+      setStatusLine((prev) => prev || `${proofStatusPrefix}: ${formatError(err)}`);
     }
   }, [identityId, store]);
 
   useEffect(() => {
     // The setState calls happen inside `refresh` AFTER an `await`,
-    // not synchronously in the effect body. The rule misfires here.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // not synchronously in the effect body. (No longer needs the
+    // react-hooks/set-state-in-effect suppression — the rule now
+    // accepts post-await dispatches.)
     void refresh();
   }, [refresh]);
 

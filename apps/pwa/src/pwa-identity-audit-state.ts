@@ -175,8 +175,16 @@ export function buildIdentityAuditViewModel(
 
   // Build a one-time device → matched-proofs index so the per-row
   // enrichment is O(rows) instead of O(rows × proofs). Empty when no
-  // registry was supplied.
-  const proofsByDevice = indexIdentityControlLogProofsByDevice(options.proofRegistry);
+  // registry was supplied. We pass the audited identity's
+  // `controllerPublicKey` so the index drops any record issued by a
+  // foreign controller — `loadProofRegistry()` returns a STORE-WIDE
+  // table that may include grants from contacts whose controllers
+  // happen to have registered proofs for a device id that collides
+  // with one of ours. Codex review on PR #100.
+  const proofsByDevice = indexIdentityControlLogProofsByDevice(
+    options.proofRegistry,
+    controllerPublicKey
+  );
 
   const capabilities = Object.values(projection.capabilities).map((cap) => {
     const expired =
@@ -230,20 +238,34 @@ export function buildIdentityAuditViewModel(
  * Filter rules:
  *   - `scheme === 'identity-control-log'` (the only scheme we can
  *     speak to from the identity-control projection)
- *   - `subject.kind === 'device'` (defensive — defense-in-depth
- *     against a malformed record landing in the registry)
+ *   - `subject.kind === 'device'` (defense-in-depth against a
+ *     malformed record landing in the registry)
+ *   - `issuer.id === controllerPublicKey` AND
+ *     `issuer.kind === 'controller'` when `controllerPublicKey` is
+ *     supplied — drops grants issued by foreign controllers. The
+ *     store's `loadProofRegistry()` returns a store-wide table that
+ *     may include records from contacts; this filter keeps the
+ *     audit view scoped to the identity that owns this projection.
  *
  * Returns an empty map when no registry is provided so callers can
  * unconditionally read `.get(deviceId)`.
  */
 function indexIdentityControlLogProofsByDevice(
-  registry: ProofRegistry | undefined
+  registry: ProofRegistry | undefined,
+  controllerPublicKey: string | undefined
 ): ReadonlyMap<string, ReadonlyArray<CapabilityProofRecord>> {
   if (registry === undefined) return new Map();
   const out = new Map<string, CapabilityProofRecord[]>();
   for (const record of registry.proofs.values()) {
     if (record.scheme !== 'identity-control-log') continue;
     if (record.subject.kind !== 'device') continue;
+    // Foreign-controller filter. When the projection has no
+    // controllerPublicKey yet (pre-bootstrap), we cannot identify
+    // "our" issuer, so we drop ALL records — safer than risking a
+    // cross-identity bleed in the audit display.
+    if (controllerPublicKey === undefined) continue;
+    if (record.issuer.kind !== 'controller') continue;
+    if (record.issuer.id !== controllerPublicKey) continue;
     const list = out.get(record.subject.id);
     if (list === undefined) out.set(record.subject.id, [record]);
     else list.push(record);
