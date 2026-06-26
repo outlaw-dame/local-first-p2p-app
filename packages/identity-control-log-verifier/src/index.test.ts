@@ -32,7 +32,9 @@ import { signEventEnvelope, toBase64Url } from '@lfp2p/crypto';
 import type { CapabilityProofRecord } from '@lfp2p/capabilities';
 import {
   createIdentityControlLogVerifier,
-  identityControlLogProofDigest
+  deriveProofFromIdentityCapabilityGranted,
+  identityControlLogProofDigest,
+  registerIdentityCapabilityProof
 } from './index.js';
 
 /* -------------------------------------------------------------------------- */
@@ -530,5 +532,214 @@ describe('createIdentityControlLogVerifier: custom matcher strategies', () => {
       }
     });
     expect(verifier(makeRecord(grantedEvent))).toBe('invalid');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*                deriveProofFromIdentityCapabilityGranted                    */
+/* -------------------------------------------------------------------------- */
+
+describe('deriveProofFromIdentityCapabilityGranted', () => {
+  it('happy path: returns a fully-stamped record for a granted event', () => {
+    const { grantedEvent } = buildHappyChain();
+    const record = deriveProofFromIdentityCapabilityGranted(grantedEvent);
+    expect(record).toBeDefined();
+    expect(record?.proofId).toBe(grantedEvent.eventId);
+    expect(record?.scheme).toBe('identity-control-log');
+    expect(record?.issuer).toEqual({ kind: 'controller', id: CONTROLLER_PK });
+    expect(record?.subject).toEqual({ kind: 'device', id: DEVICE_ID });
+    expect(record?.issuedAt).toBe(grantedEvent.createdAt);
+    expect(record?.expiresAt).toBe(FAR_FUTURE);
+    expect(record?.digest).toBe(identityControlLogProofDigest(grantedEvent));
+    expect(record?.verificationState).toBe('unverified');
+  });
+
+  it('returns undefined for non-object input', () => {
+    expect(deriveProofFromIdentityCapabilityGranted(null as never)).toBeUndefined();
+    expect(deriveProofFromIdentityCapabilityGranted(42 as never)).toBeUndefined();
+    expect(deriveProofFromIdentityCapabilityGranted('event' as never)).toBeUndefined();
+  });
+
+  it('returns undefined for events of other kinds (clean dispatch)', () => {
+    const { events } = buildHappyChain();
+    // events[0] is identity.controller.created, events[1] is identity.device.authorized.
+    expect(deriveProofFromIdentityCapabilityGranted(events[0] as SignedEventEnvelope)).toBeUndefined();
+    expect(deriveProofFromIdentityCapabilityGranted(events[1] as SignedEventEnvelope)).toBeUndefined();
+  });
+
+  it.each(['capabilityId', 'delegateDeviceId', 'expiresAt'] as const)(
+    'returns undefined when payload.%s is missing',
+    (field) => {
+      const { grantedEvent } = buildHappyChain();
+      const mutated = {
+        ...grantedEvent,
+        payload: { ...(grantedEvent.payload as Record<string, unknown>) }
+      };
+      delete (mutated.payload as Record<string, unknown>)[field];
+      expect(deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)).toBeUndefined();
+    }
+  );
+
+  it.each(['capabilityId', 'delegateDeviceId', 'expiresAt'] as const)(
+    'returns undefined when payload.%s is empty string',
+    (field) => {
+      const { grantedEvent } = buildHappyChain();
+      const mutated = {
+        ...grantedEvent,
+        payload: { ...(grantedEvent.payload as Record<string, unknown>), [field]: '' }
+      };
+      expect(deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)).toBeUndefined();
+    }
+  );
+
+  it('returns undefined when payload is missing entirely', () => {
+    const { grantedEvent } = buildHappyChain();
+    const mutated = { ...grantedEvent };
+    delete (mutated as Record<string, unknown>).payload;
+    expect(deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)).toBeUndefined();
+  });
+
+  it('returns undefined when payload is not an object (array)', () => {
+    const { grantedEvent } = buildHappyChain();
+    expect(
+      deriveProofFromIdentityCapabilityGranted({
+        ...grantedEvent,
+        payload: [] as never
+      } as SignedEventEnvelope)
+    ).toBeUndefined();
+  });
+
+  it('returns undefined when eventId is missing or empty', () => {
+    const { grantedEvent } = buildHappyChain();
+    expect(
+      deriveProofFromIdentityCapabilityGranted({ ...grantedEvent, eventId: '' } as SignedEventEnvelope)
+    ).toBeUndefined();
+  });
+
+  it('returns undefined when createdAt is missing or empty', () => {
+    const { grantedEvent } = buildHappyChain();
+    expect(
+      deriveProofFromIdentityCapabilityGranted({ ...grantedEvent, createdAt: '' } as SignedEventEnvelope)
+    ).toBeUndefined();
+  });
+
+  it('returns undefined when signature.publicKey is missing', () => {
+    const { grantedEvent } = buildHappyChain();
+    const mutated = {
+      ...grantedEvent,
+      signature: { ...grantedEvent.signature }
+    };
+    delete (mutated.signature as Record<string, unknown>).publicKey;
+    expect(deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)).toBeUndefined();
+  });
+
+  it('returns undefined when signature is null', () => {
+    const { grantedEvent } = buildHappyChain();
+    expect(
+      deriveProofFromIdentityCapabilityGranted({
+        ...grantedEvent,
+        signature: null as never
+      } as SignedEventEnvelope)
+    ).toBeUndefined();
+  });
+
+  it('ROUND-TRIP: derived record verifies via createIdentityControlLogVerifier', () => {
+    // The strongest test: take the derivation output and feed it
+    // through the existing verifier against the actual event log.
+    // If the derivation gets ANY field wrong (issuer party-ref,
+    // subject device id, digest, scheme), the verifier rejects.
+    const { events, grantedEvent } = buildHappyChain();
+    const record = deriveProofFromIdentityCapabilityGranted(grantedEvent);
+    expect(record).toBeDefined();
+    const verifier = createIdentityControlLogVerifier({
+      resolveIdentityControlLog: () => events,
+      now: () => FIXED_NOW
+    });
+    expect(verifier(record as CapabilityProofRecord)).toBe('verified');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*                    registerIdentityCapabilityProof                         */
+/* -------------------------------------------------------------------------- */
+
+describe('registerIdentityCapabilityProof', () => {
+  type Put = (record: CapabilityProofRecord) => Promise<void>;
+
+  function mockStore(putImpl?: Put) {
+    const calls: CapabilityProofRecord[] = [];
+    return {
+      calls,
+      store: {
+        putCapabilityProofRecord: async (r: CapabilityProofRecord) => {
+          calls.push(r);
+          if (putImpl) await putImpl(r);
+        }
+      }
+    };
+  }
+
+  it('happy path: persists the derived record + returns true', async () => {
+    const { grantedEvent } = buildHappyChain();
+    const { store, calls } = mockStore();
+    const result = await registerIdentityCapabilityProof(store, grantedEvent);
+    expect(result).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.proofId).toBe(grantedEvent.eventId);
+    expect(calls[0]?.scheme).toBe('identity-control-log');
+  });
+
+  it('returns false (without calling store) for non-granted events', async () => {
+    const { events } = buildHappyChain();
+    const { store, calls } = mockStore();
+    const result = await registerIdentityCapabilityProof(store, events[0] as SignedEventEnvelope);
+    expect(result).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('returns false (without calling store) for malformed payload', async () => {
+    const { grantedEvent } = buildHappyChain();
+    const mutated = {
+      ...grantedEvent,
+      payload: { ...(grantedEvent.payload as Record<string, unknown>) }
+    };
+    delete (mutated.payload as Record<string, unknown>).expiresAt;
+    const { store, calls } = mockStore();
+    const result = await registerIdentityCapabilityProof(store, mutated as SignedEventEnvelope);
+    expect(result).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('throws if store does not expose putCapabilityProofRecord', async () => {
+    const { grantedEvent } = buildHappyChain();
+    await expect(
+      registerIdentityCapabilityProof({} as never, grantedEvent)
+    ).rejects.toThrow(TypeError);
+    await expect(
+      registerIdentityCapabilityProof(null as never, grantedEvent)
+    ).rejects.toThrow(TypeError);
+  });
+
+  it('propagates store errors instead of swallowing them (fail-closed)', async () => {
+    const { grantedEvent } = buildHappyChain();
+    const { store } = mockStore(async () => {
+      throw new Error('disk full');
+    });
+    await expect(registerIdentityCapabilityProof(store, grantedEvent)).rejects.toThrow('disk full');
+  });
+
+  it('END-TO-END: derived record verifies through the existing verifier', async () => {
+    // Pull the persisted record back out of the store and confirm
+    // it survives a full verification round.
+    const { events, grantedEvent } = buildHappyChain();
+    const { store, calls } = mockStore();
+    await registerIdentityCapabilityProof(store, grantedEvent);
+    const persisted = calls[0] as CapabilityProofRecord;
+
+    const verifier = createIdentityControlLogVerifier({
+      resolveIdentityControlLog: () => events,
+      now: () => FIXED_NOW
+    });
+    expect(verifier(persisted)).toBe('verified');
   });
 });
