@@ -7,7 +7,13 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "references": [{ "path": "../local-store" }, { "path": "../protocol" }, { "path": "../identity" }, { "path": "../crypto" }],
+  "references": [
+    { "path": "../local-store" },
+    { "path": "../protocol" },
+    { "path": "../identity" },
+    { "path": "../identity-control-log-verifier" },
+    { "path": "../crypto" }
+  ],
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"]
 }

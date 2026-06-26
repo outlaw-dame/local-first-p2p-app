@@ -14,6 +14,7 @@
   "dependencies": {
     "@lfp2p/crypto": "workspace:*",
     "@lfp2p/identity": "workspace:*",
+    "@lfp2p/identity-control-log-verifier": "workspace:*",
     "@lfp2p/local-store": "workspace:*",
     "@lfp2p/protocol": "workspace:*"
   },

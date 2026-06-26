@@ -263,6 +263,9 @@ importers:
       '@lfp2p/identity':
         specifier: workspace:*
         version: link:../identity
+      '@lfp2p/identity-control-log-verifier':
+        specifier: workspace:*
+        version: link:../identity-control-log-verifier
       '@lfp2p/local-store':
         specifier: workspace:*
         version: link:../local-store
