@@ -170,22 +170,29 @@ function defaultSubjectMatches(subject: CapabilityPartyRef, _projection: Identit
 export function deriveProofFromIdentityCapabilityGranted(
   event: SignedEventEnvelope
 ): CapabilityProofRecord | undefined {
+  // Defense-in-depth runtime guards — we treat `event` as untrusted
+  // even though TypeScript has typed it. The single
+  // `Record<string, unknown>` cast keeps property access clean
+  // without weakening the type system to `any`. Gemini review on
+  // PR #97.
   if (event === null || typeof event !== 'object') return undefined;
-  if ((event as { kind?: unknown }).kind !== 'identity.capability.granted') return undefined;
+  const e = event as Record<string, unknown>;
+  if (e.kind !== 'identity.capability.granted') return undefined;
 
-  const eventId = (event as { eventId?: unknown }).eventId;
+  const eventId = e.eventId;
   if (typeof eventId !== 'string' || eventId.length === 0) return undefined;
-  const createdAt = (event as { createdAt?: unknown }).createdAt;
+  const createdAt = e.createdAt;
   if (typeof createdAt !== 'string' || createdAt.length === 0) return undefined;
 
-  const signature = (event as { signature?: unknown }).signature;
+  const signature = e.signature;
   if (signature === null || typeof signature !== 'object') return undefined;
-  const controllerPublicKey = (signature as { publicKey?: unknown }).publicKey;
+  const sig = signature as Record<string, unknown>;
+  const controllerPublicKey = sig.publicKey;
   if (typeof controllerPublicKey !== 'string' || controllerPublicKey.length === 0) {
     return undefined;
   }
 
-  const payload = (event as { payload?: unknown }).payload;
+  const payload = e.payload;
   if (payload === null || typeof payload !== 'object') return undefined;
   const p = payload as Record<string, unknown>;
   const delegateDeviceId = p.delegateDeviceId;
