@@ -12,7 +12,7 @@
 
 The protocol needs semantic discovery support, but it must not standardize one search engine or embedding runtime.
 
-Applications built on the protocol may use different local or server-side implementations: SQLite + FTS5 + sqlite-vec, QVAC, Tantivy/Lucene, LanceDB, custom local indexes, or no semantic search at all.
+Applications built on the protocol may use different local or server-side implementations: SQLite + FTS5 + sqlite-vec, QVAC, PGlite, Tantivy/Lucene, LanceDB, custom local indexes, or no semantic search at all.
 
 The protocol should define interoperable metadata, descriptors, query intent, privacy boundaries, and replication rules. Implementations choose engines.
 
@@ -48,6 +48,10 @@ Semantic search is a projection layer.
 Search indexes, embeddings, rankings, and query results are not protocol source of truth. They must be derived from signed objects, content references, capabilities, privacy scopes, trust policy, and deterministic apply rules.
 
 A search result is eligible to display only when the responder is authorized to expose the referenced object or metadata.
+
+## Local derived-data boundary
+
+Semantic artifacts derived from scoped objects must inherit the same or stricter storage scope as their sources. They remain local-only by default and must be invalidated when source state, tombstones, capabilities, model version, or local policy requires it.
 
 ## Privacy rule
 
@@ -89,13 +93,13 @@ Semantic artifacts are optional protocol-adjacent projections.
 
 An implementation may keep embeddings/indexes local-only, regenerate them locally, replicate them under capability, or publish public indexes. The default should be local-only unless an object is public or a capability explicitly allows sharing.
 
-## QVAC rule
+## QVAC boundary
 
 QVAC is a candidate runtime/provider for local AI, embeddings, retrieval, optional peer-assisted model sharing, and delegated inference. It is not protocol authority and should be evaluated alongside other embedded search/retrieval options.
 
 ## Non-goals
 
-This ADR does not implement semantic search, select QVAC, select sqlite-vec, define final embedding schemas, define final query APIs, or add runtime dependencies.
+This ADR does not implement semantic search, select a runtime, define final embedding schemas, define final query APIs, or add runtime dependencies.
 
 ## Required follow-up
 

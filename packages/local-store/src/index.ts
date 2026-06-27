@@ -15,6 +15,12 @@ import {
   validateLocalControlEvent,
   validateReputationEvent
 } from '@lfp2p/trust-safety';
+import {
+  type CapabilityProofRecord,
+  type ProofRegistry,
+  seedProofRegistry,
+  validateStoredProofRecord
+} from '@lfp2p/capabilities';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
 export type DeviceIdentityStatus = 'active' | 'revoked';
@@ -29,7 +35,8 @@ export type LocalFirstTableName =
   | 'contactProfiles'
   | 'trustSafetyControlEvents'
   | 'trustSafetyLabelerEvents'
-  | 'trustSafetyReputationEvents';
+  | 'trustSafetyReputationEvents'
+  | 'capabilityProofRecords';
 
 /**
  * Stored local-control event. The full envelope is preserved as the
@@ -73,6 +80,28 @@ export type StoredTrustSafetyReputationEvent = Readonly<{
   sequence: number;
   event: ReputationEvent;
 }>;
+
+/**
+ * Persisted CapabilityProofRecord row.
+ *
+ * The full `CapabilityProofRecord` from `@lfp2p/capabilities` IS the
+ * stored shape — there is no separate envelope. `proofId` is the
+ * primary key (one record per proof; UPSERT covers both initial
+ * registration and per-device verificationState updates).
+ *
+ * The persisted `verificationState` is the cache of "what THIS
+ * device's verifier stack decided last time" — by doctrine
+ * (each-device-verifies-independently) it is a local computation,
+ * not a synced field. Cross-device consistency comes from the
+ * underlying signed-event sync, not from replicating
+ * verificationState.
+ *
+ * `seedProofRegistry` is the authoritative validator at load time:
+ * a corrupt row at rest (schema drift on a downgrade, hostile direct
+ * DB mutation) is skipped rather than poisoning the in-memory
+ * registry. See `loadProofRegistry` below.
+ */
+export type StoredCapabilityProofRecord = CapabilityProofRecord;
 
 export type IdentityVerificationStatus =
   | 'unknown'
@@ -287,6 +316,7 @@ class LocalFirstP2PDatabase extends Dexie {
   trustSafetyControlEvents!: Table<StoredTrustSafetyControlEvent, string>;
   trustSafetyLabelerEvents!: Table<StoredTrustSafetyLabelerEvent, string>;
   trustSafetyReputationEvents!: Table<StoredTrustSafetyReputationEvent, string>;
+  capabilityProofRecords!: Table<StoredCapabilityProofRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -366,6 +396,25 @@ class LocalFirstP2PDatabase extends Dexie {
       trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
       trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
       trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence'
+    });
+    // Step 2 of the post-#84 follow-up — proof-registry persistence.
+    // Adds the capabilityProofRecords table keyed by proofId. Schema
+    // bump is additive: existing v8 rows roll forward unchanged.
+    // Indexes on (scheme, verificationState, expiresAt) support the
+    // common admin / debug queries without forcing a full scan.
+    this.version(9).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt',
+      trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence',
+      capabilityProofRecords: 'proofId, scheme, verificationState, expiresAt'
     });
   }
 }
@@ -880,6 +929,99 @@ export class DexieLocalFirstStore {
     return out;
   }
 
+  /* ------------------------------------------------------------------------ */
+  /*                         capability proof records                         */
+  /* ------------------------------------------------------------------------ */
+  //
+  // Step 2 of the post-#84 follow-up — proof-registry persistence.
+  //
+  // The local-store holds a per-device snapshot of every
+  // CapabilityProofRecord the local app has registered. Verification
+  // state is local-per-device by doctrine
+  // (each-device-verifies-independently); registered records are
+  // derived from the synced event stream so cross-device consistency
+  // comes from event sync, not from replicating this table.
+  //
+  // UPSERT covers both "register a new proof" and "update an
+  // existing proof's verificationState after verifyProof". A direct
+  // `delete` is also exposed for cleanup paths that aren't
+  // revocation (revocation belongs in capabilities' revokeProof
+  // semantics).
+
+  /**
+   * Validate AND persist a CapabilityProofRecord. Validation runs
+   * through `seedProofRegistry([record])` so the same enum / digest /
+   * timestamp guards that protect the in-memory registry also gate
+   * this persistence boundary. A malformed record is rejected
+   * loudly rather than poisoning the table at rest.
+   */
+  async putCapabilityProofRecord(record: CapabilityProofRecord): Promise<void> {
+    // `validateStoredProofRecord` validates the record AND
+    // deep-freezes it, so the row written to Dexie is shielded
+    // from caller-side mutation after this call returns. Direct
+    // single-record validation avoids the throwaway 1-element
+    // registry/map allocations the `seedProofRegistry([record])`
+    // path used to do. Gemini review on PR #95.
+    const validated = validateStoredProofRecord(record);
+    await this.#db.capabilityProofRecords.put(validated);
+  }
+
+  async getCapabilityProofRecord(
+    proofId: string
+  ): Promise<CapabilityProofRecord | undefined> {
+    requireNonEmpty(proofId, 'proofId');
+    return this.#db.capabilityProofRecords.get(proofId);
+  }
+
+  async listCapabilityProofRecords(): Promise<CapabilityProofRecord[]> {
+    return this.#db.capabilityProofRecords.orderBy('proofId').toArray();
+  }
+
+  async deleteCapabilityProofRecord(proofId: string): Promise<void> {
+    requireNonEmpty(proofId, 'proofId');
+    await this.#db.capabilityProofRecords.delete(proofId);
+  }
+
+  /**
+   * Hydrate every persisted record into an in-memory ProofRegistry,
+   * skipping corrupt rows silently. The returned registry is the
+   * same shape `@lfp2p/capabilities` produces, so it can be used
+   * with `summarizeProofStates`, `verifyProof`, the trust-safety
+   * cap-adapter, or composed with the verifier suite without any
+   * further translation.
+   *
+   * Corrupt-row resilience mirrors `loadReputationEvents`: rather
+   * than throwing on the first bad row, we try one-record-at-a-time
+   * and drop the offenders. The `seedProofRegistry` validator's
+   * exhaustive checks ensure any survivor is well-formed.
+   */
+  async loadProofRegistry(): Promise<ProofRegistry> {
+    const rows = await this.listCapabilityProofRecords();
+    const survivors: CapabilityProofRecord[] = [];
+    for (const row of rows) {
+      try {
+        // Validate each row directly rather than building a
+        // throwaway 1-element registry per row. Gemini review on
+        // PR #95.
+        survivors.push(validateStoredProofRecord(row));
+      } catch {
+        // Corrupt at rest — drop. We deliberately do NOT log
+        // (Phase 3.1 privacy-safe logging discipline) and we
+        // deliberately do NOT throw (one bad row must not poison
+        // the whole hydrated registry — the reliance gate already
+        // fails closed on missing proofs).
+        continue;
+      }
+    }
+    // `seedProofRegistry` re-validates inputs, which catches a
+    // duplicate-proofId scenario (different rows for the same
+    // proofId — would signal a real storage-layer bug). The
+    // per-row validation above already gated each field; the
+    // duplicate check is the only remaining invariant left for
+    // the registry-level pass.
+    return seedProofRegistry(survivors);
+  }
+
   async advanceSyncCheckpoint(input: AdvanceSyncCheckpointInput): Promise<StoredSyncCheckpoint> {
     const next = validateAdvanceSyncCheckpointInput(input);
     return this.transaction('rw', ['syncCheckpoints'], async () => {
@@ -980,6 +1122,8 @@ export class DexieLocalFirstStore {
         return this.#db.trustSafetyLabelerEvents;
       case 'trustSafetyReputationEvents':
         return this.#db.trustSafetyReputationEvents;
+      case 'capabilityProofRecords':
+        return this.#db.capabilityProofRecords;
     }
   }
 }

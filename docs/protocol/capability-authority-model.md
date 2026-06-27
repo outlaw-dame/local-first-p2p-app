@@ -729,6 +729,213 @@ project ships:
   defenses run in a try/catch so a throwing strategy resolves
   to `'invalid'` rather than crashing the registry.
 
+  ### Auto-registration from inbound events
+
+  The package also exposes the inverse direction — taking a
+  signed `identity.capability.granted` event off the wire and
+  producing a `CapabilityProofRecord` ready to persist:
+
+  ```ts
+  deriveProofFromIdentityCapabilityGranted(event): CapabilityProofRecord | undefined
+  registerIdentityCapabilityProof(store, event): Promise<boolean>
+  ```
+
+  - `deriveProofFromIdentityCapabilityGranted` is the pure
+    inverse of the verifier: it extracts `delegateDeviceId`,
+    `expiresAt`, and the signer's public key from a granted
+    event, computes the canonical proof digest, and returns a
+    fully-stamped record (`verificationState: 'unverified'` —
+    registration does NOT assert verification). Returns
+    `undefined` cleanly for any other event kind so a dispatch
+    loop can route the event elsewhere.
+  - `registerIdentityCapabilityProof` is the thin async wrapper
+    that calls the derivation function and (on success)
+    persists the record via the store's
+    `putCapabilityProofRecord`. Returns `true` if a record was
+    written, `false` for non-granted events. Store errors are
+    deliberately NOT swallowed — a transient write failure must
+    surface so the caller can retry or fail closed.
+
+  ### Built-in sync-client integration (step 3b)
+
+  `@lfp2p/sync-client`'s `processInboundSyncBatch` exposes the
+  recommended wiring through an opt-in config flag:
+
+  ```ts
+  await processInboundSyncBatch({
+    store,
+    records,
+    registerIdentityCapabilityProofs: true   // opt-in
+  });
+  ```
+
+  When set to `true`, every `identity.capability.granted` envelope
+  that the batch FRESHLY stores (i.e.,
+  `putSignedEventWithSyncCheckpoint` returned `'stored'`, not
+  `'skipped'`) is auto-dispatched through
+  `registerIdentityCapabilityProof` and persisted into the
+  `capabilityProofRecords` table.
+
+  - **Default is `false`.** Existing callers (and apps that do not
+    use the proof-registry pathway) see no behavior change and no
+    new field on the result.
+  - The result includes a `capabilityProofs` summary
+    (`{ applied, dropped, rejected, errors }`) only when the flag
+    is `true`. This mirrors the Phase 1.8.14 `reputation` summary
+    surface.
+  - **Replays are short-circuited** by the existing
+    `status === 'stored'` gate — a re-delivered envelope at the
+    same checkpoint cursor returns `'skipped'`, so the dispatcher
+    is NOT invoked again. This is the same idempotency mechanism
+    the reputation router relies on.
+  - **Failures do not abort the batch.** A malformed grant lands
+    in `summary.dropped`; a persistence-validator rejection lands
+    in `summary.rejected` with a privacy-safe error message
+    (Phase 3.1 doctrine). The bridge inbound stream MUST keep
+    advancing the checkpoint even when proof registration trips
+    on one hostile event.
+
+  After ingestion, the local app runs `verifyProof` against the
+  hydrated registry to refresh the per-device `verificationState`
+  cache — verification is local-per-device by the persistence
+  doctrine.
+
+  ### First production read consumer (step 3c)
+
+  The PWA's identity audit panel
+  (`apps/pwa/src/pwa-identity-audit.tsx`) is the first production
+  surface that READS the persisted proof registry.
+
+  On mount, the audit panel calls `store.loadProofRegistry()`
+  alongside its existing `store.getIdentityControlProjection(...)`
+  call and passes the registry into `buildIdentityAuditViewModel`.
+  Each capability row in the rendered view is enriched with the
+  set of identity-control-log proof records whose `subject.id`
+  equals the row's `delegateDeviceId`:
+
+  ```ts
+  CapabilityAuditRow.proofState?: {
+    matchedProofIds: ReadonlyArray<string>;
+    verificationStates: ReadonlyArray<CapabilityProofVerificationState>;
+  }
+  ```
+
+  The match key is `subject.id === delegateDeviceId` — the only
+  device-grain mapping the in-memory projection exposes. (The
+  `CapabilityProofRecord.proofId` is the granted-event id, which
+  the `StoredIdentityControlProjection` does not carry; precise
+  per-capability matching is deferred to a future schema bump.)
+
+  The UI renders the enrichment as a `Proof registry: 1 verified`
+  (or `3 total (2 verified, 1 unverified)` etc.) footer beneath
+  each capability row. The proof-registry load is best-effort: a
+  failure surfaces in the status line but never blocks the
+  projection-driven rows from rendering.
+
+  This is **read-only audit display**, not enforcement. The
+  reliance gate (`evaluateTrustSafetyCap`) still has no
+  production caller; wiring it would require an enforcement
+  scenario this repo does not have today (no consumer is actually
+  gated on a capability decision). The step 3c demo proves the
+  pipeline works end-to-end — sync writes registered records,
+  Dexie persists them, the registry hydrates, and the audit panel
+  reads them — without inventing an enforcement scenario.
+
+  ### First production enforcement consumer (step 4)
+
+  `apps/pwa/src/pwa-outbox-manual-gate.ts` is the first production
+  surface that **denies** an action based on the proof registry.
+
+  ```ts
+  await runManualOutboxDelivery({
+    store,
+    env,
+    capabilityGate: {
+      localDeviceId,    // the device running this PWA
+      now?: string      // defaults to current time
+    }
+  });
+  ```
+
+  When the optional `capabilityGate` is supplied, the manual
+  outbox delivery flow refuses to ship a batch unless the
+  trust-safety cap-adapter returns `allow` for action
+  `sync.push`. The check runs AFTER the budget reservation and
+  BEFORE `processOutboxBatch`:
+
+  1. `store.loadProofRegistry()` rehydrates the proof state cache.
+  2. The gate collects every `identity-control-log` record whose
+     `subject.id === localDeviceId` and `subject.kind === 'device'`.
+  3. A baseline `allow` capability decision is synthesized
+     (matching the canonical wiring recipe earlier in this
+     document) and passed to `evaluateTrustSafetyCap` along with
+     the registry + refs.
+  4. The cap-adapter folds the refs via `summarizeProofStates`
+     and returns `allow` only if the worst-case state is
+     `'verified'`. Anything else — `unverified`, `revoked`,
+     `expired`, `invalid`, `possession-confirmed` — denies.
+  5. On deny: the budget reservation is refunded (so a denial
+     doesn't burn the user's send budget) and the call returns
+     `{ status: 'blocked', reason: 'capability-proof-denied' }`
+     with a privacy-safe message naming the reliance reason
+     codes.
+
+  Fail-closed behaviors covered by the regression tests:
+
+  - **No proof registered for this device** → deny. A device the
+    controller has not granted authority to cannot send.
+  - **Unverified proof** → deny (`capability.unverified-proof`).
+    A registered grant is not authority until the local
+    verifier has run.
+  - **Revoked proof** → deny (`capability.revoked`).
+    Revocation propagates through the worst-case fold.
+  - **Foreign-device proof** → deny. A verified grant whose
+    `subject.id` is some other device cannot be borrowed by the
+    local device.
+  - **Omitting `capabilityGate`** → existing behavior preserved
+    exactly, so this is opt-in until the React surface is
+    updated to pass the gate.
+
+  The doctrine note: this completes the proof-registry stack
+  from sync ingestion → persistence → hydration → display →
+  **enforcement**. The action chosen (`sync.push`) is the
+  one already declared in `CAPABILITY_ACTIONS`; the scheme used
+  (`identity-control-log`) is the only one the PWA's persistence
+  flow auto-registers today. UCAN, VC, and zcap-ld proofs in the
+  registry are not consulted by this v1 gate — that's a future
+  expansion when their auto-registration lands.
+
+  ### Scope binding and expiry refresh
+
+  The naïve gate would over-grant: any verified controller proof
+  for the device unlocks delivery, regardless of what the
+  controller actually granted. Two refinements close that hole:
+
+  1. **Scope filter.** For each candidate proof, the gate looks up
+     the underlying `identity.capability.granted` signed event
+     (`store.getSignedEvent(record.proofId)`) and requires
+     `payload.scope === 'outbox.send'`. A grant for any other
+     scope is silently dropped, fail-closed. The scope string
+     matches the convention used elsewhere in the PWA's identity
+     surface (`pwa-identity-emit.ts`,
+     `pwa-identity-audit-state.test.ts`). When all matched proofs
+     are scope-mismatched the deny message explicitly names
+     `scope outbox.send` so the user knows the controller granted
+     *something* but not the right thing.
+  2. **Inline expiry refresh.** `summarizeProofStates` reads
+     `record.verificationState` directly without comparing
+     `expiresAt` to `now`. A stale cached `'verified'` row whose
+     expiry has lapsed in wall-clock terms would therefore still
+     fold to `'verified'`. The gate filters out expired records
+     before building the refs, surfacing a deny message that
+     names `expired` so the user knows to re-grant rather than
+     re-scope.
+
+  These match the doctrine: the cap-adapter answers *"are these
+  proofs in good standing?"* but it cannot answer *"do they grant
+  THIS action?"* — that's the relying caller's responsibility,
+  which is what the scope filter discharges.
+
   ### Trust-boundary discipline
 
   This verifier deliberately bridges **identity-control** into

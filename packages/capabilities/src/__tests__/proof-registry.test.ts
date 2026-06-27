@@ -17,10 +17,12 @@ import {
   getProof,
   registerProof,
   revokeProof,
+  seedProofRegistry,
   summarizeProofStates,
   verifyProof,
   type CapabilityDecision,
   type CapabilityPartyRef,
+  type CapabilityProofRecord,
   type CapabilityProofVerifier,
   type RegisterProofInput
 } from '../index.js';
@@ -380,6 +382,147 @@ describe('reliance gate wired to the registry', () => {
       now: NOW
     });
     expect(decision).toBe(allowed);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+
+describe('seedProofRegistry — reconstruct from stored records', () => {
+  const REC_A: CapabilityProofRecord = {
+    proofId: 'proof:native:A',
+    scheme: 'native-signed-event',
+    issuer: { id: 'did:example:issuer', kind: 'actor' },
+    subject: { id: 'did:example:holder', kind: 'actor' },
+    issuedAt: NOW,
+    expiresAt: LATER,
+    digest: 'sha-256:0000000000000000000000000000000000000000000000000000000000000000',
+    verificationState: 'verified'
+  };
+  const REC_B: CapabilityProofRecord = {
+    proofId: 'proof:ucan:B',
+    scheme: 'ucan',
+    issuer: { id: 'did:example:issuer', kind: 'actor' },
+    subject: { id: 'did:example:holder', kind: 'actor' },
+    issuedAt: NOW,
+    expiresAt: LATER,
+    digest: 'sha-256:1111111111111111111111111111111111111111111111111111111111111111',
+    verificationState: 'unverified'
+  };
+
+  it('empty input → empty registry', () => {
+    const reg = seedProofRegistry([]);
+    expect(reg.proofs.size).toBe(0);
+  });
+
+  it('round-trips a single record preserving every field including verificationState', () => {
+    const reg = seedProofRegistry([REC_A]);
+    const got = reg.proofs.get('proof:native:A');
+    expect(got).toEqual(REC_A);
+    expect(got?.verificationState).toBe('verified'); // NOT reset to 'unverified'
+  });
+
+  it('preserves every verificationState including the new possession-confirmed tier', () => {
+    const possess: CapabilityProofRecord = {
+      ...REC_A,
+      proofId: 'proof:bearcap:C',
+      scheme: 'bearcap',
+      verificationState: 'possession-confirmed'
+    };
+    const reg = seedProofRegistry([possess]);
+    expect(reg.proofs.get('proof:bearcap:C')?.verificationState).toBe('possession-confirmed');
+  });
+
+  it('accepts revoked records (revokedAt + verificationState === "revoked")', () => {
+    const rev: CapabilityProofRecord = {
+      ...REC_A,
+      proofId: 'proof:native:R',
+      revokedAt: NOW,
+      verificationState: 'revoked'
+    };
+    const reg = seedProofRegistry([rev]);
+    expect(reg.proofs.get('proof:native:R')?.revokedAt).toBe(NOW);
+  });
+
+  it('rejects duplicate proofId (signals storage corruption)', () => {
+    expect(() => seedProofRegistry([REC_A, { ...REC_A }])).toThrow(/duplicate proofId/);
+  });
+
+  it('rejects an unknown scheme (defense-in-depth against corrupt rows)', () => {
+    expect(() =>
+      seedProofRegistry([{ ...REC_A, scheme: 'bogus-scheme' as never }])
+    ).toThrow(CapabilityError);
+  });
+
+  it('rejects an unknown verificationState (corrupt row cannot inject)', () => {
+    expect(() =>
+      seedProofRegistry([{ ...REC_A, verificationState: 'pwned' as never }])
+    ).toThrow(CapabilityError);
+  });
+
+  it('rejects malformed digest', () => {
+    expect(() =>
+      seedProofRegistry([{ ...REC_A, digest: 'not-a-digest' }])
+    ).toThrow(CapabilityError);
+  });
+
+  it('rejects issuedAt >= expiresAt', () => {
+    expect(() =>
+      seedProofRegistry([{ ...REC_A, issuedAt: LATER, expiresAt: NOW }])
+    ).toThrow(/issuedAt must be before expiresAt/);
+  });
+
+  it('rejects revokedAt before issuedAt', () => {
+    expect(() =>
+      seedProofRegistry([
+        { ...REC_A, revokedAt: '2025-01-01T00:00:00.000Z', verificationState: 'revoked' }
+      ])
+    ).toThrow(/revokedAt must not predate issuedAt/);
+  });
+
+  it('throws on non-iterable input', () => {
+    expect(() => seedProofRegistry(42 as never)).toThrow(/must be iterable/);
+    expect(() => seedProofRegistry(null as never)).toThrow(/must be iterable/);
+  });
+
+  it('SECURITY (codex #95): rejects revokedAt + verificationState !== "revoked"', () => {
+    // A corrupt row at rest must NOT be able to launder a revoked
+    // proof past summarizeProofStates by claiming verificationState:
+    // "verified". The cross-field invariant matches register/revoke.
+    expect(() =>
+      seedProofRegistry([
+        { ...REC_A, revokedAt: NOW, verificationState: 'verified' }
+      ])
+    ).toThrow(/with revokedAt must have verificationState === "revoked"/);
+  });
+
+  it('SECURITY (codex #95): rejects verificationState === "revoked" without revokedAt', () => {
+    expect(() =>
+      seedProofRegistry([
+        { ...REC_A, verificationState: 'revoked' } // no revokedAt
+      ])
+    ).toThrow(/must carry revokedAt/);
+  });
+
+  it('rehydrated registry composes with summarizeProofStates correctly', () => {
+    const reg = seedProofRegistry([REC_A, REC_B]);
+    // REC_A is 'verified', REC_B is 'unverified' — worst-case wins.
+    expect(
+      summarizeProofStates(reg, [
+        { proofId: 'proof:native:A', scheme: 'native-signed-event' },
+        { proofId: 'proof:ucan:B', scheme: 'ucan' }
+      ])
+    ).toBe('unverified');
+  });
+
+  it('rehydrated registry composes with verifyProof to refresh state', () => {
+    // After loading a 'verified' record, the local app can re-run
+    // verifyProof to refresh the state — the existing verification
+    // semantics still apply on a hydrated registry.
+    let reg = seedProofRegistry([REC_A]);
+    reg = verifyProof(reg, 'proof:native:A', { now: NOW, verifier: rejectAll }).registry;
+    expect(reg.proofs.get('proof:native:A')?.verificationState).toBe('invalid');
   });
 });
 

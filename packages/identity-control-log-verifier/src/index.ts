@@ -135,3 +135,126 @@ function defaultSubjectMatches(subject: CapabilityPartyRef, _projection: Identit
   const delegateDeviceId = (proofEvent.payload as Record<string, unknown>).delegateDeviceId;
   return subject.kind === 'device' && typeof delegateDeviceId === 'string' && subject.id === delegateDeviceId;
 }
+
+/* -------------------------------------------------------------------------- */
+/*                              auto-registration                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Derive a `CapabilityProofRecord` from an
+ * `identity.capability.granted` signed event.
+ *
+ * This is the inverse of the verifier — converting a signed event
+ * back into the registry shape the verifier later consumes. The
+ * returned record is ready to be persisted via
+ * `@lfp2p/local-store`'s `putCapabilityProofRecord`.
+ *
+ * Returns `undefined` (clean dispatch path) when:
+ *   - `event` is not a non-null object, OR
+ *   - `event.kind !== 'identity.capability.granted'` (a different
+ *     identity event is not an authority grant), OR
+ *   - any required field on the event or its payload is missing /
+ *     malformed (the persistence layer would reject anyway; bail
+ *     here so the caller can route the event elsewhere).
+ *
+ * The returned record always has `verificationState: 'unverified'`.
+ * The local app is expected to run `verifyProof` against the
+ * hydrated registry afterwards — verification is local-per-device
+ * by doctrine, and registration alone does not assert cryptographic
+ * authority.
+ *
+ * Pure on inputs; the returned record is plain-object shaped (not
+ * deep-frozen — `validateStoredProofRecord` at the persistence
+ * boundary freezes it).
+ */
+export function deriveProofFromIdentityCapabilityGranted(
+  event: SignedEventEnvelope
+): CapabilityProofRecord | undefined {
+  // Defense-in-depth runtime guards — we treat `event` as untrusted
+  // even though TypeScript has typed it. The single
+  // `Record<string, unknown>` cast keeps property access clean
+  // without weakening the type system to `any`. Gemini review on
+  // PR #97.
+  if (event === null || typeof event !== 'object') return undefined;
+  const e = event as Record<string, unknown>;
+  if (e.kind !== 'identity.capability.granted') return undefined;
+
+  const eventId = e.eventId;
+  if (typeof eventId !== 'string' || eventId.length === 0) return undefined;
+  const createdAt = e.createdAt;
+  if (typeof createdAt !== 'string' || createdAt.length === 0) return undefined;
+
+  const signature = e.signature;
+  if (signature === null || typeof signature !== 'object') return undefined;
+  const sig = signature as Record<string, unknown>;
+  const controllerPublicKey = sig.publicKey;
+  if (typeof controllerPublicKey !== 'string' || controllerPublicKey.length === 0) {
+    return undefined;
+  }
+
+  const payload = e.payload;
+  if (payload === null || typeof payload !== 'object') return undefined;
+  const p = payload as Record<string, unknown>;
+  const delegateDeviceId = p.delegateDeviceId;
+  const expiresAt = p.expiresAt;
+  if (
+    typeof p.capabilityId !== 'string' || p.capabilityId.length === 0 ||
+    typeof delegateDeviceId !== 'string' || delegateDeviceId.length === 0 ||
+    typeof expiresAt !== 'string' || expiresAt.length === 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    proofId: eventId,
+    scheme: 'identity-control-log',
+    issuer: { kind: 'controller', id: controllerPublicKey },
+    subject: { kind: 'device', id: delegateDeviceId },
+    issuedAt: createdAt,
+    expiresAt,
+    digest: identityControlLogProofDigest(event),
+    verificationState: 'unverified'
+  };
+}
+
+/**
+ * Minimal store interface the auto-registration helper depends on —
+ * narrower than `@lfp2p/local-store`'s full surface so this package
+ * stays free of a hard dep on the persistence implementation.
+ * Any object exposing `putCapabilityProofRecord` (including
+ * `DexieLocalFirstStore`) satisfies it.
+ */
+export type CapabilityProofRecordStore = {
+  putCapabilityProofRecord(record: CapabilityProofRecord): Promise<void>;
+};
+
+/**
+ * Auto-register a capability proof from an inbound signed event.
+ *
+ * Convenience wrapper: derives the proof record via
+ * `deriveProofFromIdentityCapabilityGranted` and (on success)
+ * persists it through the supplied store. Returns `true` when a
+ * record was registered, `false` when the event isn't a granted
+ * event the helper can speak to.
+ *
+ * Intended to be called from an inbound-sync handler after an
+ * `identity.capability.granted` event lands. The persistence layer
+ * (`putCapabilityProofRecord`) re-validates the record at the
+ * write boundary, so a malformed event still surfaces loudly — the
+ * helper does not silently swallow validation failures.
+ *
+ * Errors from the store are NOT caught: a transient write failure
+ * MUST surface so the caller can retry or fail closed.
+ */
+export async function registerIdentityCapabilityProof(
+  store: CapabilityProofRecordStore,
+  event: SignedEventEnvelope
+): Promise<boolean> {
+  if (store === null || typeof store !== 'object' || typeof store.putCapabilityProofRecord !== 'function') {
+    throw new TypeError('registerIdentityCapabilityProof: store must expose putCapabilityProofRecord');
+  }
+  const record = deriveProofFromIdentityCapabilityGranted(event);
+  if (record === undefined) return false;
+  await store.putCapabilityProofRecord(record);
+  return true;
+}

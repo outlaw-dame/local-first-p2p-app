@@ -13,6 +13,7 @@
     { "path": "packages/bearcap-verifier" },
     { "path": "packages/identity-control-log-verifier" },
     { "path": "packages/crypto" },
+    { "path": "packages/private-payload" },
     { "path": "packages/envelope" },
     { "path": "packages/design-tokens" },
     { "path": "packages/platform" },
