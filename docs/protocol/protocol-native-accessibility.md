@@ -38,7 +38,22 @@ Protocol object families should be able to express:
 - `motionWarning` for motion-sensitive content;
 - `soundWarning` for sudden/loud audio;
 - `blurByDefault` rendering recommendation;
-- `generatedByAI` and `reviewed` state for generated accessibility metadata.
+- `verificationState` for accessibility metadata provenance/review state.
+
+## Verification state
+
+Accessibility metadata should use a structured verification/provenance state instead of separate boolean fields.
+
+Initial values:
+
+- `human-authored`;
+- `ai-generated`;
+- `ai-assisted`;
+- `reviewed`;
+- `superseded`;
+- `disputed`.
+
+The verification state describes the accessibility metadata, not the target object as a whole.
 
 ## Required behavior
 
@@ -74,16 +89,9 @@ Missing metadata is not the same as confirmed absence of risk.
 
 ## Generated metadata
 
-AI-generated or tool-generated accessibility metadata should be marked as generated unless a human or authorized process reviews it.
+AI-generated or tool-generated accessibility metadata should be marked with `verificationState: ai-generated` unless a human or authorized process reviews it.
 
-Generated metadata may be useful, but clients should be able to distinguish:
-
-- human-authored;
-- AI-generated;
-- AI-assisted;
-- reviewed;
-- superseded;
-- disputed.
+Clients should be able to distinguish human-authored, AI-generated, AI-assisted, reviewed, superseded, and disputed accessibility metadata.
 
 ## Privacy
 
