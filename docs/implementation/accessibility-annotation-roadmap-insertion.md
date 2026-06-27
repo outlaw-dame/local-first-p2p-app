@@ -42,7 +42,7 @@ Required work:
 - alt text, long description, transcript, captions, audio description, and language metadata;
 - content warning, context warning, spoiler warning, sensitive media, flashing, motion, sound, and blur-by-default metadata;
 - missing-accessibility-metadata states;
-- generated/AI-assisted/reviewed metadata states;
+- structured accessibility `verificationState` values for human-authored, AI-generated, AI-assisted, reviewed, superseded, and disputed metadata;
 - privacy rules for accessibility metadata derived from scoped content;
 - preservation rules for bridges, relays, super peers, indexes, and runtime adapters;
 - search/index rules for accessibility metadata.
@@ -56,7 +56,7 @@ Required work:
 - signed annotation coexistence doctrine;
 - target subject references for objects, media, actors, devices, URLs, domains, topics, communities, infrastructure, and policy lists;
 - annotation class vocabulary;
-- issuer, scope, namespace, motivation, body, created-at, expiry, supersession, and negation rules;
+- issuer, scope, namespace, motivation, body, created-at, expiry, supersession, and negation rules, including updating the `SafetyAnnotation` TypeScript schema and validators;
 - client-side annotation defaults (`device-local` / `account-local`);
 - labeler annotation defaults (`network-advisory` unless trusted by policy);
 - coexistence rules for client annotations vs labelers;
