@@ -21,7 +21,7 @@ The first code PR should update `@lfp2p/protocol` with:
 - an MLS application-message envelope shape;
 - validation support for `group` privacy payloads that are MLS envelopes;
 - strict rejection of plaintext group payloads;
-- tests proving Phase 2 private envelopes still work where appropriate.
+- tests proving Phase 2 private envelopes still work only where appropriate and cannot downgrade MLS-active groups.
 
 ## Event kinds
 
@@ -60,9 +60,9 @@ Required fields:
 Validation requirements:
 
 - exact version match;
-- safe positive epoch;
+- safe non-negative epoch;
 - non-empty group id;
-- non-empty sender device id;
+- non-empty sender device id that matches the outer signed event envelope `deviceId`;
 - base64url ciphertext;
 - no unsupported fields;
 - no plaintext body/content fields;
@@ -77,11 +77,11 @@ Phase 4 must update this rule:
 ```txt
 dm privacy     → Phase 2 private payload envelope only
 self privacy   → identity events or Phase 2 private payload envelope
-group privacy  → Phase 2 private payload envelope OR MLS application-message envelope
+group privacy  → Phase 2 private payload envelope OR MLS application-message envelope; MLS-only once the target group is MLS-active
 public/local   → neither private nor MLS encrypted envelopes
 ```
 
-This keeps plaintext group payloads invalid while allowing MLS-protected group payloads.
+This keeps plaintext group payloads invalid while allowing MLS-protected group payloads. It also prevents cryptographic downgrade: once a group is initialized with or upgraded to MLS, projection policy must reject Phase 2 private envelopes for that group.
 
 ## Group-control payload validation
 
@@ -93,9 +93,9 @@ Each control kind should share a common base:
 - `controlId`;
 - `createdAt`;
 - `issuerDeviceId`;
-- optional `previousControlId`;
+- `previousControlId` required for all records except group creation;
 - optional `commitRef`;
-- optional `membershipDigest`.
+- optional `membershipDigest` required on epoch-advancing records.
 
 Kind-specific fields:
 
@@ -104,9 +104,9 @@ Kind-specific fields:
 - member/device added: added identity/device, welcome ref;
 - member/device removed: removed identity/device, removal reason code;
 - device updated: device id, key package ref;
-- commit published: commit ref, parent epoch/checkpoint;
+- commit published: commit ref, parent epoch/checkpoint, membership digest;
 - welcome issued: recipient identity/device, welcome ref;
-- epoch advanced: prior epoch, next epoch, checkpoint;
+- epoch advanced: prior epoch, next epoch, checkpoint, membership digest;
 - fork detected: conflicting commit refs, observed epoch;
 - fork recovery: selected commit/ref, rejected candidates, policy authority;
 - stale epoch rejected: rejected epoch/message/control ref.
@@ -138,8 +138,11 @@ Required behavior:
 2. Queue conflicting candidates.
 3. Keep the last accepted epoch stable.
 4. Reject candidates involving revoked devices or scope widening.
-5. Require a signed recovery/control record from an authorized policy authority before choosing a branch.
-6. Preserve audit data for rejected candidates.
+5. Prefer a signed recovery/control record from an authorized policy authority before choosing a branch.
+6. If the authority is unreachable and local policy allows automated recovery, use a deterministic fallback rule such as lowest canonical commit hash after validating issuer authority, membership digest, epoch parent, and no scope widening.
+7. Preserve audit data for rejected candidates.
+
+The fallback rule must be deterministic, auditable, fail-closed for unsafe candidates, and unable to select a commit from a revoked or unauthorized device.
 
 ## Multi-device welcome routing
 
@@ -157,14 +160,18 @@ Protocol tests:
 
 - accepts valid MLS group-control payloads;
 - rejects wrong group-control versions;
-- rejects non-positive epochs;
+- accepts epoch 0 and rejects negative or unsafe epochs;
 - rejects malformed group ids and device ids;
+- rejects MLS application-message envelopes whose `senderDeviceId` differs from the outer event `deviceId`;
 - accepts MLS application-message envelope for `group` privacy;
-- accepts Phase 2 private envelope for `group` privacy where still supported;
+- accepts Phase 2 private envelope for `group` privacy only for non-MLS-active groups;
+- rejects Phase 2 private envelope downgrade for MLS-active groups;
 - rejects plaintext `group` payloads;
 - rejects MLS envelopes outside `group` privacy;
 - rejects malformed MLS ciphertext;
-- rejects unsupported MLS envelope fields.
+- rejects unsupported MLS envelope fields;
+- rejects missing `previousControlId` on non-creation records;
+- rejects missing `membershipDigest` on epoch-advancing records.
 
 Projection tests:
 
@@ -177,6 +184,7 @@ Projection tests:
 - replay/idempotency behavior;
 - fork detection;
 - deterministic fork recovery;
+- automated fallback fork recovery when policy permits it;
 - offline catch-up;
 - multi-device welcome routing.
 
