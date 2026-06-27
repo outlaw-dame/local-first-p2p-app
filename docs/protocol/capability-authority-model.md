@@ -841,6 +841,101 @@ project ships:
   Dexie persists them, the registry hydrates, and the audit panel
   reads them — without inventing an enforcement scenario.
 
+  ### First production enforcement consumer (step 4)
+
+  `apps/pwa/src/pwa-outbox-manual-gate.ts` is the first production
+  surface that **denies** an action based on the proof registry.
+
+  ```ts
+  await runManualOutboxDelivery({
+    store,
+    env,
+    capabilityGate: {
+      localDeviceId,    // the device running this PWA
+      now?: string      // defaults to current time
+    }
+  });
+  ```
+
+  When the optional `capabilityGate` is supplied, the manual
+  outbox delivery flow refuses to ship a batch unless the
+  trust-safety cap-adapter returns `allow` for action
+  `sync.push`. The check runs AFTER the budget reservation and
+  BEFORE `processOutboxBatch`:
+
+  1. `store.loadProofRegistry()` rehydrates the proof state cache.
+  2. The gate collects every `identity-control-log` record whose
+     `subject.id === localDeviceId` and `subject.kind === 'device'`.
+  3. A baseline `allow` capability decision is synthesized
+     (matching the canonical wiring recipe earlier in this
+     document) and passed to `evaluateTrustSafetyCap` along with
+     the registry + refs.
+  4. The cap-adapter folds the refs via `summarizeProofStates`
+     and returns `allow` only if the worst-case state is
+     `'verified'`. Anything else — `unverified`, `revoked`,
+     `expired`, `invalid`, `possession-confirmed` — denies.
+  5. On deny: the budget reservation is refunded (so a denial
+     doesn't burn the user's send budget) and the call returns
+     `{ status: 'blocked', reason: 'capability-proof-denied' }`
+     with a privacy-safe message naming the reliance reason
+     codes.
+
+  Fail-closed behaviors covered by the regression tests:
+
+  - **No proof registered for this device** → deny. A device the
+    controller has not granted authority to cannot send.
+  - **Unverified proof** → deny (`capability.unverified-proof`).
+    A registered grant is not authority until the local
+    verifier has run.
+  - **Revoked proof** → deny (`capability.revoked`).
+    Revocation propagates through the worst-case fold.
+  - **Foreign-device proof** → deny. A verified grant whose
+    `subject.id` is some other device cannot be borrowed by the
+    local device.
+  - **Omitting `capabilityGate`** → existing behavior preserved
+    exactly, so this is opt-in until the React surface is
+    updated to pass the gate.
+
+  The doctrine note: this completes the proof-registry stack
+  from sync ingestion → persistence → hydration → display →
+  **enforcement**. The action chosen (`sync.push`) is the
+  one already declared in `CAPABILITY_ACTIONS`; the scheme used
+  (`identity-control-log`) is the only one the PWA's persistence
+  flow auto-registers today. UCAN, VC, and zcap-ld proofs in the
+  registry are not consulted by this v1 gate — that's a future
+  expansion when their auto-registration lands.
+
+  ### Scope binding and expiry refresh
+
+  The naïve gate would over-grant: any verified controller proof
+  for the device unlocks delivery, regardless of what the
+  controller actually granted. Two refinements close that hole:
+
+  1. **Scope filter.** For each candidate proof, the gate looks up
+     the underlying `identity.capability.granted` signed event
+     (`store.getSignedEvent(record.proofId)`) and requires
+     `payload.scope === 'outbox.send'`. A grant for any other
+     scope is silently dropped, fail-closed. The scope string
+     matches the convention used elsewhere in the PWA's identity
+     surface (`pwa-identity-emit.ts`,
+     `pwa-identity-audit-state.test.ts`). When all matched proofs
+     are scope-mismatched the deny message explicitly names
+     `scope outbox.send` so the user knows the controller granted
+     *something* but not the right thing.
+  2. **Inline expiry refresh.** `summarizeProofStates` reads
+     `record.verificationState` directly without comparing
+     `expiresAt` to `now`. A stale cached `'verified'` row whose
+     expiry has lapsed in wall-clock terms would therefore still
+     fold to `'verified'`. The gate filters out expired records
+     before building the refs, surfacing a deny message that
+     names `expired` so the user knows to re-grant rather than
+     re-scope.
+
+  These match the doctrine: the cap-adapter answers *"are these
+  proofs in good standing?"* but it cannot answer *"do they grant
+  THIS action?"* — that's the relying caller's responsibility,
+  which is what the scope filter discharges.
+
   ### Trust-boundary discipline
 
   This verifier deliberately bridges **identity-control** into
