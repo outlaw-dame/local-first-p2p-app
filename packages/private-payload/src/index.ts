@@ -40,6 +40,33 @@ type BrowserEncodingGlobal = Readonly<{
   atob?: (data: string) => string;
 }>;
 
+type PayloadCryptoKey = unknown;
+
+type PayloadSubtleCrypto = Readonly<{
+  importKey: (
+    format: 'raw',
+    keyData: Uint8Array,
+    algorithm: Readonly<{ name: 'AES-GCM'; length: 256 }>,
+    extractable: false,
+    keyUsages: readonly ['encrypt', 'decrypt']
+  ) => Promise<PayloadCryptoKey>;
+  encrypt: (
+    algorithm: Readonly<{ name: 'AES-GCM'; iv: Uint8Array; additionalData: Uint8Array }>,
+    key: PayloadCryptoKey,
+    data: Uint8Array
+  ) => Promise<ArrayBuffer>;
+  decrypt: (
+    algorithm: Readonly<{ name: 'AES-GCM'; iv: Uint8Array; additionalData: Uint8Array }>,
+    key: PayloadCryptoKey,
+    data: Uint8Array
+  ) => Promise<ArrayBuffer>;
+}>;
+
+type PayloadCrypto = Readonly<{
+  getRandomValues: (array: Uint8Array) => Uint8Array;
+  subtle?: PayloadSubtleCrypto;
+}>;
+
 export function generatePrivatePayloadKeyMaterial(): string {
   const bytes = new Uint8Array(32);
   requireCrypto().getRandomValues(bytes);
@@ -128,7 +155,7 @@ export function validatePrivatePayloadEnvelopeShape(
   return envelope;
 }
 
-async function importPayloadKey(keyMaterial: string): Promise<CryptoKey> {
+async function importPayloadKey(keyMaterial: string): Promise<PayloadCryptoKey> {
   const raw = fromBase64Url(requireNonEmpty(keyMaterial, 'keyMaterial'));
   if (raw.byteLength !== 32) throw new Error('keyMaterial must decode to 32 bytes');
   return requireSubtleCrypto().importKey('raw', raw, { name: 'AES-GCM', length: 256 }, false, [
@@ -211,13 +238,14 @@ function requireAtob(): (data: string) => string {
   return decoder;
 }
 
-function requireCrypto(): Crypto {
-  if (!globalThis.crypto) throw new Error('WebCrypto is required');
-  return globalThis.crypto;
+function requireCrypto(): PayloadCrypto {
+  const crypto = (globalThis as Readonly<{ crypto?: PayloadCrypto }>).crypto;
+  if (crypto === undefined) throw new Error('WebCrypto is required');
+  return crypto;
 }
 
-function requireSubtleCrypto(): SubtleCrypto {
+function requireSubtleCrypto(): PayloadSubtleCrypto {
   const subtle = requireCrypto().subtle;
-  if (!subtle) throw new Error('WebCrypto subtle crypto is required');
+  if (subtle === undefined) throw new Error('WebCrypto subtle crypto is required');
   return subtle;
 }
