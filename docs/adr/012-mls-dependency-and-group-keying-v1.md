@@ -109,6 +109,8 @@ Protocol projections should track:
 
 Forks must be visible to local diagnostics and policy rather than silently healed by accepting arbitrary remote state.
 
+The protocol must define deterministic fork recovery in Phase 4. The preferred direction is to queue conflicting commits, surface the fork, and require a signed recovery control record from an authorized controller/admin device or deterministic policy authority before advancing the local projection. Any tie-breaker must be auditable, signed, replay-safe, and incapable of silently accepting a scope-widening commit.
+
 ## Delivery-service model
 
 Bridges, Durable Streams, mailbox actors, super peers, full peers, and future runtime adapters are delivery services only.
@@ -119,7 +121,7 @@ They may store and forward encrypted MLS messages and signed control records, su
 
 Phase 2 private payload envelopes remain useful for account-local and non-MLS private payloads.
 
-MLS-protected group messages should use MLS application messages for group payload confidentiality. When metadata or out-of-band payload references are needed, they must still follow the private payload and content-addressing privacy rules.
+MLS-protected group messages should use MLS application messages for group payload confidentiality. The protocol's envelope validation rules, including `validatePayloadPrivacyScope` for `group` privacy, must be updated to support MLS application-message payloads alongside Phase 2 private payload envelopes. When metadata or out-of-band payload references are needed, they must still follow the private payload and content-addressing privacy rules.
 
 ## Threat model
 
@@ -154,7 +156,9 @@ Phase 4 follow-up:
 - add group-control records;
 - add projection behavior;
 - add replay-equivalence fixtures;
-- add stale epoch and revoked-device rejection tests.
+- add stale epoch and revoked-device rejection tests;
+- add protocol validation support for MLS group payload envelopes;
+- add deterministic fork recovery records/tests.
 
 ## References
 
