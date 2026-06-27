@@ -49,6 +49,8 @@ All annotation classes should share:
 - optional capability proofs;
 - optional policy ref.
 
+Phase 21B must update the TypeScript `SafetyAnnotation` schema and validators to support explicit annotation supersession/negation fields, such as `supersedesAnnotationId` and `negatesAnnotationId`. Until those fields exist in code, docs should treat supersession/negation as planned doctrine rather than implemented behavior.
+
 ## Client-side annotations
 
 Client-side annotations are local-first and private by default.
@@ -82,7 +84,7 @@ A labeler is not automatically trusted for private content. Subscription to a la
 4. Labeler annotations remain advisory until trusted by policy.
 5. Community or infrastructure policy may map labels to warnings, blur, hide, quarantine, reject, downrank, or exclude-from-search within its own scope.
 6. Cross-issuer negation is not allowed unless policy explicitly permits it.
-7. Same-issuer supersession is allowed when the newer annotation references the older annotation.
+7. Same-issuer supersession is allowed only after the protocol schema supports an explicit supersession reference.
 8. Hard-safety warnings must not be silently downgraded by unsafe defaults.
 9. Private evidence must stay private and use encrypted payload/content-reference rules.
 10. Search/index projections must respect annotation scope.
