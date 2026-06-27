@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createUnsignedEvent,
-  type JsonObject,
-  type PrivatePayloadEnvelopeV1
-} from '@lfp2p/protocol';
+import { type PrivatePayloadEnvelopeV1 } from '@lfp2p/protocol';
 import {
   buildPrivatePayloadAad,
   decryptPrivatePayload,
@@ -85,27 +81,17 @@ describe('@lfp2p/private-payload', () => {
     expect(buildPrivatePayloadAad({ ...CONTEXT })).toBe(buildPrivatePayloadAad(CONTEXT));
   });
 
-  it('creates protocol-valid account-local reputation envelopes for self privacy', async () => {
+  it('creates strict account-local reputation private payload envelopes', async () => {
     const keyMaterial = generatePrivatePayloadKeyMaterial();
-    const payload = await encryptPrivatePayload({
+    const envelope = await encryptPrivatePayload({
       plaintext: PRIVATE_PAYLOAD,
       context: CONTEXT,
       keyMaterial,
       keyId: 'account-local-key-3'
     });
 
-    const event = createUnsignedEvent({
-      eventId: CONTEXT.eventId,
-      kind: CONTEXT.kind,
-      author: CONTEXT.author,
-      deviceId: CONTEXT.deviceId,
-      createdAt: CONTEXT.createdAt,
-      privacy: CONTEXT.privacy,
-      schemaVersion: CONTEXT.schemaVersion,
-      payload: payload as unknown as JsonObject
-    });
-
-    expect(event.payload.version).toBe('lfp2p.private-payload.envelope.v1');
+    expect(validatePrivatePayloadEnvelopeShape(envelope)).toBe(envelope);
+    expect(envelope.version).toBe('lfp2p.private-payload.envelope.v1');
   });
 
   it('rejects malformed metadata and duplicate recipient wraps', () => {
