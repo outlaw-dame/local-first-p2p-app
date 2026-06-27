@@ -129,19 +129,25 @@ async function evaluateContactCardPublishGate(input: {
   const refs: CapabilityProofRef[] = [];
   let anyExpired = false;
   let anyScopeMismatch = false;
-  for (const { proofId, expired } of candidateRecords) {
-    if (expired) {
-      anyExpired = true;
-      continue;
-    }
-    let grantedEvent;
-    try {
-      grantedEvent = await input.store.getSignedEvent(proofId);
-    } catch {
-      continue;
-    }
-    if (grantedEvent === undefined) continue;
-    const payload = grantedEvent.payload as Record<string, unknown> | undefined;
+
+  const unexpiredCandidates = candidateRecords.filter(c => {
+    if (c.expired) { anyExpired = true; return false; }
+    return true;
+  });
+
+  const fetchedEvents = await Promise.all(
+    unexpiredCandidates.map(async ({ proofId }) => {
+      try {
+        return { proofId, event: await input.store.getSignedEvent(proofId) };
+      } catch {
+        return { proofId, event: undefined };
+      }
+    })
+  );
+
+  for (const { proofId, event } of fetchedEvents) {
+    if (event === undefined) continue;
+    const payload = event.payload as Record<string, unknown> | undefined;
     if (payload === undefined || payload === null) continue;
     if (typeof payload.scope !== 'string' || payload.scope !== CONTACT_CARD_PUBLISH_SCOPE) {
       anyScopeMismatch = true;
