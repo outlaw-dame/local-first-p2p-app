@@ -81,7 +81,8 @@ export const CAPABILITY_ACTIONS = [
   'media.quarantine',
   'media.release',
   'sync.pull',
-  'sync.push'
+  'sync.push',
+  'identity.contact-card.publish'
 ] as const;
 
 export type CapabilityAction = (typeof CAPABILITY_ACTIONS)[number];
