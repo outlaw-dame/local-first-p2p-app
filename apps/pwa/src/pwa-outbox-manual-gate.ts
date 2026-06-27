@@ -1,4 +1,4 @@
-import type { CapabilityDecision, CapabilityProofRef } from '@lfp2p/capabilities';
+import type { CapabilityDecision, CapabilityProofRef, ProofRegistry } from '@lfp2p/capabilities';
 import type { DexieLocalFirstStore } from '@lfp2p/local-store';
 import { processOutboxBatch, type ProcessOutboxResult } from '@lfp2p/sync-client';
 import { evaluateTrustSafetyCap } from '@lfp2p/trust-safety';
@@ -240,13 +240,29 @@ async function evaluateOutboxCapabilityGate(input: {
   localDeviceId: string;
   now: string;
 }): Promise<{ status: 'allow' } | { status: 'deny'; message: string }> {
-  let registry;
+  let registry: ProofRegistry;
   try {
     registry = await input.store.loadProofRegistry();
   } catch (err) {
     return {
       status: 'deny',
       message: `proof registry load failed (${err instanceof Error ? err.message : 'unknown'})`
+    };
+  }
+  // Defense-in-depth: loadProofRegistry's type signature promises a
+  // well-formed ProofRegistry, but a future schema-migration bug or
+  // a downstream mock could violate that. A runtime shape check
+  // here fails CLOSED to a deny rather than propagating a
+  // TypeError out to the caller as an unhandled rejection. Gemini
+  // review on PR #101.
+  if (
+    registry === null ||
+    typeof registry !== 'object' ||
+    !(registry.proofs instanceof Map)
+  ) {
+    return {
+      status: 'deny',
+      message: 'proof registry load returned an invalid shape — fail closed'
     };
   }
 

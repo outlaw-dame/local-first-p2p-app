@@ -370,6 +370,39 @@ describe('runManualOutboxDelivery — capability-proof gate (first enforcement c
     }
   });
 
+  it('SECURITY (gemini #101): denies fail-closed when loadProofRegistry returns an invalid shape', async () => {
+    // Defense-in-depth regression: if a future bug returns a
+    // malformed registry (here: `undefined`), the gate must
+    // surface a deny rather than propagate a TypeError out of
+    // the dispatcher as an unhandled rejection.
+    const realStore = freshStore('invalid-registry-shape');
+    try {
+      const brokenStore = new Proxy(realStore, {
+        get(target, prop, receiver) {
+          if (prop === 'loadProofRegistry') {
+            return async () => undefined as never;
+          }
+          return Reflect.get(target, prop, receiver);
+        }
+      });
+      const result = await runManualOutboxDelivery({
+        store: brokenStore as DexieLocalFirstStore,
+        env: { ...MANUAL_ENABLED_ENV, ...BRIDGE_ENABLED_ENV },
+        createTransport: () => ({
+          async send() {
+            throw new Error('unexpected send call — fail-closed must deny');
+          }
+        }),
+        sendBudget: createPwaSendBudget({ minIntervalMs: 0 }),
+        capabilityGate: { localDeviceId: LOCAL_DEVICE_ID }
+      });
+      expect(result).toMatchObject({ status: 'blocked', reason: 'capability-proof-denied' });
+      expect(result.message).toMatch(/invalid shape/i);
+    } finally {
+      await realStore.delete();
+    }
+  });
+
   it('refunds the send budget on capability-proof denial (no spurious budget burn)', async () => {
     // The budget reservation runs BEFORE the cap gate; a denial
     // must refund it so the user can retry after granting the
