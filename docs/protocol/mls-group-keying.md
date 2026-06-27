@@ -91,6 +91,7 @@ Phase 4 will define the final schemas, but expected control families include:
 - welcome issued;
 - epoch advanced;
 - group fork detected;
+- fork recovery/control record;
 - stale epoch rejected.
 
 ## Delivery services
@@ -115,7 +116,7 @@ A delivery service must not become:
 
 Clients must be able to retain local group state, apply signed records deterministically, and resume after offline periods.
 
-Offline catch-up must reject:
+Offline catch-up must reject or quarantine:
 
 - commits from non-members;
 - commits from revoked devices;
@@ -123,7 +124,20 @@ Offline catch-up must reject:
 - malformed welcomes;
 - messages for unknown groups;
 - wrong-recipient material;
-- scope-widening attempts.
+- scope-widening attempts;
+- concurrent commits or unresolvable epoch forks, which must be queued or surfaced for resolution policy.
+
+## Fork handling
+
+MLS requires a linear epoch sequence. Local-first/P2P delivery can still expose concurrent commits from partitioned devices.
+
+Phase 4 must define deterministic fork handling. Until a fork is resolved, implementations should keep the last accepted epoch stable, queue conflicting candidates, and surface diagnostics. Resolution must be represented by signed protocol control records from an authorized policy authority and must not silently accept arbitrary remote state.
+
+## Group payload validation
+
+Current group privacy validation is based on Phase 2 private payload envelopes.
+
+Phase 4 must add explicit protocol validation for MLS application-message envelopes so group-scoped MLS payloads can be valid without allowing plaintext group payloads. MLS payload envelopes must bind to group id, epoch, sender device, and target object/event metadata closely enough to reject wrong-group, wrong-epoch, malformed, replayed, or scope-widening payloads.
 
 ## Metadata caution
 
@@ -141,4 +155,4 @@ MLS is used for group cryptographic state and group application messages. Non-gr
 
 Phase 3 decides the MLS architecture and provider boundary.
 
-Phase 4 implements signed group-control records and projection behavior.
+Phase 4 implements signed MLS group-control records, projection behavior, group payload validation changes, and deterministic fork handling.
