@@ -35,7 +35,7 @@ Evaluation criteria:
 - RFC 9420 alignment;
 - browser/PWA viability;
 - native/full-peer viability;
-- WASM viability;
+- WASM viability, binary size, bundle impact, and initialization overhead;
 - dependency/license fit;
 - key storage abstraction;
 - deterministic testability;
@@ -84,7 +84,8 @@ Define policy for:
 - rejecting stale epochs;
 - rejecting revoked devices;
 - accepting or rejecting external joins;
-- local diagnostics for forked group state.
+- local diagnostics for forked group state;
+- multi-device enrollment, commit responsibility, and secure welcome routing.
 
 ### 5. Delivery-service boundary
 
@@ -100,7 +101,34 @@ Document how each delivery layer carries MLS material:
 
 Every delivery path must preserve the rule: delivery services carry encrypted material and signed control records only.
 
-### 6. Fixtures for Phase 4
+### 6. Group privacy validation compatibility
+
+Current protocol validation treats `group` privacy as requiring a Phase 2 private payload envelope.
+
+Phase 4 must update protocol validation to allow MLS application-message payload envelopes for `group` privacy while preserving strict rejection of plaintext group payloads.
+
+Required validation fixtures:
+
+- group event with Phase 2 private payload envelope remains valid where appropriate;
+- group event with MLS application-message payload envelope is valid after Phase 4 schema support;
+- group event with plaintext payload remains invalid;
+- malformed MLS payload envelope fails closed;
+- wrong epoch/group binding fails closed.
+
+### 7. Fork recovery and offline catch-up
+
+MLS requires a linear epoch sequence, but local-first/P2P delivery can surface concurrent commits.
+
+Phase 4 must define deterministic fork handling. Preferred direction:
+
+- detect conflicting commits;
+- queue unresolved fork candidates;
+- keep current accepted epoch unchanged until resolution;
+- require signed recovery/control records from an authorized policy authority;
+- expose diagnostics to local policy and UI;
+- reject fork candidates that widen scope, include revoked devices, or fail credential checks.
+
+### 8. Fixtures for Phase 4
 
 Prepare fixture requirements for:
 
@@ -112,7 +140,9 @@ Prepare fixture requirements for:
 - wrong-recipient welcome rejection;
 - replay/idempotency behavior;
 - fork detection;
-- offline catch-up.
+- deterministic fork recovery;
+- offline catch-up;
+- multi-device welcome routing.
 
 ## Recommended outcome
 
@@ -138,4 +168,4 @@ Phase 3 is complete when:
 
 ## Phase 4 handoff
 
-Phase 4 should implement signed MLS group-control records and projections, not revisit whether MLS belongs in the architecture.
+Phase 4 should implement signed MLS group-control records, protocol validation changes, deterministic fork handling, and projections. It should not revisit whether MLS belongs in the architecture.
