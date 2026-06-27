@@ -8,6 +8,16 @@ import { createPwaSendBudget, formatPwaSendBudgetDecision, type PwaSendBudget } 
 const MANUAL_DELIVERY_ENABLED_KEY = 'VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED';
 const DEFAULT_BATCH_SIZE = 1;
 const MAX_BATCH_SIZE = 5;
+/**
+ * The capability scope string a controller-issued identity-control-log
+ * proof must declare to authorize `sync.push` for this device. Codex
+ * review on PR #101 (P2 — scope binding) — without this filter, ANY
+ * verified controller grant for the device would unlock outbox
+ * delivery regardless of what the controller actually granted.
+ * The string matches the convention used in `pwa-identity-audit-state.test.ts`
+ * (`scope: 'outbox.send'`) and `apps/pwa/src/pwa-identity-emit.ts`.
+ */
+const OUTBOX_SEND_SCOPE = 'outbox.send';
 
 const defaultSendBudget = createPwaSendBudget();
 
@@ -266,19 +276,90 @@ async function evaluateOutboxCapabilityGate(input: {
     };
   }
 
-  const refs: CapabilityProofRef[] = [];
+  // Codex review on PR #101 (P2 — expiry not refreshed).
+  // `summarizeProofStates` reads cached `verificationState` and does
+  // NOT compare `record.expiresAt` to `now`. A previously-verified
+  // record whose expiry has lapsed in wall-clock terms would
+  // therefore still fold to 'verified'. Apply an inline expiry
+  // filter here so the gate behaves correctly without depending on
+  // re-running `verifyProof` (which we cannot do — no verifier
+  // suite is wired into this gate yet).
+  const nowMs = Date.parse(input.now);
+  const candidateRecords: { proofId: string; expired: boolean }[] = [];
   for (const record of registry.proofs.values()) {
     if (record.scheme !== 'identity-control-log') continue;
     if (record.subject.kind !== 'device') continue;
     if (record.subject.id !== input.localDeviceId) continue;
-    refs.push({ proofId: record.proofId, scheme: 'identity-control-log' });
+    const expMs = Date.parse(record.expiresAt);
+    const isExpired =
+      Number.isFinite(expMs) && Number.isFinite(nowMs) && nowMs >= expMs;
+    candidateRecords.push({ proofId: record.proofId, expired: isExpired });
   }
 
-  if (refs.length === 0) {
+  if (candidateRecords.length === 0) {
     return {
       status: 'deny',
       message:
         'no identity-control-log proof registered for this device — the controller must grant sync authority before this device can deliver outbox events'
+    };
+  }
+
+  // Codex review on PR #101 (P2 — scope binding). The persisted
+  // proof record does NOT carry the controller's grant scope (only
+  // issuer/subject/digest/expiry/state). A controller may have
+  // granted this device a capability for a DIFFERENT scope
+  // (`identity.contact-card.publish`, for example) without
+  // intending to authorize outbox delivery. Look up each candidate
+  // proof's granted event by `proofId` and require
+  // `payload.scope === OUTBOX_SEND_SCOPE` before accepting the
+  // ref. Records whose granted event is missing or has a different
+  // scope are silently dropped — fail-closed by construction.
+  const refs: CapabilityProofRef[] = [];
+  let anyExpired = false;
+  let anyScopeMismatch = false;
+  for (const { proofId, expired } of candidateRecords) {
+    if (expired) {
+      anyExpired = true;
+      continue;
+    }
+    let grantedEvent;
+    try {
+      grantedEvent = await input.store.getSignedEvent(proofId);
+    } catch {
+      continue;
+    }
+    if (grantedEvent === undefined) continue;
+    const payload = grantedEvent.payload as Record<string, unknown> | undefined;
+    if (payload === undefined || payload === null) continue;
+    if (typeof payload.scope !== 'string' || payload.scope !== OUTBOX_SEND_SCOPE) {
+      anyScopeMismatch = true;
+      continue;
+    }
+    refs.push({ proofId, scheme: 'identity-control-log' });
+  }
+
+  if (refs.length === 0) {
+    // Surface the most informative deny message. Prefer "expired"
+    // over "scope mismatch" so the user knows to RE-grant rather
+    // than re-scope.
+    if (anyExpired) {
+      return {
+        status: 'deny',
+        message: `all matching identity-control-log proofs have expired — controller must re-grant ${OUTBOX_SEND_SCOPE} authority`
+      };
+    }
+    if (anyScopeMismatch) {
+      return {
+        status: 'deny',
+        message: `no identity-control-log proof with scope ${OUTBOX_SEND_SCOPE} registered for this device — the controller granted other capabilities but not outbox delivery`
+      };
+    }
+    // Records existed but we could not look up their granted
+    // events (Dexie miss). This shouldn't happen on a healthy
+    // store, but fail closed.
+    return {
+      status: 'deny',
+      message: `no resolvable identity-control-log proof for this device with scope ${OUTBOX_SEND_SCOPE} — fail closed`
     };
   }
 

@@ -213,6 +213,36 @@ function freshStore(label: string): DexieLocalFirstStore {
   return createLocalFirstStore(`manual-outbox-cap-gate-${label}-${globalThis.crypto.randomUUID()}`);
 }
 
+const OUTBOX_SCOPE = 'outbox.send';
+
+async function seedGrantedEvent(
+  store: DexieLocalFirstStore,
+  eventId: string,
+  options: { scope?: string; expiresAt?: string } = {}
+): Promise<void> {
+  const scope = options.scope ?? OUTBOX_SCOPE;
+  const expiresAt = options.expiresAt ?? '2030-01-01T00:00:00.000Z';
+  const keypair = generateSigningKeypair();
+  const event = signEventEnvelope(
+    createUnsignedEvent({
+      eventId,
+      kind: 'identity.capability.granted',
+      author: `identity:${keypair.publicKey}`,
+      deviceId: `device:${keypair.publicKey.slice(0, 16)}`,
+      createdAt: '2026-05-25T00:00:00.000Z',
+      privacy: 'self',
+      payload: {
+        capabilityId: `cap_${eventId}`,
+        delegateDeviceId: LOCAL_DEVICE_ID,
+        scope,
+        expiresAt
+      }
+    }),
+    keypair
+  );
+  await store.putSignedEvent(event);
+}
+
 describe('runManualOutboxDelivery — capability-proof gate (first enforcement consumer)', () => {
   it('denies when the device has NO identity-control-log proof registered (fail-closed)', async () => {
     const store = freshStore('no-proof');
@@ -238,6 +268,7 @@ describe('runManualOutboxDelivery — capability-proof gate (first enforcement c
   it('denies when the registered proof is "unverified" (registry default before verifyProof runs)', async () => {
     const store = freshStore('unverified');
     try {
+      await seedGrantedEvent(store, 'evt_grant_unverified');
       await store.putCapabilityProofRecord(capabilityProofRecord('evt_grant_unverified'));
       const result = await runManualOutboxDelivery({
         store,
@@ -260,6 +291,7 @@ describe('runManualOutboxDelivery — capability-proof gate (first enforcement c
   it('denies when the proof is revoked (worst-case fold wins)', async () => {
     const store = freshStore('revoked');
     try {
+      await seedGrantedEvent(store, 'evt_grant_revoked');
       await store.putCapabilityProofRecord(
         capabilityProofRecord('evt_grant_revoked', {
           revokedAt: '2026-05-26T00:00:00.000Z',
@@ -288,6 +320,7 @@ describe('runManualOutboxDelivery — capability-proof gate (first enforcement c
     const store = freshStore('verified');
     try {
       const entry = await seedOutboxEntry(store, 'evt_outbox_capgated_ok');
+      await seedGrantedEvent(store, 'evt_grant_verified');
       await store.putCapabilityProofRecord(
         capabilityProofRecord('evt_grant_verified', { verificationState: 'verified' })
       );
@@ -365,6 +398,69 @@ describe('runManualOutboxDelivery — capability-proof gate (first enforcement c
       });
       expect(result).toMatchObject({ status: 'blocked', reason: 'capability-proof-denied' });
       expect(result.message).toMatch(/no identity-control-log proof registered/i);
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('SECURITY (codex #101): denies when the controller granted a DIFFERENT scope', async () => {
+    // The device has a verified controller grant — but its scope is
+    // for contact-card publication, not outbox.send. A verified
+    // proof must NOT authorize an action the controller did not
+    // explicitly grant.
+    const store = freshStore('scope-mismatch');
+    try {
+      await seedGrantedEvent(store, 'evt_grant_wrong_scope', { scope: 'identity.contact-card.publish' });
+      await store.putCapabilityProofRecord(
+        capabilityProofRecord('evt_grant_wrong_scope', { verificationState: 'verified' })
+      );
+      const result = await runManualOutboxDelivery({
+        store,
+        env: { ...MANUAL_ENABLED_ENV, ...BRIDGE_ENABLED_ENV },
+        createTransport: () => ({
+          async send() {
+            throw new Error('unexpected send call — wrong-scope grant must not authorize');
+          }
+        }),
+        sendBudget: createPwaSendBudget({ minIntervalMs: 0 }),
+        capabilityGate: { localDeviceId: LOCAL_DEVICE_ID }
+      });
+      expect(result).toMatchObject({ status: 'blocked', reason: 'capability-proof-denied' });
+      expect(result.message).toMatch(/scope outbox\.send/);
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('SECURITY (codex #101): denies a verified proof whose expiresAt has lapsed in wall-clock time', async () => {
+    // summarizeProofStates does NOT compare expiresAt to now — a
+    // stale cached "verified" state would fold through. The gate's
+    // inline expiry filter must drop it.
+    const store = freshStore('expired');
+    try {
+      await seedGrantedEvent(store, 'evt_grant_expired');
+      await store.putCapabilityProofRecord(
+        capabilityProofRecord('evt_grant_expired', {
+          verificationState: 'verified',
+          // issuedAt MUST be before expiresAt per the registry's
+          // cross-field invariant.
+          issuedAt: '2024-01-01T00:00:00.000Z',
+          expiresAt: '2025-01-01T00:00:00.000Z'
+        })
+      );
+      const result = await runManualOutboxDelivery({
+        store,
+        env: { ...MANUAL_ENABLED_ENV, ...BRIDGE_ENABLED_ENV },
+        createTransport: () => ({
+          async send() {
+            throw new Error('unexpected send call — expired proof must not authorize');
+          }
+        }),
+        sendBudget: createPwaSendBudget({ minIntervalMs: 0 }),
+        capabilityGate: { localDeviceId: LOCAL_DEVICE_ID, now: '2026-05-25T00:00:00.000Z' }
+      });
+      expect(result).toMatchObject({ status: 'blocked', reason: 'capability-proof-denied' });
+      expect(result.message).toMatch(/expired/);
     } finally {
       await store.delete();
     }

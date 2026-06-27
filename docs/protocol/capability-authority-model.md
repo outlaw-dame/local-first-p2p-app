@@ -905,6 +905,37 @@ project ships:
   registry are not consulted by this v1 gate — that's a future
   expansion when their auto-registration lands.
 
+  ### Scope binding and expiry refresh
+
+  The naïve gate would over-grant: any verified controller proof
+  for the device unlocks delivery, regardless of what the
+  controller actually granted. Two refinements close that hole:
+
+  1. **Scope filter.** For each candidate proof, the gate looks up
+     the underlying `identity.capability.granted` signed event
+     (`store.getSignedEvent(record.proofId)`) and requires
+     `payload.scope === 'outbox.send'`. A grant for any other
+     scope is silently dropped, fail-closed. The scope string
+     matches the convention used elsewhere in the PWA's identity
+     surface (`pwa-identity-emit.ts`,
+     `pwa-identity-audit-state.test.ts`). When all matched proofs
+     are scope-mismatched the deny message explicitly names
+     `scope outbox.send` so the user knows the controller granted
+     *something* but not the right thing.
+  2. **Inline expiry refresh.** `summarizeProofStates` reads
+     `record.verificationState` directly without comparing
+     `expiresAt` to `now`. A stale cached `'verified'` row whose
+     expiry has lapsed in wall-clock terms would therefore still
+     fold to `'verified'`. The gate filters out expired records
+     before building the refs, surfacing a deny message that
+     names `expired` so the user knows to re-grant rather than
+     re-scope.
+
+  These match the doctrine: the cap-adapter answers *"are these
+  proofs in good standing?"* but it cannot answer *"do they grant
+  THIS action?"* — that's the relying caller's responsibility,
+  which is what the scope filter discharges.
+
   ### Trust-boundary discipline
 
   This verifier deliberately bridges **identity-control** into
