@@ -694,23 +694,32 @@ export class DexieLocalFirstStore {
       async () => {
         const existing = await this.#db.signedEvents.get(event.eventId);
         if (existing !== undefined) {
-          const payload = event.payload as { groupId?: unknown };
-          const groupId = typeof payload.groupId === 'string' ? payload.groupId : '';
+          const payload = event.payload as Record<string, unknown> | null | undefined;
+          const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
           const currentState = groupId
             ? await this.#db.mlsGroupProjections.get(groupId)
             : undefined;
+          const controlId = typeof payload?.controlId === 'string' ? payload.controlId : event.eventId;
+          let outcome: 'accepted' | 'rejected' | 'fork-queued' = 'accepted';
+          if (currentState) {
+            if (currentState.rejectedControls.some((r) => r.controlId === controlId)) {
+              outcome = 'rejected';
+            } else if (currentState.forkCandidates.some((c) => c.controlId === controlId)) {
+              outcome = 'fork-queued';
+            }
+          }
           const fallback = groupId
             ? createEmptyMlsGroupProjectionState(groupId, updatedAt)
             : createEmptyMlsGroupProjectionState('unknown', updatedAt);
           return {
             status: 'skipped',
-            outcome: 'accepted',
+            outcome,
             state: currentState ?? fallback
           } satisfies AppendMlsGroupControlEventResult;
         }
 
-        const payload = event.payload as { groupId?: unknown };
-        const groupId = typeof payload.groupId === 'string' ? payload.groupId : '';
+        const payload = event.payload as Record<string, unknown> | null | undefined;
+        const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
         const currentState = groupId
           ? await this.#db.mlsGroupProjections.get(groupId)
           : undefined;
