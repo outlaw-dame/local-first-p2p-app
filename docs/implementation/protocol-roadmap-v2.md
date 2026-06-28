@@ -31,13 +31,14 @@ This roadmap was reconciled against:
 - `docs/implementation/phase-4-mls-group-control-implementation-plan.md`
 - recent merged PRs #95 through #110, especially #103 through #110 for private payload and Phase 4 MLS work
 
-Branch search for `phase` / `phase-4` returned no matching active branches, so this roadmap treats the default branch and merged PR history as the implementation baseline.
+Phase 4 is real and active in the repository: it is documented by the Phase 4 MLS group-control plan and backed by merged PRs #106 through #110. The branch search for `phase` / `phase-4` only checked whether there were additional unmerged active branches matching those names. It returned no matching active branches, so this roadmap treats the default branch plus merged PR history as the implementation baseline.
 
 ## Status legend
 
 - **Complete**: implementation and tests are present for the current intended scope.
 - **Foundation complete**: protocol/package/projection foundation exists, but downstream runtime/UI/network integration remains.
 - **Partial**: meaningful work exists but the phase is not complete.
+- **In progress**: active roadmap phase with some merged work and known follow-up slices.
 - **Planned**: documented target work, not yet implemented.
 - **Blocked**: should not start until listed dependencies are complete.
 
@@ -64,14 +65,34 @@ Branch search for `phase` / `phase-4` returned no matching active branches, so t
 | 2 | Partial | Private/account-local payload helpers | Must be promoted to full private payload runtime before private chat |
 | 2.3 | Partial/foundation | Identity proof registry, capability proof pipeline, contact-card/outbox gating | Required for authority resolution and safety decisions |
 | 3 | Complete as docs | MLS architecture and dependency decision | Establishes MLS provider boundary before group control |
-| 4a | Mostly complete | MLS group-control protocol records and deterministic projection | Latest merged work; continue with Phase 4b persistence/wiring |
+| 4 | In progress | MLS group-control phase; PRs #106–#110 landed the plan, validators, first-class event kinds, and deterministic projection | Group safety, stale epoch rejection, revoked-device rejection, fork handling, downgrade prevention |
+| 4a | Foundation complete | MLS group-control protocol records and deterministic projection package | Latest merged work; needs exit-report/current-state reconciliation |
 | 4b | Planned | MLS group-control persistence and bridge/sync wiring | Safety checks must run before forwarding/storing group records |
-| 4.5 | Planned | Production bridge runtime hardening | New runtime gate for production bridge deployment |
-| 4.6 | Planned | Relay/super-peer operator policy runtime | New operator-safety integration phase |
+| 4.5 | Planned | Production bridge runtime hardening | Runtime gate for production bridge deployment |
+| 4.6 | Planned | Relay/super-peer operator policy runtime | Operator-safety integration phase |
 | 5 | Planned/blocked | Private messaging and encrypted mailbox foundation | Must include first-contact/stranger safety before chat UX |
-| 6 | Planned/blocked | Media safety runtime before media replication | New known-abuse/media-scanner/quarantine phase |
+| 5.1 | Planned | First-contact, stranger-message, and minor-safety interaction barriers | E2EE-preserving safety layer before broad DM/group UX |
+| 6 | Planned/blocked | Media safety runtime before media replication | Known-abuse/media-scanner/quarantine phase |
 | 7 | Planned/blocked | Public index/search/recommendation safety gates | Public discovery cannot ingest private/unsafe objects |
 | 8+ | Planned/blocked | Media, social outbox, semantic discovery, recommendations, full-peer work | Only after runtime gates are active |
+
+## Phase 4 clarification
+
+Phase 4 should be read as the active MLS group-control implementation phase, not as absent or unstarted.
+
+The repository has clear Phase 4 evidence:
+
+- `docs/implementation/phase-4-mls-group-control-implementation-plan.md` defines Phase 4 as signed MLS group-control records plus deterministic projection behavior.
+- PR #106 added the Phase 4 MLS group-control plan and doctrine.
+- PR #107 added group envelope validators.
+- PR #109 added first-class MLS group-control event kinds and envelope validation.
+- PR #110 added the deterministic MLS group-control projection package.
+
+The remaining Phase 4 work is therefore not “start Phase 4.” It is:
+
+1. reconcile `current-state.md`, `phase-map.md`, and exit reports with the merged Phase 4 work;
+2. complete Phase 4b persistence/sync/bridge wiring;
+3. keep later bridge production phases (`4.5`, `4.6`) clearly separate from MLS group-control itself.
 
 ## Phase-by-phase reconciliation
 
@@ -232,26 +253,44 @@ Remaining work:
 
 - No runtime MLS dependency until provider tests and minimal fixtures are ready.
 
-### Phase 4a — MLS group-control protocol records and deterministic projection
+### Phase 4 — MLS group-control implementation
 
-Status: **Mostly complete / latest active implementation area**.
+Status: **In progress**.
 
 Verified foundation:
 
-- PR #106 added Phase 4 MLS group-control plan.
-- PR #107 added group envelope validators.
-- PR #109 added first-class MLS group-control event kinds and envelope validation.
-- PR #110 added deterministic MLS group-control projection package.
+- Phase 4 implementation plan exists.
+- Merged PR #106 added the Phase 4 plan.
+- Merged PR #107 added group envelope validators.
+- Merged PR #109 added first-class MLS group-control event kinds and envelope validation.
+- Merged PR #110 added deterministic MLS group-control projection.
 
 Remaining work:
 
-- Verify phase-map/current-state reflects PRs #109/#110; `current-state.md` may be stale because it still references an older baseline.
-- Add a Phase 4a exit report if not already present.
-- Ensure group-control projection package is listed in current-state.
+- Add/update a Phase 4a exit report.
+- Update `current-state.md` and `phase-map.md` to reflect PRs #109/#110.
+- Implement Phase 4b: persistence, sync-client dispatch, and bridge E2E wiring.
 
 Safety integration:
 
-- Group-control records must reject stale epochs, revoked devices, wrong-recipient welcomes, scope widening, forked state, and replay.
+- Group-control records must reject stale epochs, revoked devices, wrong-recipient welcomes, scope widening, unsafe fork recovery, and replay.
+- MLS-active groups must not downgrade back to Phase 2 private envelopes.
+
+### Phase 4a — MLS group-control protocol records and deterministic projection
+
+Status: **Foundation complete / cleanup needed**.
+
+Verified foundation:
+
+- First-class event kinds.
+- Group-control validation.
+- MLS application-message envelope validation.
+- Deterministic projection package.
+
+Remaining work:
+
+- Documentation cleanup and exit-report alignment.
+- Confirm `current-state.md` includes the MLS projection package and not just older bridge Phase 4 work.
 
 ### Phase 4b — MLS group-control persistence and sync/bridge wiring
 
