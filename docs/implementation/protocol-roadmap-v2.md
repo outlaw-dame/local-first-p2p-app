@@ -7,7 +7,7 @@
 
 ## Purpose
 
-This document reconciles the implementation doctrine, phase map, current-state document, recent merged PRs, and trust/safety phase documents into one working roadmap.
+This document reconciles the implementation doctrine, phase map, current-state document, roadmap-ordering reference, Phase 4 exit reports, recent merged PRs, and trust/safety phase documents into one working roadmap.
 
 It does not replace detailed ADRs, protocol doctrine, or exit reports. It is the planning layer that shows what is complete, what is partial, what is blocked, and where cross-cutting safety work belongs.
 
@@ -18,6 +18,7 @@ The roadmap follows these rules:
 3. Keep bridges, relays, super-peers, mailboxes, Holepunch/Pear, Hypercore/Corestore, and WebRTC as delivery/runtime layers, not protocol authorities.
 4. Keep private payloads encrypted and preserve bridge log privacy.
 5. Do not allow public search, recommendation, media replication, or public social outbox work to bypass trust/safety and content-addressing gates.
+6. When this document pulls work forward from `roadmap-ordering.md`, call that out explicitly as a deliberate ordering change.
 
 ## Verified source documents
 
@@ -26,12 +27,33 @@ This roadmap was reconciled against:
 - `docs/implementation/phase-map.md`
 - `docs/implementation/current-state.md`
 - `docs/implementation/next-development-path.md`
+- `docs/implementation/roadmap-ordering.md`
 - `docs/implementation/trust-safety-phase-plan.md`
 - `docs/implementation/phase-3-mls-implementation-plan.md`
 - `docs/implementation/phase-4-mls-group-control-implementation-plan.md`
+- `docs/implementation/phase-4.2-exit-report.md`
+- `docs/implementation/phase-4.3-exit-report.md`
+- `docs/implementation/phase-4.4-exit-report.md`
+- `docs/protocol/bridge-admission-doctrine.md`
 - recent merged PRs #95 through #110, especially #103 through #110 for private payload and Phase 4 MLS work
 
-Phase 4 is real and active in the repository: it is documented by the Phase 4 MLS group-control plan and backed by merged PRs #106 through #110. The branch search for `phase` / `phase-4` only checked whether there were additional unmerged active branches matching those names. It returned no matching active branches, so this roadmap treats the default branch plus merged PR history as the implementation baseline.
+Phase 4 is real and active in the repository: it is documented by the Phase 4 MLS group-control plan and backed by merged PRs #106 through #110. The earlier branch search for `phase` / `phase-4` only checked whether there were additional unmerged active branches matching those names. It returned no matching active branches, so this roadmap treats the default branch plus merged PR history as the implementation baseline.
+
+## Important correction: Phase 4.5 / 4.6 are roadmap-ordering changes
+
+`roadmap-ordering.md` currently places related work across several later phases:
+
+- Phase 5 — bridge resumability hardening: GET-with-cursor backlog, cursor/checkpoint tests, persistent per-token streaming rate limits, persistent token registry, hot rotation, SSE, long-polling, Durable Streams conformance tests.
+- Phase 8 — bridge capability modules.
+- Phase 15 — super-peer and persistent availability design.
+- Phase 19 — production bridge runtime.
+
+Therefore:
+
+- **Phase 4.5 is a proposed consolidation/pull-forward of explicit Phase 4.x bridge hardening deferrals.** Its scope is strongly backed by Phase 4.2, 4.3, and 4.4 exit-report deferred-work lists plus bridge admission doctrine. It is not an arbitrary new safety phase.
+- **Phase 4.6 is a proposed pull-forward of a narrow operator-policy subset.** It does not claim that full relay/super-peer availability should move out of Phase 15. It only pulls forward the operator policy, trusted labeler/policy subscription wiring, and advisory reputation pieces needed before broader bridge resumability and public discovery work.
+
+This distinction matters because the roadmap should remain honest: Phase 4.5/4.6 do not appear as named phases in the older ordering reference. They are deliberate re-ordering proposals based on real deferrals and safety dependencies.
 
 ## Status legend
 
@@ -39,6 +61,7 @@ Phase 4 is real and active in the repository: it is documented by the Phase 4 ML
 - **Foundation complete**: protocol/package/projection foundation exists, but downstream runtime/UI/network integration remains.
 - **Partial**: meaningful work exists but the phase is not complete.
 - **In progress**: active roadmap phase with some merged work and known follow-up slices.
+- **Proposed pull-forward**: real work exists in docs/deferrals, but this phase name/order is new in this v2 roadmap.
 - **Planned**: documented target work, not yet implemented.
 - **Blocked**: should not start until listed dependencies are complete.
 
@@ -66,12 +89,12 @@ Phase 4 is real and active in the repository: it is documented by the Phase 4 ML
 | 2.3 | Partial/foundation | Identity proof registry, capability proof pipeline, contact-card/outbox gating | Required for authority resolution and safety decisions |
 | 3 | Complete as docs | MLS architecture and dependency decision | Establishes MLS provider boundary before group control |
 | 4 | In progress | MLS group-control phase; PRs #106–#110 landed the plan, validators, first-class event kinds, and deterministic projection | Group safety, stale epoch rejection, revoked-device rejection, fork handling, downgrade prevention |
-| 4a | Foundation complete | MLS group-control protocol records and deterministic projection package | Latest merged work; needs exit-report/current-state reconciliation |
+| 4a | Foundation complete | MLS group-control protocol records and deterministic projection package | Needs exit-report/current-state reconciliation |
 | 4b | Planned | MLS group-control persistence and bridge/sync wiring | Safety checks must run before forwarding/storing group records |
-| 4.5 | Planned | Production bridge runtime hardening | Runtime gate for production bridge deployment |
-| 4.6 | Planned | Relay/super-peer operator policy runtime | Operator-safety integration phase |
+| 4.5 | Proposed pull-forward | Bridge resumability + production hardening follow-up from Phase 4.2–4.4 deferrals and old Phase 5/19 ordering | Persistent auth/rate-limit state, hot rotation, auth audit, missing admission deferral wiring |
+| 4.6 | Proposed pull-forward | Narrow operator policy runtime before full super-peer availability | Operator policy/labeler subscriptions, advisory reputation consumption, scoped enforcement; not full Phase 15 super-peer runtime |
 | 5 | Planned/blocked | Private messaging and encrypted mailbox foundation | Must include first-contact/stranger safety before chat UX |
-| 5.1 | Planned | First-contact, stranger-message, and minor-safety interaction barriers | E2EE-preserving safety layer before broad DM/group UX |
+| 5.1 | Planned | First-contact, stranger-message, and minor-safety interaction barriers | Unknown-sender quarantine, stranger DM friction, and contact-gated defaults |
 | 6 | Planned/blocked | Media safety runtime before media replication | Known-abuse/media-scanner/quarantine phase |
 | 7 | Planned/blocked | Public index/search/recommendation safety gates | Public discovery cannot ingest private/unsafe objects |
 | 8+ | Planned/blocked | Media, social outbox, semantic discovery, recommendations, full-peer work | Only after runtime gates are active |
@@ -92,7 +115,59 @@ The remaining Phase 4 work is therefore not “start Phase 4.” It is:
 
 1. reconcile `current-state.md`, `phase-map.md`, and exit reports with the merged Phase 4 work;
 2. complete Phase 4b persistence/sync/bridge wiring;
-3. keep later bridge production phases (`4.5`, `4.6`) clearly separate from MLS group-control itself.
+3. handle Phase 4.5 and 4.6 as explicit ordering changes that pull forward safety-critical bridge/operator-policy work.
+
+## Phase 4.5 source-of-truth deferrals
+
+Phase 4.5 is grounded in existing deferred-work lists and doctrine, not just new planning. It should close the following gaps:
+
+| Item | Existing source | Current state | Phase 4.5 treatment |
+|---|---|---|---|
+| Persistent per-token HTTP rate-limit buckets | Phase 4.3 exit report; bridge doctrine HTTP hardening | `BridgeHttpRateLimiter` is in-memory only; restart resets HTTP buckets | Persist per-token HTTP buckets or document equivalent durable store |
+| Persistent token registry / hot rotation | Phase 4.3 exit report; roadmap-ordering Phase 5/19 | Tokens supplied at handler-options time | Add file/DB-backed token registry with safe hot rotation |
+| Auth audit log | Phase 4.3 exit report | No operator auth audit log | Add privacy-safe auth audit log for success/failure classes |
+| mTLS / OAuth2 / JWT decision/adapters | Phase 4.3 exit report; roadmap-ordering Phase 19 | Bearer-only v1 | Decide and/or add adapters without weakening bearer-path tests |
+| Persistent per-token streaming rate limit | Phase 4.4 exit report; bridge doctrine deferred Phase 4.4.1+ | Per-socket in-memory cap only | Add token-keyed streaming bucket parallel to HTTP bucket |
+| SSE / long-polling alternate transports | Phase 4.4 exit report; roadmap-ordering Phase 5 | WebSocket adapter exists | Add or explicitly defer adapters with conformance criteria |
+| GET-with-cursor backlog read | Phase 4.4 exit report; roadmap-ordering Phase 5 | POST/WebSocket backlog only | Add CDN-cacheable GET cursor surface or document non-goal |
+| Per-stream subscription cap | Phase 4.4 exit report | No per-stream subscriber cap | Add per-token/per-stream quota |
+| Hot key-rotation of `AdmissionConfig.operatorAuthority` | Phase 4.2 exit report | Requires gateway reconstruction | Add safe rotation path or document reconstruction as operator action |
+| Multi-bridge advisory reputation propagation | Phase 4.2 exit report | Future work | Treat as 4.6 unless only local bridge consumption is needed in 4.5 |
+| `decideUserBlockTransport` gateway wiring | Bridge admission doctrine check #9 | Function exists in T&S; gateway wiring must be verified/added | Wire recipient context into admission gateway before forwarding |
+| `canBridgeForwardReport` gateway wiring | Bridge admission doctrine check #10 | Function exists in T&S; gateway wiring must be verified/added | Wire structural report-forwarding guard without decrypting anything |
+
+Phase 4.5 should be an implementation-plan doc before code begins. Suggested doc path:
+
+```text
+docs/implementation/phase-4.5-bridge-hardening-plan.md
+```
+
+## Phase 4.6 source-of-truth and ordering change
+
+Phase 4.6 is **not** currently a named phase in the old ordering reference. It is a proposed pull-forward of the operator-policy subset that is safety-critical before bridge resumability/public discovery expands.
+
+What should move into 4.6:
+
+| Work | Existing source | Why pull forward |
+|---|---|---|
+| Operator policy-list subscriptions | Phase 1.62 foundation; bridge operator tools in T&S phase plan | Bridge/relay operators need policy inputs before public surfaces scale |
+| Trusted labeler subscriptions for operators | Phase 1.66 foundation; labeler capabilities in Phase 1.69 | Needed for scoped infrastructure policy, media scanner labels, spam/malware labels |
+| Advisory reputation feed consumption | Phase 4.2 deferral; bridge doctrine says advisory feeds are informational, not authoritative | Lets operators share abuse signals without creating global moderation |
+| Scoped enforcement across surfaces | Bridge admission doctrine scope matrix | Relay/super-peer/public-index surfaces have different allowed scopes |
+| Operator quarantine/review workflow | TransportAdmissionState already has quarantine infrastructure | Makes quarantine reviewable instead of invisible runtime state |
+
+What should **not** move into 4.6:
+
+- Full super-peer availability runtime from old Phase 15.
+- Full persistent availability design.
+- Full community governance or moderation-tools UI.
+- Full appeal tooling beyond hooks/cross-references into Phase 1.67 moderation runtime.
+
+Suggested doc path:
+
+```text
+docs/implementation/phase-4.6-operator-policy-runtime-plan.md
+```
 
 ## Phase-by-phase reconciliation
 
@@ -311,50 +386,57 @@ Safety requirements:
 - Reject downgrade from MLS-active groups to Phase 2 private envelopes.
 - Ensure report/appeal/evidence flows can cite MLS group objects without leaking plaintext.
 
-### Phase 4.5 — Production bridge runtime hardening
+### Phase 4.5 — Bridge hardening follow-up from Phase 4 deferrals
 
-Status: **Planned**.
+Status: **Proposed pull-forward**.
 
 Why this phase exists:
 
-Current bridge primitives and Phase 4.1–4.4 are strong, but `current-state.md` still lists production server runtime, persistent streaming rate limits, token rotation, mTLS/OAuth/JWT, encrypted mailbox actor, full P2P bridge integration, public index service, and production observability/log privacy as not implemented.
+The old ordering reference placed bridge resumability hardening at Phase 5 and production bridge runtime at Phase 19. The Phase 4.2–4.4 exit reports show several security and abuse-resistance items that should happen before the project expands into broader resumability, chat, media, public discovery, or full-peer runtime. Phase 4.5 consolidates those existing deferrals into a single near-term implementation plan.
 
 Required deliverables:
 
-- Production HTTP/WebSocket runtime binding.
+- Persistent per-token HTTP rate-limit buckets.
 - Persistent token registry and hot rotation.
+- Auth audit log with privacy-safe event classes.
 - Persistent per-token streaming rate limit.
-- GET-with-cursor backlog read or documented alternative.
-- SSE/long-polling fallback or explicit non-goal.
-- mTLS/OAuth2/JWT auth adapters as optional runtime modules.
-- Production log privacy and metrics policy.
-- Durable admission audit persistence.
-- DLQ/quarantine review surface.
+- Per-stream subscription cap.
+- GET-with-cursor backlog read or explicit documented deferral.
+- SSE / long-polling adapter decision or explicit documented deferral.
+- Hot rotation path for `AdmissionConfig.operatorAuthority` or explicit reconstruction workflow.
+- Wire `decideUserBlockTransport` into `BridgeAdmissionGateway` using recipient context.
+- Wire `canBridgeForwardReport` into `BridgeAdmissionGateway` without decrypting report bodies/evidence.
 
 Safety requirements:
 
 - No bridge logs may echo payloads, tokens, private evidence, encryption key refs, or full digests.
 - Bridge refusal remains local infrastructure self-protection, not global deletion.
 - All ingress paths must pass admission before mutation.
+- Rate-limit and auth state cannot reset to a fresh abuse budget on restart.
 
-### Phase 4.6 — Relay/super-peer operator policy runtime
+### Phase 4.6 — Operator policy runtime subset
 
-Status: **Planned**.
+Status: **Proposed pull-forward**.
+
+Why this phase exists:
+
+The old ordering reference keeps full super-peer availability in Phase 15. That remains correct. But a smaller operator-policy layer is needed earlier so bridge/relay/public-index operators can consume scoped policy feeds and labeler signals without hardcoding global authority or waiting for full super-peer runtime.
 
 Required deliverables:
 
 - Operator policy-list subscription runtime.
-- Trusted labeler subscription runtime for relay/super-peer operators.
-- Operator-scoped allow/deny/quarantine/rate-limit decisions.
-- Multi-bridge advisory reputation propagation.
-- Durable operator audit logs.
-- Operator appeal/review hooks.
+- Trusted labeler subscription runtime for bridge/relay/public-index operators.
+- Advisory reputation feed consumption with explicit non-authoritative semantics.
+- Operator-scoped allow/deny/quarantine/rate-limit decision persistence.
+- Quarantine review surface or structured review log.
+- Cross-reference hooks into Phase 1.67 moderation runtime, without implementing full moderation-tools UI.
 
 Safety requirements:
 
 - Operators can protect their infrastructure without becoming global moderators.
 - Operator policy must be auditable and scoped.
 - Policy-list resolution must not leak private local-control graphs.
+- Advisory reputation feeds remain informational and locally weighted, never mandatory global truth.
 
 ### Phase 5 — Private messaging and encrypted mailbox foundation
 
@@ -449,321 +531,9 @@ Safety requirements:
 - Curation must downrank/exclude without pretending to be global deletion.
 - Public discovery cannot bypass media safety verdicts.
 
-### Phase 8 — Media manifests, replication, and block-store adapters
-
-Status: **Planned / blocked until Phase 6**.
-
-Required deliverables:
-
-- Media manifests using `BlockRef` / `ObjectRef`.
-- Block-store adapters.
-- Replication policy.
-- Preview generation policy.
-- Safe import/export.
-
-Safety requirements:
-
-- Every media object passes media-safety runtime before public relay/index/preview.
-- Private media requires encryption descriptors.
-- Compression bomb and decoded-size guards remain active.
-
-### Phase 9 — Public social outbox and public object publishing
-
-Status: **Planned / blocked until Phase 4.5, 4.6, 6, and 7**.
-
-Required deliverables:
-
-- Public post/note/reply/repost/reaction object schemas.
-- Public outbox worker.
-- Capability-gated publishing.
-- Labeler/curation/reputation hooks before public fanout.
-
-Safety requirements:
-
-- Public outbox must fail closed on malformed payload, missing capability, unsafe media, private scope, or hard-safety denial.
-
-### Phase 10 — Naming and namespace UX
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Name-proof UI.
-- Human-readable identifier proofs.
-- Anti-phishing display rules.
-
-Safety requirements:
-
-- Names are convenience proofs, not authority by themselves.
-- Fingerprint and identity-control state remain primary.
-
-### Phase 11 — Accessibility and signed annotations implementation
-
-Status: **Planned / docs foundation exists**.
-
-Verified foundation:
-
-- ADR-011 and annotation coexistence doctrine from PR #102.
-
-Required deliverables:
-
-- Protocol-native accessibility metadata shapes.
-- Signed annotation implementation.
-- Clear coexistence rules between client annotations and labelers.
-
-Safety requirements:
-
-- Client-side annotations must not masquerade as labeler/moderation authority.
-- Labeler annotations must not overwrite private local annotations without user choice.
-
-### Phase 12 — Semantic discovery doctrine to runtime
-
-Status: **Planned / docs foundation exists**.
-
-Verified foundation:
-
-- Semantic discovery roadmap/docs from PRs #96/#98.
-
-Required deliverables:
-
-- Local-first semantic index contract.
-- Public discovery gate consumption from Phase 7.
-- Privacy-preserving local embeddings path.
-
-Safety requirements:
-
-- Semantic search must not index private scopes into public surfaces.
-- Reputation/labeler/curation gates apply before ranking.
-
-### Phase 13 — Persistent full-peer / local-first storage adapters
-
-Status: **Planned**.
-
-Required deliverables:
-
-- OPFS/IndexedDB/native block-store adapters.
-- Hypercore-compatible adapter boundary.
-- Content-addressed bundle fetchers.
-
-Safety requirements:
-
-- Storage adapters enforce private encryption descriptors.
-- Known unsafe public media cannot be silently cached for redistribution.
-
-### Phase 14 — Holepunch/Pear transport adapter
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Holepunch/Pear transport adapter.
-- Noise/session transport integration.
-- DHT/topic discovery constrained by protocol policy.
-
-Safety requirements:
-
-- Discovery does not bypass admission, reputation, local controls, or media safety.
-- Peer exchange does not override user blocks/quarantine.
-
-### Phase 15 — Hypercore/Corestore substrate adapter
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Hypercore/Corestore persistence/replication adapter.
-- Feed/key management boundary.
-- Event-log replay compatibility.
-
-Safety requirements:
-
-- Hypercore feed replication must preserve T&S gates and object privacy.
-- Feed possession is not trust authority.
-
-### Phase 16 — WebRTC DataChannel runtime
-
-Status: **Planned**.
-
-Required deliverables:
-
-- WebRTC DataChannel transport.
-- ICE/STUN/TURN boundary.
-- Group/media transfer policy.
-
-Safety requirements:
-
-- WebRTC transfer still passes admission and local controls.
-- Unknown peer media auto-download remains disabled unless policy allows.
-
-### Phase 17 — Encrypted group chat UX
-
-Status: **Planned / blocked until Phase 4b and Phase 5**.
-
-Required deliverables:
-
-- MLS-backed group chat UX.
-- Membership/fork diagnostics.
-- Group report/block/leave flows.
-
-Safety requirements:
-
-- Group state must reject stale/revoked/forked unsafe epochs.
-- Reports can cite group objects without leaking plaintext.
-
-### Phase 18 — Communities / governance runtime
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Community authority model.
-- Community-scoped policies.
-- Moderator queue tooling.
-- Community labeler/policy subscriptions.
-
-Safety requirements:
-
-- Community governance is scoped; it is not global protocol authority.
-- Appeals and audit trails are required for high-impact decisions.
-
-### Phase 19 — Labeler discovery and hosting
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Labeler profile hosting API.
-- Label definition publication.
-- Subscription discovery UX.
-- Overlap warnings surfaced to users/operators.
-
-Safety requirements:
-
-- No default global labeler authority.
-- Users/operators explicitly choose labelers and namespaces.
-
-### Phase 20 — Moderation tools UI/API
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Moderation queue UI/API.
-- Report acknowledgement/resolution tooling.
-- Appeal resolution tooling.
-- Policy version management.
-
-Safety requirements:
-
-- Decisions are signed, scoped, appealable where appropriate, and tied to policy versions.
-
-### Phase 21 — Public feed generation
-
-Status: **Planned / blocked until Phase 7**.
-
-Required deliverables:
-
-- Feed generation runtime.
-- Curation/reputation/labeler integration.
-- Explanation records.
-
-Safety requirements:
-
-- Feed grouping is not moderation.
-- Feed inclusion is subject to public-scope and media-safety gates.
-
-### Phase 22 — Recommendation runtime
-
-Status: **Planned / blocked until Phase 7**.
-
-Required deliverables:
-
-- Candidate generation.
-- Local/private profile safety.
-- Curation and labeler gates.
-
-Safety requirements:
-
-- Private user controls and private reports cannot leak into public explanation surfaces.
-
-### Phase 23 — Cross-protocol public import/export
-
-Status: **Planned / blocked**.
-
-Required deliverables:
-
-- Import adapter contracts.
-- Export adapter contracts.
-- Cross-protocol object mapping.
-
-Safety requirements:
-
-- Imported labels/annotations must pass local validation and trust policy before affecting UI, moderation, or curation.
-- No imported protocol becomes authority by default.
-
-### Phase 24 — Native/full-peer packaging
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Native runtime adapters.
-- Secure key storage.
-- Background sync policy.
-
-Safety requirements:
-
-- Native/full-peer behavior must match protocol objects and gates used by PWA/light peers.
-
-### Phase 25 — Observability, audits, and deployment profiles
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Production deployment profiles.
-- Audit export format.
-- Privacy-preserving metrics.
-- Incident-review hooks.
-
-Safety requirements:
-
-- Logs and metrics must not become surveillance side channels.
-
-### Phase 26 — Abuse-resilience drills and red-team fixture suite
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Adversarial fixture suite across identity, bridge, MLS, media, search, recommendation, and moderation.
-- Replay/staleness/fork tests.
-- Sockpuppet/coordinated-brigading simulations.
-- Media-safety fake-hash drill.
-
-Safety requirements:
-
-- Every high-risk production surface has explicit adversarial tests before launch.
-
-### Phase 27 — Public beta readiness gate
-
-Status: **Planned**.
-
-Required deliverables:
-
-- Final phase-map/current-state reconciliation.
-- All exit reports complete.
-- Known blocked/non-goal list.
-- Deployment checklist.
-- Safety readiness checklist.
-
-Safety requirements:
-
-- No public beta unless private payload, bridge admission, media safety, public discovery gates, reports/appeals, labeler subscriptions, local controls, and audit logging are active.
-
 ## Immediate next implementation sequence
 
-Based on the repo state and recent merged PRs, the next clean sequence is:
+Based on the repo state and the corrected source-doc review, the next clean sequence is:
 
 1. **Phase 4a cleanup**
    - Add/update Phase 4a exit report.
@@ -774,17 +544,17 @@ Based on the repo state and recent merged PRs, the next clean sequence is:
    - Wire sync-client inbound MLS group-control dispatch.
    - Add bridge E2E test for MLS group-control records.
 
-3. **Phase 4.5**
-   - Production bridge runtime hardening.
+3. **Phase 4.5 implementation plan**
+   - Write `docs/implementation/phase-4.5-bridge-hardening-plan.md` using the Phase 4.2–4.4 deferral table above.
 
-4. **Phase 4.6**
-   - Relay/super-peer operator policy runtime.
+4. **Phase 4.5 build**
+   - Start with persistent HTTP/streaming rate-limit state, token registry/hot rotation, and missing admission deferral wiring.
 
-5. **Phase 5**
-   - Private messaging/encrypted mailbox foundation.
+5. **Phase 4.6 implementation plan**
+   - Write `docs/implementation/phase-4.6-operator-policy-runtime-plan.md` as a deliberate pull-forward from old Phase 8/15/19-adjacent work.
 
-6. **Phase 5.1**
-   - First-contact, stranger-message, and minor-safety interaction barriers.
+6. **Phase 5 / 5.1**
+   - Private messaging/encrypted mailbox foundation, then first-contact safety before broad chat UX.
 
 7. **Phase 6**
    - Media safety runtime.
