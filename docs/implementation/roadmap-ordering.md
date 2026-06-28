@@ -105,6 +105,38 @@ Required work:
 - projection and fixtures;
 - replay equivalence tests.
 
+## Phase 4.5 — production bridge runtime hardening
+
+Close T&S deferral gaps, persistent rate-limiting/token management, and auth audit log before the transport surface widens.
+
+Required order:
+
+1. Wire `decideUserBlockTransport` into admission gateway as check #9 (opt-in `localControlStateLookup`).
+2. Add `acceptReportDelivery` type contract (no HTTP route yet).
+3. `HttpRateLimitStore` interface + `JsonFileHttpRateLimitStore` (atomic temp-rename).
+4. `BridgeHttpRateLimiter` persistence: seed from store on construction, save after every mutation.
+5. `TokenRegistryStore` interface + `JsonFileTokenRegistryStore`.
+6. `addToken` / `revokeToken` hot rotation without process restart.
+7. `gateway.rotateOperatorAuthority` — persists + takes effect immediately.
+8. `AuthAuditRecord` + bounded FIFO `AuthAuditLog` (10 000 entries, Phase 3.1 redaction).
+
+See: `docs/implementation/phase-4.5-production-bridge-hardening-plan.md`
+
+## Phase 4.6 — relay / super-peer policy runtime
+
+Runtime-configurable operator surface model, policy subscription runtime, advisory reputation feeds, operator quarantine API, and appeal hooks.
+
+Required order:
+
+1. `OperatorSurface` + `OperatorSurfaceConfig` (narrowing enforced, widening throws at construction).
+2. `PolicySubscriptionRuntime` as check #8.5 (after rate limit, before user-block).
+3. `refreshLabelersState` for live updates without restart.
+4. `AdvisoryReputationFeed` + `ingestAdvisoryFeed` (lower-only, clamped to [-1, 1]).
+5. `quarantinePeer(peerId, reason, durationMs)` + `liftQuarantine(peerId, reason)` with audit events.
+6. `registerAppealHook` — best-effort, payload-free, per-kind allowlist.
+
+See: `docs/implementation/phase-4.6-relay-superpeer-policy-plan.md`
+
 ## Phase 5 — bridge resumability hardening
 
 Current Durable Streams work exists, but resumable backlog and alternate stream adapters still need work.
