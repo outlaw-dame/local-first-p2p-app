@@ -230,6 +230,12 @@ importers:
         specifier: latest
         version: 6.2.5
 
+  packages/mls-group-projection:
+    dependencies:
+      '@lfp2p/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+
   packages/native-proof-verifier:
     dependencies:
       '@lfp2p/capabilities':
