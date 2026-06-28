@@ -239,4 +239,79 @@ describe('processInboundSyncBatch — MLS group-control dispatch (mlsGroupContro
       await store.delete();
     }
   });
+
+  it('does not re-apply projection when the same event is re-delivered at a higher sequence', async () => {
+    // P2: bridge re-delivery can deliver the same event at sequence+1.
+    // putSignedEventWithSyncCheckpoint returns 'stored' (checkpoint advances),
+    // but updateMlsGroupProjection must detect the controlId is already known
+    // and skip re-applying to avoid duplicate fork candidates.
+    const store = createLocalFirstStore(`mls-sync-redelivery-${globalThis.crypto.randomUUID()}`);
+    try {
+      const createEvt = groupCreatedEvent();
+      const first = await processInboundSyncBatch({
+        store,
+        records: [makeRecord(createEvt, 'cursor-1', 1)],
+        mlsGroupControlOptions: { localDeviceId: CREATOR_DEVICE }
+      });
+      expect(first.mlsGroupControl?.applied).toBe(1);
+
+      // Same event, higher sequence (bridge re-delivery)
+      const second = await processInboundSyncBatch({
+        store,
+        records: [makeRecord(createEvt, 'cursor-2', 2)],
+        mlsGroupControlOptions: { localDeviceId: CREATOR_DEVICE },
+        allowRewind: false
+      });
+
+      // Checkpoint advanced (applied at batch level), but projection is NOT re-applied
+      expect(second.applied).toBe(1);
+      expect(second.mlsGroupControl?.applied).toBe(0);
+      expect(second.mlsGroupControl?.rejected).toBe(0);
+
+      // Projection state unchanged — no duplicate acceptedControlIds
+      const state = await store.getMlsGroupProjection(GROUP_ID);
+      const timesCtrl000Appears = state?.acceptedControlIds.filter((id) => id === 'ctrl-000').length;
+      expect(timesCtrl000Appears).toBe(1);
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('throws when event payload has missing or empty groupId (groupId validation)', async () => {
+    const store = createLocalFirstStore(`mls-sync-no-groupid-${globalThis.crypto.randomUUID()}`);
+    try {
+      // Manually create an event with empty groupId — bypasses protocol validator
+      // to test the store-level guard directly.
+      const noGroupIdEvt = signEventEnvelope(
+        createUnsignedEvent({
+          eventId: `evt-no-groupid-${globalThis.crypto.randomUUID()}`,
+          kind: 'mls.group.created' as SignedEventEnvelope['kind'],
+          author: CREATOR_IDENTITY,
+          deviceId: CREATOR_DEVICE,
+          createdAt: '2026-06-28T00:00:00.000Z',
+          privacy: 'public',
+          payload: {
+            version: MLS_GROUP_CONTROL_VERSION,
+            groupId: GROUP_ID, // valid for protocol; we test store method directly
+            epoch: 0,
+            controlId: 'ctrl-no-gid',
+            createdAt: '2026-06-28T00:00:00.000Z',
+            issuerDeviceId: CREATOR_DEVICE,
+            creatorDeviceId: CREATOR_DEVICE
+          }
+        }),
+        KEYPAIR
+      );
+
+      // Test updateMlsGroupProjection directly with a payload missing groupId
+      await expect(
+        store.updateMlsGroupProjection({
+          ...noGroupIdEvt,
+          payload: { ...noGroupIdEvt.payload, groupId: '' } as unknown as SignedEventEnvelope['payload']
+        })
+      ).rejects.toThrow(/groupId/);
+    } finally {
+      await store.delete();
+    }
+  });
 });

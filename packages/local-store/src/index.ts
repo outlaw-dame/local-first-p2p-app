@@ -761,12 +761,33 @@ export class DexieLocalFirstStore {
     validateSignedEvent(event);
     const updatedAt = options.updatedAt ?? new Date().toISOString();
     requireIsoDate(updatedAt, 'updatedAt');
+    const payload = event.payload as Record<string, unknown> | null | undefined;
+    const groupId = typeof payload?.groupId === 'string' ? payload.groupId.trim() : '';
+    if (groupId.length === 0) {
+      throw new Error('updateMlsGroupProjection: event payload missing or empty groupId');
+    }
     return this.transaction('rw', ['mlsGroupProjections'], async () => {
-      const payload = event.payload as Record<string, unknown> | null | undefined;
-      const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
-      const currentState = groupId
-        ? await this.#db.mlsGroupProjections.get(groupId)
-        : undefined;
+      const currentState = await this.#db.mlsGroupProjections.get(groupId);
+      // Idempotency guard: if the controlId is already tracked in the
+      // projection (accepted / rejected / fork-queued), skip re-applying.
+      // Without this, a bridge re-delivery at a higher checkpoint sequence
+      // would run the reducer again and could append duplicate fork candidates.
+      const controlId = typeof payload?.controlId === 'string' ? payload.controlId : '';
+      if (controlId.length > 0 && currentState !== undefined) {
+        const alreadyAccepted = currentState.acceptedControlIds.includes(controlId);
+        const alreadyRejected = currentState.rejectedControls.some((r) => r.controlId === controlId);
+        const alreadyQueued = currentState.forkCandidates.some((c) => c.controlId === controlId);
+        if (alreadyAccepted || alreadyRejected || alreadyQueued) {
+          let outcome: 'accepted' | 'rejected' | 'fork-queued' = 'accepted';
+          if (alreadyRejected) outcome = 'rejected';
+          else if (alreadyQueued) outcome = 'fork-queued';
+          return {
+            status: 'skipped',
+            outcome,
+            state: currentState
+          } satisfies AppendMlsGroupControlEventResult;
+        }
+      }
       const result = projectMlsGroupControlEvent({
         state: currentState,
         event,

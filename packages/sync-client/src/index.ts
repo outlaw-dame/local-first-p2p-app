@@ -899,6 +899,10 @@ async function dispatchInboundMlsGroupControlEnvelope(input: {
   const { store, event, index, options, summary } = input;
   try {
     const dispatch = await store.updateMlsGroupProjection(event, options);
+    if (dispatch.status === 'skipped') {
+      // controlId already tracked — idempotent re-delivery, don't count
+      return;
+    }
     if (dispatch.outcome === 'rejected') {
       summary.rejected += 1;
       summary.errors.push({
