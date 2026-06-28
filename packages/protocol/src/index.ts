@@ -454,7 +454,7 @@ function validatePayloadPrivacyScope(privacy: PrivacyScope, kind: EventKind, pay
       throw new Error(`${kind} with privacy ${privacy} must not contain a private payload envelope`);
     }
     if (looksLikeMlsApplicationMessageEnvelope(payload)) {
-      throw new Error(`${kind} with privacy ${privacy} must not contain a private payload envelope`);
+      throw new Error(`${kind} with privacy ${privacy} must not contain an MLS application-message envelope`);
     }
     return;
   }
@@ -646,12 +646,9 @@ function validateMlsApplicationMessageEnvelope(payload: JsonObject, kind: EventK
   if (typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 0) {
     throw new Error(`${kind} MLS envelope epoch must be a safe non-negative integer`);
   }
-  const senderDeviceId = requireNonEmptyString(payload.senderDeviceId, `${kind} MLS envelope senderDeviceId`);
-  if (typeof payload['_outerDeviceId'] === 'string' && payload['_outerDeviceId'] !== senderDeviceId) {
-    throw new Error(`${kind} MLS envelope senderDeviceId must match the outer event deviceId`);
-  }
-  requireNonEmptyString(payload.ciphertext, `${kind} MLS envelope ciphertext`);
-  validateBase64Url(requireNonEmptyString(payload.ciphertext, `${kind} MLS envelope ciphertext`), `${kind} MLS envelope ciphertext`);
+  requireNonEmptyString(payload.senderDeviceId, `${kind} MLS envelope senderDeviceId`);
+  const ciphertext = requireNonEmptyString(payload.ciphertext, `${kind} MLS envelope ciphertext`);
+  validateBase64Url(ciphertext, `${kind} MLS envelope ciphertext`);
   requireNonEmptyString(payload.messageRef, `${kind} MLS envelope messageRef`);
   if (payload.aadRef !== undefined) {
     requireNonEmptyString(payload.aadRef, `${kind} MLS envelope aadRef`);

@@ -866,6 +866,6 @@ describe('Phase 4 group privacy — MLS application-message envelopes', () => {
         privacy: 'public',
         payload: VALID_MLS_APP_MSG
       })
-    ).toThrow(/must not contain a private payload envelope/);
+    ).toThrow(/must not contain an MLS application-message envelope/);
   });
 });
