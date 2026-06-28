@@ -742,6 +742,46 @@ export class DexieLocalFirstStore {
     );
   }
 
+  /**
+   * Phase 4c — dispatch-path projection update. Runs `projectMlsGroupControlEvent`
+   * against the current stored state and writes the result back to
+   * `mlsGroupProjections`. Does NOT write to `signedEvents` — this is the
+   * inbound-sync counterpart to `appendMlsGroupControlEvent`: the event is
+   * already persisted by `putSignedEventWithSyncCheckpoint`; this method
+   * applies the secondary projection update, like `appendTrustSafetyReputationEvent`
+   * does for reputation events.
+   *
+   * Callers (sync-client) are responsible for calling this only on freshly
+   * stored events (`putSignedEventWithSyncCheckpoint` returned `'stored'`).
+   */
+  async updateMlsGroupProjection(
+    event: SignedEventEnvelope,
+    options: AppendMlsGroupControlEventOptions = {}
+  ): Promise<AppendMlsGroupControlEventResult> {
+    validateSignedEvent(event);
+    const updatedAt = options.updatedAt ?? new Date().toISOString();
+    requireIsoDate(updatedAt, 'updatedAt');
+    return this.transaction('rw', ['mlsGroupProjections'], async () => {
+      const payload = event.payload as Record<string, unknown> | null | undefined;
+      const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
+      const currentState = groupId
+        ? await this.#db.mlsGroupProjections.get(groupId)
+        : undefined;
+      const result = projectMlsGroupControlEvent({
+        state: currentState,
+        event,
+        localDeviceId: options.localDeviceId,
+        allowAutomatedForkRecovery: options.allowAutomatedForkRecovery
+      });
+      await this.#db.mlsGroupProjections.put(result.state);
+      return {
+        status: 'stored',
+        outcome: result.outcome,
+        state: result.state
+      } satisfies AppendMlsGroupControlEventResult;
+    });
+  }
+
   // -------------------------------------------------------------------
   // Local identity-event append + replay (Phase 2.2)
   //
