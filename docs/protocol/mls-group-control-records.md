@@ -18,7 +18,8 @@ They are not raw MLS library internals. They are protocol records that bind MLS 
 - Group payload plaintext is never exposed to bridge, mailbox, relay, or super-peer infrastructure.
 - Control records must be replay/idempotency safe.
 - Stale epochs fail closed.
-- Forks are surfaced and resolved through signed recovery records.
+- Forks are surfaced and resolved through signed recovery records or deterministic fallback policy where explicitly allowed.
+- MLS-active groups must not accept older group payload formats as an alternate path.
 
 ## Record families
 
@@ -45,24 +46,32 @@ All records should include:
 - `epoch`;
 - `createdAt`;
 - `issuerDeviceId`;
-- optional `previousControlId`;
-- optional `membershipDigest`;
+- `previousControlId` required for all records except group creation;
+- `membershipDigest` required on epoch-advancing records;
 - optional `commitRef`;
 - optional `diagnosticRef`.
+
+## Epoch numbering
+
+Epoch values must be safe non-negative integers.
+
+Epoch 0 is valid for initial group creation and early MLS state. Negative, non-integer, or unsafe values must fail closed.
 
 ## Validation posture
 
 Validate structure at the protocol boundary and semantic authorization in the group projection layer.
 
-Protocol validation should catch malformed records, unsupported versions, bad epochs, missing refs, unsupported fields, and plaintext group payloads.
+Protocol validation should catch malformed records, unsupported versions, bad epochs, missing refs, unsupported fields, sender-device mismatch, and plaintext group payloads.
 
-Projection validation should catch non-members, revoked devices, stale epochs, wrong-recipient welcomes, replayed commits, conflicting forks, and scope-widening attempts.
+Projection validation should catch non-members, revoked devices, stale epochs, wrong-recipient welcomes, replayed commits, conflicting forks, format fallback attempts, and scope-widening attempts.
 
 ## Relationship to private payload envelopes
 
 Phase 2 private payload envelopes remain valid for account-local and non-MLS private payloads.
 
 MLS application-message envelopes are valid only for group-scoped MLS payloads and must be explicitly recognized by group privacy validation.
+
+Once a group is MLS-active, Phase 2 private payload envelopes for that group must be rejected by projection policy.
 
 ## Relationship to signed annotations and labelers
 
