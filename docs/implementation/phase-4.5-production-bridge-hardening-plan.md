@@ -104,8 +104,11 @@ Required work:
   `version: 'lfp2p.http-rate-limit-snapshot.v1'`.
 - `BridgeHttpRateLimiter` constructor accepts optional `store` option.
   On construction: call `store.load()` and seed the in-memory map.
-  After every successful `tryConsume` or refusal that mutates state:
-  call `store.save(currentMap)`.
+  Saves are write-coalesced: mutations mark a dirty flag; a periodic
+  flush timer (default 5 s) calls `store.save(currentMap)` if the flag
+  is set and clears it. A graceful-shutdown hook also flushes immediately.
+  Saving is never on the synchronous request hot-path — a flooding attack
+  cannot exhaust disk I/O by triggering per-request saves.
 - Fail-closed on load corruption: refuse to start (matches Phase 4.2
   `JsonFileAdmissionStateStore` behaviour).
 
@@ -129,6 +132,10 @@ Required work:
   - `revokeToken(tokenId: string) → void`
   - Token values are stored as `sha-256` hashes; plaintext never lands in
     files or logs per Phase 3.1 doctrine.
+  - `validateBearerToken` must hash the incoming bearer value (sha-256)
+    before performing the constant-time comparison against stored
+    `hashedValue` fields. Comparing plaintext to a stored hash would
+    always fail; this must be explicit in the implementation.
 - Hot key-rotation of `AdmissionConfig.operatorAuthority`: add
   `gateway.rotateOperatorAuthority(newAuthority)` that atomically replaces
   the authority in the in-memory config and persists it in the admission
@@ -141,11 +148,16 @@ Successful and failed auth attempts produce no operator-side log today.
 Required work:
 - Define `AuthAuditRecord`:
   ```
-  { timestamp: string; tokenIdPrefix: string; outcome: 'accepted' | 'rejected' | 'expired';
+  { timestamp: string; tokenIdPrefix?: string; outcome: 'accepted' | 'rejected' | 'expired';
     clientIp?: string; requestPath: string; }
   ```
-  `tokenIdPrefix` = first 8 chars of `tokenId` (never the hash, never
-  plaintext). `clientIp` is omitted when not available; when present it
+  `tokenIdPrefix` is optional — first 8 chars of `tokenId`, populated
+  only when a configured token was identified (i.e., `accepted` or
+  `expired` outcomes, or a `rejected` outcome where the token id was
+  resolved before finding it revoked/expired). Unmatched rejections
+  (unknown bearer, missing header, malformed auth) carry no
+  `tokenIdPrefix` to avoid logging a prefix derived from the presented
+  secret. `clientIp` is omitted when not available; when present it
   is retained only in an operator-local log.
 - `AuthAuditLog` — bounded FIFO (default 10 000 entries), with optional
   `JsonFileAuthAuditStore`. Phase 3.1 redaction rules apply: no payload

@@ -22,7 +22,8 @@ Without this phase:
 - All bridge deployments run with identical policy regardless of operator intent.
 - The per-surface privacy scope enforcement in the admission doctrine exists
   in code but there is no runtime way to configure a bridge to behave as a
-  relay (group+public only) or a super-peer (group+public, with storage hints).
+  relay (dm+group+public, no storage) or a super-peer (group+public, with
+  storage hints).
 - The Phase 1.64 deferral for multi-bridge advisory reputation propagation
   has no runtime surface to receive or apply advisory feeds.
 - Appeal hooks from Phase 1.67 have no bridge-side integration point.
@@ -33,10 +34,16 @@ The bridge admission engine already defines four surfaces with per-surface
 privacy scope allowlists:
 
 ```
-bridge / relay:    dm, group, public
-super-peer:        group, public
-public-index:      public
+bridge:        dm, group, public
+relay:         dm, group, public
+super-peer:    group, public
+public-index:  public
 ```
+
+`bridge` and `relay` share the same default scope set (`RELAY_SAFE_PRIVACY_SCOPES`
+in `admission.ts`). The Purpose section's claim that relay is `group+public only`
+was incorrect — relay forwards DM envelopes by default; operators may narrow that
+away via `allowedPrivacyScopes`, but the default is inclusive.
 
 Phase 4.6 makes the surface configurable at runtime (not compile time) and
 adds per-surface policy subscriptions.
@@ -58,7 +65,7 @@ type OperatorSurfaceConfig = Readonly<{
 ```
 
 Non-negotiable: `allowedPrivacyScopes` may NARROW but never WIDEN beyond the
-surface default. A relay cannot add `dm` to its allowlist. The gateway
+surface default. A `super-peer` cannot add `dm` to its allowlist. The gateway
 validates at construction time and throws if a scope widens the default.
 
 ## Operator policy subscriptions
@@ -86,14 +93,18 @@ unlisted labeler CANNOT produce a bridge-level rejection.
 Required work:
 - `PolicySubscriptionRuntime` class: holds the active subscription list,
   resolves effective label set for a `SafetySubjectRef` against the
-  Phase 1.66 `LabelersState` snapshot, calls `computeItemRanking`.
+  Phase 1.66 `LabelersState` snapshot. Uses `effectiveLabelsForSubject`
+  and `mostRestrictiveAction` from the labeler runtime (NOT
+  `computeItemRanking`, which operates on curation/feed exclusions and
+  does not read transport-scope hard-safety labels).
 - Bridge gateway accepts `policyRuntime?: PolicySubscriptionRuntime`.
 - When `policyRuntime` is present, after check #8 (rate limit) and
   before check #9 (user-block), run a new check #8.5:
   - Derive `SafetySubjectRef` from the envelope (`event` kind → subject kind).
-  - Call `computeItemRanking(labelersState, subjectRef)`.
-  - If a `hard-safety` exclusion is active for this surface → reject with
-    `policy.operator-label`.
+  - Call `effectiveLabelsForSubject(labelersState, subjectRef)` filtered
+    to subscribed labelers. Pass the result to `mostRestrictiveAction`.
+  - If the most restrictive action is `hard-safety` with
+    `scope: 'transport'` → reject with `policy.operator-label`.
   - No reputation penalty (the subject may be legitimate on other surfaces).
 - `LabelersState` is refreshed by the operator from a bridge-side durable
   log. The admission gateway holds a snapshot; the operator calls
@@ -115,10 +126,21 @@ Required work:
   }>;
   ```
 - `BridgeAdmissionGateway.ingestAdvisoryFeed(entries)`: validates each
-  entry, clamps scores, merges into a separate `advisoryScores` map that
-  MODULATES (does not replace) the engine's per-peer reputation tracker.
+  entry, clamps scores, merges into a separate `advisoryScores` map (keyed
+  by `peerId`, value is the effective advisory score) that MODULATES (does
+  not replace) the engine's per-peer reputation tracker.
   The advisory channel can only LOWER effective reputation, never raise it
   above the peer's locally-observed score.
+  Multi-source merging: when multiple sources report scores for the same
+  peer, use the **minimum** (most restrictive) score. A single advisory
+  source cannot unilaterally elevate a score already lowered by another.
+  Staleness and pruning: each entry carries `updatedAt`. On every ingest
+  call, entries older than the configured advisory TTL (default 24 h) are
+  dropped before merging. A periodic background timer (default every 6 h)
+  also evicts stale entries from the in-memory map to prevent unbounded
+  growth. Without pruning a long-lived bridge accumulates advisory records
+  for peers it will never see again, with risk of OOM under sustained feed
+  ingestion.
 - Doctrine non-negotiable: advisory feeds are infrastructure-scoped (rule
   #4 of `bridge-admission-doctrine.md`). An advisory quarantine from bridge
   A does NOT auto-quarantine the peer at bridge B. The gateway uses it
@@ -154,6 +176,12 @@ Required work:
   Called after a `reject` or `quarantine` outcome when the rejected
   envelope's kind is in `appealableKinds` (operator-configured set;
   default empty).
+- The hook executes in a **non-blocking, fire-and-forget** fashion:
+  `void hook(decision).catch(err => operatorAuditLog.warn(err))`.
+  The admission result is returned to the caller immediately; the hook
+  runs after the response is committed. This ensures the appeal hook
+  cannot add latency to the hot admission path and that unhandled
+  rejections from the hook do not crash the process.
 - The hook is best-effort: a throwing hook is caught, logged at the
   operator-audit level (no plaintext), and does NOT reverse the admission
   decision.
@@ -166,7 +194,7 @@ Required work:
 
 ## Required tests
 
-- Surface config: relay surface rejects dm-privacy envelope; bridge surface accepts it; narrowing allowed-kinds works; widening allowedPrivacyScopes throws at construction.
+- Surface config: super-peer surface rejects dm-privacy envelope (not in default scope); relay surface accepts dm-privacy envelope (in default scope); operator-narrowed relay with dm removed rejects dm-privacy envelope; narrowing allowed-kinds works; widening allowedPrivacyScopes beyond surface default throws at construction.
 - Policy subscription runtime: unlisted labeler cannot reject; listed labeler with `hard-safety` transport-scope label rejects with `policy.operator-label`; no reputation penalty on operator-label reject.
 - `refreshLabelersState` takes effect immediately without restart.
 - Advisory reputation feed: ingestAdvisoryFeed clamps scores; advisory can lower effective rate-limit band; advisory CANNOT raise a peer's locally-observed score above its current value; non-numeric or NaN scores are dropped.
