@@ -148,7 +148,7 @@ async function evaluateContactCardPublishGate(input: {
   );
 
   for (const { proofId, event } of fetchedEvents) {
-    if (event === undefined) continue;
+    if (event === undefined || event === null) continue;
     // Scope the grant to this identity's controller. The registry is store-wide;
     // a grant issued by another identity's controller for the same device must not
     // authorize publication for this identity. (Codex review #104 P1)

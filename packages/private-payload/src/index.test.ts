@@ -99,12 +99,19 @@ describe('@lfp2p/private-payload', () => {
     expect('version' in aad).toBe(false);
   });
 
-  it('AAD lamport and refs are forwarded from context when provided', () => {
+  it('AAD lamport and refs are forwarded from context and normalized when provided', () => {
     const aad = JSON.parse(
-      buildPrivatePayloadAad({ ...CONTEXT, lamport: 3, refs: ['ref-a'] })
+      buildPrivatePayloadAad({
+        ...CONTEXT,
+        lamport: 3,
+        refs: [{ sourceId: 'src-a', sequence: 1 }, { sourceId: 'src-b', hash: 'sha256:abc' }]
+      })
     ) as Record<string, unknown>;
     expect(aad['lamport']).toBe(3);
-    expect(aad['refs']).toEqual(['ref-a']);
+    expect(aad['refs']).toEqual([
+      { sourceId: 'src-a', sequence: 1 },
+      { sourceId: 'src-b', hash: 'sha256:abc' }
+    ]);
   });
 
   it('creates private payload envelopes with a valid envelope shape', async () => {

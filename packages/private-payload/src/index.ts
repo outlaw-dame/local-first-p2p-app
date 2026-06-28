@@ -95,7 +95,7 @@ export function buildPrivatePayloadAad(context: PrivatePayloadAadContext): strin
     lamport: context.lamport ?? 0,
     privacy: context.privacy,
     schemaVersion: context.schemaVersion,
-    refs: (context.refs ?? []) as unknown as JsonValue
+    refs: normalizeAadRefs(context.refs) as unknown as JsonValue
   } as JsonValue);
 }
 
@@ -194,6 +194,31 @@ function validateAadContext(context: PrivatePayloadAadContext): void {
   if (context.lamport !== undefined && (!Number.isSafeInteger(context.lamport) || context.lamport < 0)) {
     throw new Error('context.lamport must be a safe non-negative integer when provided');
   }
+  if (context.refs !== undefined && !Array.isArray(context.refs)) {
+    throw new Error('context.refs must be an array when provided');
+  }
+}
+
+// Mirrors @lfp2p/envelope's normalizeRefs — strips unknown fields so the AAD
+// byte sequence matches whether the caller passes raw SourceRef objects (which
+// may carry extra properties) or already-normalized refs. (Codex review #108 P2)
+function normalizeAadRefs(refs: readonly SourceRef[] | undefined): Array<Record<string, unknown>> {
+  if (refs === undefined || refs.length === 0) return [];
+  return refs.map((ref, index) => {
+    requireNonEmpty(ref.sourceId, `refs[${index}].sourceId`);
+    const normalized: Record<string, unknown> = { sourceId: ref.sourceId };
+    if (ref.sequence !== undefined) {
+      if (!Number.isSafeInteger(ref.sequence) || ref.sequence < 0) {
+        throw new Error(`refs[${index}].sequence must be a safe non-negative integer`);
+      }
+      normalized['sequence'] = ref.sequence;
+    }
+    if (ref.hash !== undefined) {
+      requireNonEmpty(ref.hash, `refs[${index}].hash`);
+      normalized['hash'] = ref.hash;
+    }
+    return normalized;
+  });
 }
 
 const ALLOWED_WRAP_KEYS = new Set([

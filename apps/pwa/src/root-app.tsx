@@ -365,6 +365,7 @@ function HomePage(): JSX.Element {
       // once account-local sync ships) can audit when this digest
       // was published. We never put the card *bytes* on the log,
       // only the canonical digest reference.
+      let publishWarning: string | undefined;
       try {
         const publishResult = await gatedEmitContactCardPublished({
           store,
@@ -375,22 +376,25 @@ function HomePage(): JSX.Element {
           capabilityGate: { localDeviceId: identity.deviceId }
         });
         if (publishResult.status === 'blocked') {
-          setStatus(
-            `Contact card exported, but the publication-audit event was blocked by the capability gate: ${publishResult.message}`
-          );
+          publishWarning = `publication-audit event blocked by capability gate: ${publishResult.message}`;
         }
       } catch (publishError: unknown) {
         // Publication audit failure must not block the export UX.
-        // The card is still exported; the user gets a status hint.
-        setStatus(
-          `Contact card exported, but the publication-audit event failed: ${formatUiError(publishError)}`
-        );
+        publishWarning = `publication-audit event failed: ${formatUiError(publishError)}`;
       }
       if (typeof globalThis.navigator?.clipboard?.writeText === 'function') {
         await globalThis.navigator.clipboard.writeText(serialized);
-        setStatus('Signed contact card copied to clipboard as JSON.');
+        setStatus(
+          publishWarning !== undefined
+            ? `Signed contact card copied to clipboard. Warning: ${publishWarning}`
+            : 'Signed contact card copied to clipboard as JSON.'
+        );
       } else {
-        setStatus('Signed contact card generated in the import/export field because clipboard is unavailable.');
+        setStatus(
+          publishWarning !== undefined
+            ? `Contact card generated in import/export field. Warning: ${publishWarning}`
+            : 'Signed contact card generated in the import/export field because clipboard is unavailable.'
+        );
       }
     } catch (error: unknown) {
       setStatus(`Contact card export failed: ${formatUiError(error)}`);
