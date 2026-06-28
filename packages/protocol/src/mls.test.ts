@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MLS_APPLICATION_MESSAGE_ENVELOPE_VERSION,
+  looksLikeMlsApplicationMessageEnvelope,
   validateMlsApplicationMessageEnvelope
 } from './mls.js';
 
@@ -83,5 +84,58 @@ describe('MLS application message envelope validation', () => {
 
     expect(envelope.aadRef).toBe('aad:alpha:001');
     expect(envelope.contentRefs).toEqual(['block:one', 'block:two']);
+  });
+
+  it('rejects null and array inputs rather than throwing a TypeError', () => {
+    expect(() =>
+      validateMlsApplicationMessageEnvelope(null as unknown as Record<string, unknown>, 'device:alice-phone')
+    ).toThrow(/must be a JSON object/);
+
+    expect(() =>
+      validateMlsApplicationMessageEnvelope([] as unknown as Record<string, unknown>, 'device:alice-phone')
+    ).toThrow(/must be a JSON object/);
+  });
+
+  it('rejects ciphertext with an impossible base64url length (length % 4 === 1)', () => {
+    // 'A' has length 1 (1 % 4 === 1), which cannot represent any byte sequence.
+    expect(() =>
+      validateMlsApplicationMessageEnvelope(
+        { ...validEnvelope(), ciphertext: 'A' },
+        'device:alice-phone'
+      )
+    ).toThrow(/invalid base64url length/);
+
+    // 'AAAAA' has length 5 (5 % 4 === 1) — also invalid.
+    expect(() =>
+      validateMlsApplicationMessageEnvelope(
+        { ...validEnvelope(), ciphertext: 'AAAAA' },
+        'device:alice-phone'
+      )
+    ).toThrow(/invalid base64url length/);
+  });
+});
+
+describe('looksLikeMlsApplicationMessageEnvelope', () => {
+  it('returns false for null without throwing', () => {
+    expect(looksLikeMlsApplicationMessageEnvelope(null as unknown as Record<string, unknown>)).toBe(false);
+  });
+
+  it('returns false for arrays without throwing', () => {
+    expect(looksLikeMlsApplicationMessageEnvelope([] as unknown as Record<string, unknown>)).toBe(false);
+  });
+
+  it('returns false for objects missing required fields', () => {
+    expect(looksLikeMlsApplicationMessageEnvelope({ version: MLS_APPLICATION_MESSAGE_ENVELOPE_VERSION })).toBe(false);
+  });
+
+  it('returns true for a well-formed MLS application message envelope shape', () => {
+    expect(looksLikeMlsApplicationMessageEnvelope({
+      version: MLS_APPLICATION_MESSAGE_ENVELOPE_VERSION,
+      groupId: 'group:alpha',
+      epoch: 0,
+      senderDeviceId: 'device:alice',
+      ciphertext: 'aGVsbG8',
+      messageRef: 'msg:001'
+    })).toBe(true);
   });
 });

@@ -20,6 +20,8 @@ export type MlsApplicationMessageEnvelopeV1 = Readonly<{
 
 export function looksLikeMlsApplicationMessageEnvelope(value: JsonObject): boolean {
   return (
+    value !== null &&
+    !Array.isArray(value) &&
     typeof value.version === 'string' &&
     typeof value.groupId === 'string' &&
     typeof value.epoch === 'number' &&
@@ -33,6 +35,9 @@ export function validateMlsApplicationMessageEnvelope(
   value: JsonObject,
   outerDeviceId: string
 ): MlsApplicationMessageEnvelopeV1 {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('payload must be a JSON object');
+  }
   const allowedKeys = new Set([
     'version',
     'groupId',
@@ -110,5 +115,11 @@ function requireSafeNonNegativeInteger(value: unknown, label: string): number {
 function validateBase64Url(value: string, label: string): void {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) {
     throw new Error(`${label} must be base64url with no padding`);
+  }
+  // A base64url string of length % 4 === 1 is always invalid — no combination
+  // of 6-bit groups produces a partial byte at that boundary. Catching it here
+  // surfaces the error at the protocol boundary rather than inside an MLS provider.
+  if (value.length % 4 === 1) {
+    throw new Error(`${label} has an invalid base64url length (${value.length})`);
   }
 }
