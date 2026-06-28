@@ -3,8 +3,7 @@ import { MLS_GROUP_CONTROL_VERSION, type SignedEventEnvelope } from '@lfp2p/prot
 import {
   createEmptyMlsGroupProjectionState,
   projectMlsGroupControlEvent,
-  type MlsGroupProjectionState,
-  type ProjectMlsGroupEventInput
+  type MlsGroupProjectionState
 } from './index.js';
 
 // ---------------------------------------------------------------------------
