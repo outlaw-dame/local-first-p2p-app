@@ -1,5 +1,6 @@
 import {
   SyncCheckpointRejectedError,
+  type AppendMlsGroupControlEventOptions,
   type DexieLocalFirstStore,
   type MutationOutboxEntry,
   type StoredIdentityControlProjection,
@@ -125,6 +126,23 @@ export type ProcessInboundSyncInput = Readonly<{
    */
   labelerIdForAuthor?: (authorId: string) => string | undefined;
   /**
+   * Phase 4c — opt-in MLS group-control projection dispatch. When set,
+   * every MLS group-control event (`mls.*` kind) that arrives FRESH
+   * (i.e., `putSignedEventWithSyncCheckpoint` returned `'stored'`) is
+   * dispatched through `store.updateMlsGroupProjection` so the
+   * `mlsGroupProjections` table stays current as events sync in.
+   *
+   * Failures surface in the `mlsGroupControl` summary in the result,
+   * NOT in the outer batch result — the bridge inbound stream MUST
+   * keep advancing the checkpoint even if the projection trips on a
+   * single hostile event. Default `undefined` so existing callers
+   * see no change in the result shape.
+   */
+  mlsGroupControlOptions?: Readonly<{
+    localDeviceId?: string | undefined;
+    allowAutomatedForkRecovery?: boolean | undefined;
+  }> | undefined;
+  /**
    * Step 3b of the post-#84 follow-up — opt-in capability-proof
    * auto-registration. When `true`, every `identity.capability.granted`
    * envelope that lands FRESH (i.e., `putSignedEventWithSyncCheckpoint`
@@ -219,6 +237,19 @@ export type InboundCapabilityProofDispatchSummary = Readonly<{
   >;
 }>;
 
+/**
+ * Phase 4c — per-batch MLS group-control projection dispatch summary.
+ * Surfaced only when the caller supplies `mlsGroupControlOptions`.
+ * Privacy-safe (no raw payload bytes, no actor ids).
+ */
+export type InboundMlsGroupControlDispatchSummary = Readonly<{
+  /** MLS group-control projections updated. */
+  applied: number;
+  /** Projection failures (reducer rejected, or store write error). */
+  rejected: number;
+  errors: ReadonlyArray<Readonly<{ index: number; eventId?: string; reason: string }>>;
+}>;
+
 export type ProcessInboundSyncResult = Readonly<{
   received: number;
   applied: number;
@@ -230,6 +261,8 @@ export type ProcessInboundSyncResult = Readonly<{
   reputation?: InboundReputationDispatchSummary;
   /** Present only when `registerIdentityCapabilityProofs === true`. */
   capabilityProofs?: InboundCapabilityProofDispatchSummary;
+  /** Present only when `mlsGroupControlOptions` was passed in. */
+  mlsGroupControl?: InboundMlsGroupControlDispatchSummary;
 }>;
 
 export type PullAndProcessInboundSyncInput = SyncCheckpointKey &
@@ -355,6 +388,11 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
       ? { summary: mutableCapabilityProofSummary() }
       : undefined;
 
+  const mlsGroupControlRouting =
+    input.mlsGroupControlOptions !== undefined
+      ? { options: input.mlsGroupControlOptions, summary: mutableMlsGroupControlSummary() }
+      : undefined;
+
   if (expectedCheckpointKey !== undefined) {
     preflightInboundRecordsMatchCheckpointKey(input.records, expectedCheckpointKey);
   }
@@ -415,6 +453,15 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
             summary: capabilityProofRouting.summary
           });
         }
+        if (mlsGroupControlRouting !== undefined && isMlsGroupControlEvent(record.event)) {
+          await dispatchInboundMlsGroupControlEnvelope({
+            store: input.store,
+            event: record.event,
+            index,
+            options: mlsGroupControlRouting.options,
+            summary: mlsGroupControlRouting.summary
+          });
+        }
       } else {
         result.skipped += 1;
       }
@@ -441,6 +488,10 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
     capabilityProofRouting === undefined
       ? undefined
       : freezeCapabilityProofSummary(capabilityProofRouting.summary);
+  const mlsGroupControlField =
+    mlsGroupControlRouting === undefined
+      ? undefined
+      : freezeMlsGroupControlSummary(mlsGroupControlRouting.summary);
 
   return {
     ...result,
@@ -450,7 +501,8 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
     ...(reputationField === undefined ? {} : { reputation: reputationField }),
     ...(capabilityProofField === undefined
       ? {}
-      : { capabilityProofs: capabilityProofField })
+      : { capabilityProofs: capabilityProofField }),
+    ...(mlsGroupControlField === undefined ? {} : { mlsGroupControl: mlsGroupControlField })
   };
 }
 
@@ -804,6 +856,75 @@ function freezeCapabilityProofSummary(
     rejected: summary.rejected,
     errors: Object.freeze(summary.errors.map((e) => Object.freeze({ ...e })))
   });
+}
+
+type MutableMlsGroupControlSummary = {
+  applied: number;
+  rejected: number;
+  errors: Array<{ index: number; eventId?: string; reason: string }>;
+};
+
+function mutableMlsGroupControlSummary(): MutableMlsGroupControlSummary {
+  return { applied: 0, rejected: 0, errors: [] };
+}
+
+function freezeMlsGroupControlSummary(
+  summary: MutableMlsGroupControlSummary
+): InboundMlsGroupControlDispatchSummary {
+  return Object.freeze({
+    applied: summary.applied,
+    rejected: summary.rejected,
+    errors: Object.freeze(summary.errors.map((e) => Object.freeze({ ...e })))
+  });
+}
+
+function isMlsGroupControlEvent(event: unknown): event is SignedEventEnvelope {
+  if (!isRecord(event) || typeof event.kind !== 'string') return false;
+  return event.kind.startsWith('mls.');
+}
+
+/**
+ * Phase 4c — dispatch the MLS group-control projection update for a
+ * freshly stored inbound event. Failures surface in the summary, NOT
+ * the outer batch result — the checkpoint MUST keep advancing even
+ * when the projection reducer rejects a single event.
+ */
+async function dispatchInboundMlsGroupControlEnvelope(input: {
+  store: DexieLocalFirstStore;
+  event: SignedEventEnvelope;
+  index: number;
+  options: AppendMlsGroupControlEventOptions;
+  summary: MutableMlsGroupControlSummary;
+}): Promise<void> {
+  const { store, event, index, options, summary } = input;
+  try {
+    const dispatch = await store.updateMlsGroupProjection(event, options);
+    if (dispatch.status === 'skipped') {
+      // controlId already tracked — idempotent re-delivery, don't count
+      return;
+    }
+    if (dispatch.outcome === 'rejected') {
+      summary.rejected += 1;
+      summary.errors.push({
+        index,
+        ...(typeof event.eventId === 'string' && event.eventId.length > 0
+          ? { eventId: event.eventId }
+          : {}),
+        reason: `MLS group-control event rejected by projection reducer`
+      });
+    } else {
+      summary.applied += 1;
+    }
+  } catch (error) {
+    summary.rejected += 1;
+    summary.errors.push({
+      index,
+      ...(typeof event.eventId === 'string' && event.eventId.length > 0
+        ? { eventId: event.eventId }
+        : {}),
+      reason: error instanceof Error ? error.message : 'unknown'
+    });
+  }
 }
 
 /**
