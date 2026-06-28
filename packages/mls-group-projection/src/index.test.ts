@@ -459,8 +459,10 @@ describe('deterministic fork recovery', () => {
     expect(r2.state.diagnostics.some((d) => d.includes('deterministically'))).toBe(true);
   });
 
-  it('keeps fork queued when all candidates are from revoked/non-member devices', () => {
-    // Create a state where the fork candidates have an outsider device
+  it('resolves fork deterministically picking the member head over an outsider competing commit', () => {
+    // Commit1 (from CREATOR_DEVICE, a member) is accepted. With the lastCommitIssuerDeviceId
+    // fix, the head candidate is correctly attributed to CREATOR_DEVICE, so the resolver
+    // picks it over the outsider's commit rather than incorrectly failing.
     const state = applyCreation(CREATOR_DEVICE);
     const commit1 = makeEvent('mls.commit.published', {
       ...BASE_CONTROL,
@@ -472,8 +474,8 @@ describe('deterministic fork recovery', () => {
     });
     const r1 = projectMlsGroupControlEvent({ state, event: commit1 });
     if (r1.outcome !== 'accepted') throw new Error('setup failed');
+    expect(r1.state.lastCommitIssuerDeviceId).toBe(CREATOR_DEVICE);
 
-    // Competing commit from a non-member (outsider) device
     const commit2 = makeEvent('mls.commit.published', {
       ...BASE_CONTROL,
       controlId: 'ctrl-commit-B',
@@ -488,10 +490,46 @@ describe('deterministic fork recovery', () => {
       event: commit2,
       allowAutomatedForkRecovery: true
     });
-    // Should queue (not panic) and note it awaits policy authority
-    expect(r2.outcome).toBe('fork-queued');
-    if (r2.outcome !== 'fork-queued') return;
-    expect(r2.state.diagnostics.some((d) => d.includes('policy authority'))).toBe(true);
+    expect(r2.outcome).toBe('accepted');
+    if (r2.outcome !== 'accepted') return;
+    expect(r2.state.lastCommitRef).toBe('commit:aaa');
+    expect(r2.state.forkRecoveryRecords[0]?.recoveryMethod).toBe('deterministic-fallback');
+  });
+
+  it('keeps fork queued when no safe candidates exist (all detected candidates from non-members)', () => {
+    // Edge case: fork detection triggers when both competing commits come from
+    // non-member devices (e.g. injected via mls.fork.detected). The resolver
+    // cannot select any candidate and awaits policy authority.
+    const baseState = applyCreation(CREATOR_DEVICE);
+    // Seed forkCandidates manually with two outsider candidates and set lastControlId
+    // to a fake head so that a commit with previousControlId='ctrl-000' is treated as
+    // a non-linear (fork) candidate rather than a linear advance.
+    const forkState: MlsGroupProjectionState = Object.freeze({
+      ...baseState,
+      lastControlId: 'ctrl-fake-head',
+      forkCandidates: Object.freeze([
+        Object.freeze({ controlId: 'c1', commitRef: 'commit:zzz', epoch: 1, issuerDeviceId: 'device:outsider-1', detectedAt: '2026-06-27T00:00:00.000Z' }),
+        Object.freeze({ controlId: 'c2', commitRef: 'commit:yyy', epoch: 1, issuerDeviceId: 'device:outsider-2', detectedAt: '2026-06-27T00:00:00.000Z' })
+      ])
+    });
+    // A third outsider commit arrives; all candidates (including head placeholder) are
+    // from non-members, so the resolver cannot pick safely and awaits policy authority.
+    const result = projectMlsGroupControlEvent({
+      state: forkState,
+      event: makeEvent('mls.commit.published', {
+        ...BASE_CONTROL,
+        controlId: 'ctrl-commit-C',
+        previousControlId: 'ctrl-000',
+        issuerDeviceId: 'device:outsider-3',
+        epoch: 1,
+        commitRef: 'commit:xxx',
+        membershipDigest: 'digest:C'
+      }),
+      allowAutomatedForkRecovery: true
+    });
+    expect(result.outcome).toBe('fork-queued');
+    if (result.outcome !== 'fork-queued') return;
+    expect(result.state.diagnostics.some((d) => d.includes('policy authority'))).toBe(true);
   });
 });
 

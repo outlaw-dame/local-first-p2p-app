@@ -70,6 +70,8 @@ export type MlsGroupProjectionState = Readonly<{
   lastControlId?: string;
   /** CommitRef of the most recently accepted mls.commit.published record, for fork seeding. */
   lastCommitRef?: string;
+  /** IssuerDeviceId of the most recently accepted commit, so the head candidate uses the correct device. */
+  lastCommitIssuerDeviceId?: string;
   updatedAt: string;
 }>;
 
@@ -328,8 +330,11 @@ function applyMemberRemoved(
     removedAt: updatedAt
   });
   let localStatus = state.localDeviceMembershipStatus;
-  if (localDeviceId !== undefined && (removedDeviceId === localDeviceId || removedIdentityId === state.members[removedIdentityId]?.identityId)) {
-    if (removedDeviceId === localDeviceId) localStatus = 'removed';
+  if (
+    localDeviceId !== undefined &&
+    (removedDeviceId === localDeviceId || existing.deviceIds.includes(localDeviceId))
+  ) {
+    localStatus = 'removed';
   }
   return accept({
     ...state,
@@ -432,7 +437,7 @@ function applyCommitPublished(
             controlId: state.lastControlId,
             commitRef: state.lastCommitRef,
             epoch: targetEpoch,
-            issuerDeviceId: issuerDeviceId,
+            issuerDeviceId: state.lastCommitIssuerDeviceId ?? issuerDeviceId,
             detectedAt: updatedAt
           })
         : undefined;
@@ -466,6 +471,7 @@ function applyCommitPublished(
     acceptedControlIds: [...state.acceptedControlIds, controlId],
     lastControlId: controlId,
     lastCommitRef: commitRef,
+    lastCommitIssuerDeviceId: issuerDeviceId,
     updatedAt
   });
 }
@@ -588,6 +594,7 @@ function applyForkRecovery(
   const remainingCandidates = state.forkCandidates.filter(
     (c) => !rejectedCandidateIds.includes(c.controlId) && c.controlId !== selectedCommitRef
   );
+  const selectedCandidate = state.forkCandidates.find((c) => c.controlId === selectedCommitRef);
 
   return accept({
     ...state,
@@ -595,6 +602,12 @@ function applyForkRecovery(
     forkRecoveryRecords: Object.freeze([...state.forkRecoveryRecords, recoveryRecord]),
     acceptedControlIds: [...state.acceptedControlIds, controlId],
     lastControlId: controlId,
+    ...(selectedCandidate !== undefined
+      ? {
+          lastCommitRef: selectedCandidate.commitRef,
+          lastCommitIssuerDeviceId: selectedCandidate.issuerDeviceId
+        }
+      : {}),
     updatedAt
   });
 }
@@ -660,6 +673,8 @@ function resolveForkDeterministically(
     forkRecoveryRecords: Object.freeze([...state.forkRecoveryRecords, recoveryRecord]),
     acceptedControlIds: [...state.acceptedControlIds, selected.controlId],
     lastControlId: selected.controlId,
+    lastCommitRef: selected.commitRef,
+    lastCommitIssuerDeviceId: selected.issuerDeviceId,
     diagnostics: [...state.diagnostics, `fork resolved deterministically: selected ${selected.commitRef}`],
     updatedAt
   });
