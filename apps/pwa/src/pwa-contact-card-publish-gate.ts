@@ -65,6 +65,7 @@ export async function gatedEmitContactCardPublished(
       input.capabilityGate.now ?? new Date().toISOString();
     const gateDecision = await evaluateContactCardPublishGate({
       store: input.store,
+      identityId: input.identityId,
       localDeviceId: input.capabilityGate.localDeviceId,
       now
     });
@@ -83,6 +84,7 @@ export async function gatedEmitContactCardPublished(
 
 async function evaluateContactCardPublishGate(input: {
   store: DexieLocalFirstStore;
+  identityId: string;
   localDeviceId: string;
   now: string;
 }): Promise<{ status: 'allow' } | { status: 'deny'; message: string }> {
@@ -147,6 +149,10 @@ async function evaluateContactCardPublishGate(input: {
 
   for (const { proofId, event } of fetchedEvents) {
     if (event === undefined) continue;
+    // Scope the grant to this identity's controller. The registry is store-wide;
+    // a grant issued by another identity's controller for the same device must not
+    // authorize publication for this identity. (Codex review #104 P1)
+    if (event.author !== input.identityId) continue;
     const payload = event.payload as Record<string, unknown> | undefined;
     if (payload === undefined || payload === null) continue;
     if (typeof payload.scope !== 'string' || payload.scope !== CONTACT_CARD_PUBLISH_SCOPE) {

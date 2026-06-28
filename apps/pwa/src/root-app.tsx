@@ -52,7 +52,7 @@ import {
 } from './pwa-sync-lifecycle.js';
 import { IdentityAudit } from './pwa-identity-audit.js';
 import { TrustSafetySettings } from './pwa-trust-safety-settings.js';
-import { emitContactCardPublishedEvent } from './pwa-identity-emit.js';
+import { gatedEmitContactCardPublished } from './pwa-contact-card-publish-gate.js';
 import { PwaReputationSettings } from './pwa-reputation-settings.js';
 import { PwaReputationView } from './pwa-reputation-view.js';
 
@@ -366,13 +366,19 @@ function HomePage(): JSX.Element {
       // was published. We never put the card *bytes* on the log,
       // only the canonical digest reference.
       try {
-        await emitContactCardPublishedEvent({
+        const publishResult = await gatedEmitContactCardPublished({
           store,
           identityId: identity.identityId,
           deviceId: identity.deviceId,
           controllerKeypair: keypair,
-          serializedContactCard: serialized
+          serializedContactCard: serialized,
+          capabilityGate: { localDeviceId: identity.deviceId }
         });
+        if (publishResult.status === 'blocked') {
+          setStatus(
+            `Contact card exported, but the publication-audit event was blocked by the capability gate: ${publishResult.message}`
+          );
+        }
       } catch (publishError: unknown) {
         // Publication audit failure must not block the export UX.
         // The card is still exported; the user gets a status hint.

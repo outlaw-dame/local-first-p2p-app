@@ -45,13 +45,15 @@ async function seedGrantedEvent(
 ): Promise<void> {
   const scope = options.scope ?? CONTACT_CARD_SCOPE;
   const expiresAt = options.expiresAt ?? '2030-01-01T00:00:00.000Z';
-  const keypair = generateSigningKeypair();
+  // Author must be ACTOR_ID so the identity-scoping filter in the gate accepts
+  // the grant. A grant authored by a different identity's controller is rejected
+  // even if scope and device match. (Codex review #104 P1)
   const event = signEventEnvelope(
     createUnsignedEvent({
       eventId,
       kind: 'identity.capability.granted',
-      author: `identity:${keypair.publicKey}`,
-      deviceId: `device:${keypair.publicKey.slice(0, 16)}`,
+      author: ACTOR_ID,
+      deviceId: LOCAL_DEVICE_ID,
       createdAt: '2026-05-25T00:00:00.000Z',
       privacy: 'self',
       payload: {
@@ -61,7 +63,7 @@ async function seedGrantedEvent(
         expiresAt
       }
     }),
-    keypair
+    CONTROLLER_KEYPAIR
   );
   await store.putSignedEvent(event);
 }
@@ -279,6 +281,46 @@ describe('gatedEmitContactCardPublished — capability-proof gate', () => {
       if (result.status === 'blocked') expect(result.message).toMatch(/invalid shape/i);
     } finally {
       await realStore.delete();
+    }
+  });
+
+  it('SECURITY (codex #104 P1): a grant from a DIFFERENT identity\'s controller does not unlock this identity', async () => {
+    // The registry is store-wide. A verified, correctly-scoped grant whose
+    // author is a different identity's controller must NOT authorize
+    // contact-card publication for the current identity.
+    const store = freshStore('foreign-identity');
+    try {
+      const foreignKeypair = generateSigningKeypair();
+      const foreignIdentityId = `identity:${foreignKeypair.publicKey}`;
+      // Seed a granted event authored by the foreign identity — same device, same scope.
+      const foreignEvent = signEventEnvelope(
+        createUnsignedEvent({
+          eventId: 'evt_cc_foreign_identity',
+          kind: 'identity.capability.granted',
+          author: foreignIdentityId,
+          deviceId: `device:${foreignKeypair.publicKey.slice(0, 16)}`,
+          createdAt: '2026-05-25T00:00:00.000Z',
+          privacy: 'self',
+          payload: {
+            capabilityId: 'cap_foreign',
+            delegateDeviceId: LOCAL_DEVICE_ID,
+            scope: CONTACT_CARD_SCOPE,
+            expiresAt: '2030-01-01T00:00:00.000Z'
+          }
+        }),
+        foreignKeypair
+      );
+      await store.putSignedEvent(foreignEvent);
+      await store.putCapabilityProofRecord(
+        capabilityProofRecord('evt_cc_foreign_identity', { verificationState: 'verified' })
+      );
+      const result = await gatedEmitContactCardPublished({
+        ...baseEmitInput(store),
+        capabilityGate: { localDeviceId: LOCAL_DEVICE_ID }
+      });
+      expect(result).toMatchObject({ status: 'blocked', reason: 'capability-proof-denied' });
+    } finally {
+      await store.delete();
     }
   });
 });

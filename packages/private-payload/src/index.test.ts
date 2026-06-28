@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { type PrivatePayloadEnvelopeV1 } from '@lfp2p/protocol';
 import {
+  PRIVATE_PAYLOAD_AAD_VERSION,
   buildPrivatePayloadAad,
   decryptPrivatePayload,
   encryptPrivatePayload,
@@ -19,6 +20,11 @@ const CONTEXT: PrivatePayloadAadContext = {
   schemaVersion: 1
 };
 
+// The plaintext is a reputation event payload (pre-encryption). This package
+// handles the encryption layer only. Wiring this into a full signed
+// `reputation.*` protocol event (whose outer payload must satisfy the
+// protocol validator's reputation-event shape) is a separate concern deferred
+// to a future integration PR. (Codex review #103 P1)
 const PRIVATE_PAYLOAD = Object.freeze({
   version: 'lfp2p.reputation-event.v1',
   eventId: CONTEXT.eventId,
@@ -81,7 +87,27 @@ describe('@lfp2p/private-payload', () => {
     expect(buildPrivatePayloadAad({ ...CONTEXT })).toBe(buildPrivatePayloadAad(CONTEXT));
   });
 
-  it('creates strict account-local reputation private payload envelopes', async () => {
+  it('AAD format matches @lfp2p/envelope — aadVersion key, eventVersion, lamport, refs fields present', () => {
+    // AES-GCM authenticates exact AAD bytes. If this package and @lfp2p/envelope produce
+    // different byte sequences for the same version string, envelopes are mutually
+    // undecryptable. Verify the canonical field set matches. (Codex review #103 P2)
+    const aad = JSON.parse(buildPrivatePayloadAad(CONTEXT)) as Record<string, unknown>;
+    expect(aad['aadVersion']).toBe(PRIVATE_PAYLOAD_AAD_VERSION);
+    expect(aad['eventVersion']).toBe('lfp2p.event.v1');
+    expect(aad['lamport']).toBe(0);
+    expect(aad['refs']).toEqual([]);
+    expect('version' in aad).toBe(false);
+  });
+
+  it('AAD lamport and refs are forwarded from context when provided', () => {
+    const aad = JSON.parse(
+      buildPrivatePayloadAad({ ...CONTEXT, lamport: 3, refs: ['ref-a'] })
+    ) as Record<string, unknown>;
+    expect(aad['lamport']).toBe(3);
+    expect(aad['refs']).toEqual(['ref-a']);
+  });
+
+  it('creates private payload envelopes with a valid envelope shape', async () => {
     const keyMaterial = generatePrivatePayloadKeyMaterial();
     const envelope = await encryptPrivatePayload({
       plaintext: PRIVATE_PAYLOAD,
@@ -120,6 +146,31 @@ describe('@lfp2p/private-payload', () => {
     } satisfies PrivatePayloadEnvelopeV1;
 
     expect(() => validatePrivatePayloadEnvelopeShape(malformed)).toThrow(/duplicate recipientDeviceId/);
+  });
+
+  it('rejects recipient wraps with unsupported fields (strict key check)', () => {
+    // Consistent with @lfp2p/protocol's validatePrivatePayloadEnvelope — an envelope
+    // with extra wrap fields passes this layer but fails at the protocol boundary.
+    // Reject early to surface the error at the right layer. (Gemini review #103)
+    const withExtra = {
+      version: 'lfp2p.private-payload.envelope.v1',
+      algorithm: 'aes-gcm-256',
+      ciphertext: 'AAAA',
+      nonce: 'AAAAAAAAAAAAAAAA',
+      keyId: 'key-1',
+      recipientWraps: [
+        {
+          recipientIdentityId: 'did:example:alice',
+          recipientDeviceId: 'device-b',
+          keyAgreement: 'x25519-v1',
+          wrappedKey: 'AAAA',
+          wrappingKeyRef: 'x25519:device-b',
+          extraField: 'should-be-rejected'
+        }
+      ]
+    } as unknown as PrivatePayloadEnvelopeV1;
+
+    expect(() => validatePrivatePayloadEnvelopeShape(withExtra)).toThrow(/unsupported field: extraField/);
   });
 
   it('rejects public/device-local contexts for private payload AAD', () => {
