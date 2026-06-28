@@ -216,6 +216,9 @@ importers:
       '@lfp2p/envelope':
         specifier: workspace:^
         version: link:../envelope
+      '@lfp2p/mls-group-projection':
+        specifier: workspace:*
+        version: link:../mls-group-projection
       '@lfp2p/protocol':
         specifier: workspace:*
         version: link:../protocol

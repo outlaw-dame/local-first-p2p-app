@@ -21,6 +21,11 @@ import {
   seedProofRegistry,
   validateStoredProofRecord
 } from '@lfp2p/capabilities';
+import {
+  type MlsGroupProjectionState,
+  createEmptyMlsGroupProjectionState,
+  projectMlsGroupControlEvent
+} from '@lfp2p/mls-group-projection';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
 export type DeviceIdentityStatus = 'active' | 'revoked';
@@ -36,7 +41,8 @@ export type LocalFirstTableName =
   | 'trustSafetyControlEvents'
   | 'trustSafetyLabelerEvents'
   | 'trustSafetyReputationEvents'
-  | 'capabilityProofRecords';
+  | 'capabilityProofRecords'
+  | 'mlsGroupProjections';
 
 /**
  * Stored local-control event. The full envelope is preserved as the
@@ -209,6 +215,26 @@ export type AppendTrustSafetyReputationEventResult = Readonly<{
   status: 'stored' | 'skipped';
 }>;
 
+/**
+ * Phase 4b — stored MLS group-control projection row.
+ * `MlsGroupProjectionState` already carries `groupId` and `updatedAt` as
+ * top-level fields, so no wrapper is needed — the state IS the stored shape.
+ * Dexie indexes `groupId` as the primary key and `updatedAt` for range queries.
+ */
+export type StoredMlsGroupProjection = MlsGroupProjectionState;
+
+export type AppendMlsGroupControlEventOptions = Readonly<{
+  localDeviceId?: string | undefined;
+  allowAutomatedForkRecovery?: boolean | undefined;
+  updatedAt?: string;
+}>;
+
+export type AppendMlsGroupControlEventResult = Readonly<{
+  status: 'stored' | 'skipped';
+  outcome: 'accepted' | 'rejected' | 'fork-queued';
+  state: MlsGroupProjectionState;
+}>;
+
 export type SyncCheckpointRejectedCode = 'stale-sequence' | 'cursor-mismatch';
 
 export type StoredIdentityControlDevice = Readonly<{
@@ -317,6 +343,7 @@ class LocalFirstP2PDatabase extends Dexie {
   trustSafetyLabelerEvents!: Table<StoredTrustSafetyLabelerEvent, string>;
   trustSafetyReputationEvents!: Table<StoredTrustSafetyReputationEvent, string>;
   capabilityProofRecords!: Table<StoredCapabilityProofRecord, string>;
+  mlsGroupProjections!: Table<StoredMlsGroupProjection, string>;
 
   constructor(name: string) {
     super(name);
@@ -415,6 +442,24 @@ class LocalFirstP2PDatabase extends Dexie {
       trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
       trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence',
       capabilityProofRecords: 'proofId, scheme, verificationState, expiresAt'
+    });
+    // Phase 4b — MLS group-control projection cache. Adds the
+    // mlsGroupProjections table keyed by groupId. Schema bump is additive:
+    // existing v9 rows roll forward unchanged.
+    this.version(10).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt',
+      trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence',
+      capabilityProofRecords: 'proofId, scheme, verificationState, expiresAt',
+      mlsGroupProjections: 'groupId, updatedAt'
     });
   }
 }
@@ -616,6 +661,76 @@ export class DexieLocalFirstStore {
   async getIdentityControlProjection(identityId: string): Promise<StoredIdentityControlProjection | undefined> {
     requireNonEmpty(identityId, 'identityId');
     return this.#db.identityControlProjections.get(identityId);
+  }
+
+  // -------------------------------------------------------------------
+  // Phase 4b — MLS group-control projection persistence
+  //
+  // `appendMlsGroupControlEvent` is the atomic unit: it persists the
+  // signed event to `signedEvents` and runs `projectMlsGroupControlEvent`
+  // from `@lfp2p/mls-group-projection`, then stores the resulting state
+  // in `mlsGroupProjections`. Idempotent on `eventId`: re-appending an
+  // already-persisted event returns the current projection without
+  // re-applying. The projection reducer is fail-closed: a `rejected`
+  // outcome is persisted as-is (the event still lands in `signedEvents`)
+  // so auditors can inspect the full chain.
+  // -------------------------------------------------------------------
+
+  async getMlsGroupProjection(groupId: string): Promise<MlsGroupProjectionState | undefined> {
+    requireNonEmpty(groupId, 'groupId');
+    return this.#db.mlsGroupProjections.get(groupId);
+  }
+
+  async appendMlsGroupControlEvent(
+    event: SignedEventEnvelope,
+    options: AppendMlsGroupControlEventOptions = {}
+  ): Promise<AppendMlsGroupControlEventResult> {
+    validateSignedEvent(event);
+    const updatedAt = options.updatedAt ?? new Date().toISOString();
+    requireIsoDate(updatedAt, 'updatedAt');
+    return this.transaction(
+      'rw',
+      ['signedEvents', 'mlsGroupProjections'],
+      async () => {
+        const existing = await this.#db.signedEvents.get(event.eventId);
+        if (existing !== undefined) {
+          const payload = event.payload as { groupId?: unknown };
+          const groupId = typeof payload.groupId === 'string' ? payload.groupId : '';
+          const currentState = groupId
+            ? await this.#db.mlsGroupProjections.get(groupId)
+            : undefined;
+          const fallback = groupId
+            ? createEmptyMlsGroupProjectionState(groupId, updatedAt)
+            : createEmptyMlsGroupProjectionState('unknown', updatedAt);
+          return {
+            status: 'skipped',
+            outcome: 'accepted',
+            state: currentState ?? fallback
+          } satisfies AppendMlsGroupControlEventResult;
+        }
+
+        const payload = event.payload as { groupId?: unknown };
+        const groupId = typeof payload.groupId === 'string' ? payload.groupId : '';
+        const currentState = groupId
+          ? await this.#db.mlsGroupProjections.get(groupId)
+          : undefined;
+
+        const result = projectMlsGroupControlEvent({
+          state: currentState,
+          event,
+          localDeviceId: options.localDeviceId,
+          allowAutomatedForkRecovery: options.allowAutomatedForkRecovery
+        });
+
+        await this.#db.signedEvents.put(storedSignedEvent(event));
+        await this.#db.mlsGroupProjections.put(result.state);
+        return {
+          status: 'stored',
+          outcome: result.outcome,
+          state: result.state
+        } satisfies AppendMlsGroupControlEventResult;
+      }
+    );
   }
 
   // -------------------------------------------------------------------
@@ -1124,6 +1239,8 @@ export class DexieLocalFirstStore {
         return this.#db.trustSafetyReputationEvents;
       case 'capabilityProofRecords':
         return this.#db.capabilityProofRecords;
+      case 'mlsGroupProjections':
+        return this.#db.mlsGroupProjections;
     }
   }
 }

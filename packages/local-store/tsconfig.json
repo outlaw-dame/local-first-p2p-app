@@ -10,7 +10,8 @@
   "references": [
     { "path": "../crypto" },
     { "path": "../protocol" },
-    { "path": "../capabilities" }
+    { "path": "../capabilities" },
+    { "path": "../mls-group-projection" }
   ],
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"]
