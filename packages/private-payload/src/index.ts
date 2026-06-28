@@ -5,7 +5,8 @@ import {
   type JsonValue,
   type PayloadKeyRecipientWrap,
   type PrivacyScope,
-  type PrivatePayloadEnvelopeV1
+  type PrivatePayloadEnvelopeV1,
+  type SourceRef
 } from '@lfp2p/protocol';
 
 export const PRIVATE_PAYLOAD_AAD_VERSION = 'lfp2p.private-payload.aad.v1' as const;
@@ -19,6 +20,10 @@ export type PrivatePayloadAadContext = Readonly<{
   createdAt: string;
   privacy: Extract<PrivacyScope, 'self' | 'dm' | 'group'>;
   schemaVersion: number;
+  /** Monotonic counter matching the envelope builder's lamport field. Defaults to 0. */
+  lamport?: number;
+  /** Content refs matching the envelope builder's refs field. Defaults to []. */
+  refs?: readonly SourceRef[];
 }>;
 
 export type EncryptPrivatePayloadOptions = Readonly<{
@@ -75,16 +80,23 @@ export function generatePrivatePayloadKeyMaterial(): string {
 
 export function buildPrivatePayloadAad(context: PrivatePayloadAadContext): string {
   validateAadContext(context);
+  // Field names and set must exactly match @lfp2p/envelope's buildPrivatePayloadAad
+  // so that envelopes produced by one package can be decrypted by the other.
+  // AES-GCM authenticates the exact AAD bytes — any deviation produces a split-brain
+  // where same-version envelopes are mutually undecryptable. (Codex review #103 P2)
   return canonicalizeJson({
-    version: PRIVATE_PAYLOAD_AAD_VERSION,
+    aadVersion: PRIVATE_PAYLOAD_AAD_VERSION,
+    eventVersion: 'lfp2p.event.v1',
     eventId: context.eventId,
     kind: context.kind,
     author: context.author,
     deviceId: context.deviceId,
     createdAt: context.createdAt,
+    lamport: context.lamport ?? 0,
     privacy: context.privacy,
-    schemaVersion: context.schemaVersion
-  });
+    schemaVersion: context.schemaVersion,
+    refs: normalizeAadRefs(context.refs) as unknown as JsonValue
+  } as JsonValue);
 }
 
 export async function encryptPrivatePayload(
@@ -179,7 +191,43 @@ function validateAadContext(context: PrivatePayloadAadContext): void {
   if (!Number.isSafeInteger(context.schemaVersion) || context.schemaVersion <= 0) {
     throw new Error('context.schemaVersion must be a safe positive integer');
   }
+  if (context.lamport !== undefined && (!Number.isSafeInteger(context.lamport) || context.lamport < 0)) {
+    throw new Error('context.lamport must be a safe non-negative integer when provided');
+  }
+  if (context.refs !== undefined && !Array.isArray(context.refs)) {
+    throw new Error('context.refs must be an array when provided');
+  }
 }
+
+// Mirrors @lfp2p/envelope's normalizeRefs — strips unknown fields so the AAD
+// byte sequence matches whether the caller passes raw SourceRef objects (which
+// may carry extra properties) or already-normalized refs. (Codex review #108 P2)
+function normalizeAadRefs(refs: readonly SourceRef[] | undefined): Array<Record<string, unknown>> {
+  if (refs === undefined || refs.length === 0) return [];
+  return refs.map((ref, index) => {
+    requireNonEmpty(ref.sourceId, `refs[${index}].sourceId`);
+    const normalized: Record<string, unknown> = { sourceId: ref.sourceId };
+    if (ref.sequence !== undefined) {
+      if (!Number.isSafeInteger(ref.sequence) || ref.sequence < 0) {
+        throw new Error(`refs[${index}].sequence must be a safe non-negative integer`);
+      }
+      normalized['sequence'] = ref.sequence;
+    }
+    if (ref.hash !== undefined) {
+      requireNonEmpty(ref.hash, `refs[${index}].hash`);
+      normalized['hash'] = ref.hash;
+    }
+    return normalized;
+  });
+}
+
+const ALLOWED_WRAP_KEYS = new Set([
+  'recipientIdentityId',
+  'recipientDeviceId',
+  'keyAgreement',
+  'wrappedKey',
+  'wrappingKeyRef'
+]);
 
 function validateRecipientWraps(
   wraps: readonly PayloadKeyRecipientWrap[]
@@ -191,6 +239,14 @@ function validateRecipientWraps(
   return wraps.map((wrap, index) => {
     if (wrap === null || typeof wrap !== 'object' || Array.isArray(wrap)) {
       throw new Error(`recipientWraps[${index}] must be an object`);
+    }
+    // Strict key check — consistent with @lfp2p/protocol's validatePrivatePayloadEnvelope.
+    // An envelope with extra fields passes validation here but fails at the protocol layer,
+    // so we reject unknown fields early. (Gemini review #103)
+    for (const key of Object.keys(wrap)) {
+      if (!ALLOWED_WRAP_KEYS.has(key)) {
+        throw new Error(`recipientWraps[${index}] contains unsupported field: ${key}`);
+      }
     }
     requireNonEmpty(wrap.recipientIdentityId, `recipientWraps[${index}].recipientIdentityId`);
     const deviceId = requireNonEmpty(wrap.recipientDeviceId, `recipientWraps[${index}].recipientDeviceId`);
@@ -228,14 +284,25 @@ function fromBase64Url(input: string): Uint8Array {
 
 function requireBtoa(): (data: string) => string {
   const encoder = (globalThis as BrowserEncodingGlobal).btoa;
-  if (encoder === undefined) throw new Error('btoa is required for base64url encoding');
-  return encoder;
+  if (encoder !== undefined) return encoder;
+  // Fall back to Node's Buffer for environments without a global btoa
+  // (older Node.js versions, custom runtimes). (Gemini review #103)
+  const buf = (globalThis as Record<string, unknown>)['Buffer'] as
+    | { from(data: string, enc: string): { toString(enc: string): string } }
+    | undefined;
+  if (buf !== undefined) return (data: string) => buf.from(data, 'binary').toString('base64');
+  throw new Error('btoa or Buffer is required for base64url encoding');
 }
 
 function requireAtob(): (data: string) => string {
   const decoder = (globalThis as BrowserEncodingGlobal).atob;
-  if (decoder === undefined) throw new Error('atob is required for base64url decoding');
-  return decoder;
+  if (decoder !== undefined) return decoder;
+  // Fall back to Node's Buffer for environments without a global atob. (Gemini review #103)
+  const buf = (globalThis as Record<string, unknown>)['Buffer'] as
+    | { from(data: string, enc: string): { toString(enc: string): string } }
+    | undefined;
+  if (buf !== undefined) return (data: string) => buf.from(data, 'base64').toString('binary');
+  throw new Error('atob or Buffer is required for base64url decoding');
 }
 
 function requireCrypto(): PayloadCrypto {

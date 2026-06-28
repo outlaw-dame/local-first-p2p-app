@@ -52,7 +52,7 @@ import {
 } from './pwa-sync-lifecycle.js';
 import { IdentityAudit } from './pwa-identity-audit.js';
 import { TrustSafetySettings } from './pwa-trust-safety-settings.js';
-import { emitContactCardPublishedEvent } from './pwa-identity-emit.js';
+import { gatedEmitContactCardPublished } from './pwa-contact-card-publish-gate.js';
 import { PwaReputationSettings } from './pwa-reputation-settings.js';
 import { PwaReputationView } from './pwa-reputation-view.js';
 
@@ -365,26 +365,36 @@ function HomePage(): JSX.Element {
       // once account-local sync ships) can audit when this digest
       // was published. We never put the card *bytes* on the log,
       // only the canonical digest reference.
+      let publishWarning: string | undefined;
       try {
-        await emitContactCardPublishedEvent({
+        const publishResult = await gatedEmitContactCardPublished({
           store,
           identityId: identity.identityId,
           deviceId: identity.deviceId,
           controllerKeypair: keypair,
-          serializedContactCard: serialized
+          serializedContactCard: serialized,
+          capabilityGate: { localDeviceId: identity.deviceId }
         });
+        if (publishResult.status === 'blocked') {
+          publishWarning = `publication-audit event blocked by capability gate: ${publishResult.message}`;
+        }
       } catch (publishError: unknown) {
         // Publication audit failure must not block the export UX.
-        // The card is still exported; the user gets a status hint.
-        setStatus(
-          `Contact card exported, but the publication-audit event failed: ${formatUiError(publishError)}`
-        );
+        publishWarning = `publication-audit event failed: ${formatUiError(publishError)}`;
       }
       if (typeof globalThis.navigator?.clipboard?.writeText === 'function') {
         await globalThis.navigator.clipboard.writeText(serialized);
-        setStatus('Signed contact card copied to clipboard as JSON.');
+        setStatus(
+          publishWarning !== undefined
+            ? `Signed contact card copied to clipboard. Warning: ${publishWarning}`
+            : 'Signed contact card copied to clipboard as JSON.'
+        );
       } else {
-        setStatus('Signed contact card generated in the import/export field because clipboard is unavailable.');
+        setStatus(
+          publishWarning !== undefined
+            ? `Contact card generated in import/export field. Warning: ${publishWarning}`
+            : 'Signed contact card generated in the import/export field because clipboard is unavailable.'
+        );
       }
     } catch (error: unknown) {
       setStatus(`Contact card export failed: ${formatUiError(error)}`);

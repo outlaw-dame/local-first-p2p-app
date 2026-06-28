@@ -250,6 +250,12 @@ importers:
 
   packages/platform: {}
 
+  packages/private-payload:
+    dependencies:
+      '@lfp2p/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+
   packages/protocol: {}
 
   packages/search:
