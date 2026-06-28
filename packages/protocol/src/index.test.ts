@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MLS_APPLICATION_MESSAGE_ENVELOPE_VERSION,
+  MLS_GROUP_CONTROL_VERSION,
   REPUTATION_EVENT_PAYLOAD_VERSION,
   canonicalizeJson,
   createUnsignedEvent,
@@ -537,5 +539,333 @@ describe('reputation events as first-class protocol kinds', () => {
         payload: baseAggregatorPayload({ eventId: 42 })
       })
     ).toThrow(/payload\.eventId must be a non-empty string/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 4 — MLS group-control event kinds and MLS application-message envelopes.
+//
+// These tests pin the protocol-boundary contract for Phase 4:
+//
+//   1. All 11 MLS group-control event kinds are recognised.
+//   2. Group-control payloads require version, groupId, epoch, controlId,
+//      createdAt, issuerDeviceId; non-creation records require previousControlId;
+//      epoch-advancing records require membershipDigest.
+//   3. `group` privacy accepts Phase 2 private payload envelopes (non-MLS groups).
+//   4. `group` privacy accepts MLS application-message envelopes.
+//   5. `group` privacy rejects plaintext payloads.
+//   6. MLS application-message envelopes validate version, epoch, ids, ciphertext.
+//   7. Unsupported fields in MLS envelopes are rejected.
+// ---------------------------------------------------------------------------
+
+describe('Phase 4 MLS group-control protocol kinds', () => {
+  const BASE_CONTROL = {
+    version: MLS_GROUP_CONTROL_VERSION,
+    groupId: 'group:team-alpha',
+    epoch: 0,
+    controlId: 'ctrl-001',
+    createdAt: '2026-06-27T00:00:00.000Z',
+    issuerDeviceId: 'device:alice-phone'
+  };
+
+  it('accepts valid mls.group.created payload (epoch 0, no previousControlId required)', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_group_created',
+        kind: 'mls.group.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: { ...BASE_CONTROL, creatorDeviceId: 'device:alice-phone' }
+      })
+    ).not.toThrow();
+  });
+
+  it('accepts epoch 0 on group control payloads', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_epoch0',
+        kind: 'mls.group.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: { ...BASE_CONTROL, epoch: 0 }
+      })
+    ).not.toThrow();
+  });
+
+  it('rejects negative epoch on group control payloads', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_neg_epoch',
+        kind: 'mls.group.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: { ...BASE_CONTROL, epoch: -1 }
+      })
+    ).toThrow(/epoch must be a safe non-negative integer/);
+  });
+
+  it('requires previousControlId on non-creation control kinds', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_member_add_no_prev',
+        kind: 'mls.member.added',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: { ...BASE_CONTROL }
+      })
+    ).toThrow(/previousControlId/);
+  });
+
+  it('accepts mls.member.added with previousControlId', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_member_added',
+        kind: 'mls.member.added',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: {
+          ...BASE_CONTROL,
+          previousControlId: 'ctrl-000',
+          addedIdentityId: 'identity:bob',
+          addedDeviceId: 'device:bob-laptop',
+          welcomeRef: 'ref:welcome-abc'
+        }
+      })
+    ).not.toThrow();
+  });
+
+  it('requires membershipDigest on epoch-advancing kinds (mls.commit.published)', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_commit_no_digest',
+        kind: 'mls.commit.published',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: { ...BASE_CONTROL, previousControlId: 'ctrl-000', commitRef: 'ref:commit-1' }
+      })
+    ).toThrow(/membershipDigest/);
+  });
+
+  it('accepts mls.epoch.advanced with membershipDigest', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_epoch_adv',
+        kind: 'mls.epoch.advanced',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: {
+          ...BASE_CONTROL,
+          epoch: 1,
+          previousControlId: 'ctrl-000',
+          priorEpoch: 0,
+          nextEpoch: 1,
+          checkpoint: 'ckpt-1',
+          membershipDigest: 'sha256:abc123'
+        }
+      })
+    ).not.toThrow();
+  });
+
+  it('rejects wrong group-control version string', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_bad_version',
+        kind: 'mls.group.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: { ...BASE_CONTROL, version: 'lfp2p.mls-group-control.v2' }
+      })
+    ).toThrow(/lfp2p.mls-group-control.v1/);
+  });
+
+  it('rejects unsupported fields in group-control payload', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_extra_field',
+        kind: 'mls.group.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: { ...BASE_CONTROL, unknownField: 'evil' }
+      })
+    ).toThrow(/unsupported field: unknownField/);
+  });
+
+  it('rejects empty groupId on group-control payload', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_empty_group',
+        kind: 'mls.group.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: { ...BASE_CONTROL, groupId: '' }
+      })
+    ).toThrow(/groupId/);
+  });
+});
+
+describe('Phase 4 group privacy — MLS application-message envelopes', () => {
+  const VALID_MLS_APP_MSG = {
+    version: MLS_APPLICATION_MESSAGE_ENVELOPE_VERSION,
+    groupId: 'group:team-alpha',
+    epoch: 3,
+    senderDeviceId: 'device:alice-phone',
+    ciphertext: 'aGVsbG8',
+    messageRef: 'ref:msg-001'
+  };
+
+  it('accepts MLS application-message envelope for group privacy', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_app_msg',
+        kind: 'note.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'group',
+        payload: VALID_MLS_APP_MSG
+      })
+    ).not.toThrow();
+  });
+
+  it('accepts MLS application-message envelope with optional aadRef and contentRefs', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_app_msg_refs',
+        kind: 'note.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'group',
+        payload: {
+          ...VALID_MLS_APP_MSG,
+          aadRef: 'ref:aad-001',
+          contentRefs: ['ref:content-1', 'ref:content-2']
+        }
+      })
+    ).not.toThrow();
+  });
+
+  it('accepts Phase 2 private payload envelope for group privacy (non-MLS-active group)', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_group_phase2',
+        kind: 'note.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'group',
+        payload: {
+          version: 'lfp2p.private-payload.envelope.v1',
+          algorithm: 'aes-gcm-256',
+          ciphertext: 'aGVsbG8',
+          nonce: 'AAAAAAAAAAAAAAAA',
+          keyId: 'group-key-1'
+        }
+      })
+    ).not.toThrow();
+  });
+
+  it('rejects plaintext group payloads', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_group_plaintext',
+        kind: 'note.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'group',
+        payload: { body: 'unencrypted group message' }
+      })
+    ).toThrow(/must contain a private payload envelope or MLS application-message envelope/);
+  });
+
+  it('rejects MLS application-message envelope with negative epoch', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_neg_epoch',
+        kind: 'note.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'group',
+        payload: { ...VALID_MLS_APP_MSG, epoch: -1 }
+      })
+    ).toThrow(/epoch must be a safe non-negative integer/);
+  });
+
+  it('rejects MLS application-message envelope with empty groupId', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_empty_gid',
+        kind: 'note.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'group',
+        payload: { ...VALID_MLS_APP_MSG, groupId: '' }
+      })
+    ).toThrow(/groupId/);
+  });
+
+  it('rejects MLS application-message envelope with non-base64url ciphertext', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_bad_ciphertext',
+        kind: 'note.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'group',
+        payload: { ...VALID_MLS_APP_MSG, ciphertext: 'not valid base64url!!!' }
+      })
+    ).toThrow(/base64url/);
+  });
+
+  it('rejects MLS application-message envelope with unsupported extra fields', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_extra',
+        kind: 'note.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'group',
+        payload: { ...VALID_MLS_APP_MSG, extraField: 'evil' }
+      })
+    ).toThrow(/unsupported field: extraField/);
+  });
+
+  it('rejects MLS application-message envelope outside group privacy', () => {
+    expect(() =>
+      createUnsignedEvent({
+        eventId: 'evt_mls_public',
+        kind: 'note.created',
+        author: 'identity:alice',
+        deviceId: 'device:alice-phone',
+        createdAt: '2026-06-27T00:00:00.000Z',
+        privacy: 'public',
+        payload: VALID_MLS_APP_MSG
+      })
+    ).toThrow(/must not contain an MLS application-message envelope/);
   });
 });

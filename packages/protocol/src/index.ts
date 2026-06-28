@@ -20,7 +20,22 @@ const EVENT_KINDS = [
   'reputation.attestation.published',
   'reputation.attestation.revoked',
   'reputation.aggregator.published',
-  'reputation.aggregator.score.removed'
+  'reputation.aggregator.score.removed',
+  // Phase 4 — MLS group-control event kinds. These are signed protocol
+  // events carrying group key-management material. They do NOT embed a
+  // raw MLS library frame; the cryptographic runtime lives behind the
+  // MlsProvider boundary introduced in Phase 3.
+  'mls.group.created',
+  'mls.member.proposed',
+  'mls.member.added',
+  'mls.member.removed',
+  'mls.device.updated',
+  'mls.commit.published',
+  'mls.welcome.issued',
+  'mls.epoch.advanced',
+  'mls.fork.detected',
+  'mls.fork.recovery.published',
+  'mls.stale-epoch.rejected'
 ] as const;
 
 /**
@@ -68,6 +83,24 @@ export type JsonObject = { readonly [key: string]: JsonValue };
 
 export const PRIVATE_PAYLOAD_ENVELOPE_VERSION = 'lfp2p.private-payload.envelope.v1' as const;
 export type PrivatePayloadEnvelopeVersion = typeof PRIVATE_PAYLOAD_ENVELOPE_VERSION;
+
+export const MLS_APPLICATION_MESSAGE_ENVELOPE_VERSION =
+  'lfp2p.mls-application-message.envelope.v1' as const;
+export type MlsApplicationMessageEnvelopeVersion = typeof MLS_APPLICATION_MESSAGE_ENVELOPE_VERSION;
+
+export const MLS_GROUP_CONTROL_VERSION = 'lfp2p.mls-group-control.v1' as const;
+export type MlsGroupControlVersion = typeof MLS_GROUP_CONTROL_VERSION;
+
+export type MlsApplicationMessageEnvelopeV1 = Readonly<{
+  version: MlsApplicationMessageEnvelopeVersion;
+  groupId: string;
+  epoch: number;
+  senderDeviceId: string;
+  ciphertext: string;
+  messageRef: string;
+  aadRef?: string;
+  contentRefs?: readonly string[];
+}>;
 export type PrivatePayloadEnvelopeAlgorithm = 'aes-gcm-256';
 export type KeyAgreementAlgorithm = 'x25519-v1';
 
@@ -371,6 +404,20 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
       requireObjectIsoDate(payload, 'createdAt', kind);
       break;
     }
+    case 'mls.group.created':
+    case 'mls.member.proposed':
+    case 'mls.member.added':
+    case 'mls.member.removed':
+    case 'mls.device.updated':
+    case 'mls.commit.published':
+    case 'mls.welcome.issued':
+    case 'mls.epoch.advanced':
+    case 'mls.fork.detected':
+    case 'mls.fork.recovery.published':
+    case 'mls.stale-epoch.rejected': {
+      validateMlsGroupControlPayload(kind, payload);
+      break;
+    }
     default:
       break;
   }
@@ -406,6 +453,9 @@ function validatePayloadPrivacyScope(privacy: PrivacyScope, kind: EventKind, pay
     if (looksLikePrivatePayloadEnvelope(payload)) {
       throw new Error(`${kind} with privacy ${privacy} must not contain a private payload envelope`);
     }
+    if (looksLikeMlsApplicationMessageEnvelope(payload)) {
+      throw new Error(`${kind} with privacy ${privacy} must not contain an MLS application-message envelope`);
+    }
     return;
   }
 
@@ -420,12 +470,26 @@ function validatePayloadPrivacyScope(privacy: PrivacyScope, kind: EventKind, pay
     return;
   }
 
-  if (privacy === 'dm' || privacy === 'group') {
+  if (privacy === 'dm') {
     if (!looksLikePrivatePayloadEnvelope(payload)) {
       throw new Error(`${kind} with privacy ${privacy} must contain a private payload envelope`);
     }
     validatePrivatePayloadEnvelope(payload);
     return;
+  }
+
+  if (privacy === 'group') {
+    if (looksLikeMlsApplicationMessageEnvelope(payload)) {
+      validateMlsApplicationMessageEnvelope(payload, kind);
+      return;
+    }
+    if (looksLikePrivatePayloadEnvelope(payload)) {
+      validatePrivatePayloadEnvelope(payload);
+      return;
+    }
+    throw new Error(
+      `${kind} with privacy group must contain a private payload envelope or MLS application-message envelope`
+    );
   }
 
   throw new Error(`Unsupported privacy scope: ${privacy}`);
@@ -554,6 +618,123 @@ function looksLikePrivatePayloadEnvelope(value: JsonObject): boolean {
     typeof value.nonce === 'string' &&
     typeof value.keyId === 'string'
   );
+}
+
+function looksLikeMlsApplicationMessageEnvelope(value: JsonObject): boolean {
+  return value.version === MLS_APPLICATION_MESSAGE_ENVELOPE_VERSION;
+}
+
+const MLS_APP_MESSAGE_ALLOWED_KEYS = new Set([
+  'version',
+  'groupId',
+  'epoch',
+  'senderDeviceId',
+  'ciphertext',
+  'messageRef',
+  'aadRef',
+  'contentRefs'
+]);
+
+function validateMlsApplicationMessageEnvelope(payload: JsonObject, kind: EventKind): void {
+  for (const key of Object.keys(payload)) {
+    if (!MLS_APP_MESSAGE_ALLOWED_KEYS.has(key)) {
+      throw new Error(`${kind} MLS application-message envelope contains unsupported field: ${key}`);
+    }
+  }
+  requireNonEmptyString(payload.groupId, `${kind} MLS envelope groupId`);
+  const epoch = payload.epoch;
+  if (typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 0) {
+    throw new Error(`${kind} MLS envelope epoch must be a safe non-negative integer`);
+  }
+  requireNonEmptyString(payload.senderDeviceId, `${kind} MLS envelope senderDeviceId`);
+  const ciphertext = requireNonEmptyString(payload.ciphertext, `${kind} MLS envelope ciphertext`);
+  validateBase64Url(ciphertext, `${kind} MLS envelope ciphertext`);
+  requireNonEmptyString(payload.messageRef, `${kind} MLS envelope messageRef`);
+  if (payload.aadRef !== undefined) {
+    requireNonEmptyString(payload.aadRef, `${kind} MLS envelope aadRef`);
+  }
+  if (payload.contentRefs !== undefined) {
+    if (!Array.isArray(payload.contentRefs)) {
+      throw new Error(`${kind} MLS envelope contentRefs must be an array`);
+    }
+    (payload.contentRefs as unknown[]).forEach((ref, i) => {
+      if (typeof ref !== 'string' || ref.trim().length === 0) {
+        throw new Error(`${kind} MLS envelope contentRefs[${i}] must be a non-empty string`);
+      }
+    });
+  }
+}
+
+const MLS_GROUP_CONTROL_ALLOWED_KEYS = new Set([
+  'version',
+  'groupId',
+  'epoch',
+  'controlId',
+  'createdAt',
+  'issuerDeviceId',
+  'previousControlId',
+  'commitRef',
+  'membershipDigest',
+  // kind-specific fields
+  'creatorDeviceId',
+  'initialMemberRefs',
+  'groupMetadataRef',
+  'proposedIdentityId',
+  'proposedDeviceId',
+  'proposalRef',
+  'addedIdentityId',
+  'addedDeviceId',
+  'welcomeRef',
+  'removedIdentityId',
+  'removedDeviceId',
+  'removalReasonCode',
+  'updatedDeviceId',
+  'keyPackageRef',
+  'parentEpoch',
+  'parentCheckpoint',
+  'recipientIdentityId',
+  'recipientDeviceId',
+  'priorEpoch',
+  'nextEpoch',
+  'checkpoint',
+  'conflictingCommitRefs',
+  'observedEpoch',
+  'selectedCommitRef',
+  'rejectedCandidates',
+  'policyAuthorityId',
+  'rejectedEpoch',
+  'rejectedRef'
+]);
+
+const MLS_EPOCH_ADVANCING_KINDS = new Set<EventKind>([
+  'mls.commit.published',
+  'mls.epoch.advanced'
+]);
+
+function validateMlsGroupControlPayload(kind: EventKind, payload: JsonObject): void {
+  for (const key of Object.keys(payload)) {
+    if (!MLS_GROUP_CONTROL_ALLOWED_KEYS.has(key)) {
+      throw new Error(`${kind} group-control payload contains unsupported field: ${key}`);
+    }
+  }
+  requireNonEmptyString(payload.version, `${kind} payload.version`);
+  if (payload.version !== MLS_GROUP_CONTROL_VERSION) {
+    throw new Error(`${kind} payload.version must be ${MLS_GROUP_CONTROL_VERSION}`);
+  }
+  requireNonEmptyString(payload.groupId, `${kind} payload.groupId`);
+  const epoch = payload.epoch;
+  if (typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 0) {
+    throw new Error(`${kind} payload.epoch must be a safe non-negative integer`);
+  }
+  requireNonEmptyString(payload.controlId, `${kind} payload.controlId`);
+  requireNonEmptyString(payload.createdAt, `${kind} payload.createdAt`);
+  requireNonEmptyString(payload.issuerDeviceId, `${kind} payload.issuerDeviceId`);
+  if (kind !== 'mls.group.created') {
+    requireNonEmptyString(payload.previousControlId, `${kind} payload.previousControlId`);
+  }
+  if (MLS_EPOCH_ADVANCING_KINDS.has(kind)) {
+    requireNonEmptyString(payload.membershipDigest, `${kind} payload.membershipDigest`);
+  }
 }
 
 function validateBase64Url(value: string, label: string): Uint8Array {
