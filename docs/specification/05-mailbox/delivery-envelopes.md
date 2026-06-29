@@ -60,7 +60,7 @@ Recipient descriptors SHOULD support:
 - sealed/BCC-like recipient;
 - provider route-only recipient.
 
-Sealed recipients SHOULD NOT be disclosed to visible recipients unless policy explicitly permits it.
+Sealed recipients MUST NOT be disclosed to visible recipients.
 
 ## Payload references
 
