@@ -30,7 +30,9 @@ Examples:
 
 Before `1.0.0`, documents are Draft or Experimental by default unless explicitly marked Candidate or Stable.
 
-Breaking changes MAY occur in `0.x` versions, but they SHOULD be documented in `CHANGELOG.md` and migration notes SHOULD be provided when possible.
+Breaking changes MAY occur in `0.x` versions. Pre-1.0 breaking changes SHOULD increment the MINOR version, for example from `0.1.0` to `0.2.0`. Backward-compatible draft clarifications, editorial updates, and non-breaking fixture updates MAY increment the PATCH version.
+
+Breaking changes SHOULD be documented in `CHANGELOG.md`, and migration notes SHOULD be provided when possible.
 
 ## Stable versioning
 
