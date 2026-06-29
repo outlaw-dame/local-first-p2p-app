@@ -38,7 +38,7 @@ Social primitives
   ↓
 Authority layer
   ↓
-User data root / personal replica layer
+User Data Root / personal replica layer
   ↓
 Availability layer
   ↓
@@ -69,7 +69,7 @@ Canonical primitives should include:
 - identity;
 - devices;
 - capabilities;
-- user data root;
+- User Data Root;
 - data partitions;
 - entities/components/snapshots/links;
 - spaces;
@@ -113,7 +113,7 @@ Authority is defined by protocol-controlled cryptographic and deterministic stat
 
 No runtime adapter, mailbox provider, bridge, relay, super-peer, Hypercore feed, IPFS provider, public index, or app server can override authority-layer validation.
 
-### User data root / personal replica layer
+### User Data Root / personal replica layer
 
 A user has one cryptographic identity root and may have many authorized device replicas.
 
