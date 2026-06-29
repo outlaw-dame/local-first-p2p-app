@@ -9,7 +9,7 @@
   - `docs/specification/00-philosophy/protocol-philosophy.md`
   - `docs/specification/01-core/protocol-layers.md`
   - `docs/specification/SECURITY_MODEL.md`
-  - `docs/protocol/operation-consistency-classes.md`
+  - `docs/specification/01-core/operation-consistency-classes.md`
 
 ## Purpose
 
