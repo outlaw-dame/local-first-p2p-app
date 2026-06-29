@@ -598,12 +598,12 @@ export class BridgeAdmissionGateway {
     const existing = this.#state.peerReputation?.[peerId];
     if (existing === undefined) return; // no-op — peer has no reputation record
     const now = Date.now();
-    const { quarantineUntil: _removed, ...rest } = existing;
     const liftedRep = Object.freeze({
-      ...rest,
+      ...existing,
       score: 0,
       lastUpdatedAt: now,
-      lastReason: `operator.lift-quarantine:${reason}`
+      lastReason: `operator.lift-quarantine:${reason}`,
+      quarantineUntil: undefined as number | undefined
     });
     this.#state = Object.freeze({
       ...this.#state,
@@ -780,6 +780,7 @@ export class BridgeAdmissionGateway {
       void hook(decision).catch((err: unknown) => {
         // Best-effort: log but never propagate — a broken hook must not
         // reverse the admission decision or crash the process.
+        // eslint-disable-next-line no-console -- fire-and-forget hook errors are infrastructure-internal; no privacy-sensitive data reaches this path
         console.warn('[admission-gateway] appeal hook error:', err);
       });
     }
