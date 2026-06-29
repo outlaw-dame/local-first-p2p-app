@@ -124,7 +124,9 @@ Inbox state is mailbox/delivery state, not the complete User Data Root.
 
 ### Infrastructure Surface
 
-A named provider role such as bridge, relay, super-peer, mailbox provider, search provider, feed generator, media cache, or storage provider.
+One of the three canonical protocol-aware provider roles: `bridge`, `relay`, or `super-peer`.
+
+Other provider capabilities (mailbox hosting, search, feed generation, media caching, storage) are advertised as capability identifiers by these surfaces, not as independent surfaces. See `docs/protocol/infrastructure-capability-surfaces.md`.
 
 ### Mailbox
 

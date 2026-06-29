@@ -112,18 +112,23 @@ Transport identifiers MUST NOT imply protocol authority.
 
 ### Availability Surface Registry
 
+The three canonical infrastructure surfaces are `bridge`, `relay`, and `super-peer`. All other provider roles are capabilities that a surface MAY advertise, not independent surfaces (see `docs/protocol/infrastructure-capability-surfaces.md` and ADR-008).
+
 Examples:
 
 - `bridge`
 - `relay`
 - `super-peer`
-- `mailbox-provider`
-- `search-provider`
-- `feed-generator-provider`
-- `media-cache-provider`
-- `storage-provider`
 
 Availability surfaces MUST define whether they can store, relay, index, generate, cache, or admit records.
+
+Provider roles that are NOT surfaces (register as capabilities instead — see Capability Registry):
+
+- mailbox hosting → `availability.mailbox-host`
+- search → `availability.search`
+- feed generation → `availability.feed-generator`
+- media caching → `availability.media-cache`
+- storage → `availability.storage`
 
 ### Consistency Class Registry
 
