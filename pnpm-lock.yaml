@@ -141,6 +141,15 @@ importers:
 
   packages/capabilities: {}
 
+  packages/chat-projection:
+    dependencies:
+      '@lfp2p/private-payload':
+        specifier: workspace:*
+        version: link:../private-payload
+      '@lfp2p/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+
   packages/content-addressing: {}
 
   packages/crypto:

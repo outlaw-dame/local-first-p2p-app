@@ -1,0 +1,16 @@
+{
+  "name": "@lfp2p/chat-projection",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lfp2p/private-payload": "workspace:*",
+    "@lfp2p/protocol": "workspace:*"
+  }
+}
