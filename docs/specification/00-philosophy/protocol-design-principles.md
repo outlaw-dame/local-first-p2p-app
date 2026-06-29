@@ -135,7 +135,7 @@ Extensions MUST NOT silently change core object meaning, authority rules, or val
 
 The reference implementation may contain staging behavior, temporary shortcuts, bridge-specific assumptions, or package-local event families.
 
-A behavior becomes normative only when the specification defines it or an ADR explicitly accepts it as protocol behavior.
+A behavior MUST NOT be treated as normative unless the specification defines it or an ADR explicitly accepts it as protocol behavior.
 
 ## Principle 15 — Review Small, Specify Clearly
 
