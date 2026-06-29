@@ -365,12 +365,13 @@ export class BridgeAdmissionGateway {
   /**
    * Phase 4.5 — hot-rotate the operator authority without a process
    * restart. The new authority takes effect immediately on the next
-   * `admit` call. If a `stateStore` is configured the updated config
-   * is persisted by re-saving the current admission state (which
-   * already encodes the config indirectly via the admission context).
+   * `admit` call.
    *
-   * Callers are responsible for ensuring the new authority key is
-   * valid before calling this method.
+   * IMPORTANT: this method is synchronous and does NOT persist the
+   * new authority. `stateStore` only stores `TransportAdmissionState`,
+   * which does not include `AdmissionConfig`. Callers MUST persist the
+   * new authority via their own configuration store so that it survives
+   * a process restart.
    */
   rotateOperatorAuthority(newAuthority: AdmissionConfig['operatorAuthority']): void {
     this.#config = Object.freeze({ ...this.#config, operatorAuthority: newAuthority });

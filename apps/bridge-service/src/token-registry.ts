@@ -203,7 +203,10 @@ export class JsonFileTokenRegistryStore implements TokenRegistryStore {
       tokens: Object.freeze([...tokens])
     });
     const json = JSON.stringify(serialized);
-    const tempPath = `${this.#filePath}.${process.pid}.${this.#tempSuffix}.tmp`;
+    // Per-call unique suffix prevents write collisions when concurrent
+    // addToken/revokeToken calls both reach save at the same time.
+    const callSuffix = Math.random().toString(16).slice(2, 10);
+    const tempPath = `${this.#filePath}.${process.pid}.${this.#tempSuffix}.${callSuffix}.tmp`;
     await writeFile(tempPath, json, { encoding: 'utf8', mode: 0o600 });
     await rename(tempPath, this.#filePath);
   }

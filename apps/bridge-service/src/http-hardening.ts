@@ -486,7 +486,11 @@ export class JsonFileHttpRateLimitStore implements HttpRateLimitStore {
       buckets: Object.freeze(bucketsObj)
     });
     const json = JSON.stringify(serialized);
-    const tempPath = `${this.#filePath}.${process.pid}.${this.#tempSuffix}.tmp`;
+    // Use a per-call unique suffix so concurrent saves (e.g. a slow
+    // disk flush overlapping with the next timer tick) write to
+    // different temp paths and don't corrupt each other.
+    const callSuffix = Math.random().toString(16).slice(2, 10);
+    const tempPath = `${this.#filePath}.${process.pid}.${this.#tempSuffix}.${callSuffix}.tmp`;
     await writeFile(tempPath, json, { encoding: 'utf8', mode: 0o600 });
     await rename(tempPath, this.#filePath);
   }
@@ -623,6 +627,12 @@ export class BridgeHttpRateLimiter implements BridgeHttpRateLimiterHandle {
 
   async #flush(): Promise<void> {
     if (this.#store === undefined) return;
+    // Clear the flag BEFORE the async save so that any `consume` call
+    // that fires during the save sets it back to true. If we cleared
+    // it after the save we would overwrite the newly-dirtied flag and
+    // silently lose the latest state. On save failure, restore the
+    // flag and re-throw so the timer retries on the next tick.
+    this.#dirty = false;
     const snapshot = new Map<string, RateLimitBucketState>();
     for (const [tokenId, bucket] of this.#buckets) {
       snapshot.set(tokenId, {
@@ -632,7 +642,11 @@ export class BridgeHttpRateLimiter implements BridgeHttpRateLimiterHandle {
         cooldownUntil: bucket.cooldownUntil
       });
     }
-    await this.#store.save(snapshot);
-    this.#dirty = false;
+    try {
+      await this.#store.save(snapshot);
+    } catch (err) {
+      this.#dirty = true;
+      throw err;
+    }
   }
 }

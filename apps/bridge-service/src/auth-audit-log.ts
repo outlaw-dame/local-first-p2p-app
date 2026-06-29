@@ -105,8 +105,21 @@ export class AuthAuditLog {
 // JSON-lines file store
 // ---------------------------------------------------------------------------
 
+const DEFAULT_MAX_LOAD_LINES = 50_000;
+
 export type JsonFileAuthAuditStoreOptions = Readonly<{
   filePath: string;
+  /**
+   * Maximum number of JSON lines read from the file during `load()`.
+   * When the file is larger than this limit, only the LAST `maxLines`
+   * lines are parsed — the oldest entries are dropped, preventing OOM
+   * on startup after a long-lived bridge accumulates millions of lines.
+   *
+   * Default: 50 000. Production deployments that need full audit
+   * retention should ship the log to an external SIEM and use
+   * log-rotation (e.g. logrotate) to bound the on-disk file size.
+   */
+  maxLines?: number;
 }>;
 
 /**
@@ -116,15 +129,21 @@ export type JsonFileAuthAuditStoreOptions = Readonly<{
  * refusing to start (acceptable for an audit log — unlike the
  * admission state store, a partial line doesn't corrupt earlier
  * records).
+ *
+ * Startup OOM guard: `load()` reads at most `maxLines` (default 50 000)
+ * lines from the tail of the file. For unbounded retention, use an
+ * external log-rotation tool.
  */
 export class JsonFileAuthAuditStore implements AuthAuditStore {
   readonly #filePath: string;
+  readonly #maxLines: number;
 
   constructor(options: JsonFileAuthAuditStoreOptions) {
     if (typeof options.filePath !== 'string' || options.filePath.length === 0) {
       throw new TypeError('JsonFileAuthAuditStore: filePath is required');
     }
     this.#filePath = options.filePath;
+    this.#maxLines = options.maxLines ?? DEFAULT_MAX_LOAD_LINES;
   }
 
   async append(record: AuthAuditRecord): Promise<void> {
@@ -142,12 +161,16 @@ export class JsonFileAuthAuditStore implements AuthAuditStore {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return Object.freeze([]);
       throw err;
     }
+    const allLines = text.split('\n');
+    // Take only the last maxLines non-empty lines to cap memory on load.
+    const nonEmpty = allLines.filter((l) => l.trim().length > 0);
+    const relevant = nonEmpty.length > this.#maxLines
+      ? nonEmpty.slice(nonEmpty.length - this.#maxLines)
+      : nonEmpty;
     const results: AuthAuditRecord[] = [];
-    for (const line of text.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed.length === 0) continue;
+    for (const line of relevant) {
       try {
-        results.push(JSON.parse(trimmed) as AuthAuditRecord);
+        results.push(JSON.parse(line) as AuthAuditRecord);
       } catch {
         // Partial/corrupted line — skip silently (audit log resilience).
       }
