@@ -22,7 +22,7 @@ Forwarding creates a new delivery action. It does not mutate the original record
 - A forward SHOULD preserve provenance to the forwarded record or Snapshot where safe.
 - A forward MUST respect privacy, encryption, access policy, and local controls.
 - A forward MUST NOT grant recipients access to encrypted content they are not authorized to decrypt.
-- A forward MUST be distinguishable from original authorship.
+- A forward MUST be verifiably distinguishable from original authorship.
 
 ## Forwarding model
 
@@ -49,7 +49,7 @@ Forwarding requires a clear distinction between:
 - recipient;
 - provider.
 
-Applications MUST NOT present a forwarded record as newly authored by the forwarder unless product UI clearly indicates forwarding or quotation semantics.
+Protocol schemas MUST ensure a forwarded record is verifiably distinguishable from original authorship, and applications MUST NOT present it as newly authored by the forwarder.
 
 ## Snapshot-pinned forwarding
 
