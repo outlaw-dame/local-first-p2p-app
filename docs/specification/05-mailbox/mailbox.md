@@ -86,7 +86,7 @@ Mailbox providers SHOULD learn only what is needed for delivery.
 
 Private payloads MUST remain encrypted.
 
-Sealed recipient or BCC-like delivery SHOULD avoid exposing hidden recipients to visible recipients and unnecessary providers.
+Sealed recipient or BCC-like delivery MUST NOT expose hidden recipients to visible recipients, and SHOULD NOT expose them to unnecessary providers.
 
 ## Validation
 
