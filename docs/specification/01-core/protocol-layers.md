@@ -151,7 +151,7 @@ Examples:
 - mDNS/LSD/local discovery;
 - Bluetooth/BLE;
 - Wi-Fi Direct/local hotspot;
-- USB/file import-export;
+- USB/file import/export;
 - QR/batch transfer;
 - Tor/I2P;
 - WebSocket/SSE/long-poll.

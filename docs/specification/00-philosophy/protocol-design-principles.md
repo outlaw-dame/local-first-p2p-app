@@ -47,7 +47,7 @@ Transport adapters move bytes.
 
 A protocol feature SHOULD NOT depend on a single transport unless it is explicitly a transport extension.
 
-Where practical, records SHOULD be portable across HTTP bridge transport, direct P2P, WebRTC, HyperDHT/Holepunch, Hypercore replication, local discovery, Bluetooth/local-nearby sync, and file/import export paths.
+Where practical, records SHOULD be portable across HTTP bridge transport, direct P2P, WebRTC, HyperDHT/Holepunch, Hypercore replication, local discovery, Bluetooth/local-nearby sync, and file import/export paths.
 
 ## Principle 4 — Durable State Is Distinct From Delivery State
 
