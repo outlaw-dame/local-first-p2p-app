@@ -48,7 +48,7 @@ Before accepting a role-dependent action, implementations MUST validate:
 - Role revocation state;
 - action permission;
 - scope;
-- Capability grant where required;
+- capability grant where required;
 - Space/Channel policy;
 - consistency class;
 - replay/idempotency behavior.
@@ -59,7 +59,7 @@ Low-bandwidth sync SHOULD prioritize role grants, role revocations, and membersh
 
 ## Security considerations
 
-Implementations MUST guard against stale Role grants, unauthorized Role escalation, provider-local roles being treated as protocol authority, cross-Space Role reuse without scope checks, hidden moderator confusion, malicious infrastructure operator Role claims, and Role revocation delays in offline mode.
+Implementations MUST guard against stale Role grants, unauthorized Role escalation, provider-local Roles being treated as protocol authority, cross-Space Role reuse without scope checks, hidden moderator confusion, malicious infrastructure operator Role claims, and Role revocation delays in offline mode.
 
 ## Open questions
 
