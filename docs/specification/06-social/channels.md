@@ -52,7 +52,7 @@ A Channel may include or reference:
 - membership policy;
 - write policy;
 - moderation policy;
-- feed collection;
+- Feed Collection;
 - mailbox route;
 - retention policy;
 - recent heads/checkpoints;
