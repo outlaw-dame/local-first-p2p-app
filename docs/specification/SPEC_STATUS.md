@@ -62,6 +62,7 @@ Each specification document SHOULD start with:
 # Title
 
 - Status: Draft
+- Specification series: 0
 - Specification version: 0.x
 - Scope: ...
 - Updates: ...
