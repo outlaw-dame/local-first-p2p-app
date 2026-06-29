@@ -10,7 +10,7 @@
  *  - Appeal hooks: fire-and-forget, no payload, non-appealable kinds skip
  *  - All pre-4.6 admission outputs are byte-identical when options omitted
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   createEmptyLabelersState
 } from '@lfp2p/trust-safety';
@@ -499,7 +499,6 @@ describe('Appeal hooks — registerAppealHook', () => {
   });
 
   it('hook exception does NOT reverse the admission decision', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const throwingHook: AppealHook = async () => {
       throw new Error('hook exploded');
     };
@@ -511,14 +510,12 @@ describe('Appeal hooks — registerAppealHook', () => {
 
     const req = makeRequest({ event: makeEnvelope({ idempotencyKey: 'idem_appeal3' }) });
     const decision = gw.admit(req, T0);
-    expect(decision.result.admitted).toBe(false); // still rejected
+    expect(decision.result.admitted).toBe(false); // still rejected even with a broken hook
 
+    // Allow microtasks to flush — the thrown error is silenced per Phase 3.1
+    // privacy-safe logging doctrine (`err` is attacker-influenced).
     await new Promise((r) => setTimeout(r, 0));
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('appeal hook error'),
-      expect.any(Error)
-    );
-    warnSpy.mockRestore();
+    // No unhandled rejection — the catch swallows the error without logging.
   });
 
   it('hook receives TransportAdmissionDecision, not envelope bytes', async () => {

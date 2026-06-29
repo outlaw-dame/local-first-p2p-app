@@ -778,12 +778,10 @@ export class BridgeAdmissionGateway {
     if (this.#appealHooks.length === 0) return;
     if (!this.#appealableKinds.has(kind)) return;
     for (const hook of this.#appealHooks) {
-      void hook(decision).catch((err: unknown) => {
-        // Best-effort: log but never propagate — a broken hook must not
-        // reverse the admission decision or crash the process.
-        // eslint-disable-next-line no-console -- fire-and-forget hook errors are infrastructure-internal; no privacy-sensitive data reaches this path
-        console.warn('[admission-gateway] appeal hook error:', err);
-      });
+      // Fire-and-forget: a broken hook must not reverse the decision or crash
+      // the process. Silenced per Phase 3.1 privacy-safe logging doctrine —
+      // `err` is attacker-influenced and must not reach any log surface.
+      void hook(decision).catch(() => undefined);
     }
   }
 
