@@ -89,7 +89,14 @@ const EVENT_KIND_CONSISTENCY_CLASS_VALUES = {
   'mls.epoch.advanced': 'D',
   'mls.fork.detected': 'D',
   'mls.fork.recovery.published': 'D',
-  'mls.stale-epoch.rejected': 'D'
+  'mls.stale-epoch.rejected': 'D',
+  // Phase 5 — encrypted chat events. All carry PrivatePayloadEnvelopeV1
+  // ciphertext; the bridge transports them as opaque Class D records.
+  'chat.thread.created': 'D',
+  'chat.message.sent': 'D',
+  'chat.message.edited': 'D',
+  'chat.message.deleted': 'D',
+  'chat.thread.accepted': 'D'
 } as const satisfies Readonly<Record<EventKind, OperationConsistencyClass>>;
 
 /**

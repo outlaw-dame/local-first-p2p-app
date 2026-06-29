@@ -42,7 +42,9 @@ export type LocalFirstTableName =
   | 'trustSafetyLabelerEvents'
   | 'trustSafetyReputationEvents'
   | 'capabilityProofRecords'
-  | 'mlsGroupProjections';
+  | 'mlsGroupProjections'
+  | 'chatThreads'
+  | 'chatEventLog';
 
 /**
  * Stored local-control event. The full envelope is preserved as the
@@ -223,6 +225,79 @@ export type AppendTrustSafetyReputationEventResult = Readonly<{
  */
 export type StoredMlsGroupProjection = MlsGroupProjectionState;
 
+/**
+ * Phase 5 — chat message row as stored in plaintext form before being
+ * sealed into `StoredChatThreadProjection.encryptedState`. Plain-object
+ * mirror of `ChatMessageRecord` (which uses ReadonlyMap/Set internally) —
+ * structured clone requires plain types, and AES-GCM requires a
+ * serializable plaintext to encrypt.
+ */
+export type StoredChatMessageRecord = Readonly<{
+  messageId: string;
+  authorDeviceId: string;
+  plaintextBody: string;
+  sentAt: string;
+  editedAt?: string;
+  deletedAt?: string;
+  deleted: boolean;
+  replyToMessageId?: string;
+}>;
+
+/**
+ * Phase 5 — plaintext shape of a projected chat thread, serialized and
+ * sealed into `StoredChatThreadProjection.encryptedState` before it ever
+ * reaches IndexedDB. Plain-object mirror of `ChatThreadState` — Map →
+ * Record, Set → string[].
+ */
+export type StoredChatThreadProjectionPlaintext = Readonly<{
+  threadId: string;
+  participants: ReadonlyArray<string>;
+  threadName?: string;
+  messages: Readonly<Record<string, StoredChatMessageRecord>>;
+  acceptedBy: ReadonlyArray<string>;
+  createdAt: string;
+  appliedEventIds: ReadonlyArray<string>;
+}>;
+
+/**
+ * Phase 5 — projected chat thread state as stored in IndexedDB.
+ * Message bodies, participants, and acceptance state are plaintext chat
+ * content — they are sealed into `encryptedState` (an AES-GCM blob, same
+ * `EncryptedKeyMaterial` shape used by `StoredDeviceIdentity.encryptedPrivateKey`)
+ * rather than written to IndexedDB unencrypted. Only `threadId` (the primary
+ * key) and `lastActivityAt` (needed for feed-ordering queries) stay in the
+ * clear. Callers decrypt `encryptedState` and parse it as
+ * `StoredChatThreadProjectionPlaintext` to read message content; local-store
+ * itself never performs the encrypt/decrypt — that is the calling layer's
+ * responsibility, mirroring the device-identity pattern.
+ */
+export type StoredChatThreadProjection = Readonly<{
+  threadId: string;
+  lastActivityAt: string;
+  encryptedState: EncryptedKeyMaterial;
+  protectionKeyId: string;
+}>;
+
+/**
+ * Phase 5 — raw ciphertext chat event as stored in the local event log.
+ * The full `SignedEventEnvelope` is preserved so the projection can be
+ * rebuilt by decrypting and replaying. The bridge transports these as opaque
+ * Class D records; decryption happens only on the local device.
+ * `threadIdHash` is a blinded (`sha256Base64Url`) index of the thread id —
+ * it lets rebuilds look up a thread's events directly instead of scanning
+ * the entire log by `kind`, without writing the real threadId in the clear.
+ * This row never reaches the bridge (chatEventLog is local-only IndexedDB),
+ * so the hash isn't a confidentiality requirement — it's purely to keep
+ * thread rebuild O(matching rows) instead of O(N).
+ */
+export type StoredChatEventLogRow = Readonly<{
+  eventId: string;
+  kind: string;
+  threadIdHash?: string;
+  createdAt: string;
+  event: SignedEventEnvelope;
+}>;
+
 export type AppendMlsGroupControlEventOptions = Readonly<{
   localDeviceId?: string | undefined;
   allowAutomatedForkRecovery?: boolean | undefined;
@@ -344,6 +419,8 @@ class LocalFirstP2PDatabase extends Dexie {
   trustSafetyReputationEvents!: Table<StoredTrustSafetyReputationEvent, string>;
   capabilityProofRecords!: Table<StoredCapabilityProofRecord, string>;
   mlsGroupProjections!: Table<StoredMlsGroupProjection, string>;
+  chatThreads!: Table<StoredChatThreadProjection, string>;
+  chatEventLog!: Table<StoredChatEventLogRow, string>;
 
   constructor(name: string) {
     super(name);
@@ -460,6 +537,31 @@ class LocalFirstP2PDatabase extends Dexie {
       trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence',
       capabilityProofRecords: 'proofId, scheme, verificationState, expiresAt',
       mlsGroupProjections: 'groupId, updatedAt'
+    });
+    // Phase 5 — encrypted chat thread projection cache and raw ciphertext
+    // event log. Schema bump is additive: existing v10 rows roll forward.
+    // chatThreads: threadId PK + lastActivityAt index for feed ordering;
+    // message content lives in the encrypted `encryptedState` blob, never
+    // in a plaintext column.
+    // chatEventLog: eventId PK + kind/threadIdHash/createdAt — threadIdHash
+    // is a blinded index so rebuilds can look up a thread's events directly
+    // instead of scanning the whole log by kind.
+    this.version(11).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt',
+      trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence',
+      capabilityProofRecords: 'proofId, scheme, verificationState, expiresAt',
+      mlsGroupProjections: 'groupId, updatedAt',
+      chatThreads: 'threadId, lastActivityAt',
+      chatEventLog: 'eventId, kind, threadIdHash, createdAt'
     });
   }
 }
@@ -1311,6 +1413,10 @@ export class DexieLocalFirstStore {
         return this.#db.capabilityProofRecords;
       case 'mlsGroupProjections':
         return this.#db.mlsGroupProjections;
+      case 'chatThreads':
+        return this.#db.chatThreads;
+      case 'chatEventLog':
+        return this.#db.chatEventLog;
     }
   }
 }

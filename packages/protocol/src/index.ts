@@ -35,7 +35,17 @@ const EVENT_KINDS = [
   'mls.epoch.advanced',
   'mls.fork.detected',
   'mls.fork.recovery.published',
-  'mls.stale-epoch.rejected'
+  'mls.stale-epoch.rejected',
+  // Phase 5 — encrypted chat event kinds (Class D).
+  // ALL chat.* kinds require dm or group privacy — they MUST carry a
+  // PrivatePayloadEnvelopeV1. Enforced by validatePayloadPrivacyScope.
+  // The bridge transports these as opaque ciphertext and MUST NOT
+  // attempt decryption (Phase 1.63 non-negotiable).
+  'chat.thread.created',
+  'chat.message.sent',
+  'chat.message.edited',
+  'chat.message.deleted',
+  'chat.thread.accepted'
 ] as const;
 
 /**
@@ -418,6 +428,27 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
       validateMlsGroupControlPayload(kind, payload);
       break;
     }
+    case 'chat.thread.created':
+    case 'chat.message.sent':
+    case 'chat.message.edited':
+    case 'chat.message.deleted':
+    case 'chat.thread.accepted': {
+      requirePrivacyForChatEvent(privacy, kind);
+      // `group` privacy otherwise also accepts MLS application-message
+      // envelopes (used by MLS group-control kinds). Chat's decrypt path
+      // only understands PrivatePayloadEnvelopeV1, so reject an
+      // MLS-shaped payload here — fail fast at admission instead of
+      // producing an event that is unprojectable downstream.
+      if (!looksLikePrivatePayloadEnvelope(payload)) {
+        throw new Error(`${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for chat events)`);
+      }
+      // Structural validation of the decrypted content lives in
+      // @lfp2p/chat-projection. The protocol layer only enforces the
+      // privacy scope and envelope presence (done by
+      // validatePayloadPrivacyScope before this switch, and the
+      // PrivatePayloadEnvelopeV1 shape check above).
+      break;
+    }
     default:
       break;
   }
@@ -776,6 +807,12 @@ function requireNonEmptyString(value: unknown, label: string): string {
 function requirePrivacyForIdentityEvent(privacy: PrivacyScope, kind: EventKind): void {
   if (privacy !== 'self') {
     throw new Error(`${kind} must use privacy scope self`);
+  }
+}
+
+function requirePrivacyForChatEvent(privacy: PrivacyScope, kind: EventKind): void {
+  if (privacy !== 'dm' && privacy !== 'group') {
+    throw new Error(`${kind} must use privacy scope dm or group (got: ${privacy})`);
   }
 }
 

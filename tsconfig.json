@@ -16,6 +16,7 @@
     { "path": "packages/private-payload" },
     { "path": "packages/mls-group-projection" },
     { "path": "packages/envelope" },
+    { "path": "packages/chat-projection" },
     { "path": "packages/design-tokens" },
     { "path": "packages/platform" },
     { "path": "packages/local-store" },
