@@ -120,6 +120,18 @@ export type BridgeDeliveryRequest = Readonly<{
    * transport identifier SHOULD be plumbed in.
    */
   peerId?: string;
+  /**
+   * Phase 4.5 — optional recipient actor id for check #9
+   * (`decideUserBlockTransport`). When present AND the gateway was
+   * constructed with a `localControlStateLookup`, the gateway looks
+   * up the recipient's local-control state and rejects the delivery
+   * if the producer is blocked by that recipient.
+   *
+   * When absent, check #9 is skipped entirely — the admission output
+   * is byte-identical to pre-Phase-4.5 for callers that do not
+   * supply this field.
+   */
+  recipientActorId?: string;
 }>;
 
 export type BridgeDeliveryResponse =
