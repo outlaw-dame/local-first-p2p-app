@@ -58,7 +58,7 @@ Ordering rules MUST be explicit where interoperability matters.
 
 ## Collection membership
 
-Collection entries SHOULD reference objects by stable Object Reference, Entity Reference, Snapshot Reference, or signed record reference.
+Collection entries SHOULD reference objects by stable Object Reference, Entity Reference, Snapshot Reference, or Signed Record Reference.
 
 Snapshot references SHOULD be used where later mutation would undermine meaning, evidence, forwarding, quotes, or moderation state.
 
