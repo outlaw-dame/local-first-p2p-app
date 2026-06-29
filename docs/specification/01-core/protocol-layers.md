@@ -170,7 +170,7 @@ Storage hints, provider descriptors, DHT announcements, index hits, feed generat
 
 ### Delivery Is Not Replication Success
 
-Transport delivery or provider acceptance means bytes moved or were accepted for service-specific handling. It does not mean a recipient accepted the payload into durable state.
+Transport delivery or provider acceptance means bytes moved or were accepted for service-specific handling. It MUST NOT be interpreted as recipient acceptance of the payload into durable state.
 
 ### Projection Is Not Mutation
 
