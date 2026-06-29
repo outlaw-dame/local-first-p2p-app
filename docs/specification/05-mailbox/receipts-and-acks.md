@@ -68,11 +68,11 @@ Provider receipts MUST NOT be represented as recipient acceptance, user consent,
 
 Recipient receipts MAY indicate fetch, decrypt, reject, accept, apply, or display state depending on user privacy settings and protocol policy.
 
-Recipient implementations SHOULD avoid leaking sensitive read or presence metadata without user consent.
+Recipient implementations MUST NOT emit or disclose sensitive read or presence metadata without explicit user consent.
 
 ## Privacy
 
-Receipts and ACKs can leak activity, availability, read state, Device state, group membership, and social graph metadata.
+Receipts and ACKs can reveal activity, availability, read state, Device state, group membership, and social graph metadata.
 
 Implementations SHOULD allow privacy-preserving receipt behavior where product semantics permit it.
 
@@ -105,7 +105,7 @@ Implementations MUST guard against:
 - ACK spoofing;
 - replayed receipts;
 - provider receipts being treated as user acceptance;
-- receipt metadata leakage;
+- receipt metadata disclosure;
 - read-state tracking without consent;
 - inconsistent state transitions;
 - sealed recipient disclosure.
