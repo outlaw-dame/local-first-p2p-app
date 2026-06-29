@@ -8,6 +8,8 @@
 
 This document records the build order after the Phase 0 documentation review. It is an ordering reference, not a claim that later phases are implemented.
 
+> **Relationship to phase-map.md**: This document uses a sequential Phase 1–25 numbering for the full long-run build order. `docs/implementation/phase-map.md` uses a versioned numbering (1.x, 2, 3, 4, 5.x) that tracks implementation status against doctrine. The two numbering schemes do not correspond 1:1. In particular, `phase-map.md` Phase 5 (the User Data Root / Selective Sync / Feeds / Mailbox / Spaces / FROST doctrine sequence — see `docs/implementation/phase-5-foundation-roadmap.md`) spans the portion of this document that runs from Phase 4.7 through approximately Phase 15. When reading this ordering reference, use the phase-map for implementation status and exit criteria.
+
 ## Current ordering principle
 
 Build in this order:
@@ -137,7 +139,9 @@ Required order:
 
 See: `docs/implementation/phase-4.6-relay-superpeer-policy-plan.md`
 
-## Phase 5 — bridge resumability hardening
+## Phase 4.7 — bridge resumability hardening
+
+> **Numbering note**: This document uses a sequential Phase 1–25 numbering that does not correspond directly to the versioned phase numbering in `docs/implementation/phase-map.md`. What `phase-map.md` calls "Phase 5" is the User Data Root and Protocol Foundations sequence (Phase 5.1–5.10 per `docs/implementation/phase-5-foundation-roadmap.md`). This section covers bridge stream resumability work that belongs to the bridge/infrastructure track rather than the Phase 5 doctrine sequence.
 
 Current Durable Streams work exists, but resumable backlog and alternate stream adapters still need work.
 
