@@ -20,7 +20,7 @@ It is intentionally high-level and should change rarely. Later specifications fo
 
 The protocol is a local-first, hybrid P2P social protocol designed for portable identity, portable user data, interoperable social primitives, optional infrastructure, and graceful degradation under network failure, service loss, or censorship.
 
-Infrastructure is encouraged because it improves experience. Infrastructure does not establish protocol authority.
+Infrastructure is encouraged because it improves experience. Infrastructure MUST NOT establish protocol authority.
 
 ## Principles
 
