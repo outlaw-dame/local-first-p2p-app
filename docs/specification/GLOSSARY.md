@@ -18,17 +18,17 @@ An acknowledgement that a recipient, device, group epoch, or provider has observ
 
 An ACK is not automatically acceptance into durable local state unless the relevant specification says so.
 
-### Application projection
+### Application Projection
 
 A user-facing product interpretation of protocol state.
 
 Examples include Discord-like spaces/channels, Reddit-like communities/posts/comments, Twitter-like timelines, Facebook-like groups/feeds, forum views, and chat views.
 
-### Authority layer
+### Authority Layer
 
 The protocol layer that defines validity through cryptographic identity, signatures, capabilities, encryption state, consistency classes, and deterministic validation/projection rules.
 
-### Availability provider
+### Availability Provider
 
 A service or peer that improves reachability, delivery, storage durability, discovery, search, feed generation, media caching, or relay behavior.
 
@@ -62,11 +62,17 @@ A content-addressed or otherwise referenced data piece attached to an Entity.
 
 Components may be public, private, encrypted, or selectively replicated.
 
-### Conformance profile
+### Conformance Profile
 
 A named set of required protocol primitives, behaviors, and interoperability expectations.
 
 Examples include Core, Messaging, Social, Availability, Offline, and Security profiles.
+
+### Content Bundle
+
+A bounded collection of content-addressed blocks, payloads, manifests, or object references packaged for transfer, storage, verification, or import.
+
+A Content Bundle may support sync, mailbox, media, portable-drop, or provider-availability workflows. It is not protocol authority by itself.
 
 ### Controller
 
@@ -74,7 +80,7 @@ The cryptographic authority root for a user or another governed identity.
 
 A controller authorizes devices, capabilities, and high-risk identity actions according to protocol rules.
 
-### Data partition
+### Data Partition
 
 A scoped area of a User Data Root or Space data model with its own privacy, consistency, replication, retention, and sync behavior.
 
@@ -116,7 +122,7 @@ The receive-side mailbox state for encrypted delivery pickup, verification, decr
 
 Inbox state is mailbox/delivery state, not the complete User Data Root.
 
-### Infrastructure surface
+### Infrastructure Surface
 
 A named provider role such as bridge, relay, super-peer, mailbox provider, search provider, feed generator, media cache, or storage provider.
 
@@ -126,11 +132,23 @@ A first-class delivery primitive for encrypted store-and-forward behavior, recei
 
 Mailbox is delivery infrastructure. It is not the durable source of user-owned state.
 
-### Object reference
+### Mailbox Delivery
+
+A mailbox-scoped delivery record or envelope used to route, store, fetch, retry, expire, or acknowledge encrypted payload delivery.
+
+Mailbox Delivery records do not prove that a recipient accepted the payload into durable local state unless the mailbox specification explicitly says so.
+
+### Mailbox Receipt
+
+A mailbox-scoped receipt that records provider, recipient, device, group, expiry, rejection, or acceptance observations according to a mailbox state machine.
+
+A Mailbox Receipt is not automatically proof of user-visible delivery.
+
+### Object Reference
 
 A protocol reference to signed, content-addressed, encrypted, or externally stored data.
 
-Object references help separate identity, integrity, storage location, and payload retrieval.
+Object References help separate identity, integrity, storage location, and payload retrieval.
 
 ### Outbox
 
@@ -152,7 +170,7 @@ Authority-sensitive projections must obey consistency-class and validation rules
 
 A delivery, processing, acceptance, rejection, expiry, or provider-observation record produced by a mailbox, recipient, device, group, or provider according to a specified state machine.
 
-A receipt is not automatically proof of user-visible delivery unless specified.
+A Receipt is not automatically proof of user-visible delivery unless specified.
 
 ### Relay
 
@@ -162,7 +180,13 @@ An infrastructure surface that moves bytes or forwards traffic without becoming 
 
 A local or hosted copy of some portion of a User Data Root, Space, mailbox queue, feed cache, object store, or sync partition.
 
-Replicas may be complete or partial. A replica is not automatically canonical.
+Replicas may be complete or partial. A Replica is not automatically canonical.
+
+### Snapshot
+
+A stable representation of an Entity, Component set, object graph, feed candidate set, or sync state at a specific point or content-addressed digest.
+
+Snapshots can support quote/forward references, moderation evidence, feed result stability, export/import, and audit workflows. A Snapshot is not a replacement for authority-layer validation.
 
 ### Space
 
@@ -170,17 +194,17 @@ A scoped social container with identity, membership, roles, policy, channels, da
 
 A Space may operate without dedicated infrastructure, but may also publish optional signed infrastructure descriptors for improved availability or control.
 
-### Super-peer
+### Super-Peer
 
 A high-availability infrastructure surface that may provide authorized availability, replication assistance, introductions, cache hints, relay-compatible services, or other advertised capabilities.
 
-A super-peer is not a central server and does not own latest state.
+A Super-Peer is not a central server and does not own latest state.
 
-### Sync interest
+### Sync Interest
 
 A declared scope of records, partitions, channels, feeds, mailbox items, or payloads that a peer wants to synchronize.
 
-Sync interests should support selective, private, and low-bandwidth operation.
+Sync Interests should support selective, private, and low-bandwidth operation.
 
 ### User Data Root
 
