@@ -42,7 +42,7 @@ The repository does not yet have first-class implementations for:
 
 ## Ordering principle
 
-Do not implement mailbox, spaces/channels, feeds, super-peer availability, or full runtime adapters before the data-root and sync doctrines are clear.
+Do not implement mailbox, spaces/channels, feeds, super-peer availability, or full runtime adapters before the User Data Root and sync doctrines are clear.
 
 Build in this order:
 
@@ -99,7 +99,7 @@ The User Data Root is a logical, portable, user-owned data space replicated acro
 
 Define the target sync engine beyond the current checkpointed HTTP bridge sync.
 
-Current sync-client behavior remains valid, but the target engine must support multiple transports and selective data-root partitions.
+Current `@lfp2p/sync-client` behavior remains valid, but the target engine must support multiple transports and selective User Data Root partitions.
 
 ### Required decisions
 
