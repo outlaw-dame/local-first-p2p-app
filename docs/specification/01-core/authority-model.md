@@ -125,7 +125,7 @@ Provider admission policy is not global moderation authority.
 
 ### Provider authority
 
-Availability providers have authority only over their own service operation unless an explicit protocol capability grants more.
+Availability providers MUST have authority only over their own service operation unless an explicit protocol capability grants more.
 
 A provider MAY protect itself by rejecting traffic, rate-limiting, quarantining, expiring records, or refusing storage.
 
@@ -185,7 +185,7 @@ Generic LWW, mutable path overwrite, or CRDT-style merge MUST NOT be used for au
 
 ## Content addressing and authority
 
-Content addressing proves or supports integrity. It does not prove authorization.
+Content addressing proves or supports integrity. It MUST NOT be treated as proof of authorization.
 
 A content-addressed object MUST still be validated according to the object type, signature, capability, encryption, and consistency requirements.
 
