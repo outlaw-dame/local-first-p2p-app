@@ -10,6 +10,7 @@ Use this template for new normative specification documents.
 # Title
 
 - Status: Draft
+- Specification series: 0
 - Specification version: 0.x
 - Scope: ...
 - Profiles: ...
