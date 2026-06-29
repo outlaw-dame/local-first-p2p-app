@@ -40,6 +40,7 @@ export const SAFETY_REASON_CODES = [
   'system.malformed-object',
   'policy.community-rule',
   'policy.local-preference',
+  'policy.operator-label',
   'other'
 ] as const;
 export type SafetyReasonCode = (typeof SAFETY_REASON_CODES)[number];

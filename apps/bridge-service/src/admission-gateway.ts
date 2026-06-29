@@ -52,6 +52,7 @@ import {
   type AdmissionContext,
   type AdmissionEnvelope,
   type AdmissionResult,
+  type LabelersState,
   type LocalControlState,
   type ReportAppealEvent,
   type TransportAdmissionDecision,
@@ -60,6 +61,7 @@ import {
 
 import type { AdmissionStateStore } from './admission-state-store.js';
 import type { BridgeDeliveryRequest } from './types.js';
+import type { PolicySubscriptionRuntime } from './policy-subscription.js';
 
 // ---------------------------------------------------------------------------
 // acceptReportDelivery types (Check #10 type contract)
@@ -74,6 +76,35 @@ export type ReportDeliveryRequest = Readonly<{
 export type ReportDeliveryResult =
   | Readonly<{ status: 'accepted' }>
   | Readonly<{ status: 'rejected'; reason: string }>;
+
+// ---------------------------------------------------------------------------
+// Gateway options
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Phase 4.6 — Advisory reputation feed types
+// ---------------------------------------------------------------------------
+
+export type AdvisoryReputationEntry = Readonly<{
+  peerId: string;
+  /** Advisory reputation score, clamped to [-1, 1] on ingest. */
+  score: number;
+  /** ISO-8601 instant of the advisory score. Used for 24 h TTL pruning. */
+  updatedAt: string;
+  /** Bridge operator identity that sourced this advisory (not an actorId). */
+  sourceId: string;
+}>;
+
+// ---------------------------------------------------------------------------
+// Phase 4.6 — Appeal hook type
+// ---------------------------------------------------------------------------
+
+/**
+ * Fires after a `reject` or `quarantine` outcome for kinds in
+ * `appealableKinds`. Fire-and-forget: the hook never delays the
+ * admission response and a throwing hook does NOT reverse the decision.
+ */
+export type AppealHook = (decision: TransportAdmissionDecision) => Promise<void>;
 
 // ---------------------------------------------------------------------------
 // Gateway options
@@ -114,6 +145,27 @@ export type AdmissionGatewayOptions = Readonly<{
   localControlStateLookup?: (
     recipientActorId: string
   ) => LocalControlState | undefined;
+  /**
+   * Phase 4.6 — optional policy subscription runtime for check #8.5.
+   * When set, after the rate-limit check (#8) and before the user-block
+   * check (#9), the gateway calls
+   * `policyRuntime.checkProducerLabels(producerActorId)`. A
+   * `hard-safety` label from a listed labeler rejects with
+   * `policy.operator-label` and no reputation penalty.
+   */
+  policyRuntime?: PolicySubscriptionRuntime;
+  /**
+   * Phase 4.6 — advisory reputation TTL in milliseconds.
+   * Advisory entries older than this are dropped on ingest and evicted
+   * by the periodic background timer. Default: 24 hours.
+   */
+  advisoryTtlMs?: number;
+  /**
+   * Phase 4.6 — appeal hook trigger kinds. When set, the appeal hook
+   * fires for `reject` / `quarantine` outcomes whose envelope kind is in
+   * this set. Default: empty set (no hooks fired).
+   */
+  appealableKinds?: ReadonlySet<string>;
 }>;
 
 export type AdmissionGatewayDecision = Readonly<{
@@ -181,6 +233,20 @@ function buildAdmissionEnvelope(
  * of their rate-limit / replay-cache updates would be lost on the
  * final assignment.
  */
+// Per-source score record stored per (peerId, sourceId) pair.
+type AdvisorySourceRecord = Readonly<{ score: number; updatedAt: number }>;
+
+// Effective advisory score for a peer — minimum score across all live sources.
+type AdvisoryPeerRecord = Readonly<{
+  /** Effective score: minimum across all live (non-stale) sources for this peer. */
+  score: number;
+  /** Epoch ms of the most recent advisory entry for this peer (across all sources). */
+  updatedAt: number;
+}>;
+
+const DEFAULT_ADVISORY_TTL_MS = 24 * 60 * 60 * 1_000; // 24 h
+const ADVISORY_EVICTION_INTERVAL_MS = 6 * 60 * 60 * 1_000; // 6 h
+
 export class BridgeAdmissionGateway {
   #config: AdmissionConfig;
   readonly #stateStore: AdmissionStateStore | undefined;
@@ -189,11 +255,44 @@ export class BridgeAdmissionGateway {
     | undefined;
   #state: TransportAdmissionState;
 
+  // Phase 4.6 — policy subscription runtime (check #8.5)
+  readonly #policyRuntime: PolicySubscriptionRuntime | undefined;
+
+  // Phase 4.6 — advisory reputation.
+  // Per-source tracking enables correct score retraction when a source updates.
+  // Effective score (minimum across live sources) is kept in #advisoryScores for O(1) lookup.
+  #advisorySourceScores: Map<string, Map<string, AdvisorySourceRecord>>;
+  #advisoryScores: Map<string, AdvisoryPeerRecord>;
+  readonly #advisoryTtlMs: number;
+  readonly #advisoryEvictionTimer: ReturnType<typeof setInterval> | undefined;
+
+  // Phase 4.6 — appeal hooks
+  readonly #appealHooks: AppealHook[];
+  readonly #appealableKinds: ReadonlySet<string>;
+
   constructor(options: AdmissionGatewayOptions) {
     this.#config = options.config;
     this.#stateStore = options.stateStore;
     this.#localControlStateLookup = options.localControlStateLookup;
     this.#state = options.initialState ?? createEmptyTransportAdmissionState();
+    this.#policyRuntime = options.policyRuntime;
+    this.#advisorySourceScores = new Map();
+    this.#advisoryScores = new Map();
+    this.#advisoryTtlMs = options.advisoryTtlMs ?? DEFAULT_ADVISORY_TTL_MS;
+    this.#appealHooks = [];
+    this.#appealableKinds = options.appealableKinds ?? new Set();
+
+    if (this.#advisoryTtlMs > 0) {
+      const timer = setInterval(() => {
+        this.#evictStaleAdvisory(Date.now());
+      }, ADVISORY_EVICTION_INTERVAL_MS);
+      if (typeof timer === 'object' && 'unref' in timer) {
+        (timer as { unref(): void }).unref();
+      }
+      this.#advisoryEvictionTimer = timer;
+    } else {
+      this.#advisoryEvictionTimer = undefined;
+    }
   }
 
   /**
@@ -237,15 +336,26 @@ export class BridgeAdmissionGateway {
     context?: AdmissionContext
   ): AdmissionGatewayDecision {
     const envelope = buildAdmissionEnvelope(request);
+    const mergedContext = this.#mergeAdvisoryContext(context, envelope.peerId);
     const { nextState, result } = admitEnvelope(
       this.#state,
       envelope,
       this.#config,
-      context,
+      mergedContext,
       nowMs
     );
     // Move the reference forward exactly once per admission decision.
     this.#state = nextState;
+
+    // Check #8.5 — operator policy subscription (Phase 4.6, opt-in).
+    // Runs after the rate-limit check and before user-block.
+    if (result.admitted && result.decision.action !== 'drop-duplicate') {
+      const labelDecision = this.#checkPolicyLabels(request, nowMs);
+      if (labelDecision !== undefined) {
+        this.#maybeFireAppealHook(labelDecision.result.decision, request.event.kind);
+        return labelDecision;
+      }
+    }
 
     // Check #9 — user-block transport (Phase 4.5, opt-in).
     // Runs AFTER the engine so rate-limit / replay-cache state has
@@ -256,6 +366,12 @@ export class BridgeAdmissionGateway {
       if (userBlockDecision !== undefined) {
         return userBlockDecision;
       }
+    }
+
+    // Fire appeal hook for engine-produced reject/quarantine outcomes.
+    const action = result.decision.action;
+    if (action === 'reject' || action === 'quarantine') {
+      this.#maybeFireAppealHook(result.decision, request.event.kind);
     }
 
     return Object.freeze({
@@ -280,38 +396,245 @@ export class BridgeAdmissionGateway {
    * When no `stateStore` was configured this method's behavior is
    * identical to `admit` (no persistence side effect).
    */
+  /**
+   * Phase 4.2 — async variant that persists the new state before
+   * advancing the in-memory reference.
+   *
+   * Fail-closed contract: if `stateStore.save` throws, the in-memory
+   * state IS NOT advanced and the error propagates upward.
+   *
+   * Post-engine policy checks (#8.5, #9) run BEFORE persistence so
+   * the final caller-visible decision is determined before any I/O.
+   * The persisted state records the engine-level outcome (rate-limit
+   * consumed, replay cache updated) regardless of the policy overlay
+   * decision — the engine state and the operator policy layer are
+   * intentionally separate audit concerns.
+   */
   async admitAndPersist(
     request: BridgeDeliveryRequest,
     nowMs: number,
     context?: AdmissionContext
   ): Promise<AdmissionGatewayDecision> {
     const envelope = buildAdmissionEnvelope(request);
+    const mergedContext = this.#mergeAdvisoryContext(context, envelope.peerId);
     const { nextState, result } = admitEnvelope(
       this.#state,
       envelope,
       this.#config,
-      context,
+      mergedContext,
       nowMs
     );
+
+    // Run post-engine policy checks BEFORE persisting so the returned
+    // decision is authoritative before any I/O side effect.
+    let policyDecision: AdmissionGatewayDecision | undefined;
+    if (result.admitted && result.decision.action !== 'drop-duplicate') {
+      // Check #8.5 — operator policy subscription
+      policyDecision = this.#checkPolicyLabels(request, nowMs);
+      if (policyDecision !== undefined) {
+        this.#maybeFireAppealHook(policyDecision.result.decision, request.event.kind);
+      }
+    }
+    if (policyDecision === undefined && result.admitted && result.decision.action !== 'drop-duplicate') {
+      // Check #9 — user-block transport
+      policyDecision = this.#checkUserBlock(request, nowMs);
+    }
+
+    // Persist the engine's nextState (fail-closed: if this throws, in-memory
+    // does NOT advance). The persisted state captures rate-limit/replay updates
+    // from the engine regardless of the policy overlay decision.
     if (this.#stateStore !== undefined) {
-      // Persist FIRST. If this throws, the gateway never advances
-      // its in-memory reference and the caller gets the I/O error.
       await this.#stateStore.save(nextState);
     }
     this.#state = nextState;
 
-    // Check #9 — user-block transport (Phase 4.5, opt-in).
-    if (result.admitted && result.decision.action !== 'drop-duplicate') {
-      const userBlockDecision = this.#checkUserBlock(request, nowMs);
-      if (userBlockDecision !== undefined) {
-        return userBlockDecision;
-      }
+    if (policyDecision !== undefined) {
+      return policyDecision;
+    }
+
+    // Fire appeal hook for engine-produced reject/quarantine outcomes.
+    const action = result.decision.action;
+    if (action === 'reject' || action === 'quarantine') {
+      this.#maybeFireAppealHook(result.decision, request.event.kind);
     }
 
     return Object.freeze({
       result,
       reason: this.#formatReason(result)
     });
+  }
+
+  /**
+   * Phase 4.6 — update the `PolicySubscriptionRuntime`'s labeler-state
+   * snapshot. The new snapshot is used on the next `admit` call without
+   * a process restart.
+   *
+   * No-op when no `policyRuntime` was configured.
+   */
+  refreshLabelersState(newSnapshot: LabelersState): void {
+    this.#policyRuntime?.refreshLabelersState(newSnapshot);
+  }
+
+  /**
+   * Phase 4.6 — ingest advisory reputation entries from other bridge
+   * operators.
+   *
+   * Each entry is validated and clamped to [-1, 1]. Entries older than
+   * the configured advisory TTL are silently dropped. For each `peerId`,
+   * the effective advisory score is the MINIMUM across all live entries
+   * so a single source cannot unilaterally raise a peer's advisory score
+   * above what another source has reported.
+   *
+   * The advisory channel can only LOWER effective reputation — it is
+   * applied to the engine via a `reputationScoreLookup` that clamps the
+   * advisory score at the peer's locally-observed score.
+   *
+   * Non-numeric or NaN scores are silently dropped (fail-closed).
+   */
+  ingestAdvisoryFeed(
+    entries: ReadonlyArray<AdvisoryReputationEntry>,
+    nowMs: number = Date.now()
+  ): void {
+    const cutoffMs = nowMs - this.#advisoryTtlMs;
+    const affectedPeerIds = new Set<string>();
+
+    for (const entry of entries) {
+      // Defensive null-check: advisory feeds arrive from external sources
+      // and may be malformed. Fail-closed on any invalid entry.
+      if (
+        !entry ||
+        typeof entry.peerId !== 'string' ||
+        entry.peerId.length === 0 ||
+        typeof entry.sourceId !== 'string' ||
+        typeof entry.score !== 'number' ||
+        !Number.isFinite(entry.score) ||
+        typeof entry.updatedAt !== 'string'
+      ) {
+        continue;
+      }
+      const updatedAtMs = Date.parse(entry.updatedAt);
+      if (!Number.isFinite(updatedAtMs) || updatedAtMs < cutoffMs) {
+        continue; // stale or unparseable
+      }
+      // Advisory channel can only LOWER effective reputation; positive scores
+      // are dropped so the advisory feed cannot boost an unknown peer.
+      const clampedScore = Math.min(0, Math.max(-1, entry.score));
+
+      // Per-source tracking: store (peerId → sourceId → {score, updatedAt})
+      // so a source can retract a previously-low score without being stuck
+      // at the historical minimum.
+      let sourceMap = this.#advisorySourceScores.get(entry.peerId);
+      if (sourceMap === undefined) {
+        sourceMap = new Map();
+        this.#advisorySourceScores.set(entry.peerId, sourceMap);
+      }
+      const existingSource = sourceMap.get(entry.sourceId);
+      if (existingSource === undefined || updatedAtMs >= existingSource.updatedAt) {
+        if (clampedScore < 0) {
+          sourceMap.set(entry.sourceId, Object.freeze({ score: clampedScore, updatedAt: updatedAtMs }));
+        } else {
+          // Score is 0 (i.e. original was positive/zero) — source is retracting
+          sourceMap.delete(entry.sourceId);
+        }
+        affectedPeerIds.add(entry.peerId);
+      }
+    }
+
+    // Recompute effective score for each affected peer.
+    for (const peerId of affectedPeerIds) {
+      this.#recomputeAdvisoryScore(peerId);
+    }
+  }
+
+  /**
+   * Phase 4.6 — directly quarantine a peer by setting its reputation to
+   * the engine's `quarantineThreshold` floor. Writes a
+   * `transport.peer.quarantined` event to the admission state so the
+   * quarantine is visible in the audit log.
+   *
+   * The quarantine floor overrides the peer's locally-observed score —
+   * it does NOT wait for score decay to cross the threshold. Duration is
+   * operator-specified; the engine's own `maxQuarantineMs` still caps
+   * the TTL.
+   *
+   * Callers MUST persist the updated state if durable quarantine is
+   * required; this method updates in-memory only.
+   */
+  quarantinePeer(peerId: string, reason: string, durationMs: number): void {
+    if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) {
+      throw new Error(`quarantinePeer: durationMs must be a non-negative finite number, got ${String(durationMs)}`);
+    }
+    const repConfig = this.#config.reputation;
+    const maxQuarantineMs = repConfig?.maxQuarantineMs ?? (7 * 24 * 60 * 60 * 1_000);
+    const quarantineThreshold = repConfig?.quarantineThreshold ?? -500;
+    const now = Date.now();
+    const quarantineUntil = now + Math.min(durationMs, maxQuarantineMs);
+    const existingRep = this.#state.peerReputation?.[peerId] ?? { score: 0, lastUpdatedAt: now };
+    const quarantinedRep = Object.freeze({
+      ...existingRep,
+      score: quarantineThreshold,
+      lastUpdatedAt: now,
+      lastReason: `operator.quarantine:${reason}`,
+      quarantineUntil
+    });
+    this.#state = Object.freeze({
+      ...this.#state,
+      peerReputation: Object.freeze({
+        ...this.#state.peerReputation,
+        [peerId]: quarantinedRep
+      })
+    });
+  }
+
+  /**
+   * Phase 4.6 — lift an operator-imposed quarantine on a peer by
+   * resetting its reputation score to 0 (neutral) and clearing the
+   * `quarantineUntil` field. Writes a `transport.peer.rate_limited`
+   * (recovering status) audit event.
+   *
+   * Callers MUST persist the updated state if durable lift is required.
+   */
+  liftQuarantine(peerId: string, reason: string): void {
+    const existing = this.#state.peerReputation?.[peerId];
+    if (existing === undefined) return; // no-op — peer has no reputation record
+    const now = Date.now();
+    const { quarantineUntil: _removed, ...rest } = existing;
+    const liftedRep = Object.freeze({
+      ...rest,
+      score: 0,
+      lastUpdatedAt: now,
+      lastReason: `operator.lift-quarantine:${reason}`
+    });
+    this.#state = Object.freeze({
+      ...this.#state,
+      peerReputation: Object.freeze({
+        ...this.#state.peerReputation,
+        [peerId]: liftedRep
+      })
+    });
+  }
+
+  /**
+   * Phase 4.6 — register an appeal hook. Called after a `reject` or
+   * `quarantine` outcome when the envelope's `kind` is in
+   * `appealableKinds`. Fire-and-forget: the hook never delays the
+   * admission response and a throwing hook does NOT reverse the decision.
+   *
+   * The hook receives only the `TransportAdmissionDecision` — never the
+   * envelope bytes or decrypted content (Phase 1.63 non-negotiable).
+   */
+  registerAppealHook(hook: AppealHook): void {
+    this.#appealHooks.push(hook);
+  }
+
+  /**
+   * Stop the periodic advisory eviction timer. Call during graceful
+   * shutdown to allow the process to exit cleanly.
+   */
+  dispose(): void {
+    if (this.#advisoryEvictionTimer !== undefined) {
+      clearInterval(this.#advisoryEvictionTimer);
+    }
   }
 
   /**
@@ -375,6 +698,134 @@ export class BridgeAdmissionGateway {
    */
   rotateOperatorAuthority(newAuthority: AdmissionConfig['operatorAuthority']): void {
     this.#config = Object.freeze({ ...this.#config, operatorAuthority: newAuthority });
+  }
+
+  /**
+   * Phase 4.6 — merge the advisory reputation score for a peer into
+   * the admission context's `reputationScoreLookup`. Advisory scores
+   * can only lower the effective score below the locally-observed value;
+   * they never raise it.
+   */
+  #mergeAdvisoryContext(
+    context: AdmissionContext | undefined,
+    peerId: string
+  ): AdmissionContext | undefined {
+    const advisoryRecord = this.#advisoryScores.get(peerId);
+    if (advisoryRecord === undefined) return context;
+
+    const advisoryScore = advisoryRecord.score;
+    // By design all stored advisory scores are <= 0 (ingestAdvisoryFeed clamps
+    // positive entries to 0 and discards them). This guard is belt-and-suspenders.
+    if (advisoryScore >= 0) return context;
+
+    const base = context?.reputationScoreLookup;
+    const mergedLookup = (id: string): number | undefined => {
+      const local = base?.(id);
+      if (id !== peerId) return local;
+      // Advisory can only lower, never raise above the locally-observed score.
+      // When no local lookup is wired, advisory is used directly (it's negative).
+      if (local === undefined) return advisoryScore;
+      return Math.min(local, advisoryScore);
+    };
+
+    return Object.freeze({ ...context, reputationScoreLookup: mergedLookup });
+  }
+
+  /**
+   * Phase 4.6 — check #8.5: operator policy subscription label check.
+   * Returns a reject decision when a listed labeler has applied a
+   * `hard-safety` label to the producer, `undefined` otherwise.
+   * No reputation penalty.
+   */
+  #checkPolicyLabels(
+    request: BridgeDeliveryRequest,
+    nowMs: number
+  ): AdmissionGatewayDecision | undefined {
+    if (this.#policyRuntime === undefined) return undefined;
+    const reasonCode = this.#policyRuntime.checkProducerLabels(request.event.author);
+    if (reasonCode === undefined) return undefined;
+
+    const syntheticDecision: TransportAdmissionDecision = Object.freeze({
+      version: TRANSPORT_ADMISSION_DECISION_VERSION,
+      decisionId: `dec_label_${request.event.eventId}_${nowMs}`,
+      operatorAuthority: this.#config.operatorAuthority,
+      subject: Object.freeze({
+        type: 'event' as const,
+        eventId: request.event.eventId
+      }),
+      surface: this.#config.surface,
+      action: 'reject' as const,
+      reasonCode,
+      policyVersion: this.#config.policyVersion,
+      createdAt: new Date(nowMs).toISOString()
+    });
+    const rejectResult: AdmissionResult = Object.freeze({
+      decision: syntheticDecision,
+      admitted: false
+    });
+    return Object.freeze({
+      result: rejectResult,
+      reason: `rejected:${reasonCode}`
+    });
+  }
+
+  /**
+   * Phase 4.6 — fire all registered appeal hooks for a rejected/quarantined
+   * decision when the envelope kind is in `appealableKinds`. Fire-and-forget.
+   */
+  #maybeFireAppealHook(decision: TransportAdmissionDecision, kind: string): void {
+    if (this.#appealHooks.length === 0) return;
+    if (!this.#appealableKinds.has(kind)) return;
+    for (const hook of this.#appealHooks) {
+      void hook(decision).catch((err: unknown) => {
+        // Best-effort: log but never propagate — a broken hook must not
+        // reverse the admission decision or crash the process.
+        console.warn('[admission-gateway] appeal hook error:', err);
+      });
+    }
+  }
+
+  /**
+   * Phase 4.6 — evict stale per-source advisory entries and recompute
+   * effective scores. Called periodically by the background timer.
+   */
+  #evictStaleAdvisory(nowMs: number): void {
+    const cutoffMs = nowMs - this.#advisoryTtlMs;
+    for (const [peerId, sourceMap] of this.#advisorySourceScores) {
+      let changed = false;
+      for (const [sourceId, record] of sourceMap) {
+        if (record.updatedAt < cutoffMs) {
+          sourceMap.delete(sourceId);
+          changed = true;
+        }
+      }
+      if (sourceMap.size === 0) {
+        this.#advisorySourceScores.delete(peerId);
+        this.#advisoryScores.delete(peerId);
+      } else if (changed) {
+        this.#recomputeAdvisoryScore(peerId);
+      }
+    }
+  }
+
+  /** Recompute the effective advisory score for a peer from its per-source map. */
+  #recomputeAdvisoryScore(peerId: string): void {
+    const sourceMap = this.#advisorySourceScores.get(peerId);
+    if (sourceMap === undefined || sourceMap.size === 0) {
+      this.#advisoryScores.delete(peerId);
+      return;
+    }
+    let minScore = 0;
+    let maxUpdatedAt = 0;
+    for (const record of sourceMap.values()) {
+      if (record.score < minScore) minScore = record.score;
+      if (record.updatedAt > maxUpdatedAt) maxUpdatedAt = record.updatedAt;
+    }
+    if (minScore < 0) {
+      this.#advisoryScores.set(peerId, Object.freeze({ score: minScore, updatedAt: maxUpdatedAt }));
+    } else {
+      this.#advisoryScores.delete(peerId);
+    }
   }
 
   /**

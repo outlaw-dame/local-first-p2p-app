@@ -11,3 +11,5 @@ export * from './token-registry.js';
 export * from './auth-audit-log.js';
 export * from './stream-broker.js';
 export * from './stream-socket.js';
+export * from './operator-surface.js';
+export * from './policy-subscription.js';
