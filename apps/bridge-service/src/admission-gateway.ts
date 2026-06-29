@@ -45,15 +45,39 @@ import type { SignedEventEnvelope } from '@lfp2p/protocol';
 import {
   admitEnvelope,
   createEmptyTransportAdmissionState,
+  decideUserBlockTransport,
+  decideReportForwarding,
+  TRANSPORT_ADMISSION_DECISION_VERSION,
   type AdmissionConfig,
   type AdmissionContext,
   type AdmissionEnvelope,
   type AdmissionResult,
+  type LocalControlState,
+  type ReportAppealEvent,
+  type TransportAdmissionDecision,
   type TransportAdmissionState
 } from '@lfp2p/trust-safety';
 
 import type { AdmissionStateStore } from './admission-state-store.js';
 import type { BridgeDeliveryRequest } from './types.js';
+
+// ---------------------------------------------------------------------------
+// acceptReportDelivery types (Check #10 type contract)
+// ---------------------------------------------------------------------------
+
+export type ReportDeliveryRequest = Readonly<{
+  envelope: ReportAppealEvent;
+  /** Estimated byte size of the serialized envelope for the size cap. */
+  byteSize?: number;
+}>;
+
+export type ReportDeliveryResult =
+  | Readonly<{ status: 'accepted' }>
+  | Readonly<{ status: 'rejected'; reason: string }>;
+
+// ---------------------------------------------------------------------------
+// Gateway options
+// ---------------------------------------------------------------------------
 
 export type AdmissionGatewayOptions = Readonly<{
   config: AdmissionConfig;
@@ -73,6 +97,23 @@ export type AdmissionGatewayOptions = Readonly<{
    * pre-loaded state synchronously.
    */
   stateStore?: AdmissionStateStore;
+  /**
+   * Phase 4.5 — optional lookup for check #9 (`decideUserBlockTransport`).
+   * When set AND `BridgeDeliveryRequest.recipientActorId` is present, the
+   * gateway looks up the recipient's local-control state and rejects
+   * deliveries whose producer is in the recipient's blocked-actors set.
+   *
+   * This is OPT-IN: omitting it skips check #9 entirely and the
+   * admission output is byte-identical to pre-Phase-4.5 for callers
+   * that do not wire the lookup.
+   *
+   * The lookup result is NEVER stored in the audit log — it is local-
+   * policy state, not a bridge-level decision. The rejection reason
+   * `policy.local-preference` is stable and audit-safe.
+   */
+  localControlStateLookup?: (
+    recipientActorId: string
+  ) => LocalControlState | undefined;
 }>;
 
 export type AdmissionGatewayDecision = Readonly<{
@@ -141,13 +182,17 @@ function buildAdmissionEnvelope(
  * final assignment.
  */
 export class BridgeAdmissionGateway {
-  readonly #config: AdmissionConfig;
+  #config: AdmissionConfig;
   readonly #stateStore: AdmissionStateStore | undefined;
+  readonly #localControlStateLookup:
+    | ((recipientActorId: string) => LocalControlState | undefined)
+    | undefined;
   #state: TransportAdmissionState;
 
   constructor(options: AdmissionGatewayOptions) {
     this.#config = options.config;
     this.#stateStore = options.stateStore;
+    this.#localControlStateLookup = options.localControlStateLookup;
     this.#state = options.initialState ?? createEmptyTransportAdmissionState();
   }
 
@@ -201,6 +246,18 @@ export class BridgeAdmissionGateway {
     );
     // Move the reference forward exactly once per admission decision.
     this.#state = nextState;
+
+    // Check #9 — user-block transport (Phase 4.5, opt-in).
+    // Runs AFTER the engine so rate-limit / replay-cache state has
+    // already been updated. On a reject here we do NOT update state
+    // again — the engine already advanced it above.
+    if (result.admitted && result.decision.action !== 'drop-duplicate') {
+      const userBlockDecision = this.#checkUserBlock(request, nowMs);
+      if (userBlockDecision !== undefined) {
+        return userBlockDecision;
+      }
+    }
+
     return Object.freeze({
       result,
       reason: this.#formatReason(result)
@@ -242,9 +299,135 @@ export class BridgeAdmissionGateway {
       await this.#stateStore.save(nextState);
     }
     this.#state = nextState;
+
+    // Check #9 — user-block transport (Phase 4.5, opt-in).
+    if (result.admitted && result.decision.action !== 'drop-duplicate') {
+      const userBlockDecision = this.#checkUserBlock(request, nowMs);
+      if (userBlockDecision !== undefined) {
+        return userBlockDecision;
+      }
+    }
+
     return Object.freeze({
       result,
       reason: this.#formatReason(result)
+    });
+  }
+
+  /**
+   * Phase 4.5 — check #10 type contract for `ReportAppealEvent`
+   * envelopes.
+   *
+   * Reports ride `ReportAppealEvent` (not `SignedEventEnvelope`) so
+   * they cannot go through `acceptDelivery`. This entry point
+   * establishes the type contract for Phase 5's report-forwarding
+   * HTTP surface. Today no HTTP route is wired to it; wiring is
+   * deferred until Phase 5 opens that surface.
+   *
+   * Non-negotiable (Phase 1.63): the bridge MUST NOT decrypt the
+   * report's evidence. This check is structural only — it calls
+   * `decideReportForwarding` which operates on declared shape,
+   * never on encrypted content.
+   */
+  acceptReportDelivery(request: ReportDeliveryRequest): ReportDeliveryResult {
+    const { envelope } = request;
+    // Version check.
+    if (envelope.version !== 'lfp2p.report-appeal-event.v1') {
+      return Object.freeze({
+        status: 'rejected',
+        reason: `unsupported version: ${String(envelope.version)}`
+      });
+    }
+    // Byte-size cap (use the same cap as the gateway's SignedEventEnvelope surface).
+    const byteSize =
+      request.byteSize ??
+      new TextEncoder().encode(JSON.stringify(envelope)).length;
+    const maxBytes = this.#config.maxBytes ?? 1_048_576;
+    if (byteSize > maxBytes) {
+      return Object.freeze({
+        status: 'rejected',
+        reason: `payload.too-large:report-envelope`
+      });
+    }
+    // Check #10 — structural privacy check on `safety.report.created`.
+    if (envelope.kind === 'safety.report.created') {
+      const fwd = decideReportForwarding(envelope.report);
+      if (!fwd.shouldForward) {
+        return Object.freeze({
+          status: 'rejected',
+          reason: `policy.report-privacy:${fwd.reason}`
+        });
+      }
+    }
+    return Object.freeze({ status: 'accepted' });
+  }
+
+  /**
+   * Phase 4.5 — hot-rotate the operator authority without a process
+   * restart. The new authority takes effect immediately on the next
+   * `admit` call.
+   *
+   * IMPORTANT: this method is synchronous and does NOT persist the
+   * new authority. `stateStore` only stores `TransportAdmissionState`,
+   * which does not include `AdmissionConfig`. Callers MUST persist the
+   * new authority via their own configuration store so that it survives
+   * a process restart.
+   */
+  rotateOperatorAuthority(newAuthority: AdmissionConfig['operatorAuthority']): void {
+    this.#config = Object.freeze({ ...this.#config, operatorAuthority: newAuthority });
+  }
+
+  /**
+   * Phase 4.5 — check #9 helper.
+   * Returns a `reject` decision when the user-block check fires,
+   * or `undefined` when the check is skipped or passes.
+   * No reputation penalty — the block is the recipient's preference,
+   * not evidence of sender misbehaviour.
+   */
+  #checkUserBlock(
+    request: BridgeDeliveryRequest,
+    nowMs: number
+  ): AdmissionGatewayDecision | undefined {
+    if (
+      this.#localControlStateLookup === undefined ||
+      request.recipientActorId === undefined
+    ) {
+      return undefined;
+    }
+    const localState = this.#localControlStateLookup(request.recipientActorId);
+    if (localState === undefined) return undefined;
+
+    const blockDecision = decideUserBlockTransport(
+      localState,
+      { producerActorId: request.event.author },
+      nowMs
+    );
+    if (!blockDecision.shouldReject) return undefined;
+
+    // Synthesize a full AdmissionResult carrying a stable
+    // `policy.local-preference` reason code. The admitted flag is
+    // false so the bridge never stores this delivery.
+    const syntheticDecision: TransportAdmissionDecision = Object.freeze({
+      version: TRANSPORT_ADMISSION_DECISION_VERSION,
+      decisionId: `dec_block_${request.event.eventId}_${nowMs}`,
+      operatorAuthority: this.#config.operatorAuthority,
+      subject: Object.freeze({
+        type: 'event' as const,
+        eventId: request.event.eventId
+      }),
+      surface: this.#config.surface,
+      action: 'reject' as const,
+      reasonCode: 'policy.local-preference' as const,
+      policyVersion: this.#config.policyVersion,
+      createdAt: new Date(nowMs).toISOString()
+    });
+    const rejectResult: AdmissionResult = Object.freeze({
+      decision: syntheticDecision,
+      admitted: false
+    });
+    return Object.freeze({
+      result: rejectResult,
+      reason: 'rejected:policy.local-preference'
     });
   }
 

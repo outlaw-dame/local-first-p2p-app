@@ -35,6 +35,8 @@
  *    and the rate-limiter return a documented disposition; never
  *    a silent pass.
  */
+import { rename, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import {
   createRateLimitBucket,
   tryConsume,
@@ -347,30 +349,227 @@ export function tooManyRequestsResponse(retryAfterMs: number): Response {
 // Per-token rate limiter
 // ---------------------------------------------------------------------------
 
-export type BridgeHttpRateLimiterOptions = Readonly<{
-  /** Engine rate-limit config. Defaults to the engine's DEFAULT_RATE_LIMIT. */
-  config?: RateLimitConfig;
+// ---------------------------------------------------------------------------
+// Persistent rate-limit bucket store
+// ---------------------------------------------------------------------------
+
+/**
+ * Serializable snapshot of a single rate-limit bucket. Field-for-field
+ * identical to `RateLimitBucket` so round-trips are lossless.
+ */
+export type RateLimitBucketState = Readonly<{
+  tokens: number;
+  lastRefillAt: number;
+  consecutiveRefusals: number;
+  cooldownUntil: number;
+}>;
+
+const HTTP_RATE_LIMIT_SNAPSHOT_VERSION =
+  'lfp2p.http-rate-limit-snapshot.v1' as const;
+
+type SerializedHttpRateLimitSnapshot = Readonly<{
+  version: typeof HTTP_RATE_LIMIT_SNAPSHOT_VERSION;
+  buckets: Readonly<Record<string, RateLimitBucketState>>;
+}>;
+
+export class HttpRateLimitStoreCorruptError extends Error {
+  constructor(detail: string) {
+    super(`Persisted HTTP rate-limit snapshot is corrupt: ${detail}`);
+    this.name = 'HttpRateLimitStoreCorruptError';
+  }
+}
+
+function deserializeRateLimitSnapshot(
+  raw: unknown
+): Map<string, RateLimitBucketState> {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new HttpRateLimitStoreCorruptError('snapshot is not a plain object');
+  }
+  const snap = raw as Partial<SerializedHttpRateLimitSnapshot>;
+  if (snap.version !== HTTP_RATE_LIMIT_SNAPSHOT_VERSION) {
+    throw new HttpRateLimitStoreCorruptError(
+      `version "${String(snap.version)}" is not "${HTTP_RATE_LIMIT_SNAPSHOT_VERSION}"`
+    );
+  }
+  if (snap.buckets === null || typeof snap.buckets !== 'object' || Array.isArray(snap.buckets)) {
+    throw new HttpRateLimitStoreCorruptError('buckets must be a plain object');
+  }
+  const out = new Map<string, RateLimitBucketState>();
+  for (const [tokenId, b] of Object.entries(snap.buckets)) {
+    if (
+      typeof b.tokens !== 'number' ||
+      typeof b.lastRefillAt !== 'number' ||
+      typeof b.consecutiveRefusals !== 'number' ||
+      typeof b.cooldownUntil !== 'number'
+    ) {
+      throw new HttpRateLimitStoreCorruptError(
+        `bucket "${tokenId}" has invalid fields`
+      );
+    }
+    out.set(tokenId, Object.freeze({
+      tokens: b.tokens,
+      lastRefillAt: b.lastRefillAt,
+      consecutiveRefusals: b.consecutiveRefusals,
+      cooldownUntil: b.cooldownUntil
+    }));
+  }
+  return out;
+}
+
+export interface HttpRateLimitStore {
+  load(): Promise<Map<string, RateLimitBucketState>>;
+  save(buckets: Map<string, RateLimitBucketState>): Promise<void>;
+}
+
+/** No-op store for in-memory (test/ephemeral) deployments. */
+export class InMemoryHttpRateLimitStore implements HttpRateLimitStore {
+  #blob: Map<string, RateLimitBucketState> | undefined;
+
+  async load(): Promise<Map<string, RateLimitBucketState>> {
+    return new Map(this.#blob ?? []);
+  }
+
+  async save(buckets: Map<string, RateLimitBucketState>): Promise<void> {
+    this.#blob = new Map(buckets);
+  }
+}
+
+export type JsonFileHttpRateLimitStoreOptions = Readonly<{
+  filePath: string;
+  tempSuffix?: string;
 }>;
 
 /**
- * In-memory per-token bucket map. Built directly on the engine's
- * `tryConsume` so exponential backoff + self-healing match the
- * admission engine's behaviour without duplicating logic.
+ * Persists the per-token bucket map to a JSON file using
+ * temp-file-then-rename for atomicity (same pattern as
+ * `JsonFileAdmissionStateStore`). Fail-closed on load corruption:
+ * throws rather than silently starting fresh so an attacker who
+ * corrupted the file cannot gain a reset budget on restart.
+ */
+export class JsonFileHttpRateLimitStore implements HttpRateLimitStore {
+  readonly #filePath: string;
+  readonly #tempSuffix: string;
+
+  constructor(options: JsonFileHttpRateLimitStoreOptions) {
+    if (typeof options.filePath !== 'string' || options.filePath.length === 0) {
+      throw new TypeError('JsonFileHttpRateLimitStore: filePath is required');
+    }
+    this.#filePath = options.filePath;
+    this.#tempSuffix =
+      options.tempSuffix ?? Math.random().toString(16).slice(2, 10);
+  }
+
+  async load(): Promise<Map<string, RateLimitBucketState>> {
+    let text: string;
+    try {
+      text = await readFile(this.#filePath, 'utf8');
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return new Map();
+      throw err;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      throw new HttpRateLimitStoreCorruptError(
+        `invalid JSON (${(err as Error).message})`
+      );
+    }
+    return deserializeRateLimitSnapshot(parsed);
+  }
+
+  async save(buckets: Map<string, RateLimitBucketState>): Promise<void> {
+    const bucketsObj: Record<string, RateLimitBucketState> = {};
+    for (const [id, b] of buckets) bucketsObj[id] = b;
+    const serialized: SerializedHttpRateLimitSnapshot = Object.freeze({
+      version: HTTP_RATE_LIMIT_SNAPSHOT_VERSION,
+      buckets: Object.freeze(bucketsObj)
+    });
+    const json = JSON.stringify(serialized);
+    // Use a per-call unique suffix so concurrent saves (e.g. a slow
+    // disk flush overlapping with the next timer tick) write to
+    // different temp paths and don't corrupt each other.
+    const callSuffix = Math.random().toString(16).slice(2, 10);
+    const tempPath = `${this.#filePath}.${process.pid}.${this.#tempSuffix}.${callSuffix}.tmp`;
+    await writeFile(tempPath, json, { encoding: 'utf8', mode: 0o600 });
+    await rename(tempPath, this.#filePath);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rate limiter
+// ---------------------------------------------------------------------------
+
+const DEFAULT_FLUSH_INTERVAL_MS = 5_000;
+
+export type BridgeHttpRateLimiterOptions = Readonly<{
+  /** Engine rate-limit config. Defaults to the engine's DEFAULT_RATE_LIMIT. */
+  config?: RateLimitConfig;
+  /**
+   * Phase 4.5 — optional persistent store. When set, buckets are
+   * seeded from the store on construction and flushed on a
+   * write-coalesced timer so disk I/O never lands on the hot path.
+   * A flooding attack cannot exhaust disk I/O by triggering per-request
+   * saves.
+   */
+  store?: HttpRateLimitStore;
+  /**
+   * How often (ms) the dirty-flag flush timer fires. Default 5 000 ms.
+   * Tests may pass a smaller value to verify persistence without
+   * real-time delay.
+   */
+  flushIntervalMs?: number;
+}>;
+
+/**
+ * Per-token bucket map. Built on the engine's `tryConsume` so
+ * exponential backoff and self-healing semantics match the admission
+ * engine's per-peer limiter without duplicating logic.
  *
- * Concurrency note: a single instance is assumed to be called
- * sequentially per token (the bridge HTTP handler is request-scoped
- * but tokens can be reused across overlapping requests). The
- * `consume` operation is atomic in JavaScript's single-threaded
- * event loop; we do not need locks. If a future runtime introduces
- * shared concurrent handlers across worker threads with one
- * limiter instance, the caller MUST wrap `consume` in a mutex.
+ * Persistence is write-coalesced: mutations mark a `#dirty` flag; the
+ * flush timer saves and clears it. Saving is never synchronous on the
+ * request hot-path. Call `dispose()` on graceful shutdown to flush
+ * any pending dirty state and cancel the timer.
  */
 export class BridgeHttpRateLimiter implements BridgeHttpRateLimiterHandle {
   readonly #config: RateLimitConfig | undefined;
+  readonly #store: HttpRateLimitStore | undefined;
   readonly #buckets: Map<string, RateLimitBucket> = new Map();
+  #dirty = false;
+  #flushTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(options: BridgeHttpRateLimiterOptions = {}) {
     if (options.config !== undefined) this.#config = options.config;
+    if (options.store !== undefined) {
+      this.#store = options.store;
+      const intervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
+      this.#flushTimer = setInterval(() => {
+        void this.#flushIfDirty();
+      }, intervalMs);
+      // Allow the process to exit even if this timer is still running.
+      if (typeof this.#flushTimer.unref === 'function') {
+        this.#flushTimer.unref();
+      }
+    }
+  }
+
+  /**
+   * Async factory: pre-loads persisted buckets before returning.
+   * Fail-closed: throws on corrupt state so the operator decides
+   * whether to delete the bad snapshot.
+   */
+  static async create(
+    options: BridgeHttpRateLimiterOptions = {}
+  ): Promise<BridgeHttpRateLimiter> {
+    const limiter = new BridgeHttpRateLimiter(options);
+    if (options.store !== undefined) {
+      const loaded = await options.store.load();
+      for (const [tokenId, state] of loaded) {
+        // `RateLimitBucketState` is field-identical to `RateLimitBucket`.
+        limiter.#buckets.set(tokenId, state as unknown as RateLimitBucket);
+      }
+    }
+    return limiter;
   }
 
   consume(
@@ -383,10 +582,12 @@ export class BridgeHttpRateLimiter implements BridgeHttpRateLimiterHandle {
       (this.#config !== undefined
         ? createRateLimitBucket(nowMs, this.#config)
         : createRateLimitBucket(nowMs));
-    const decision = this.#config !== undefined
-      ? tryConsume(bucket, nowMs, this.#config)
-      : tryConsume(bucket, nowMs);
+    const decision =
+      this.#config !== undefined
+        ? tryConsume(bucket, nowMs, this.#config)
+        : tryConsume(bucket, nowMs);
     this.#buckets.set(tokenId, decision.bucket);
+    this.#dirty = true;
     return Object.freeze({
       allowed: decision.allowed,
       retryAfterMs: decision.allowed
@@ -395,8 +596,57 @@ export class BridgeHttpRateLimiter implements BridgeHttpRateLimiterHandle {
     });
   }
 
+  /** Flush pending state and cancel the timer. Call on graceful shutdown. */
+  async dispose(): Promise<void> {
+    if (this.#flushTimer !== undefined) {
+      clearInterval(this.#flushTimer);
+      this.#flushTimer = undefined;
+    }
+    await this.#flushIfDirty();
+  }
+
   /** Test hook: snapshot the buckets for inspection. */
   inspectBucket(tokenId: string): RateLimitBucket | undefined {
     return this.#buckets.get(tokenId);
+  }
+
+  /** Test hook: check dirty flag. */
+  get isDirty(): boolean {
+    return this.#dirty;
+  }
+
+  /** Force an immediate flush regardless of dirty flag. Used by tests. */
+  async forceFlush(): Promise<void> {
+    await this.#flush();
+  }
+
+  async #flushIfDirty(): Promise<void> {
+    if (!this.#dirty) return;
+    await this.#flush();
+  }
+
+  async #flush(): Promise<void> {
+    if (this.#store === undefined) return;
+    // Clear the flag BEFORE the async save so that any `consume` call
+    // that fires during the save sets it back to true. If we cleared
+    // it after the save we would overwrite the newly-dirtied flag and
+    // silently lose the latest state. On save failure, restore the
+    // flag and re-throw so the timer retries on the next tick.
+    this.#dirty = false;
+    const snapshot = new Map<string, RateLimitBucketState>();
+    for (const [tokenId, bucket] of this.#buckets) {
+      snapshot.set(tokenId, {
+        tokens: bucket.tokens,
+        lastRefillAt: bucket.lastRefillAt,
+        consecutiveRefusals: bucket.consecutiveRefusals,
+        cooldownUntil: bucket.cooldownUntil
+      });
+    }
+    try {
+      await this.#store.save(snapshot);
+    } catch (err) {
+      this.#dirty = true;
+      throw err;
+    }
   }
 }
