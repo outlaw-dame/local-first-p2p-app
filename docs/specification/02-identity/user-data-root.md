@@ -49,7 +49,7 @@ A User Data Root may contain or reference:
 - trust/safety settings;
 - mailbox inbox/outbox state;
 - feed subscriptions;
-- space/channel memberships;
+- Space/Channel memberships;
 - content/object references;
 - entity/component/snapshot data;
 - sync checkpoints;
@@ -89,7 +89,7 @@ A mailbox may help transfer User Data Root updates between devices. It MUST NOT 
 
 ## User Data Root vs ATProto repository
 
-A User Data Root may provide repository-like portability, but the protocol does not require one global commit chain or one AppView architecture.
+A User Data Root may provide repository-like portability, but the protocol does not require one global commit chain or one app-view architecture.
 
 ## User Data Root vs Solid Pod
 
