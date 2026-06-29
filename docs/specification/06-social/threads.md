@@ -73,7 +73,7 @@ Before applying a Thread or reply record, implementations MUST validate:
 - write permission;
 - parent/root reference integrity;
 - Space/Channel membership where applicable;
-- Capability scope;
+- capability scope;
 - consistency class;
 - replay/idempotency behavior;
 - local policy.
