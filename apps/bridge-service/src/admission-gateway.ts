@@ -598,12 +598,13 @@ export class BridgeAdmissionGateway {
     const existing = this.#state.peerReputation?.[peerId];
     if (existing === undefined) return; // no-op — peer has no reputation record
     const now = Date.now();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- intentional omit: destructure to drop quarantineUntil from the lifted record without setting it to undefined (exactOptionalPropertyTypes)
+    const { quarantineUntil: _removed, ...rest } = existing;
     const liftedRep = Object.freeze({
-      ...existing,
+      ...rest,
       score: 0,
       lastUpdatedAt: now,
-      lastReason: `operator.lift-quarantine:${reason}`,
-      quarantineUntil: undefined as number | undefined
+      lastReason: `operator.lift-quarantine:${reason}`
     });
     this.#state = Object.freeze({
       ...this.#state,
