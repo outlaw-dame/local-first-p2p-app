@@ -198,6 +198,18 @@ describe('chat.message.sent', () => {
     );
     // eventId differs so it's not the appliedEventIds guard — the messageId dedup fires
     expect(s2.messages.get('msg:1')?.plaintextBody).toBe('hello');
+    // True no-op: lastActivityAt must not advance to the duplicate's sentAt
+    expect(s2.lastActivityAt).toBe(T1);
+  });
+
+  it('throws CHAT_INVALID_PAYLOAD when payload threadId does not match state', () => {
+    expect(() =>
+      applyChatEvent(
+        createThreadState(),
+        { threadId: 'thread:wrong', messageId: 'msg:1', body: 'hello', sentAt: T1 },
+        meta('evt:msg-mismatch', 'chat.message.sent')
+      )
+    ).toThrow('CHAT_INVALID_PAYLOAD');
   });
 
   it('is idempotent: same eventId applied twice returns same state', () => {

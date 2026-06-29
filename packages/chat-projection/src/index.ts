@@ -175,6 +175,7 @@ function applyThreadCreated(
     throw new ChatProjectionError('CHAT_THREAD_ALREADY_EXISTS', meta.eventId);
   }
   const payload = validateThreadCreatedPayload(raw, meta.eventId);
+  requireThreadIdMatch(state, payload.threadId, meta.eventId);
   return Object.freeze({
     ...state,
     participants: Object.freeze([...payload.participantIds]),
@@ -193,22 +194,27 @@ function applyMessageSent(
 ): ChatThreadState {
   requireThreadInitialized(state, meta.eventId);
   const payload = validateMessageSentPayload(raw, meta.eventId);
-  const newMessages = new Map(state.messages);
-  if (!newMessages.has(payload.messageId)) {
-    newMessages.set(
-      payload.messageId,
-      Object.freeze({
-        messageId: payload.messageId,
-        authorDeviceId: meta.authorDeviceId,
-        plaintextBody: payload.body,
-        sentAt: payload.sentAt,
-        deleted: false,
-        ...(payload.replyToMessageId !== undefined
-          ? { replyToMessageId: payload.replyToMessageId }
-          : {})
-      })
-    );
+  requireThreadIdMatch(state, payload.threadId, meta.eventId);
+  if (state.messages.has(payload.messageId)) {
+    // True no-op: a duplicate messageId (replay or conflicting resend)
+    // must not reorder the thread or mutate existing content. Only the
+    // idempotency guard advances.
+    return Object.freeze({ ...state, appliedEventIds: Object.freeze(newApplied) });
   }
+  const newMessages = new Map(state.messages);
+  newMessages.set(
+    payload.messageId,
+    Object.freeze({
+      messageId: payload.messageId,
+      authorDeviceId: meta.authorDeviceId,
+      plaintextBody: payload.body,
+      sentAt: payload.sentAt,
+      deleted: false,
+      ...(payload.replyToMessageId !== undefined
+        ? { replyToMessageId: payload.replyToMessageId }
+        : {})
+    })
+  );
   return Object.freeze({
     ...state,
     messages: Object.freeze(newMessages),
@@ -225,6 +231,7 @@ function applyMessageEdited(
 ): ChatThreadState {
   requireThreadInitialized(state, meta.eventId);
   const payload = validateMessageEditedPayload(raw, meta.eventId);
+  requireThreadIdMatch(state, payload.threadId, meta.eventId);
   const existing = state.messages.get(payload.messageId);
   if (existing === undefined) {
     throw new ChatProjectionError('CHAT_MESSAGE_NOT_FOUND', payload.messageId);
@@ -258,6 +265,7 @@ function applyMessageDeleted(
 ): ChatThreadState {
   requireThreadInitialized(state, meta.eventId);
   const payload = validateMessageDeletedPayload(raw, meta.eventId);
+  requireThreadIdMatch(state, payload.threadId, meta.eventId);
   const existing = state.messages.get(payload.messageId);
   if (existing === undefined) {
     throw new ChatProjectionError('CHAT_MESSAGE_NOT_FOUND', payload.messageId);
@@ -291,6 +299,7 @@ function applyThreadAccepted(
 ): ChatThreadState {
   requireThreadInitialized(state, meta.eventId);
   const payload = validateThreadAcceptedPayload(raw, meta.eventId);
+  requireThreadIdMatch(state, payload.threadId, meta.eventId);
   const newAccepted = new Set(state.acceptedBy);
   newAccepted.add(meta.authorDeviceId);
   return Object.freeze({
@@ -449,5 +458,20 @@ function validateThreadAcceptedPayload(raw: JsonValue, eventId: string): ChatThr
 function requireThreadInitialized(state: ChatThreadState, eventId: string): void {
   if (state.createdAt === '') {
     throw new ChatProjectionError('CHAT_THREAD_NOT_FOUND', eventId);
+  }
+}
+
+/**
+ * Guards against cross-thread state corruption: a decrypted payload's
+ * `threadId` must match the thread state it is being applied to. Without
+ * this, an event misrouted (or maliciously crafted) to carry a different
+ * thread's id would silently mutate the wrong thread's projection.
+ */
+function requireThreadIdMatch(state: ChatThreadState, payloadThreadId: string, eventId: string): void {
+  if (state.threadId !== payloadThreadId) {
+    throw new ChatProjectionError(
+      'CHAT_INVALID_PAYLOAD',
+      `${eventId}: threadId mismatch: expected ${state.threadId}, got ${payloadThreadId}`
+    );
   }
 }

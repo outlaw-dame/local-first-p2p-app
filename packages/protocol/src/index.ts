@@ -434,10 +434,19 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
     case 'chat.message.deleted':
     case 'chat.thread.accepted': {
       requirePrivacyForChatEvent(privacy, kind);
-      // Payload is encrypted ciphertext — structural validation of the
-      // decrypted content lives in @lfp2p/chat-projection. The protocol
-      // layer only enforces the privacy scope and envelope presence
-      // (done by validatePayloadPrivacyScope before this switch).
+      // `group` privacy otherwise also accepts MLS application-message
+      // envelopes (used by MLS group-control kinds). Chat's decrypt path
+      // only understands PrivatePayloadEnvelopeV1, so reject an
+      // MLS-shaped payload here — fail fast at admission instead of
+      // producing an event that is unprojectable downstream.
+      if (!looksLikePrivatePayloadEnvelope(payload)) {
+        throw new Error(`${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for chat events)`);
+      }
+      // Structural validation of the decrypted content lives in
+      // @lfp2p/chat-projection. The protocol layer only enforces the
+      // privacy scope and envelope presence (done by
+      // validatePayloadPrivacyScope before this switch, and the
+      // PrivatePayloadEnvelopeV1 shape check above).
       break;
     }
     default:
