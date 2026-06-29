@@ -115,7 +115,11 @@ export function isOperationConsistencyClass(
 export function consistencyClassForEventKind(
   kind: EventKind
 ): OperationConsistencyClass {
-  return EVENT_KIND_CONSISTENCY_CLASS[kind];
+  const consistencyClass = EVENT_KIND_CONSISTENCY_CLASS[kind];
+  if (consistencyClass === undefined) {
+    throw new Error('Unknown event kind: ' + kind);
+  }
+  return consistencyClass;
 }
 
 export function assertEventKindConsistencyClass(
