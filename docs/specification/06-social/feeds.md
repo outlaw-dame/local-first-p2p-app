@@ -53,7 +53,7 @@ A bounded result set from a generator or local query, with provenance and checkp
 - Feed ownership MUST be explicit.
 - Feed subscriptions SHOULD be portable user or Space state.
 - Feed generators MUST NOT become canonical social state merely by including or excluding records.
-- Feed candidate sets MUST be treated as candidates unless a later specification defines stronger meaning.
+- Feed Candidate Sets MUST be treated as candidates unless a later specification defines stronger meaning.
 - Feed projections MUST NOT mutate underlying protocol semantics.
 - Feed infrastructure MUST degrade to local or cached behavior when unavailable.
 
