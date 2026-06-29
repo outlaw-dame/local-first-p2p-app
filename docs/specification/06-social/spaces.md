@@ -33,16 +33,16 @@ A Space may define or reference:
 
 - Space identity;
 - membership;
-- roles;
+- Roles;
 - capabilities;
 - policy;
 - Channels;
 - mailbox routes;
-- feed collections;
+- Feed Collections;
 - moderation queues;
 - reports and appeals;
 - media/object references;
-- presence policy;
+- Presence policy;
 - optional infrastructure descriptors.
 
 ## Space authority
