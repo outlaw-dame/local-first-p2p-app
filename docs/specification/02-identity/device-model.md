@@ -32,7 +32,7 @@ A future stable profile may distinguish:
 - recovery device/share holder;
 - read-only device;
 - limited-scope device;
-- space-admin device;
+- Space-admin device;
 - provider/operator device;
 - temporary session device.
 
