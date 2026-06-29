@@ -90,14 +90,25 @@ export class PolicySubscriptionRuntime {
    * projection — this never touches payload content.
    */
   checkProducerLabels(producerActorId: string): 'policy.operator-label' | undefined {
+    if (!producerActorId || typeof producerActorId !== 'string') return undefined;
     if (this.#subscriptions.length === 0) return undefined;
+
     const key = subjectKey({ type: 'actor', actorId: producerActorId });
-    const labels = effectiveLabelsForSubject(
+    const allLabels = effectiveLabelsForSubject(
       this.#labelersState,
       key,
       this.#subscriberActorId
     );
-    const action: StackedAction = mostRestrictiveAction(labels);
+
+    // Enforce the runtime subscription boundary: only labels from labelers
+    // explicitly listed in this runtime's #subscriptions can reject.
+    // Without this filter, a labeler subscribed in LabelersState but NOT in
+    // the operator's runtime list could still trigger a bridge-level rejection,
+    // violating the "unlisted labeler cannot reject" doctrine.
+    const subscribedLabelerIds = new Set(this.#subscriptions.map((s) => s.labelerId));
+    const enforcedLabels = allLabels.filter((l) => l.issuerLabelerId !== undefined && subscribedLabelerIds.has(l.issuerLabelerId));
+
+    const action: StackedAction = mostRestrictiveAction(enforcedLabels);
     // 'quarantine' is the most restrictive StackedAction and maps to
     // the plan's "hard-safety transport-scope label" concept.
     if (action === 'quarantine') {

@@ -71,11 +71,23 @@ const SURFACE_DEFAULT_SCOPES: Readonly<Record<OperatorSurface, ReadonlySet<Envel
  * Validate that the config only narrows (never widens) the surface's
  * default scope set. Throws `OperatorSurfaceWidenError` if any scope
  * in `allowedPrivacyScopes` is not in the surface's default set.
+ *
+ * Guards against null/undefined config and unknown surface values so
+ * the function is safe to call with runtime-loaded JSON configuration.
  */
 export function validateOperatorSurfaceConfig(
   config: OperatorSurfaceConfig
 ): OperatorSurfaceConfig {
+  if (config == null) {
+    throw new Error('validateOperatorSurfaceConfig: config is required');
+  }
   const defaults = SURFACE_DEFAULT_SCOPES[config.surface];
+  if (defaults === undefined) {
+    throw new Error(
+      `validateOperatorSurfaceConfig: unknown surface "${String(config.surface)}" — ` +
+      `must be one of: ${Object.keys(SURFACE_DEFAULT_SCOPES).join(', ')}`
+    );
+  }
   for (const scope of config.allowedPrivacyScopes) {
     if (!defaults.has(scope)) {
       throw new OperatorSurfaceWidenError(config.surface, scope, defaults);

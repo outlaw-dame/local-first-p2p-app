@@ -233,10 +233,12 @@ function buildAdmissionEnvelope(
  * of their rate-limit / replay-cache updates would be lost on the
  * final assignment.
  */
-// Advisory score record: keyed by peerId, value is {score, updatedAt}.
-// Multiple sources for the same peer use the minimum score.
+// Per-source score record stored per (peerId, sourceId) pair.
+type AdvisorySourceRecord = Readonly<{ score: number; updatedAt: number }>;
+
+// Effective advisory score for a peer — minimum score across all live sources.
 type AdvisoryPeerRecord = Readonly<{
-  /** Effective score: minimum across all sources for this peer. */
+  /** Effective score: minimum across all live (non-stale) sources for this peer. */
   score: number;
   /** Epoch ms of the most recent advisory entry for this peer (across all sources). */
   updatedAt: number;
@@ -256,7 +258,10 @@ export class BridgeAdmissionGateway {
   // Phase 4.6 — policy subscription runtime (check #8.5)
   readonly #policyRuntime: PolicySubscriptionRuntime | undefined;
 
-  // Phase 4.6 — advisory reputation: per-peer effective scores
+  // Phase 4.6 — advisory reputation.
+  // Per-source tracking enables correct score retraction when a source updates.
+  // Effective score (minimum across live sources) is kept in #advisoryScores for O(1) lookup.
+  #advisorySourceScores: Map<string, Map<string, AdvisorySourceRecord>>;
   #advisoryScores: Map<string, AdvisoryPeerRecord>;
   readonly #advisoryTtlMs: number;
   readonly #advisoryEvictionTimer: ReturnType<typeof setInterval> | undefined;
@@ -271,6 +276,7 @@ export class BridgeAdmissionGateway {
     this.#localControlStateLookup = options.localControlStateLookup;
     this.#state = options.initialState ?? createEmptyTransportAdmissionState();
     this.#policyRuntime = options.policyRuntime;
+    this.#advisorySourceScores = new Map();
     this.#advisoryScores = new Map();
     this.#advisoryTtlMs = options.advisoryTtlMs ?? DEFAULT_ADVISORY_TTL_MS;
     this.#appealHooks = [];
@@ -390,6 +396,20 @@ export class BridgeAdmissionGateway {
    * When no `stateStore` was configured this method's behavior is
    * identical to `admit` (no persistence side effect).
    */
+  /**
+   * Phase 4.2 — async variant that persists the new state before
+   * advancing the in-memory reference.
+   *
+   * Fail-closed contract: if `stateStore.save` throws, the in-memory
+   * state IS NOT advanced and the error propagates upward.
+   *
+   * Post-engine policy checks (#8.5, #9) run BEFORE persistence so
+   * the final caller-visible decision is determined before any I/O.
+   * The persisted state records the engine-level outcome (rate-limit
+   * consumed, replay cache updated) regardless of the policy overlay
+   * decision — the engine state and the operator policy layer are
+   * intentionally separate audit concerns.
+   */
   async admitAndPersist(
     request: BridgeDeliveryRequest,
     nowMs: number,
@@ -404,28 +424,32 @@ export class BridgeAdmissionGateway {
       mergedContext,
       nowMs
     );
+
+    // Run post-engine policy checks BEFORE persisting so the returned
+    // decision is authoritative before any I/O side effect.
+    let policyDecision: AdmissionGatewayDecision | undefined;
+    if (result.admitted && result.decision.action !== 'drop-duplicate') {
+      // Check #8.5 — operator policy subscription
+      policyDecision = this.#checkPolicyLabels(request, nowMs);
+      if (policyDecision !== undefined) {
+        this.#maybeFireAppealHook(policyDecision.result.decision, request.event.kind);
+      }
+    }
+    if (policyDecision === undefined && result.admitted && result.decision.action !== 'drop-duplicate') {
+      // Check #9 — user-block transport
+      policyDecision = this.#checkUserBlock(request, nowMs);
+    }
+
+    // Persist the engine's nextState (fail-closed: if this throws, in-memory
+    // does NOT advance). The persisted state captures rate-limit/replay updates
+    // from the engine regardless of the policy overlay decision.
     if (this.#stateStore !== undefined) {
-      // Persist FIRST. If this throws, the gateway never advances
-      // its in-memory reference and the caller gets the I/O error.
       await this.#stateStore.save(nextState);
     }
     this.#state = nextState;
 
-    // Check #8.5 — operator policy subscription (Phase 4.6, opt-in).
-    if (result.admitted && result.decision.action !== 'drop-duplicate') {
-      const labelDecision = this.#checkPolicyLabels(request, nowMs);
-      if (labelDecision !== undefined) {
-        this.#maybeFireAppealHook(labelDecision.result.decision, request.event.kind);
-        return labelDecision;
-      }
-    }
-
-    // Check #9 — user-block transport (Phase 4.5, opt-in).
-    if (result.admitted && result.decision.action !== 'drop-duplicate') {
-      const userBlockDecision = this.#checkUserBlock(request, nowMs);
-      if (userBlockDecision !== undefined) {
-        return userBlockDecision;
-      }
+    if (policyDecision !== undefined) {
+      return policyDecision;
     }
 
     // Fire appeal hook for engine-produced reject/quarantine outcomes.
@@ -472,32 +496,53 @@ export class BridgeAdmissionGateway {
     nowMs: number = Date.now()
   ): void {
     const cutoffMs = nowMs - this.#advisoryTtlMs;
+    const affectedPeerIds = new Set<string>();
+
     for (const entry of entries) {
+      // Defensive null-check: advisory feeds arrive from external sources
+      // and may be malformed. Fail-closed on any invalid entry.
       if (
+        !entry ||
+        typeof entry.peerId !== 'string' ||
+        entry.peerId.length === 0 ||
+        typeof entry.sourceId !== 'string' ||
         typeof entry.score !== 'number' ||
         !Number.isFinite(entry.score) ||
         typeof entry.updatedAt !== 'string'
       ) {
-        continue; // drop invalid entries — fail-closed
+        continue;
       }
       const updatedAtMs = Date.parse(entry.updatedAt);
       if (!Number.isFinite(updatedAtMs) || updatedAtMs < cutoffMs) {
         continue; // stale or unparseable
       }
-      const clampedScore = Math.min(1, Math.max(-1, entry.score));
-      const existing = this.#advisoryScores.get(entry.peerId);
-      if (existing === undefined) {
-        this.#advisoryScores.set(entry.peerId, Object.freeze({
-          score: clampedScore,
-          updatedAt: updatedAtMs
-        }));
-      } else {
-        // Minimum score across sources; latest timestamp.
-        this.#advisoryScores.set(entry.peerId, Object.freeze({
-          score: Math.min(existing.score, clampedScore),
-          updatedAt: Math.max(existing.updatedAt, updatedAtMs)
-        }));
+      // Advisory channel can only LOWER effective reputation; positive scores
+      // are dropped so the advisory feed cannot boost an unknown peer.
+      const clampedScore = Math.min(0, Math.max(-1, entry.score));
+
+      // Per-source tracking: store (peerId → sourceId → {score, updatedAt})
+      // so a source can retract a previously-low score without being stuck
+      // at the historical minimum.
+      let sourceMap = this.#advisorySourceScores.get(entry.peerId);
+      if (sourceMap === undefined) {
+        sourceMap = new Map();
+        this.#advisorySourceScores.set(entry.peerId, sourceMap);
       }
+      const existingSource = sourceMap.get(entry.sourceId);
+      if (existingSource === undefined || updatedAtMs >= existingSource.updatedAt) {
+        if (clampedScore < 0) {
+          sourceMap.set(entry.sourceId, Object.freeze({ score: clampedScore, updatedAt: updatedAtMs }));
+        } else {
+          // Score is 0 (i.e. original was positive/zero) — source is retracting
+          sourceMap.delete(entry.sourceId);
+        }
+        affectedPeerIds.add(entry.peerId);
+      }
+    }
+
+    // Recompute effective score for each affected peer.
+    for (const peerId of affectedPeerIds) {
+      this.#recomputeAdvisoryScore(peerId);
     }
   }
 
@@ -516,13 +561,18 @@ export class BridgeAdmissionGateway {
    * required; this method updates in-memory only.
    */
   quarantinePeer(peerId: string, reason: string, durationMs: number): void {
-    const repConfig = this.#config.reputation ?? { quarantineThreshold: -500, maxScore: 1_000, minScore: -1_000, decayPerSecond: 1 / 60, recoveryThreshold: -100, maxQuarantineMs: 7 * 24 * 60 * 60 * 1_000 };
+    if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) {
+      throw new Error(`quarantinePeer: durationMs must be a non-negative finite number, got ${String(durationMs)}`);
+    }
+    const repConfig = this.#config.reputation;
+    const maxQuarantineMs = repConfig?.maxQuarantineMs ?? (7 * 24 * 60 * 60 * 1_000);
+    const quarantineThreshold = repConfig?.quarantineThreshold ?? -500;
     const now = Date.now();
-    const quarantineUntil = now + Math.min(durationMs, repConfig.maxQuarantineMs);
-    const existingRep = this.#state.peerReputation[peerId] ?? { score: 0, lastUpdatedAt: now };
+    const quarantineUntil = now + Math.min(durationMs, maxQuarantineMs);
+    const existingRep = this.#state.peerReputation?.[peerId] ?? { score: 0, lastUpdatedAt: now };
     const quarantinedRep = Object.freeze({
       ...existingRep,
-      score: repConfig.quarantineThreshold,
+      score: quarantineThreshold,
       lastUpdatedAt: now,
       lastReason: `operator.quarantine:${reason}`,
       quarantineUntil
@@ -545,7 +595,7 @@ export class BridgeAdmissionGateway {
    * Callers MUST persist the updated state if durable lift is required.
    */
   liftQuarantine(peerId: string, reason: string): void {
-    const existing = this.#state.peerReputation[peerId];
+    const existing = this.#state.peerReputation?.[peerId];
     if (existing === undefined) return; // no-op — peer has no reputation record
     const now = Date.now();
     const { quarantineUntil: _removed, ...rest } = existing;
@@ -664,11 +714,16 @@ export class BridgeAdmissionGateway {
     if (advisoryRecord === undefined) return context;
 
     const advisoryScore = advisoryRecord.score;
+    // By design all stored advisory scores are <= 0 (ingestAdvisoryFeed clamps
+    // positive entries to 0 and discards them). This guard is belt-and-suspenders.
+    if (advisoryScore >= 0) return context;
+
     const base = context?.reputationScoreLookup;
     const mergedLookup = (id: string): number | undefined => {
       const local = base?.(id);
       if (id !== peerId) return local;
-      // advisory can only lower, never raise
+      // Advisory can only lower, never raise above the locally-observed score.
+      // When no local lookup is wired, advisory is used directly (it's negative).
       if (local === undefined) return advisoryScore;
       return Math.min(local, advisoryScore);
     };
@@ -731,15 +786,45 @@ export class BridgeAdmissionGateway {
   }
 
   /**
-   * Phase 4.6 — evict advisory entries older than the TTL.
-   * Called periodically by the background timer and on every ingest.
+   * Phase 4.6 — evict stale per-source advisory entries and recompute
+   * effective scores. Called periodically by the background timer.
    */
   #evictStaleAdvisory(nowMs: number): void {
     const cutoffMs = nowMs - this.#advisoryTtlMs;
-    for (const [peerId, record] of this.#advisoryScores) {
-      if (record.updatedAt < cutoffMs) {
-        this.#advisoryScores.delete(peerId);
+    for (const [peerId, sourceMap] of this.#advisorySourceScores) {
+      let changed = false;
+      for (const [sourceId, record] of sourceMap) {
+        if (record.updatedAt < cutoffMs) {
+          sourceMap.delete(sourceId);
+          changed = true;
+        }
       }
+      if (sourceMap.size === 0) {
+        this.#advisorySourceScores.delete(peerId);
+        this.#advisoryScores.delete(peerId);
+      } else if (changed) {
+        this.#recomputeAdvisoryScore(peerId);
+      }
+    }
+  }
+
+  /** Recompute the effective advisory score for a peer from its per-source map. */
+  #recomputeAdvisoryScore(peerId: string): void {
+    const sourceMap = this.#advisorySourceScores.get(peerId);
+    if (sourceMap === undefined || sourceMap.size === 0) {
+      this.#advisoryScores.delete(peerId);
+      return;
+    }
+    let minScore = 0;
+    let maxUpdatedAt = 0;
+    for (const record of sourceMap.values()) {
+      if (record.score < minScore) minScore = record.score;
+      if (record.updatedAt > maxUpdatedAt) maxUpdatedAt = record.updatedAt;
+    }
+    if (minScore < 0) {
+      this.#advisoryScores.set(peerId, Object.freeze({ score: minScore, updatedAt: maxUpdatedAt }));
+    } else {
+      this.#advisoryScores.delete(peerId);
     }
   }
 
