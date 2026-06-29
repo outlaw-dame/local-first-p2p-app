@@ -7,7 +7,7 @@
 - Profiles: Core, Messaging, Social, Offline, Availability
 - Related:
   - `docs/specification/03-data/entity-component-snapshots.md`
-  - `docs/specification/03-data/content-addressing.md`
+  - `docs/specification/03-data/content-refs.md`
   - `docs/specification/01-core/authority-model.md`
 
 ## Purpose
@@ -67,38 +67,17 @@ Provider-location hints MUST be treated as hints.
 
 References a URI or external protocol object for compatibility.
 
-External references MUST NOT bypass local validation, privacy, or safety policy.
+External references MUST remain subject to local validation, privacy, and safety policy.
 
 ## Suggested fields
 
-A future stable Object Reference may include:
-
-- object type;
-- digest or content identifier;
-- size, if known;
-- media type or encoding;
-- encryption envelope reference;
-- signature reference;
-- required capability or access policy;
-- storage hints;
-- preferred transports;
-- expiration or retention hints;
-- fallback references;
-- Merkle/chunk manifest reference.
+A future stable Object Reference may include object type, digest or content identifier, size, media type, encryption envelope reference, signature reference, required capability, access policy, storage hints, preferred transports, retention hints, fallback references, and Merkle/chunk manifest references.
 
 ## Storage hints
 
 Storage hints MAY improve fetch performance.
 
-Storage hints MUST NOT imply:
-
-- object validity;
-- provider authority;
-- user consent;
-- public visibility;
-- durable recipient acceptance;
-- latest state;
-- moderation approval.
+Storage hints MUST NOT imply object validity, provider authority, user consent, public visibility, durable recipient acceptance, latest state, or moderation approval.
 
 ## Object availability
 
@@ -110,15 +89,7 @@ Unavailability MUST NOT invalidate a signed record unless the relevant object is
 
 ## Object retrieval
 
-When retrieving an object, implementations SHOULD:
-
-1. choose an allowed storage hint or transport;
-2. fetch bytes;
-3. verify digest/content identifier;
-4. verify encryption and access policy;
-5. verify signature or containing record if applicable;
-6. validate object type and schema;
-7. apply only if authority and consistency rules permit.
+When retrieving an object, implementations SHOULD choose an allowed storage hint or transport, fetch bytes, verify digest/content identifier, verify encryption and access policy, verify signature or containing record if applicable, validate object type and schema, and apply only if authority and consistency rules permit.
 
 ## Low-bandwidth behavior
 
@@ -130,17 +101,7 @@ Large payloads SHOULD be fetched lazily.
 
 ## Security considerations
 
-Implementations MUST guard against:
-
-- digest substitution;
-- provider equivocation;
-- encrypted payload metadata leaks;
-- treating a storage hint as authorization;
-- fetching unsafe external URIs without policy checks;
-- partial payload attacks;
-- oversized payload DoS;
-- malicious media types;
-- stale object references used as latest state.
+Implementations MUST guard against digest substitution, provider equivocation, encrypted payload metadata leaks, treating a storage hint as authorization, unsafe external references, partial payload attacks, oversized payload denial-of-service, unsafe media types, and stale object references used as latest state.
 
 ## Open questions
 
