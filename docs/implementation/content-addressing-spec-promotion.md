@@ -64,8 +64,8 @@ It MUST NOT prove:
 
 - authorization;
 - actor authority;
-- Device authority;
-- Space membership;
+- device authority;
+- space membership;
 - mailbox acceptance;
 - safety;
 - moderation approval;
