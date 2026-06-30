@@ -51,8 +51,10 @@ Minimum fields:
 - `createdAt`;
 - `policyRef`;
 - `roleSetRef`;
+- `mailboxRouteRef` where applicable;
 - `infrastructureDescriptorRefs`;
 - `defaultChannelRefs`;
+- `signature` or proof reference;
 - `version`.
 
 ### `ChannelRecord`
@@ -68,6 +70,7 @@ Minimum fields:
 - `readPolicyRef`;
 - `mailboxRouteRef`;
 - `feedCollectionRef`;
+- `privacyGroupRef` where applicable;
 - `createdAt`;
 - `version`.
 
@@ -82,7 +85,8 @@ Minimum fields:
 - `joinedAt`;
 - `invitedBy`;
 - `capabilityRefs`;
-- `privacyGroupRef` where applicable.
+- `privacyGroupRef` where applicable;
+- `version`.
 
 ### `RoleRecord`
 
@@ -100,14 +104,14 @@ Minimum fields:
 
 Optional descriptor for availability support:
 
-- bridge route;
-- mailbox route;
-- super-peer route;
-- search/index provider;
-- feed provider;
-- media/object provider;
-- policy URL or Object Reference;
-- supported protocol/specification versions.
+- `bridgeRoute`;
+- `mailboxRoute`;
+- `superPeerRoute`;
+- `searchIndexProvider`;
+- `feedProvider`;
+- `mediaObjectProvider`;
+- `policyRef` or `policyUrl`;
+- `supportedVersions`.
 
 ## Implementation phases
 
@@ -153,8 +157,9 @@ Tests:
 
 Wire mailbox-compatible routes:
 
-- Space mailbox route reference;
-- Channel mailbox route reference;
+- Space `mailboxRouteRef` when the Space declares a direct route;
+- Space infrastructure descriptor `mailboxRoute` when the Space delegates availability through a descriptor;
+- Channel `mailboxRouteRef` for Channel-specific delivery;
 - DM/group thread route where relevant;
 - provider accepted versus recipient applied state;
 - route-state UI contract.
