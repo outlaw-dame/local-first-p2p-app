@@ -8,7 +8,7 @@
   - `docs/specification/06-social/collections.md`
   - `docs/specification/03-data/object-references.md`
   - `docs/specification/04-sync/selective-replica-sync.md`
-  - `docs/specification/07-availability/`
+  - `docs/specification/07-availability/README.md`
 - Related promotion docs:
   - `docs/implementation/content-addressing-spec-promotion.md`
   - `docs/implementation/sync-client-spec-promotion.md`
@@ -41,6 +41,8 @@ Minimum fields:
 
 - `collectionId`;
 - `ownerId`;
+- `name`;
+- `description`;
 - `collectionType`;
 - `visibility`;
 - `ordering`;
@@ -66,6 +68,16 @@ Minimum fields:
 ### `FeedGeneratorDescriptor`
 
 Describes how candidates are generated.
+
+Minimum fields:
+
+- `generatorId`;
+- `ownerId`;
+- `mode`;
+- `params` or `options`;
+- `createdAt`;
+- `updatedAt`;
+- `version`.
 
 Initial modes:
 
