@@ -4,6 +4,7 @@
 - Date: 2026-06-29
 - Depends on: Phase 4.4 (Durable Streams), Phase 4.5/4.6 (production bridge runtime), Phase 5.0E (private payload envelope)
 - ADR: ADR-002 (private payload encryption), ADR-003 (sync offsets)
+- Promotion note: this original implementation plan is now governed by `docs/implementation/phase-5-chat-spec-promotion.md`, which maps the existing `chat.*` slice into the newer mailbox, social, sync, data, and identity specifications. Future chat work MUST follow the promotion gates there before expanding user-facing features.
 
 ## Scope
 
@@ -150,3 +151,13 @@ Encryption contract:
 - `appliedEventIds` replay guard per Phase 3.2 frozen-state doctrine.
 - Decryption failures produce a placeholder record, not an exception that crashes the thread view.
 - `recipients` in the key-wrap MUST include the sender's own device (so the sender can decrypt their own sent messages).
+
+## Specification promotion gates
+
+Before adding more user-facing chat features, follow `docs/implementation/phase-5-chat-spec-promotion.md`:
+
+1. persist chat projection and event-log state in local-store;
+2. introduce mailbox-compatible Delivery Envelope / inbox / outbox boundaries;
+3. align chat replay with Selective Replica Sync interests and checkpoints;
+4. add Space/Channel/Thread context without overloading `threadId`;
+5. only then wire the PWA chat UI.
