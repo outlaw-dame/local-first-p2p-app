@@ -4,6 +4,7 @@
 - Date: 2026-06-29
 - Scope: doctrine and planning order for User Data Root, selective sync, feeds, mailbox, spaces/channels, and threshold authority
 - Related doctrine: `docs/protocol/protocol-architecture-synthesis.md`
+- Specification reconciliation: this roadmap predates the `docs/specification/` series. Its exit-criteria paths under `docs/protocol/` should now be read as satisfied or superseded by the matching `docs/specification/*` documents listed in `docs/implementation/specification-reconciliation.md`.
 
 ## Purpose
 
@@ -58,6 +59,23 @@ User Data Root
 → mailbox + spaces/channels implementation plans
 ```
 
+## Specification mapping
+
+The roadmap's original `docs/protocol/*` exit criteria now map to the specification tree:
+
+| Roadmap topic | Specification home |
+|---|---|
+| User Data Root / personal replicas | `docs/specification/02-identity/user-data-root.md`, `docs/specification/02-identity/replica-model.md` |
+| Selective replica sync | `docs/specification/04-sync/selective-replica-sync.md`, `docs/specification/04-sync/sync-interests.md`, `docs/specification/04-sync/checkpoints.md` |
+| Data partitions | `docs/specification/03-data/data-partitions.md` |
+| Entity / Component / Snapshot | `docs/specification/03-data/entity-component-snapshots.md` |
+| Low-bandwidth sync | `docs/specification/04-sync/low-bandwidth-profile.md` |
+| Portable Sync Drops | `docs/specification/04-sync/portable-sync-drops.md` |
+| Feeds | `docs/specification/06-social/feeds.md`, `docs/specification/06-social/collections.md` |
+| Mailbox | `docs/specification/05-mailbox/` |
+| Spaces / Channels | `docs/specification/06-social/spaces.md`, `docs/specification/06-social/channels.md` |
+| Threshold authority / FROST | future `docs/specification/08-security/` and ADR |
+
 ## Phase 5.1 — User Data Root / Personal Replica Doctrine
 
 ### Goal
@@ -88,7 +106,7 @@ The User Data Root is a logical, portable, user-owned data space replicated acro
 
 ### Exit criteria
 
-- `docs/protocol/user-data-root.md` exists.
+- `docs/specification/02-identity/user-data-root.md` exists.
 - The doc distinguishes Identity Root, User Data Root, mailbox, local store, and infrastructure provider.
 - The doc defines the minimum data that must be portable.
 - The doc defines cross-device replica semantics.
@@ -127,7 +145,7 @@ Current `@lfp2p/sync-client` behavior remains valid, but the target engine must 
 
 ### Exit criteria
 
-- `docs/protocol/selective-replica-sync.md` exists.
+- `docs/specification/04-sync/selective-replica-sync.md` exists.
 - It clearly maps current `@lfp2p/sync-client` into the target architecture.
 - It preserves the rule that delivery success is not replication/apply success.
 - It includes low-bandwidth and infrastructure-degraded modes.
@@ -168,7 +186,7 @@ Use Willow's namespace/subspace/path lessons to organize portable user and space
 
 ### Exit criteria
 
-- `docs/protocol/data-partitions.md` exists.
+- `docs/specification/03-data/data-partitions.md` exists.
 - The doc explicitly warns against using generic LWW/path overwrite for Class B/C/D authority events.
 - The doc ties partition policy back to consistency classes.
 
@@ -205,7 +223,7 @@ Define portable data objects that can support Discord-like, Reddit-like, Twitter
 
 ### Exit criteria
 
-- `docs/protocol/entity-component-snapshots.md` exists.
+- `docs/specification/03-data/entity-component-snapshots.md` exists.
 - The doc distinguishes app data modeling from authority-layer state.
 - The doc defines snapshot-pinned references for evidence/quote/forward/feed use cases.
 
@@ -248,7 +266,7 @@ Make Bluetooth/nearby/improvised constrained sync first-class instead of a later
 
 ### Exit criteria
 
-- `docs/protocol/low-bandwidth-sync-profile.md` exists.
+- `docs/specification/04-sync/low-bandwidth-profile.md` exists.
 - The doc includes Bluetooth/local-nearby constraints.
 - The doc defines how normal UX degrades rather than evaporates.
 
@@ -287,7 +305,7 @@ A Portable Sync Drop is a bounded encrypted sync bundle that can be moved over a
 
 ### Exit criteria
 
-- `docs/protocol/portable-sync-drop.md` exists.
+- `docs/specification/04-sync/portable-sync-drops.md` exists.
 - The doc treats drops as transport/import media, not authority.
 - The doc ties drops to low-bandwidth and degraded-infrastructure operation.
 
@@ -347,7 +365,7 @@ If feed infrastructure disappears, users retain:
 
 ### Exit criteria
 
-- `docs/protocol/feeds.md` exists.
+- `docs/specification/06-social/feeds.md` exists.
 - The doc borrows ActivityStreams collection lessons without inheriting ambiguous feed semantics.
 - The doc borrows ATProto custom-feed lessons without requiring a centralized AppView architecture.
 
@@ -392,7 +410,7 @@ Define mailbox as a first-class protocol delivery component.
 
 ### Exit criteria
 
-- `docs/protocol/encrypted-mailbox.md` exists.
+- `docs/specification/05-mailbox/mailbox.md` exists.
 - The doc is explicitly below User Data Root and selective sync doctrine.
 - The doc defines provider, recipient, sender, device, group, and space/channel behavior.
 
@@ -426,8 +444,8 @@ Define Discord-like spaces/channels and generalize them for Reddit-like, Faceboo
 
 ### Exit criteria
 
-- `docs/protocol/spaces-and-channels.md` exists.
-- The doc clearly separates space authority, optional infrastructure, mailbox routes, feed collections, and runtime transports.
+- `docs/specification/06-social/spaces.md` and `docs/specification/06-social/channels.md` exist.
+- The docs clearly separate space authority, optional infrastructure, mailbox routes, feed collections, and runtime transports.
 
 ## Phase 5.10 — Threshold Authority / FROST ADR
 
@@ -467,8 +485,8 @@ Decide how threshold signing fits account recovery, space governance, and high-r
 
 ### Exit criteria
 
-- `docs/adr/014-threshold-authority-and-frost-v1.md` exists.
-- The ADR defines allowed/disallowed usage and implementation deferrals.
+- `docs/adr/014-threshold-authority-and-frost-v1.md` exists or a Series 8 security draft explicitly defers FROST.
+- The ADR/draft defines allowed/disallowed usage and implementation deferrals.
 
 ## Phase 5.11 — Implementation Planning Pass
 
