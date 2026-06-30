@@ -4,6 +4,7 @@
 - Date: 2026-06-29
 - Depends on: Phase 4.4 (Durable Streams), Phase 4.5/4.6 (production bridge runtime), Phase 5.0E (private payload envelope)
 - ADR: ADR-002 (private payload encryption), ADR-003 (sync offsets)
+- Promotion note: this original implementation plan is now governed by `docs/implementation/phase-5-chat-spec-promotion.md`, which maps the existing `chat.*` slice into the newer mailbox, social, sync, data, and identity specifications. Future chat work MUST follow the promotion gates there before expanding user-facing features.
 
 ## Scope
 
@@ -23,7 +24,7 @@ All ADR-002 exit criteria:
 | `packages/private-payload` decrypt side | Done |
 | X25519 key wrapping / unwrapping | Done — `packages/crypto` |
 | Fixture pack (valid + malformed envelope cases) | Done — `packages/private-payload/src/index.test.ts` |
-| Bridge stays ciphertext-opaque (MUST NOT decrypt) | Enforced by doctrine; needs an explicit CI-pinned test |
+| Bridge stays ciphertext-opaque (MUST NOT decrypt) | Enforced by doctrine; CI-pinned in `apps/bridge-service/src/phase-5-chat.test.ts` |
 | Logging policy tests prevent private plaintext emission | Inherits Phase 3.1 ESLint enforcement; needs envelope-specific audit-pin |
 | Cross-device account-local wrapping for `self`-scope events | **Deferred to Phase 5.2** — Phase 5.0 ADR is satisfied without it |
 
@@ -105,13 +106,13 @@ Lifecycle rules:
 
 Phase 3.2 invariant: all projected state is deeply frozen.
 
-### Dexie schema (packages/local-store, v9)
+### Dexie schema (packages/local-store, v11)
 
-New tables:
-- `chatThreads` — `{ threadId, encryptedState, lastActivityAt, schemaVersion }` (encrypted at rest)
-- `chatEventLog` — `{ eventId, threadId, kind, sequence, createdAt }` (event-log for replay)
+Tables already defined in `packages/local-store`:
+- `chatThreads` — `{ threadId, encryptedState, lastActivityAt, protectionKeyId }` (encrypted at rest)
+- `chatEventLog` — `{ eventId, kind, threadIdHash?, createdAt, event }` (raw ciphertext event log for replay)
 
-Schema migration: purely additive, v8 rows unchanged.
+Remaining work is active read/write/rebuild integration, not table creation.
 
 ## Phase 5.3 — PWA chat UI
 
@@ -138,7 +139,7 @@ Encryption contract:
 2. Add `validatePayloadForKind` rules: `chat.*` → `dm` or `group` only; kind-specific payload structure validated on decrypt side (not at envelope layer).
 3. Add Class D entries to `packages/protocol/src/consistency-classes.ts`.
 4. Create `packages/chat-projection/src/index.ts` with the projection state machine.
-5. Dexie schema v9 in `packages/local-store/src/index.ts`.
+5. Dexie schema v11 in `packages/local-store/src/index.ts`.
 6. Adversarial test suite for the chat projection (≥20 tests).
 7. Bridge ciphertext-opaqueness pin test.
 
@@ -150,3 +151,13 @@ Encryption contract:
 - `appliedEventIds` replay guard per Phase 3.2 frozen-state doctrine.
 - Decryption failures produce a placeholder record, not an exception that crashes the thread view.
 - `recipients` in the key-wrap MUST include the sender's own device (so the sender can decrypt their own sent messages).
+
+## Specification promotion gates
+
+Before adding more user-facing chat features, follow `docs/implementation/phase-5-chat-spec-promotion.md`:
+
+1. persist chat projection and event-log state in local-store;
+2. introduce mailbox-compatible Delivery Envelope / inbox / outbox boundaries;
+3. align chat replay with Selective Replica Sync interests and checkpoints;
+4. add Space/Channel/Thread context without overloading `threadId`;
+5. only then wire the PWA chat UI.
