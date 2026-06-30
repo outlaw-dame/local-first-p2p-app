@@ -121,7 +121,12 @@ export function createQueuedMailboxRouteState(
 export function validateMailboxDeliveryEnvelope(input: unknown): MailboxDeliveryEnvelopeV1 {
   const value = requireRecord(input, MAILBOX_ERROR_CODES.INVALID_ENVELOPE, 'envelope must be an object');
 
-  requireExact(value.schemaVersion, MAILBOX_DELIVERY_ENVELOPE_SCHEMA_VERSION, 'schemaVersion');
+  requireExact(
+    value.schemaVersion,
+    MAILBOX_DELIVERY_ENVELOPE_SCHEMA_VERSION,
+    'schemaVersion',
+    MAILBOX_ERROR_CODES.INVALID_ENVELOPE
+  );
   requireNonEmptyString(value.envelopeId, 'envelopeId', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
   requireNonEmptyString(value.authorId, 'authorId', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
   requireNonEmptyString(value.submitterId, 'submitterId', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
@@ -172,7 +177,12 @@ export function validateMailboxDeliveryEnvelope(input: unknown): MailboxDelivery
 
 export function validateMailboxReceipt(input: unknown): MailboxReceiptV1 {
   const value = requireRecord(input, MAILBOX_ERROR_CODES.INVALID_RECEIPT, 'receipt must be an object');
-  requireExact(value.schemaVersion, MAILBOX_RECEIPT_SCHEMA_VERSION, 'schemaVersion');
+  requireExact(
+    value.schemaVersion,
+    MAILBOX_RECEIPT_SCHEMA_VERSION,
+    'schemaVersion',
+    MAILBOX_ERROR_CODES.INVALID_RECEIPT
+  );
   requireNonEmptyString(value.receiptId, 'receiptId', MAILBOX_ERROR_CODES.INVALID_RECEIPT);
   requireNonEmptyString(value.envelopeId, 'envelopeId', MAILBOX_ERROR_CODES.INVALID_RECEIPT);
   requireNonEmptyString(value.actorId, 'actorId', MAILBOX_ERROR_CODES.INVALID_RECEIPT);
@@ -202,7 +212,12 @@ export function validateMailboxReceipt(input: unknown): MailboxReceiptV1 {
 
 export function validateMailboxAck(input: unknown): MailboxAckV1 {
   const value = requireRecord(input, MAILBOX_ERROR_CODES.INVALID_ACK, 'ack must be an object');
-  requireExact(value.schemaVersion, MAILBOX_ACK_SCHEMA_VERSION, 'schemaVersion');
+  requireExact(
+    value.schemaVersion,
+    MAILBOX_ACK_SCHEMA_VERSION,
+    'schemaVersion',
+    MAILBOX_ERROR_CODES.INVALID_ACK
+  );
   requireNonEmptyString(value.ackId, 'ackId', MAILBOX_ERROR_CODES.INVALID_ACK);
   requireNonEmptyString(value.envelopeId, 'envelopeId', MAILBOX_ERROR_CODES.INVALID_ACK);
   requireNonEmptyString(value.receiptId, 'receiptId', MAILBOX_ERROR_CODES.INVALID_ACK);
@@ -327,12 +342,9 @@ function requireNonEmptyString(input: unknown, field: string, code: MailboxError
   }
 }
 
-function requireExact(input: unknown, expected: string, field: string): void {
+function requireExact(input: unknown, expected: string, field: string, code: MailboxErrorCode): void {
   if (input !== expected) {
-    throw new MailboxRuntimeError(
-      MAILBOX_ERROR_CODES.INVALID_ENVELOPE,
-      `${field} must be ${expected}`
-    );
+    throw new MailboxRuntimeError(code, `${field} must be ${expected}`);
   }
 }
 
