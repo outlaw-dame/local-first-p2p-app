@@ -130,8 +130,6 @@ Audit downstream consumers:
 
 Known deferrals preserved by this promotion:
 
-- Dexie persistence for projections;
-- PWA settings UI for local controls;
 - account-local sync wiring;
 - bridge-service HTTP wiring;
 - policy-list resolution runtime;
