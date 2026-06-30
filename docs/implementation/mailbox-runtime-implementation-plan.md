@@ -30,7 +30,7 @@ This plan defines a small implementation sequence for mailbox runtime support wi
 - Provider acceptance is not recipient acceptance.
 - Receipt is not durable apply unless the receipt explicitly represents recipient-side apply.
 - ACK is scoped to producer, recipient, device, route, and represented transition.
-- Private payloads stay opaque to providers.
+- Protected payload content stays opaque to providers.
 - Expiry removes provider availability; it does not rewrite already-received durable history.
 - Forwarding creates a new delivery action; it does not mutate the original signed record.
 
@@ -40,12 +40,13 @@ This plan defines a small implementation sequence for mailbox runtime support wi
 
 Minimum fields:
 
+- `schemaVersion`;
 - `envelopeId`;
 - `authorId`;
 - `submitterId`;
 - `recipientScopes`;
 - `conversationRef`;
-- `payloadRef` or encrypted inline payload;
+- `payloadRef` or protected inline payload;
 - `createdAt`;
 - `expiresAt`;
 - `routeHints`;
@@ -64,7 +65,7 @@ Initial receipt types:
 - recipient fetched;
 - recipient rejected;
 - recipient applied;
-- recipient undecryptable.
+- recipient unreadable.
 
 ### `MailboxAck`
 
@@ -84,7 +85,7 @@ Tracks local route-specific state:
 - applied;
 - expired;
 - failed;
-- undecryptable.
+- unreadable.
 
 ## Implementation phases
 
@@ -98,13 +99,13 @@ Add a mailbox runtime package (e.g., `packages/mailbox-runtime` / `@lfp2p/mailbo
 - route-state type;
 - validation helpers;
 - privacy-scope checks;
-- no-decrypt provider validation path.
+- provider validation path that does not inspect protected content.
 
 Tests:
 
 - malformed envelope rejected;
 - missing recipient scope rejected;
-- provider cannot validate by decrypting payload;
+- provider cannot validate by reading protected payload content;
 - duplicate dedupe key is idempotent;
 - unsupported receipt transition rejected.
 
@@ -112,10 +113,10 @@ Tests:
 
 Add local-store tables or schemas registered in `LocalFirstTableName` and a new Dexie schema version in `packages/local-store/src/index.ts` for:
 
-- mailbox outbox route state;
-- mailbox inbox route state;
-- mailbox receipt log;
-- mailbox ACK log.
+- mailbox outbox route state, indexed by `envelopeId` and `status`;
+- mailbox inbox route state, indexed by `envelopeId` and `status`;
+- mailbox receipt log, indexed by `receiptId` and `envelopeId`;
+- mailbox ACK log, indexed by `ackId` and `envelopeId`.
 
 Rules:
 
@@ -137,16 +138,16 @@ Wire the existing bridge as the first mailbox provider adapter:
 
 - submit Delivery Envelope;
 - return provider receipt;
-- preserve opaque encrypted payload;
+- preserve opaque protected payload content;
 - expose retry/expiry state;
 - distinguish provider errors from local validation errors.
 
 Tests:
 
-- bridge never imports decrypt helpers;
+- bridge does not import private-content readers;
 - bridge accepted receipt is provider-scoped;
 - provider rejection does not mutate social projection;
-- payload remains opaque in logs.
+- payload content remains opaque in logs.
 
 ### Phase MB-4 — Chat integration
 
@@ -161,8 +162,8 @@ Tests:
 
 - sent message can be queued without provider acceptance;
 - provider accepted does not show as recipient read/applied;
-- undecryptable payload creates placeholder, not crash;
-- delete purges local plaintext projection without pretending to delete provider history.
+- unreadable payload creates placeholder, not crash;
+- delete tombstones local plaintext projection by clearing the body and marking the message deleted without pretending to delete provider history.
 
 ### Phase MB-5 — Sync integration
 
@@ -195,7 +196,7 @@ Tests:
 - forwarded envelope has separate author/submitter/provenance fields;
 - expiry does not erase already-applied message projection;
 - retention policy is provider-scoped;
-- forwarded private payload does not grant unauthorized access.
+- forwarded protected payload does not grant unauthorized access.
 
 ## Exit criteria
 
