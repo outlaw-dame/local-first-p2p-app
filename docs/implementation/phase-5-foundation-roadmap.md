@@ -72,7 +72,7 @@ The roadmap's original `docs/protocol/*` exit criteria now map to the specificat
 | Low-bandwidth sync | `docs/specification/04-sync/low-bandwidth-profile.md` |
 | Portable Sync Drops | `docs/specification/04-sync/portable-sync-drops.md` |
 | Feeds | `docs/specification/06-social/feeds.md`, `docs/specification/06-social/collections.md` |
-| Mailbox | `docs/specification/05-mailbox/` |
+| Mailbox | `docs/specification/05-mailbox/mailbox.md` |
 | Spaces / Channels | `docs/specification/06-social/spaces.md`, `docs/specification/06-social/channels.md` |
 | Threshold authority / FROST | future `docs/specification/08-security/` and ADR |
 
