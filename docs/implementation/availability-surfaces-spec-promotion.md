@@ -14,6 +14,7 @@
   - future `docs/specification/07-availability/bridges.md`
   - future `docs/specification/07-availability/relays.md`
   - future `docs/specification/07-availability/super-peers.md`
+  - future `docs/specification/07-availability/public-indexes.md`
   - future `docs/specification/07-availability/provider-descriptors.md`
   - future `docs/specification/07-availability/admission-policy.md`
   - future `docs/specification/07-availability/advisory-reputation.md`
@@ -48,6 +49,7 @@ This document promotes those surfaces into the newer availability-provider model
 - Super-peers improve availability but must not be required for local-first operation.
 - Advisory reputation is an input to decisions, not canonical identity state.
 - Visibility, encryption, local policy, and capability scope still apply on indexed/provider-assisted surfaces.
+- Providers must not modify, re-sign, or decrypt end-to-end encrypted payload content, preserving end-to-end protocol integrity.
 
 ## Promotion stages
 
@@ -92,13 +94,15 @@ Define runtime descriptor records for providers that advertise:
 - rate limits;
 - retention policy;
 - operator policy URL or policy object reference;
-- supported conformance profile.
+- supported conformance profile;
+- supported protocol/specification versions.
 
 ### Stage AV-P5 — Implementation audit
 
 Audit existing and future code paths where provider success could be confused with protocol success:
 
 - bridge admission response;
+- relay delivery/forwarding success;
 - sync-client response;
 - mailbox acceptance;
 - feed generator candidate output;
