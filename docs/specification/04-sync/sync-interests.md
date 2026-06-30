@@ -155,7 +155,7 @@ Implementations MUST guard against:
 
 ## Open questions
 
-- Canonical SyncInterest object shape.
+- Canonical Sync Interest object shape.
 - Privacy-preserving interest-overlap negotiation.
 - Whether interests are signed records or session-local messages.
 - Which interest dimensions are Core Profile requirements.

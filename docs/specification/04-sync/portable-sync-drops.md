@@ -9,7 +9,7 @@
   - `docs/specification/04-sync/low-bandwidth-profile.md`
   - `docs/specification/04-sync/selective-replica-sync.md`
   - `docs/specification/03-data/merkle-checkpoints.md`
-  - `docs/specification/03-data/content-refs.md`
+  - `docs/specification/03-data/object-references.md`
 
 ## Purpose
 
