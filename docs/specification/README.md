@@ -23,6 +23,8 @@ Existing docs remain valid as design notes, implementation notes, or historical 
 
 When a specification document conflicts with an implementation note, the implementation note should be updated or the conflict should be resolved by an ADR. Do not silently treat implementation behavior as normative protocol behavior.
 
+For the current inventory of older shipped/planned slices that need to be mapped into this specification tree, see `docs/implementation/specification-reconciliation.md`.
+
 ## Specification goals
 
 The protocol is designed for:
