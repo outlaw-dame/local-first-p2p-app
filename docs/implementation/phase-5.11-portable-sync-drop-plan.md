@@ -26,12 +26,14 @@ type SyncDropManifest = Readonly<{
   recipientIdentityIds?: ReadonlyArray<string>;  // sealed drop; absent = open
   partitionIds: ReadonlyArray<string>;
   eventCount: number;
-  rootDigest: string;  // DigestRef of the Merkle root over sorted event digests
+  rootDigest: string;  // DigestRef over canonical manifest-without-rootDigest + sorted event digests
   encryptedPayloadKeyWraps?: ReadonlyArray<PayloadKeyRecipientWrap>;  // from ADR-002
 }>;
 ```
 
 No new event kinds in this step — the drop is a transport artifact, not a protocol event.
+
+The root digest MUST bind the canonical manifest fields used for import policy (`recipientIdentityIds`, `partitionIds`, `expiresAt`, `eventCount`, and key-wrap metadata) together with the event/block digests. A consumer MUST NOT rely on unbound manifest fields for sealed/scoped import decisions.
 
 One PR. Type exports only; 6 valid + 4 invalid fixture files.
 
@@ -49,7 +51,7 @@ async function createSyncDrop(
 ```
 
 - Validates each event via `validateSignedEvent` before inclusion.
-- Computes `rootDigest` as a Merkle root over `sha256` digests of canonical-JSON-serialized events, sorted ascending by eventId.
+- Builds a canonical manifest with `rootDigest` omitted, computes event digests over canonical-JSON-serialized events sorted ascending by eventId, then computes `rootDigest` over the canonical manifest digest plus the sorted event digests.
 - Encrypts drop payload key to each recipient's device public key (ADR-002 `PayloadKeyRecipientWrap`).
 - Returns a manifest + array of raw blocks (events in canonical-JSON form).
 
@@ -63,8 +65,8 @@ async function importSyncDrop(
 ): Promise<ImportSyncDropResult>
 ```
 
-- Verifies `rootDigest` against blocks before any event is processed.
-- Rejects the entire drop if any block fails digest verification.
+- Recomputes the canonical manifest digest and `rootDigest` against blocks before any event is processed.
+- Rejects the entire drop if the manifest has been rewritten or any block fails digest verification.
 - For each valid block: validates event via `validateSignedEvent`, yields to caller's `onEvent` callback (caller persists via `appendSignedEvent`).
 - `ImportSyncDropResult`: `{ accepted: number; rejected: number; reasons: string[] }`.
 
@@ -79,7 +81,7 @@ One PR. No runtime network dependencies; pure crypto + protocol.
 - `parseSyncDropFile(bytes) → { manifest, blocks }` inverse.
 - Magic header rejection for non-drop files; size cap at 256 MiB.
 
-One PR. Adds round-trip serialization tests and a tampered-block rejection test.
+One PR. Adds round-trip serialization tests, manifest-rewrite rejection test, and tampered-block rejection test.
 
 ## Step 4 — Local-store integration
 

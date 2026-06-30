@@ -29,9 +29,9 @@ All non-`self` kinds carry `PrivatePayloadEnvelopeV1`. Bridge MUST NOT decrypt.
 
 One PR. Kinds + privacy rules in `validatePayloadForKind`.
 
-## Step 2 — `MailboxDeliveryEnvelope` payload schema
+## Step 2 — Mailbox payload schemas
 
-Core payload (inside the encrypted envelope):
+`mailbox.envelope.queued` carries the full delivery envelope inside the encrypted payload:
 
 ```ts
 type MailboxDeliveryEnvelopePayload = Readonly<{
@@ -45,19 +45,39 @@ type MailboxDeliveryEnvelopePayload = Readonly<{
 }>;
 ```
 
-`MailboxReceipt`, `MailboxAck`, `MailboxCheckpoint` payloads from the spec.
+Lifecycle events carry minimized payloads rather than duplicating the full envelope:
+
+```ts
+// mailbox.envelope.delivered payload
+{ envelopeId: string; deliveredAt: string; providerId?: string }
+
+// mailbox.envelope.expired payload
+{ envelopeId: string; expiredAt: string; reason: 'ttl' | 'quota' | 'policy' | 'sender-revoked' }
+
+// mailbox.envelope.fetched payload (inside self-scoped envelope)
+{ envelopeId: string; fetchedAt: string; recipientDeviceId: string }
+
+// mailbox.receipt.issued payload (inside self-scoped envelope)
+{ envelopeId: string; receiptId: string; receiptKind: 'provider-accepted' | 'recipient-fetched' | 'recipient-applied' | 'recipient-rejected'; issuedAt: string }
+
+// mailbox.ack.sent payload
+{ envelopeId: string; ackId: string; ackKind: 'applied' | 'rejected' | 'undecryptable'; sentAt: string }
+
+// mailbox.checkpoint.advanced payload (inside self-scoped envelope)
+{ mailboxId: string; checkpointId: string; cursor: string; advancedAt: string }
+```
 
 Visible vs sealed recipient addressing: `recipientDeviceId` present = sealed (only that device decrypts); absent = visible (any authorized device of the recipient decrypts).
 
-One PR. 8 valid + 6 invalid fixtures; no runtime changes.
+One PR. 10 valid + 8 invalid fixtures; no runtime changes.
 
 ## Step 3 — `@lfp2p/mailbox-projection` package
 
 New package `packages/mailbox-projection/`:
 
-- `MailboxInboxState` type: map of envelopeId → `{ status: 'queued' | 'fetched' | 'expired', envelope: MailboxDeliveryEnvelopePayload, fetchedAt? }`.
+- `MailboxInboxState` type: map of envelopeId → `{ status: 'queued' | 'delivered' | 'fetched' | 'expired', envelope: MailboxDeliveryEnvelopePayload, deliveredAt?, fetchedAt?, expiredAt? }`.
 - `applyMailboxEvent(state, payload, meta) → MailboxInboxState` pure state machine.
-  - State machine: `queued → fetched` or `queued → expired` (terminal). Fetch of expired envelope is a no-op. Double-fetch is idempotent.
+  - State machine: `queued → delivered → fetched` or `queued/delivered → expired` (terminal). Fetch of expired envelope is a no-op. Double-fetch is idempotent.
 - `MailboxOutboxState` type: map of envelopeId → delivery status.
 - `MAILBOX_ERROR_CODES` stable codes: `MAILBOX_INVALID_PAYLOAD`, `MAILBOX_ILLEGAL_TRANSITION`, `MAILBOX_RECIPIENT_MISMATCH`.
 - Deep-frozen outputs; replay equivalence; fixture round-trip.
@@ -71,7 +91,7 @@ Dexie schema v13/v14:
 - `mailboxInbox` table (PK: `envelopeId`, index: `recipientIdentityId, status, expiresAt`).
 - `mailboxOutbox` table (PK: `envelopeId`, index: `senderIdentityId, status, createdAt`).
 - `mailboxEventLog` table (PK: `eventId`, index: `kind, envelopeId, createdAt`).
-- `appendMailboxEvent(event)` — idempotent, validates, updates projection.
+- `appendMailboxEvent(event)` — idempotent, validates, decrypts payload locally when required, updates projection.
 - `loadMailboxInboxState(identityId) → MailboxInboxState`.
 - Projection stored encrypted (same pattern as chat: `encryptedState: EncryptedKeyMaterial`).
 - Route `mailbox.*` in `processInboundSyncBatch`.
@@ -82,7 +102,7 @@ One PR.
 
 `sweepExpiredMailboxEnvelopes(store, nowIso)`:
 
-- Marks envelopes past `expiresAt` as expired; emits `mailbox.envelope.expired`.
+- Marks envelopes past `expiresAt` as expired; emits `mailbox.envelope.expired` with the minimized payload above.
 - Does NOT delete the row — projection history preserved; only availability is gone.
 - Called by PWA on foreground resume and on sync batch completion.
 

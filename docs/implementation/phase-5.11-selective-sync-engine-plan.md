@@ -51,8 +51,9 @@ Add `SyncInterest` evaluation:
 - `SyncInterest` type from `docs/specification/04-sync/sync-interests.md`:
   `{ partitionId?, kindFilter?, privacyFilter?, maxLag? }`.
 - `SyncEngine` holds a `ReadonlyArray<SyncInterest>` set per identity.
+- Sync Interest configurations are stored as UDR-owned `udr.sync-interest.added` / `udr.sync-interest.removed` state and exposed through `userDataRoot.syncInterestIds`, not `feedSubscriptionIds`.
+- Feed subscriptions remain separate UDR state and may generate Sync Interests, but they are not the storage location for arbitrary structured sync filters.
 - On pull, only envelopes matching at least one declared interest are persisted.
-- Interests are stored in `userDataRoot.feedSubscriptionIds` partition (UDR plan Step 1).
 
 One PR. Adds interest-filter unit tests; existing integration tests add a broad-match interest to stay green.
 
@@ -71,11 +72,13 @@ One PR. Requires `BridgeTransport` to implement `fetchPayload` (simple second GE
 
 Align checkpoint behavior with `docs/specification/04-sync/checkpoints.md`:
 
-- `StoredSyncCheckpoint` gains optional `interestHash: string` field — cursor is scoped to a (transport, interest) pair, not just (sourceId, streamId).
-- `advanceSyncCheckpoint` validates that interest hash matches before advancing.
-- Dexie schema v13: add `interestHash` index.
+- `StoredSyncCheckpoint` gains required `transportId: string` and optional `interestHash: string` fields.
+- `checkpointId` generation changes from `[sourceId, streamId, scope]` to `[transportId, sourceId, streamId, scope, interestHash ?? 'broad']`.
+- Cursor state is scoped to a `(transport, interest)` pair, not just `(sourceId, streamId, scope)`.
+- `advanceSyncCheckpoint` validates that both transport id and interest hash match before advancing.
+- Dexie schema v13: add compound index `transportId, interestHash, sourceId, streamId, scope`.
 
-One PR. Migration: existing checkpoints without `interestHash` are treated as broad-match cursors.
+One PR. Migration: existing checkpoints without `transportId` or `interestHash` are treated as `transportId = 'legacy-bridge'` and broad-match cursors.
 
 ## Package boundary rules
 

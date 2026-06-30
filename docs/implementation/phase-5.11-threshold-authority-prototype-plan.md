@@ -33,6 +33,8 @@ One PR (docs only).
 New package `packages/frost-adapter/`:
 
 ```ts
+interface SyncTransport { /* not used here; shown only in sync plan */ }
+
 interface FrostProvider {
   generateShares(
     groupSecret: Uint8Array,
@@ -50,7 +52,7 @@ interface FrostProvider {
     signatureShares: ReadonlyArray<FrostSignatureShare>,
     verificationKey: Uint8Array,
     message: Uint8Array
-  ): Promise<Uint8Array>;  // standard Ed25519 signature bytes
+  ): Promise<Uint8Array>;
 
   verify(
     signature: Uint8Array,
@@ -74,13 +76,13 @@ New type and Dexie table:
 
 ```ts
 type StoredFrostShare = Readonly<{
-  shareId: string;              // uuid
-  identityId: string;           // which identity this share protects
-  shareIndex: number;           // FROST share index (1..n)
-  threshold: number;            // t
-  totalShares: number;          // n
-  verificationKey: string;      // base64url — the group public key
-  encryptedShare: EncryptedKeyMaterial;  // share scalar, encrypted via localProtectionKeys
+  shareId: string;
+  identityId: string;
+  shareIndex: number;
+  threshold: number;
+  totalShares: number;
+  verificationKey: string;
+  encryptedShare: EncryptedKeyMaterial;
   protectionKeyId: string;
   trustees: ReadonlyArray<{ identityId: string; deviceId: string }>;
   createdAt: string;
@@ -111,10 +113,11 @@ type DealerOutput = Readonly<{
   localShare: FrostShare;
   encryptedSharesForTrustees: ReadonlyArray<{
     trusteeIdentityId: string;
-    encryptedShare: Uint8Array;  // Phase 2 private payload envelope
+    encryptedShare: PrivatePayloadEnvelopeV1;
   }>;
   verificationKey: Uint8Array;
   threshold: number;
+  totalShares: number;
 }>;
 ```
 
@@ -131,18 +134,19 @@ One PR. Unit tests with `NullFrostProvider` stub.
 ```ts
 async function runThresholdSigningCeremony(
   localShare: FrostShare,
+  threshold: number,
   remoteSignatureShares: ReadonlyArray<FrostSignatureShare>,
-  message: Uint8Array,  // canonical-JSON bytes of UnsignedEventEnvelope
+  message: Uint8Array,
   provider: FrostProvider
-): Promise<Uint8Array>  // standard Ed25519 signature bytes
+): Promise<Uint8Array>
 ```
 
-- Verifies `remoteSignatureShares.length >= threshold - 1` before proceeding.
+- Verifies `threshold >= 1` and `remoteSignatureShares.length >= threshold - 1` before proceeding.
 - Aggregates via `FrostProvider.aggregate`.
 - Returns raw signature bytes ready to place in `SignedEventEnvelope.signature.value`.
 - Does NOT construct the full `SignedEventEnvelope` — caller assembles it (existing `createSignedEvent` path).
 
-One PR. Tests verify the output signature passes `verifySignedEventEnvelope`.
+One PR. Tests verify the output signature passes `verifySignedEventEnvelope` and that too few shares are rejected locally before aggregate.
 
 ## Step 6 — `identity.recovery.configured` event kind (new kind in protocol)
 

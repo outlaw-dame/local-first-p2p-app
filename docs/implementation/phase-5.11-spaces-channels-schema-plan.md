@@ -46,28 +46,49 @@ Core schemas:
   spaceId: string;
   name: string;
   description?: string;
-  policy: SpacePolicy;    // see spec §Space Policy
+  policy: SpacePolicy;
   createdAt: string;
 }
 
 // SpacePolicy shape
 {
   inviteOnly: boolean;
-  governanceThreshold?: { t: number; n: number };  // from ADR-014
+  governanceThreshold?: { t: number; n: number };
   defaultMemberRole: 'member' | 'moderator';
   channelCreation: 'admin-only' | 'any-member';
 }
 
+// space.policy.updated payload
+{ spaceId: string; policyPatch: Partial<SpacePolicy>; updatedAt: string }
+
 // space.member.invited payload
 { spaceId: string; inviteeIdentityId: string; role: SpaceRole; invitedAt: string }
 
+// space.member.joined payload
+{ spaceId: string; memberIdentityId: string; role: SpaceRole; joinedAt: string; inviteId?: string }
+
+// space.member.role-changed payload
+{ spaceId: string; memberIdentityId: string; previousRole: SpaceRole; nextRole: SpaceRole; changedAt: string }
+
+// space.member.removed payload
+{ spaceId: string; memberIdentityId: string; removedAt: string; reason?: 'voluntary' | 'moderation' | 'policy' }
+
+// space.dissolved payload
+{ spaceId: string; dissolvedAt: string; reason?: string }
+
 // channel.created payload
 { channelId: string; spaceId: string; name: string; kind: 'text' | 'feed' | 'voice'; createdAt: string }
+
+// channel.policy.updated payload
+{ channelId: string; spaceId: string; policyPatch: JsonObject; updatedAt: string }
+
+// channel.archived payload
+{ channelId: string; spaceId: string; archivedAt: string; reason?: string }
 ```
 
 `SpaceRole` enum: `'owner' | 'admin' | 'moderator' | 'member' | 'observer'`.
 
-One PR. 10 valid + 6 invalid fixtures.
+One PR. 14 valid + 10 invalid fixtures.
 
 ## Step 3 — `@lfp2p/spaces-projection` package
 
@@ -90,7 +111,7 @@ Dexie schema v14/v15:
 - `spaceProjections` table (PK: `spaceId`, index: `updatedAt`).
   Projection stored encrypted (same pattern as chat: `encryptedState: EncryptedKeyMaterial`).
 - `spaceEventLog` table (PK: `eventId`, index: `kind, spaceId, createdAt`).
-- `appendSpaceEvent(event)` — idempotent, validates, updates projection.
+- `appendSpaceEvent(event)` — idempotent, validates, decrypts, updates projection.
 - `loadSpaceState(spaceId) → SpaceState`.
 - Route `space.*` / `channel.*` in `processInboundSyncBatch`.
 

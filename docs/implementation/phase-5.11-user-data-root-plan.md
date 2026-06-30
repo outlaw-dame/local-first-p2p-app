@@ -8,7 +8,9 @@
 
 ## Scope
 
-Implement the User Data Root (UDR) as a local-first logical container scoped to one identity. The UDR tracks which partitions, replicas, and content-addressed objects a user owns or has subscribed to, and provides a deterministic projection from signed events.
+Implement the User Data Root (UDR) as a local-first logical container scoped to one identity. The UDR tracks which partitions, replicas, feed subscriptions, sync interests, content-addressed objects, mailbox binding, and Spaces a user owns or has subscribed to, and provides a deterministic projection from signed events.
+
+Sync checkpoints are not UDR state. They live in the sync store and are advanced by the sync engine. The UDR may reference sync interest configuration, but it MUST NOT claim or release checkpoint rows.
 
 Out of scope: hosted UDR providers, cross-provider migration, P2P UDR replication (those belong to sync engine and availability provider phases).
 
@@ -21,7 +23,7 @@ type StoredUserDataRoot = Readonly<{
   identityId: string;             // controller identity this UDR belongs to
   partitionIds: ReadonlyArray<string>;
   contentRefs: ReadonlyArray<string>; // ObjectRef keys the user claims
-  syncCheckpointIds: ReadonlyArray<string>;
+  syncInterestIds: ReadonlyArray<string>;
   feedSubscriptionIds: ReadonlyArray<string>;
   mailboxId?: string;
   spaceIds: ReadonlyArray<string>;
@@ -43,6 +45,8 @@ New event kinds (all `self` privacy, Class B):
 | `udr.partition.released` | `{ partitionId, releasedAt }` |
 | `udr.feed-subscription.added` | `{ feedId, feedKind, addedAt }` |
 | `udr.feed-subscription.removed` | `{ feedId, removedAt }` |
+| `udr.sync-interest.added` | `{ syncInterestId, interest: SyncInterest, addedAt }` |
+| `udr.sync-interest.removed` | `{ syncInterestId, removedAt }` |
 | `udr.mailbox.bound` | `{ mailboxId, boundAt }` |
 | `udr.space.joined` | `{ spaceId, joinedAt }` |
 | `udr.space.left` | `{ spaceId, leftAt }` |
@@ -55,8 +59,8 @@ One PR. Add kinds to `EVENT_KINDS`, add `validatePayloadForKind` cases.
 
 New package `packages/udr-projection/`:
 
-- `UdrState` type with partition set, feed subscription set, space set, mailbox binding.
-- `applyUdrEvent(state, payload, meta) → UdrState` pure state machine.
+- `UdrState` type with partition set, feed subscription set, sync interest set, space set, and mailbox binding.
+- `applyUdrEvent(state, decryptedPayload, meta) → UdrState` pure state machine.
 - `createEmptyUdrState(identityId) → UdrState`.
 - `CHAT_ERROR_CODES`-style `UDR_ERROR_CODES` with `UDR_INVALID_PAYLOAD`, `UDR_UNKNOWN_KIND`.
 - Deep-frozen outputs (Phase 3.2).
@@ -68,18 +72,19 @@ One PR. Pure package, no runtime dependencies.
 
 Wire projection into Dexie:
 
-- `appendUdrEvent(event)` — idempotent on `eventId`, validates via protocol layer, updates `userDataRoot` projection row.
-- `loadUdrState(identityId) → UdrState` — replay log through `applyUdrEvent`.
+- `appendUdrEvent(event)` — idempotent on `eventId`, validates the signed event and privacy envelope, decrypts `PrivatePayloadEnvelopeV1` locally, validates the decrypted UDR payload, then updates the `userDataRoot` projection row.
+- `decryptAndApplyUdrEvent(event, decryptOptions)` mirrors the chat decrypt-and-apply path; `applyUdrEvent` MUST NOT receive ciphertext.
+- `loadUdrState(identityId) → UdrState` — replay event log by decrypting each UDR event before projection.
 - `processInboundSyncBatch` dispatch: route `udr.*` events to `appendUdrEvent`.
 
-One PR. Adds one Dexie integration test file.
+One PR. Adds one Dexie integration test file, including an undecryptable payload placeholder/reject path that does not corrupt UDR state.
 
 ## Step 5 — PWA UDR view
 
 `apps/pwa/src/pwa-udr-state.ts`:
 
 - `buildUdrViewModel(store, identityId) → UdrViewModel`.
-- Emits `udr.*` events on partition claim/release, feed add/remove, space join/leave.
+- Emits `udr.*` events on partition claim/release, feed add/remove, sync interest add/remove, and space join/leave.
 
 One PR. UI-only, no protocol changes.
 
@@ -93,4 +98,5 @@ One PR. UI-only, no protocol changes.
 
 - Bridge MUST NOT read UDR event payloads (they are `self`-scoped encrypted).
 - `validatePayloadPrivacyScope` already enforces `self` → must have `PrivatePayloadEnvelopeV1`.
+- Sync checkpoint rows remain sync-engine state. They are not claimed/released by UDR events and are not projected into `UdrState`.
 - Existing `chatThreads`, `chatEventLog`, and all Phase 1.x local-store tables are unaffected.
