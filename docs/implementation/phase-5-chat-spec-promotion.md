@@ -61,10 +61,9 @@ The current slice includes:
 
 ## Current non-implemented pieces from the original chat plan
 
-The original Phase 5 chat plan still contains planned items that are not yet implemented:
+The original Phase 5 chat plan still contains planned items that are not yet fully integrated:
 
-- Dexie `chatThreads` table;
-- Dexie `chatEventLog` table;
+- Dexie `chatThreads` and `chatEventLog` table integration (schemas are defined in `packages/local-store`, but active read/write/rebuild integration is pending);
 - PWA `ThreadList`;
 - PWA `ThreadView`;
 - PWA `ComposeBox`;
@@ -140,11 +139,9 @@ Exit criteria:
 
 ### Stage P5-C2 — Chat persistence boundary
 
-Implement additive local-store support:
+Implement active local-store integration:
 
-- `chatThreads` projection table;
-- `chatEventLog` replay table;
-- schema migration;
+- `chatThreads` and `chatEventLog` table integration (schemas and migration are already defined in `packages/local-store`);
 - encrypted-at-rest projection storage;
 - projection rebuild from event log;
 - reopen/replay tests;
