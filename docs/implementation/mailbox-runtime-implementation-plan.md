@@ -40,6 +40,7 @@ This plan defines a small implementation sequence for mailbox runtime support wi
 
 Minimum fields:
 
+- `schemaVersion`;
 - `envelopeId`;
 - `authorId`;
 - `submitterId`;
@@ -112,10 +113,10 @@ Tests:
 
 Add local-store tables or schemas registered in `LocalFirstTableName` and a new Dexie schema version in `packages/local-store/src/index.ts` for:
 
-- mailbox outbox route state;
-- mailbox inbox route state;
-- mailbox receipt log;
-- mailbox ACK log.
+- mailbox outbox route state, indexed by `envelopeId` and `status`;
+- mailbox inbox route state, indexed by `envelopeId` and `status`;
+- mailbox receipt log, indexed by `receiptId` and `envelopeId`;
+- mailbox ACK log, indexed by `ackId` and `envelopeId`.
 
 Rules:
 
@@ -162,7 +163,7 @@ Tests:
 - sent message can be queued without provider acceptance;
 - provider accepted does not show as recipient read/applied;
 - undecryptable payload creates placeholder, not crash;
-- delete purges local plaintext projection without pretending to delete provider history.
+- delete tombstones local plaintext projection by clearing the body and marking the message deleted without pretending to delete provider history.
 
 ### Phase MB-5 — Sync integration
 
