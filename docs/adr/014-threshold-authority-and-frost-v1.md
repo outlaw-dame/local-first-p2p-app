@@ -30,7 +30,7 @@ However, a class of high-risk authority events benefit from a stronger authoriza
 - **High-value capability grants**: Delegating capabilities with wide scope or long expiry is irreversible until an explicit revocation event. Requiring threshold approval mirrors offline t-of-n authorization patterns.
 - **Shared infrastructure operator authority**: A team of bridge/relay operators sharing responsibility for a resource may want joint custody of the signing key for configuration changes.
 
-FROST (Flexible Round-Optimized Schnorr Threshold Signatures, IETF RFC 9591) is a t-of-n threshold signature scheme over Ristretto255/Ed25519 that produces a standard single Schnorr signature indistinguishable from a normal Ed25519 signature to a verifier. This property means:
+FROST (Flexible Round-Optimized Schnorr Threshold Signatures, IETF RFC 9591) is a t-of-n threshold signature scheme. This ADR requires the **Ed25519 FROST ciphersuite** (not the Ristretto255 ciphersuite) so that the resulting threshold signature is a valid standard Ed25519 signature verifiable by the existing `verifySignedEventEnvelope` path without any new verification code. This property means:
 
 - The protocol verifier stack does not need a new verification code path for threshold-signed events.
 - The `signature` field on `SignedEventEnvelope` remains a standard `ed25519` signature regardless of how many signers participated.
@@ -93,7 +93,7 @@ Required constraints:
 - Shares must be encrypted to each trustee's device public key using the Phase 2 private payload envelope before storage or transport.
 - Trustees are named controller-authorized devices or explicit trustee identities in the identity-control log.
 - The threshold `t` and total share count `n` are recorded in a signed `identity.recovery.configured` event (new kind, Phase 5.10 follow-up) for auditability.
-- Share refresh follows a FROST resharing protocol. Old shares are invalidated on every controller key rotation.
+- Share refresh follows a FROST resharing protocol. Old shares are invalidated on every controller key rotation, and a new share generation and distribution ceremony MUST be initiated immediately following rotation to prevent permanent lockout.
 - The protocol does not define a transport for share distribution; applications may use the encrypted mailbox, direct encrypted transfer, or out-of-band ceremony.
 
 ### Space governance threshold model
@@ -146,9 +146,9 @@ DKG requires additional round-trip coordination, is harder to audit in a local-f
 
 Shares are high-value key material. Storage rules:
 
-- Shares MUST be encrypted at rest using the Phase 2 private payload envelope before any persistent storage.
+- Shares MUST be encrypted during transport/distribution using the Phase 2 private payload envelope (which provides event-scoped AAD and recipient wrapping for delivery over the encrypted mailbox or direct transfer).
 - Shares MUST be stored in the `device-local` privacy scope. They MUST NOT be published to public or group-scoped stores.
-- The local Dexie store may hold an encrypted share under a protection key from `localProtectionKeys`. The stored shape mirrors `StoredDeviceIdentity.encryptedPrivateKey`.
+- The local Dexie store MUST hold shares encrypted at rest using `EncryptedKeyMaterial` under a protection key from `localProtectionKeys`. The stored shape mirrors `StoredDeviceIdentity.encryptedPrivateKey`. The Phase 2 private payload envelope is not used for local Dexie storage (it requires artificial event context that does not apply to at-rest key material).
 - Shares MUST NOT be logged in any audit log, even in redacted form. Share material is not a DigestRef-eligible artifact.
 - On device wipe or revocation, the local share MUST be deleted. Share deletion does not immediately invalidate the threshold key — the remaining shares still form a valid t-of-n set. Invalidation requires a resharing ceremony.
 
@@ -218,7 +218,7 @@ This ADR does not apply to:
 | Replay of completed threshold signature | No special handling needed; normal event `eventId` + `lamport` replay protection covers threshold-signed events |
 | Share enumeration via timing/metadata | Shares are `device-local` privacy scope only; never in bridge logs; audit redaction rules (Phase 3.1) apply |
 | Recovery ceremony with stale/revoked trustee | Trustee list tied to identity-control log; revoked device shares should be excluded and threshold re-evaluated |
-| Governance threshold bypass via admin compromise below `t` | Below-threshold signed governance events MUST be rejected by the projection validator (Phase 5.10 follow-up enforcement) |
+| Governance threshold bypass via admin compromise below `t` | High-consequence Space governance events MUST be signed by the Space's joint threshold public key; since FROST signatures are cryptographically indistinguishable at verification, bypass protection comes from requiring that key — which cannot be derived by fewer than `t` admins — not from counting signers at the projection layer |
 | Loss of all trustee devices below `t` | Protocol surfaces recovery-impaired state; no silent degradation to single-device fallback for threshold-declared events |
 
 ## Security and privacy impact
