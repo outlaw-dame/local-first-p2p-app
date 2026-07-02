@@ -360,6 +360,12 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
 
+  packages/udr-projection:
+    dependencies:
+      '@lfp2p/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+
   packages/ui:
     dependencies:
       '@lfp2p/design-tokens':
