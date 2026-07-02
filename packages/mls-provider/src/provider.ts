@@ -11,6 +11,7 @@ import type {
   GroupState,
   KeyPackage,
   MLSMessage,
+  PrivateKeyPackage,
   Proposal
 } from 'ts-mls';
 import {
@@ -121,6 +122,13 @@ function zeroizeAll(consumed: ReadonlyArray<Uint8Array>): void {
   for (const bytes of consumed) zeroOutUint8Array(bytes);
 }
 
+/** Wipe every private-key buffer in an MLS private key package. */
+function zeroizePrivateKeyPackage(pkg: PrivateKeyPackage): void {
+  zeroOutUint8Array(pkg.initPrivateKey);
+  zeroOutUint8Array(pkg.hpkePrivateKey);
+  zeroOutUint8Array(pkg.signaturePrivateKey);
+}
+
 /**
  * Map a ts-mls failure to a stable, privacy-safe provider error. The
  * upstream message is intentionally discarded (it may describe secret
@@ -207,11 +215,12 @@ export class TsMlsProvider {
   }
 
   /**
-   * Serialize all operations touching one group. Stored chains never
-   * reject (failures propagate to the caller, not to the queue), so a
-   * failed operation cannot deadlock the group.
+   * Serialize operations that share a lock key (a group, or a
+   * consume-once KeyPackage claim). Stored chains never reject
+   * (failures propagate to the caller, not to the queue), so a failed
+   * operation cannot deadlock the key.
    */
-  private withGroupLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  private withLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
     const tail = this.locks.get(key) ?? Promise.resolve();
     const run = tail.then(operation);
     const settled = run.then(
@@ -266,22 +275,38 @@ export class TsMlsProvider {
     });
   }
 
-  private membersOf(state: ClientState): MlsIdentityBinding[] {
-    const members: MlsIdentityBinding[] = [];
-    // Leaves live at even node indices of the ratchet tree (RFC 9420
-    // array representation); blanks are `undefined`.
+  /**
+   * Iterate the group's occupied leaves, yielding each member's leaf
+   * index and resolved identity binding. Single source of truth for
+   * membership traversal (used by projection and removal), with
+   * defensive guards so a malformed ratchet tree fails soft (skips the
+   * leaf) rather than throwing a raw TypeError. Leaves live at even
+   * node indices of the RFC 9420 array representation; blanks are
+   * `undefined`.
+   */
+  private *resolvedLeaves(
+    state: ClientState
+  ): Generator<{ leafIndex: number; binding: MlsIdentityBinding }> {
     for (let nodeIndex = 0; nodeIndex < state.ratchetTree.length; nodeIndex += 2) {
       const node = state.ratchetTree[nodeIndex];
       if (node === undefined || node.nodeType !== 'leaf') continue;
-      const credential = node.leaf.credential;
-      if (credential.credentialType !== 'basic') continue;
+      const credential = node.leaf?.credential;
+      if (credential === undefined || credential.credentialType !== 'basic') continue;
+      let binding: MlsIdentityBinding;
       try {
-        members.push(decodeIdentityBinding(credential.identity));
+        binding = decodeIdentityBinding(credential.identity);
       } catch {
-        // Unresolvable credentials are excluded from the projection
-        // view; the authService prevents them from being added by us.
+        // Unresolvable credentials are excluded; the authService
+        // prevents such leaves from being added by us in the first place.
+        continue;
       }
+      yield { leafIndex: nodeIndex / 2, binding };
     }
+  }
+
+  private membersOf(state: ClientState): MlsIdentityBinding[] {
+    const members: MlsIdentityBinding[] = [];
+    for (const { binding } of this.resolvedLeaves(state)) members.push(binding);
     return members;
   }
 
@@ -311,11 +336,12 @@ export class TsMlsProvider {
     if (keyPackage.cipherSuite !== PINNED_CIPHERSUITE) {
       throw mlsError('MLS_UNSUPPORTED_CIPHERSUITE', 'key package uses an unsupported ciphersuite');
     }
-    if (keyPackage.leafNode.credential.credentialType !== 'basic') {
+    const credential = keyPackage.leafNode?.credential;
+    if (credential === undefined || credential.credentialType !== 'basic') {
       throw mlsError('MLS_CREDENTIAL_INVALID', 'key package credential type is unsupported');
     }
     // Throws MLS_CREDENTIAL_INVALID when the binding is malformed.
-    decodeIdentityBinding(keyPackage.leafNode.credential.identity);
+    decodeIdentityBinding(credential.identity);
     return keyPackage;
   }
 
@@ -326,18 +352,20 @@ export class TsMlsProvider {
    */
   async generateKeyPackage(): Promise<GeneratedKeyPackage> {
     const cs = await this.ciphersuiteImpl();
+    let privatePackage: PrivateKeyPackage | undefined;
     try {
-      const { publicPackage, privatePackage } = await generateKeyPackage(
+      const generated = await generateKeyPackage(
         this.credential(),
         defaultCapabilities(),
         defaultLifetime,
         [],
         cs
       );
+      privatePackage = generated.privatePackage;
       const keyPackageWire = encodeMlsMessage({
         version: 'mls10',
         wireformat: 'mls_key_package',
-        keyPackage: publicPackage
+        keyPackage: generated.publicPackage
       });
       const keyPackageRef = await createDigest(keyPackageWire, 'sha-256');
       const encoded = encodePrivateKeyPackage(privatePackage);
@@ -346,32 +374,41 @@ export class TsMlsProvider {
       return Object.freeze({ keyPackageWire, keyPackageRef });
     } catch (error) {
       if (error instanceof Error && error.name === 'MlsProviderError') throw error;
-      wrapLibraryError('generateKeyPackage', error);
+      // `return` (wrapLibraryError is `never`) so control-flow analysis
+      // sees the catch always exits even with the finally present.
+      return wrapLibraryError('generateKeyPackage', error);
+    } finally {
+      // The raw private keys were serialized to `encoded` (persisted
+      // and zeroized) and are of no further use in this buffer; wipe
+      // the library's copy so key material does not linger in memory.
+      if (privatePackage !== undefined) zeroizePrivateKeyPackage(privatePackage);
     }
   }
 
   async createGroup(groupId: Uint8Array): Promise<MlsEpochCheckpoint> {
     const validated = validateGroupId(groupId);
     const key = groupKey(validated);
-    return this.withGroupLock(key, async () => {
+    return this.withLock(key, async () => {
       const existing = await this.store.loadGroupState(key);
       if (existing !== undefined) {
         throw mlsError('MLS_GROUP_EXISTS', 'local state already exists for this group');
       }
       const cs = await this.ciphersuiteImpl();
+      let privatePackage: PrivateKeyPackage | undefined;
       try {
         // The creator's KeyPackage is generated inline and never
         // published — it exists only to seed the leaf.
-        const { publicPackage, privatePackage } = await generateKeyPackage(
+        const generated = await generateKeyPackage(
           this.credential(),
           defaultCapabilities(),
           defaultLifetime,
           [],
           cs
         );
+        privatePackage = generated.privatePackage;
         const state = await createGroup(
           validated,
-          publicPackage,
+          generated.publicPackage,
           privatePackage,
           [],
           cs,
@@ -382,6 +419,11 @@ export class TsMlsProvider {
       } catch (error) {
         if (error instanceof Error && error.name === 'MlsProviderError') throw error;
         wrapLibraryError('createGroup', error);
+      } finally {
+        // Group state has been serialized to storage; the seed private
+        // package is redundant. Wipe it (the transient `state` object is
+        // discarded, so wiping shared buffers post-save is harmless).
+        if (privatePackage !== undefined) zeroizePrivateKeyPackage(privatePackage);
       }
     });
   }
@@ -416,21 +458,13 @@ export class TsMlsProvider {
       throw mlsError('MLS_INVALID_INPUT', 'cannot remove the local member with removeMember');
     }
     const key = groupKey(validated);
-    return this.withGroupLock(key, async () => {
+    return this.withLock(key, async () => {
       const state = await this.loadState(key);
       let leafIndex: number | undefined;
-      for (let nodeIndex = 0; nodeIndex < state.ratchetTree.length; nodeIndex += 2) {
-        const node = state.ratchetTree[nodeIndex];
-        if (node === undefined || node.nodeType !== 'leaf') continue;
-        const credential = node.leaf.credential;
-        if (credential.credentialType !== 'basic') continue;
-        try {
-          if (identityBindingsEqual(decodeIdentityBinding(credential.identity), target)) {
-            leafIndex = nodeIndex / 2;
-            break;
-          }
-        } catch {
-          continue;
+      for (const leaf of this.resolvedLeaves(state)) {
+        if (identityBindingsEqual(leaf.binding, target)) {
+          leafIndex = leaf.leafIndex;
+          break;
         }
       }
       if (leafIndex === undefined) {
@@ -452,7 +486,7 @@ export class TsMlsProvider {
 
   private commit(groupId: Uint8Array, proposals: Proposal[]): Promise<MlsCommitResult> {
     const key = groupKey(groupId);
-    return this.withGroupLock(key, async () => {
+    return this.withLock(key, async () => {
       const state = await this.loadState(key);
       return this.commitLocked(key, state, proposals);
     });
@@ -506,43 +540,51 @@ export class TsMlsProvider {
     const keyPackage = this.decodeKeyPackageWire(keyPackageWire);
     const keyPackageRef = await createDigest(keyPackageWire, 'sha-256');
     const storeKey = keyPackageStoreKey(keyPackageRef);
-    const privateBytes = await this.store.loadPrivateKeyPackage(storeKey);
-    if (privateBytes === undefined) {
-      throw mlsError(
-        'MLS_UNKNOWN_KEY_PACKAGE',
-        'no private key package for this welcome (already consumed, or foreign key package)'
-      );
-    }
-    const privatePackage = decodePrivateKeyPackage(privateBytes);
-    zeroOutUint8Array(privateBytes);
-    const cs = await this.ciphersuiteImpl();
-    try {
-      const state = await joinGroup(
-        welcomeMessage.welcome,
-        keyPackage,
-        privatePackage,
-        emptyPskIndex,
-        cs,
-        undefined,
-        undefined,
-        this.clientConfig
-      );
-      const key = groupKey(state.groupContext.groupId);
-      const existing = await this.store.loadGroupState(key);
-      if (existing !== undefined) {
-        throw mlsError('MLS_GROUP_EXISTS', 'local state already exists for the welcomed group');
+
+    // Serialize the consume-once claim by KeyPackage: two concurrent
+    // joins for a replayed Welcome must not both load the private half
+    // before either deletes it. Under this lock the first join loads,
+    // joins, and deletes; the second sees the deleted package and fails
+    // MLS_UNKNOWN_KEY_PACKAGE. A group hash and a KeyPackage store key
+    // never collide (distinct formats), but the `kp:` prefix keeps the
+    // lock namespaces explicitly separate.
+    return this.withLock(`kp:${storeKey}`, async () => {
+      const privateBytes = await this.store.loadPrivateKeyPackage(storeKey);
+      if (privateBytes === undefined) {
+        throw mlsError(
+          'MLS_UNKNOWN_KEY_PACKAGE',
+          'no private key package for this welcome (already consumed, or foreign key package)'
+        );
       }
-      await this.saveState(key, state);
-      await this.store.deletePrivateKeyPackage(storeKey);
-      return await this.checkpointOf(state);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'MlsProviderError') throw error;
-      wrapLibraryError('joinFromWelcome', error);
-    } finally {
-      zeroOutUint8Array(privatePackage.initPrivateKey);
-      zeroOutUint8Array(privatePackage.hpkePrivateKey);
-      zeroOutUint8Array(privatePackage.signaturePrivateKey);
-    }
+      const privatePackage = decodePrivateKeyPackage(privateBytes);
+      zeroOutUint8Array(privateBytes);
+      const cs = await this.ciphersuiteImpl();
+      try {
+        const state = await joinGroup(
+          welcomeMessage.welcome,
+          keyPackage,
+          privatePackage,
+          emptyPskIndex,
+          cs,
+          undefined,
+          undefined,
+          this.clientConfig
+        );
+        const key = groupKey(state.groupContext.groupId);
+        const existing = await this.store.loadGroupState(key);
+        if (existing !== undefined) {
+          throw mlsError('MLS_GROUP_EXISTS', 'local state already exists for the welcomed group');
+        }
+        await this.saveState(key, state);
+        await this.store.deletePrivateKeyPackage(storeKey);
+        return await this.checkpointOf(state);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'MlsProviderError') throw error;
+        wrapLibraryError('joinFromWelcome', error);
+      } finally {
+        zeroizePrivateKeyPackage(privatePackage);
+      }
+    });
   }
 
   /**
@@ -561,14 +603,17 @@ export class TsMlsProvider {
     ) {
       throw mlsError('MLS_INVALID_INPUT', 'expected an MLS private or public message');
     }
+    // Guard defensively against structurally-incomplete decoded
+    // messages: a missing groupId must fail closed, never throw a raw
+    // TypeError out of groupKey().
     const wireGroupId =
       message.wireformat === 'mls_private_message'
-        ? message.privateMessage.groupId
-        : message.publicMessage.content.groupId;
-    if (groupKey(wireGroupId) !== key) {
+        ? message.privateMessage?.groupId
+        : message.publicMessage?.content?.groupId;
+    if (wireGroupId === undefined || groupKey(wireGroupId) !== key) {
       throw mlsError('MLS_WRONG_GROUP', 'message is addressed to a different group');
     }
-    return this.withGroupLock(key, async () => {
+    return this.withLock(key, async () => {
       const state = await this.loadState(key);
       // Fail closed once removed: the removal commit itself is the last
       // message this device processes for the group (it is what puts us
@@ -616,7 +661,7 @@ export class TsMlsProvider {
       );
     }
     const key = groupKey(validated);
-    return this.withGroupLock(key, async () => {
+    return this.withLock(key, async () => {
       const state = await this.loadState(key);
       this.assertActive(state);
       const cs = await this.ciphersuiteImpl();
@@ -640,20 +685,18 @@ export class TsMlsProvider {
 
   async exportCheckpoint(groupId: Uint8Array): Promise<MlsEpochCheckpoint> {
     const key = groupKey(validateGroupId(groupId));
-    return this.withGroupLock(key, async () => this.checkpointOf(await this.loadState(key)));
+    return this.withLock(key, async () => this.checkpointOf(await this.loadState(key)));
   }
 
   async listMembers(groupId: Uint8Array): Promise<ReadonlyArray<MlsIdentityBinding>> {
     const key = groupKey(validateGroupId(groupId));
-    return this.withGroupLock(key, async () =>
-      Object.freeze(this.membersOf(await this.loadState(key)))
-    );
+    return this.withLock(key, async () => Object.freeze(this.membersOf(await this.loadState(key))));
   }
 
   /** Remove all local state for a group (e.g. after leaving). */
   async deleteGroup(groupId: Uint8Array): Promise<boolean> {
     const key = groupKey(validateGroupId(groupId));
-    return this.withGroupLock(key, () => this.store.deleteGroupState(key));
+    return this.withLock(key, () => this.store.deleteGroupState(key));
   }
 
   private assertActive(state: ClientState): void {

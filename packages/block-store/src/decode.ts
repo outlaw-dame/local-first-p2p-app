@@ -37,6 +37,11 @@ export async function decodeBlockBytes(
   decoders: DecoderMap
 ): Promise<Uint8Array> {
   if (descriptor === undefined || descriptor.algorithm === 'identity') {
+    // Identity: returns the input as-is. Callers that expose this as
+    // verified/trusted output are responsible for passing store-owned
+    // bytes — `BlockStore.getBlock` takes a defensive copy at the trust
+    // boundary before calling this, so a fetcher cannot mutate the
+    // returned buffer after verification.
     return bytes;
   }
   if (descriptor.dictionaryRef !== undefined) {
@@ -94,6 +99,10 @@ async function gunzipBounded(bytes: Uint8Array, maxDecodedBytes: number): Promis
   }
   let stream: ReadableStream<Uint8Array>;
   try {
+    // Blob().stream() is the type-clean way to obtain a ReadableStream
+    // whose element type matches DecompressionStream's writable side.
+    // (Both Blob and DecompressionStream are standard on our targets —
+    // Node 18+ and modern browsers.)
     stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream('gzip'));
   } catch {
     throw bsError('BS_DECODE_FAILED', 'gzip stream initialization failed');

@@ -460,6 +460,73 @@ describe('BlockStore.getBlock', () => {
     expect(block.encrypted).toBe(true);
     expect(block.bytes).toEqual(ciphertext);
   });
+
+  it('does NOT decompress an encrypted block that also carries compression metadata', async () => {
+    // Compress-then-encrypt: the compression descriptor describes the
+    // plaintext, and byteLength is the ciphertext size. The store must
+    // return verified ciphertext, not attempt to gunzip it (which would
+    // fail — the ciphertext is not gzip).
+    const ciphertext = bytesOf('this is not gzip; it is ciphertext of a compressed payload');
+    const digest = await createDigest(ciphertext, 'sha-256');
+    const keyRef = await createDigest(bytesOf('mls key ref'), 'sha-256');
+    const ref = {
+      type: 'block-ref',
+      source: { kind: 'digest', digest },
+      byteLength: ciphertext.byteLength,
+      offset: 0,
+      privacy: 'private',
+      encryption: { scheme: 'mls-v1', keyRef },
+      // Plaintext-domain compression: sizes deliberately unrelated to
+      // the ciphertext byteLength.
+      compression: { algorithm: 'gzip', encodedSize: 20, decodedSize: 200 }
+    } as BlockRef;
+    const memory = new MemoryBlockStore();
+    await memory.put(ciphertext);
+    const { store } = makeStore({ fetchers: [memory] });
+    const block = await store.getBlock(ref);
+    expect(block.encrypted).toBe(true);
+    expect(block.bytes).toEqual(ciphertext);
+  });
+
+  it('treats a fetcher that resolves a malformed/undefined result as transient', async () => {
+    const raw = bytesOf('recover from a broken fetcher');
+    const ref = await refFor(raw);
+    // A fetcher that resolves `undefined` instead of a BlockFetchResult.
+    const broken: BlockFetcher = {
+      id: 'broken',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fetchBlock: () => Promise.resolve(undefined as any)
+    };
+    const memory = new MemoryBlockStore({ id: 'good' });
+    await memory.put(raw);
+    const { store } = makeStore({
+      fetchers: [broken, memory],
+      retry: { maxAttemptsPerFetcher: 2, baseDelayMs: 0, maxDelayMs: 0 }
+    });
+    const block = await store.getBlock(ref);
+    expect(new TextDecoder().decode(block.bytes)).toBe('recover from a broken fetcher');
+    // The broken fetcher was recorded as transient-error, then the good
+    // one served the block.
+    expect(
+      block.attempts.some((a) => a.fetcherId === 'broken' && a.outcome === 'transient-error')
+    ).toBe(true);
+  });
+
+  it('returned bytes are a copy immune to post-resolve fetcher mutation', async () => {
+    const raw = bytesOf('trusted after verification');
+    const ref = await refFor(raw);
+    // A fetcher that hands back a reference it keeps and later mutates.
+    const shared = raw.slice();
+    const mutating: BlockFetcher = {
+      id: 'mutating',
+      fetchBlock: () => Promise.resolve({ outcome: 'ok', bytes: shared })
+    };
+    const { store } = makeStore({ fetchers: [mutating] });
+    const block = await store.getBlock(ref);
+    // Attacker mutates the buffer it returned, after the store resolved.
+    shared.fill(0);
+    expect(new TextDecoder().decode(block.bytes)).toBe('trusted after verification');
+  });
 });
 
 // ---------------------------------------------------------------------------

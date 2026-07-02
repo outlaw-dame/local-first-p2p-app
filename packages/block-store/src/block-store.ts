@@ -11,7 +11,7 @@ import { computeBackoffDelayMs, DEFAULT_BACKOFF, validateBackoffConfig } from '.
 import type { DecoderMap } from './decode.js';
 import { decodeBlockBytes } from './decode.js';
 import { bsError } from './errors.js';
-import type { BlockFetcher } from './fetcher.js';
+import type { BlockFetcher, BlockFetchResult } from './fetcher.js';
 import type { BreakerConfig } from './health.js';
 import { DEFAULT_BREAKER, FetcherHealthTracker } from './health.js';
 
@@ -232,6 +232,15 @@ export class BlockStore {
       );
     }
 
+    // Encrypted blocks are compress-then-encrypt: the compression
+    // descriptor describes the PLAINTEXT and can only be applied after
+    // decryption. This store never decrypts, so for encrypted blocks it
+    // treats the fetched bytes as opaque ciphertext — it neither applies
+    // the plaintext-domain compression invariants (encodedSize would
+    // describe compressed plaintext, not the ciphertext byteLength) nor
+    // decodes them. The key-holding layer decrypts, then decompresses.
+    const isEncrypted = ref.encryption !== undefined;
+
     // Caps are enforced before any bytes move.
     if (ref.byteLength > this.maxBlockBytes) {
       throw bsError(
@@ -239,7 +248,7 @@ export class BlockStore {
         `${redactBlockRef(ref)} exceeds maxBlockBytes ${this.maxBlockBytes}`
       );
     }
-    if (ref.compression !== undefined) {
+    if (!isEncrypted && ref.compression !== undefined) {
       if (ref.compression.encodedSize !== ref.byteLength) {
         throw bsError(
           'BS_INVALID_INPUT',
@@ -266,7 +275,7 @@ export class BlockStore {
       perFetcher: for (let attempt = 0; attempt < this.retry.maxAttemptsPerFetcher; attempt += 1) {
         throwIfAborted(signal);
 
-        let result;
+        let result: BlockFetchResult;
         try {
           // Only attach `signal` when present: exactOptionalPropertyTypes
           // forbids an explicit `signal: undefined`.
@@ -275,9 +284,28 @@ export class BlockStore {
         } catch {
           // Exception text is discarded: it may contain URLs,
           // credentials, or storage-layer details we must not surface.
-          result = { outcome: 'transient-error', reason: 'fetcher-threw' } as const;
+          result = { outcome: 'transient-error', reason: 'fetcher-threw' };
         }
         throwIfAborted(signal);
+
+        // A misbehaving fetcher may resolve with a non-conforming value
+        // (null, undefined, wrong shape) instead of throwing. Treat that
+        // as a transient failure rather than dereferencing it and
+        // crashing the whole retrieval.
+        if (
+          result === null ||
+          typeof result !== 'object' ||
+          typeof (result as { outcome?: unknown }).outcome !== 'string'
+        ) {
+          this.health.recordFailure(fetcher.id, this.now());
+          attempts.push({ fetcherId: fetcher.id, outcome: 'transient-error' });
+          const isLastAttempt = attempt === this.retry.maxAttemptsPerFetcher - 1;
+          if (isLastAttempt || !this.health.canAttempt(fetcher.id, this.now())) {
+            break perFetcher;
+          }
+          await this.sleep(computeBackoffDelayMs(attempt, this.retry, this.random), signal);
+          continue;
+        }
 
         if (result.outcome === 'not-found') {
           // Definitive, healthy answer — not a failure.
@@ -299,14 +327,19 @@ export class BlockStore {
         }
 
         // outcome === 'ok': verify before trusting anything.
-        const { bytes } = result;
-        if (!(bytes instanceof Uint8Array) || bytes.byteLength !== ref.byteLength) {
+        if (!(result.bytes instanceof Uint8Array) || result.bytes.byteLength !== ref.byteLength) {
           // Deterministic corruption — retrying the same source would
           // return the same wrong bytes. Penalize and move on.
           this.health.recordFailure(fetcher.id, this.now());
           attempts.push({ fetcherId: fetcher.id, outcome: 'length-mismatch' });
           break perFetcher;
         }
+        // Take an owned copy at the trust boundary before hashing: a
+        // fetcher that reuses or mutates its buffer after resolving must
+        // not be able to change the bytes we verify and return. Every
+        // downstream path (verify, decode, return) uses this copy, so
+        // VerifiedBlock.bytes is always store-owned.
+        const bytes = result.bytes.slice();
         const digestOk = await verifyDigest(bytes, sourceDigest);
         if (!digestOk) {
           this.health.recordFailure(fetcher.id, this.now());
@@ -316,12 +349,16 @@ export class BlockStore {
 
         this.health.recordSuccess(fetcher.id);
         attempts.push({ fetcherId: fetcher.id, outcome: 'ok' });
-        const decoded = await decodeBlockBytes(bytes, ref.compression, this.decoders);
+        // Ciphertext is returned untouched (see isEncrypted note above);
+        // only cleartext blocks are decompressed here.
+        const decoded = isEncrypted
+          ? bytes
+          : await decodeBlockBytes(bytes, ref.compression, this.decoders);
         return Object.freeze({
           ref,
           bytes: decoded,
           digestVerified: true as const,
-          encrypted: ref.encryption !== undefined,
+          encrypted: isEncrypted,
           attempts: Object.freeze(attempts.map((a) => Object.freeze(a)))
         });
       }
