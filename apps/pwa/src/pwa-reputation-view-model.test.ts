@@ -27,9 +27,9 @@ const FIXED_NOW_ISO = '2026-06-01T12:00:00Z';
 describe('buildReputationView — input validation', () => {
   it('throws on empty observerActorId', async () => {
     const store = freshStore('bad-observer');
-    await expect(
-      buildReputationView({ store, observerActorId: '' })
-    ).rejects.toThrow(/observerActorId is required/);
+    await expect(buildReputationView({ store, observerActorId: '' })).rejects.toThrow(
+      /observerActorId is required/
+    );
   });
 });
 
@@ -112,9 +112,7 @@ describe('buildReputationView — observation flow', () => {
     });
     // alice is the seed, so she has the highest score.
     for (let i = 1; i < view.entries.length; i++) {
-      expect(view.entries[i - 1]!.score).toBeGreaterThanOrEqual(
-        view.entries[i]!.score
-      );
+      expect(view.entries[i - 1]!.score).toBeGreaterThanOrEqual(view.entries[i]!.score);
     }
   });
 });
@@ -156,9 +154,7 @@ describe('buildReputationView — attestation flow + fingerprint amplifier', () 
       observerActorId: 'alice',
       nowIso: FIXED_NOW_ISO
     });
-    expect(
-      before.entries.find((e) => e.subject === 'actor:mallory')
-    ).toBeDefined();
+    expect(before.entries.find((e) => e.subject === 'actor:mallory')).toBeDefined();
 
     await emitAttestationRevoked({
       store,
@@ -171,9 +167,7 @@ describe('buildReputationView — attestation flow + fingerprint amplifier', () 
       observerActorId: 'alice',
       nowIso: FIXED_NOW_ISO
     });
-    expect(
-      after.entries.find((e) => e.subject === 'actor:mallory')
-    ).toBeUndefined();
+    expect(after.entries.find((e) => e.subject === 'actor:mallory')).toBeUndefined();
   });
 });
 

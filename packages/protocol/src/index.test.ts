@@ -176,7 +176,9 @@ describe('protocol event envelopes', () => {
           keyId: 'content:key:alice'
         }
       })
-    ).toThrow(/payload\.nonce must be base64url with no padding|payload\.nonce must decode to 12 bytes/);
+    ).toThrow(
+      /payload\.nonce must be base64url with no padding|payload\.nonce must decode to 12 bytes/
+    );
   });
 
   it('rejects duplicate recipient device IDs in private payload envelope', () => {

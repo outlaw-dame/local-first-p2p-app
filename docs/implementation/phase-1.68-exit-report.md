@@ -60,12 +60,12 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| Threat model updated for implemented code | ✓ | New "Implementation update" section |
-| Single canonical entry point for the T&S stack exists | ✓ | `trust-safety-complete-summary.md` |
-| Phase-map reflects 1.66, 1.67, 1.68 | ✓ | rows added |
-| Acceptance criteria in trust-safety-phase-plan.md ticked | ✓ | in the completion summary |
+| Criterion                                                | Status | Evidence                            |
+| -------------------------------------------------------- | -----: | ----------------------------------- |
+| Threat model updated for implemented code                |      ✓ | New "Implementation update" section |
+| Single canonical entry point for the T&S stack exists    |      ✓ | `trust-safety-complete-summary.md`  |
+| Phase-map reflects 1.66, 1.67, 1.68                      |      ✓ | rows added                          |
+| Acceptance criteria in trust-safety-phase-plan.md ticked |      ✓ | in the completion summary           |
 
 ## Decision
 

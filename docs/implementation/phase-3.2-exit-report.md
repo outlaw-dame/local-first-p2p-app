@@ -116,6 +116,7 @@ Fix: wrap the return in `Object.freeze`. Note that `Object.freeze`
 on a `Set` does not prevent `.add()` / `.delete()` calls on the
 Set's internal slots (those mutate internal storage, not
 enumerable properties), but it does:
+
 - mark the value as structurally immutable for the deep-freeze
   walk,
 - raise the bar for accidental mutation,
@@ -136,6 +137,7 @@ Site: `packages/identity/src/control-log.ts:149-362` (every
 
 Pre-fix, the entire identity projection was a mutable plain
 object. A consumer could:
+
 - Set `state.devices['device:x'].status = 'active'` to resurrect
   a revoked device in the cached projection without any
   controller-signed event. Inbound sync would then accept that
@@ -176,18 +178,18 @@ place.
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Single audit surface proves the local-first guarantee end-to-end | ✓ | `phase-3.2-local-first-integrity.test.ts` |
-| Every projection (7) has `seed === reduce` pinned | ✓ | invariant 1 |
-| Every projection has a deep-freeze walk that walks nested records | ✓ | invariant 2 |
-| Class A commutativity is structurally pinned | ✓ | invariant 3 |
-| Cross-projection isolation is structurally pinned | ✓ | invariant 4 (30 paired tests) |
-| End-to-end interleaved replay converges deterministically | ✓ | invariant 5 |
-| Discovered hardening bugs are FIXED, not deferred | ✓ | `projection-helpers.ts`, `control-log.ts` |
-| Tests use canonical JSON fixtures, no parallel fixture inventory | ✓ | loaded from `packages/.../fixtures/.../valid/*.json` |
-| Tests are deterministic | ✓ | LCG with named seeds; no `Math.random()` |
-| Existing per-phase tests still pass | ✓ | full sweep clean |
+| Criterion                                                         | Status | Evidence                                             |
+| ----------------------------------------------------------------- | :----: | ---------------------------------------------------- |
+| Single audit surface proves the local-first guarantee end-to-end  |   ✓    | `phase-3.2-local-first-integrity.test.ts`            |
+| Every projection (7) has `seed === reduce` pinned                 |   ✓    | invariant 1                                          |
+| Every projection has a deep-freeze walk that walks nested records |   ✓    | invariant 2                                          |
+| Class A commutativity is structurally pinned                      |   ✓    | invariant 3                                          |
+| Cross-projection isolation is structurally pinned                 |   ✓    | invariant 4 (30 paired tests)                        |
+| End-to-end interleaved replay converges deterministically         |   ✓    | invariant 5                                          |
+| Discovered hardening bugs are FIXED, not deferred                 |   ✓    | `projection-helpers.ts`, `control-log.ts`            |
+| Tests use canonical JSON fixtures, no parallel fixture inventory  |   ✓    | loaded from `packages/.../fixtures/.../valid/*.json` |
+| Tests are deterministic                                           |   ✓    | LCG with named seeds; no `Math.random()`             |
+| Existing per-phase tests still pass                               |   ✓    | full sweep clean                                     |
 
 ## Why no separate Phase 3.2.B file
 

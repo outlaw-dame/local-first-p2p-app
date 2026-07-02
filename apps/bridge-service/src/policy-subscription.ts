@@ -94,11 +94,7 @@ export class PolicySubscriptionRuntime {
     if (this.#subscriptions.length === 0) return undefined;
 
     const key = subjectKey({ type: 'actor', actorId: producerActorId });
-    const allLabels = effectiveLabelsForSubject(
-      this.#labelersState,
-      key,
-      this.#subscriberActorId
-    );
+    const allLabels = effectiveLabelsForSubject(this.#labelersState, key, this.#subscriberActorId);
 
     // Enforce the runtime subscription boundary: only labels from labelers
     // explicitly listed in this runtime's #subscriptions can reject.
@@ -106,7 +102,9 @@ export class PolicySubscriptionRuntime {
     // the operator's runtime list could still trigger a bridge-level rejection,
     // violating the "unlisted labeler cannot reject" doctrine.
     const subscribedLabelerIds = new Set(this.#subscriptions.map((s) => s.labelerId));
-    const enforcedLabels = allLabels.filter((l) => l.issuerLabelerId !== undefined && subscribedLabelerIds.has(l.issuerLabelerId));
+    const enforcedLabels = allLabels.filter(
+      (l) => l.issuerLabelerId !== undefined && subscribedLabelerIds.has(l.issuerLabelerId)
+    );
 
     const action: StackedAction = mostRestrictiveAction(enforcedLabels);
     // 'quarantine' is the most restrictive StackedAction and maps to

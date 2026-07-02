@@ -65,10 +65,8 @@ export type LocalControlAction = (typeof LOCAL_CONTROL_ACTIONS)[number];
  * replay the event and apply the same preference. Bridge analytics and
  * public flows remain forbidden.
  */
-export const PRIVATE_LOCAL_CONTROL_SCOPES: ReadonlySet<EnforcementScope> = new Set<EnforcementScope>([
-  'device-local',
-  'account-local'
-]);
+export const PRIVATE_LOCAL_CONTROL_SCOPES: ReadonlySet<EnforcementScope> =
+  new Set<EnforcementScope>(['device-local', 'account-local']);
 
 export const ACCOUNT_MUTE_SCOPES = ['all', 'feed', 'replies', 'notifications'] as const;
 export type AccountMuteScope = (typeof ACCOUNT_MUTE_SCOPES)[number];
@@ -91,13 +89,7 @@ export type AccountMuteScope = (typeof ACCOUNT_MUTE_SCOPES)[number];
  * either freeze the host or be weaponized when the preference
  * snapshot syncs to another device.
  */
-export const KEYWORD_MATCH_KINDS = [
-  'substring',
-  'word',
-  'phrase',
-  'hashtag',
-  'semantic'
-] as const;
+export const KEYWORD_MATCH_KINDS = ['substring', 'word', 'phrase', 'hashtag', 'semantic'] as const;
 export type KeywordMatchKind = (typeof KEYWORD_MATCH_KINDS)[number];
 
 export const LABEL_PREFERENCE_ACTIONS = [
@@ -183,89 +175,125 @@ type CommonFields = Readonly<{
 type WithOptionalExpiry = Readonly<{ expiresAt?: string }>;
 
 export type LocalControlEvent =
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.account.blocked';
-      targetActorId: string;
-      reasonCode?: string;
-    }>
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.account.muted';
-      targetActorId: string;
-      muteScope: AccountMuteScope;
-    }>
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.account.allowlisted';
-      targetActorId: string;
-      reasonCode?: string;
-    }>
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.domain.blocked';
-      domain: string;
-      reasonCode?: string;
-    }>
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.keyword.muted';
-      keyword: string;
-      matchKind: KeywordMatchKind;
-      embeddingRef?: DigestRef;
-      embeddingModel?: string;
-      similarityThreshold?: number;
-    }>
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.thread.muted';
-      threadId: string;
-    }>
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.post.hidden';
-      postEventId: string;
-    }>
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.label.preference.set';
-      labelKey: string;
-      namespace: string;
-      preference: LabelPreferenceAction;
-    }>
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.policy-list.subscribed';
-      policyListId: string;
-      issuerActorId: string;
-      allowedKinds: ReadonlyArray<PolicyListKind>;
-      trustLevel: PolicyListTrustLevel;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.policy-list.unsubscribed';
-      policyListId: string;
-    }>
-  | Readonly<CommonFields & WithOptionalExpiry & {
-      kind: 'safety.notification-preference.set';
-      channel: NotificationChannel;
-      preference: NotificationPreference;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.preferences.snapshot';
-      snapshotId: string;
-      capturedAt: string;
-      includesUpThroughEventId?: string;
-      /** Canonical serialized state. Schema lives in `./snapshot.ts`. */
-      snapshot: Readonly<Record<string, unknown>>;
-    }>
-  | Readonly<CommonFields & {
-      /**
-       * Adult content master gate. When `enabled === false` (the
-       * conservative default), all `adult.*` content-category labels
-       * force `hide` regardless of per-category preference. This is
-       * the protocol-level child-safety / fresh-account default.
-       */
-      kind: 'safety.adult-content.gate.set';
-      enabled: boolean;
-      /**
-       * For audit chains: the moment the user explicitly set the gate
-       * to its current value. The host SHOULD render an explicit
-       * "I am 18+" confirmation in the UI before emitting an
-       * `enabled: true` event.
-       */
-      gatedAt: string;
-    }>;
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.account.blocked';
+          targetActorId: string;
+          reasonCode?: string;
+        }
+    >
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.account.muted';
+          targetActorId: string;
+          muteScope: AccountMuteScope;
+        }
+    >
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.account.allowlisted';
+          targetActorId: string;
+          reasonCode?: string;
+        }
+    >
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.domain.blocked';
+          domain: string;
+          reasonCode?: string;
+        }
+    >
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.keyword.muted';
+          keyword: string;
+          matchKind: KeywordMatchKind;
+          embeddingRef?: DigestRef;
+          embeddingModel?: string;
+          similarityThreshold?: number;
+        }
+    >
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.thread.muted';
+          threadId: string;
+        }
+    >
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.post.hidden';
+          postEventId: string;
+        }
+    >
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.label.preference.set';
+          labelKey: string;
+          namespace: string;
+          preference: LabelPreferenceAction;
+        }
+    >
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.policy-list.subscribed';
+          policyListId: string;
+          issuerActorId: string;
+          allowedKinds: ReadonlyArray<PolicyListKind>;
+          trustLevel: PolicyListTrustLevel;
+        }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.policy-list.unsubscribed';
+        policyListId: string;
+      }
+    >
+  | Readonly<
+      CommonFields &
+        WithOptionalExpiry & {
+          kind: 'safety.notification-preference.set';
+          channel: NotificationChannel;
+          preference: NotificationPreference;
+        }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.preferences.snapshot';
+        snapshotId: string;
+        capturedAt: string;
+        includesUpThroughEventId?: string;
+        /** Canonical serialized state. Schema lives in `./snapshot.ts`. */
+        snapshot: Readonly<Record<string, unknown>>;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        /**
+         * Adult content master gate. When `enabled === false` (the
+         * conservative default), all `adult.*` content-category labels
+         * force `hide` regardless of per-category preference. This is
+         * the protocol-level child-safety / fresh-account default.
+         */
+        kind: 'safety.adult-content.gate.set';
+        enabled: boolean;
+        /**
+         * For audit chains: the moment the user explicitly set the gate
+         * to its current value. The host SHOULD render an explicit
+         * "I am 18+" confirmation in the UI before emitting an
+         * `enabled: true` event.
+         */
+        gatedAt: string;
+      }
+    >;
 
 function commonFields(record: Record<string, unknown>, label: string): CommonFields {
   assertExactVersion(record.version, LOCAL_CONTROL_EVENT_VERSION, `${label}.version`);
@@ -291,7 +319,8 @@ function maybeExpiry(
   return expiresAt;
 }
 
-const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+const DOMAIN_PATTERN =
+  /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
 const NAMESPACE_PATTERN = /^[a-z][a-z0-9._-]{0,254}$/;
 const LABEL_KEY_PATTERN = /^[a-z][a-z0-9._-]{0,126}$/;
 
@@ -301,10 +330,7 @@ export function validateLocalControlEvent(
 ): LocalControlEvent {
   const record = assertPlainObject(value, label);
   const kind = record.kind;
-  if (
-    typeof kind !== 'string' ||
-    !(LOCAL_CONTROL_KINDS as readonly string[]).includes(kind)
-  ) {
+  if (typeof kind !== 'string' || !(LOCAL_CONTROL_KINDS as readonly string[]).includes(kind)) {
     throw tsError(
       'TS_INVALID_ENUM',
       `${label}.kind must be one of ${LOCAL_CONTROL_KINDS.join(', ')} (got: ${String(kind)})`
@@ -372,11 +398,7 @@ export function validateLocalControlEvent(
     }
     case 'safety.keyword.muted': {
       const rawKeyword = assertText(record.keyword, `${label}.keyword`, MAX_KEYWORD_LENGTH);
-      const matchKind = assertOneOf(
-        record.matchKind,
-        KEYWORD_MATCH_KINDS,
-        `${label}.matchKind`
-      );
+      const matchKind = assertOneOf(record.matchKind, KEYWORD_MATCH_KINDS, `${label}.matchKind`);
       // Normalize the stored keyword per match kind. Normalization is
       // append-only and content-preserving (case + whitespace only) so
       // the user's intent round-trips through a cross-app preference
@@ -501,7 +523,10 @@ export function validateLocalControlEvent(
     case 'safety.label.preference.set': {
       const namespace = assertId(record.namespace, `${label}.namespace`, 256);
       if (!NAMESPACE_PATTERN.test(namespace)) {
-        throw tsError('TS_INVALID_LABEL', `${label}.namespace must match the label namespace pattern`);
+        throw tsError(
+          'TS_INVALID_LABEL',
+          `${label}.namespace must match the label namespace pattern`
+        );
       }
       const labelKey = assertId(record.labelKey, `${label}.labelKey`, 128);
       if (!LABEL_KEY_PATTERN.test(labelKey)) {
@@ -513,11 +538,7 @@ export function validateLocalControlEvent(
         kind: 'safety.label.preference.set',
         namespace,
         labelKey,
-        preference: assertOneOf(
-          record.preference,
-          LABEL_PREFERENCE_ACTIONS,
-          `${label}.preference`
-        )
+        preference: assertOneOf(record.preference, LABEL_PREFERENCE_ACTIONS, `${label}.preference`)
       };
       if (expiresAt !== undefined) out.expiresAt = expiresAt;
       return Object.freeze(out) as LocalControlEvent;
@@ -537,10 +558,7 @@ export function validateLocalControlEvent(
         (item, i) => assertOneOf(item, POLICY_LIST_KINDS, `${label}.allowedKinds[${i}]`)
       );
       if (allowedKinds.length === 0) {
-        throw tsError(
-          'TS_INVALID_INPUT',
-          `${label}.allowedKinds must contain at least one kind`
-        );
+        throw tsError('TS_INVALID_INPUT', `${label}.allowedKinds must contain at least one kind`);
       }
       const expiresAt = maybeExpiry(record, label, common.createdAt);
       const out: Record<string, unknown> = {
@@ -599,10 +617,7 @@ export function validateLocalControlEvent(
     }
     case 'safety.adult-content.gate.set': {
       if (typeof record.enabled !== 'boolean') {
-        throw tsError(
-          'TS_INVALID_INPUT',
-          `${label}.enabled must be a boolean`
-        );
+        throw tsError('TS_INVALID_INPUT', `${label}.enabled must be a boolean`);
       }
       const gatedAt = assertIso8601(record.gatedAt, `${label}.gatedAt`);
       return Object.freeze({

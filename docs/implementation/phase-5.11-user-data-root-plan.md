@@ -20,7 +20,7 @@ Add to `packages/local-store/src/index.ts`:
 
 ```ts
 type StoredUserDataRoot = Readonly<{
-  identityId: string;             // controller identity this UDR belongs to
+  identityId: string; // controller identity this UDR belongs to
   partitionIds: ReadonlyArray<string>;
   contentRefs: ReadonlyArray<string>; // ObjectRef keys the user claims
   syncInterestIds: ReadonlyArray<string>;
@@ -39,17 +39,17 @@ One PR. No new package. Passes existing local-store test suite.
 
 New event kinds (all `self` privacy, Class B):
 
-| Kind | Payload |
-|---|---|
-| `udr.partition.claimed` | `{ partitionId, scope, claimedAt }` |
-| `udr.partition.released` | `{ partitionId, releasedAt }` |
-| `udr.feed-subscription.added` | `{ feedId, feedKind, addedAt }` |
-| `udr.feed-subscription.removed` | `{ feedId, removedAt }` |
-| `udr.sync-interest.added` | `{ syncInterestId, interest: SyncInterest, addedAt }` |
-| `udr.sync-interest.removed` | `{ syncInterestId, removedAt }` |
-| `udr.mailbox.bound` | `{ mailboxId, boundAt }` |
-| `udr.space.joined` | `{ spaceId, joinedAt }` |
-| `udr.space.left` | `{ spaceId, leftAt }` |
+| Kind                            | Payload                                               |
+| ------------------------------- | ----------------------------------------------------- |
+| `udr.partition.claimed`         | `{ partitionId, scope, claimedAt }`                   |
+| `udr.partition.released`        | `{ partitionId, releasedAt }`                         |
+| `udr.feed-subscription.added`   | `{ feedId, feedKind, addedAt }`                       |
+| `udr.feed-subscription.removed` | `{ feedId, removedAt }`                               |
+| `udr.sync-interest.added`       | `{ syncInterestId, interest: SyncInterest, addedAt }` |
+| `udr.sync-interest.removed`     | `{ syncInterestId, removedAt }`                       |
+| `udr.mailbox.bound`             | `{ mailboxId, boundAt }`                              |
+| `udr.space.joined`              | `{ spaceId, joinedAt }`                               |
+| `udr.space.left`                | `{ spaceId, leftAt }`                                 |
 
 All `self`-scoped: MUST carry `PrivatePayloadEnvelopeV1`. Bridge MUST NOT inspect payload.
 

@@ -1,11 +1,7 @@
 export const CONTENT_ADDRESSING_VERSION = 'lfp2p.content-addressing.v1' as const;
 export type ContentAddressingVersion = typeof CONTENT_ADDRESSING_VERSION;
 
-export {
-  CA_ERROR_CODES,
-  ContentAddressingError,
-  caError
-} from './errors.js';
+export { CA_ERROR_CODES, ContentAddressingError, caError } from './errors.js';
 export type { CAErrorCode } from './errors.js';
 
 export {
@@ -40,20 +36,12 @@ export type {
   JsonValue
 } from './digest.js';
 
-export {
-  MAX_VARINT_BYTES,
-  readUnsignedVarint
-} from './varint.js';
+export { MAX_VARINT_BYTES, readUnsignedVarint } from './varint.js';
 export type { VarintRead } from './varint.js';
 
 export { decodeBase16, decodeBase32Lower } from './base32.js';
 
-export {
-  MULTICODEC_CODES,
-  MULTIHASH_CODES,
-  decodeMultibaseBody,
-  parseCidBinary
-} from './cid.js';
+export { MULTICODEC_CODES, MULTIHASH_CODES, decodeMultibaseBody, parseCidBinary } from './cid.js';
 export type { ParsedCid } from './cid.js';
 
 export {
@@ -100,12 +88,7 @@ export {
   createBundleRef,
   validateBundleRef
 } from './bundle-ref.js';
-export type {
-  BundleFormat,
-  BundlePurpose,
-  BundleRef,
-  BundleRoot
-} from './bundle-ref.js';
+export type { BundleFormat, BundlePurpose, BundleRef, BundleRoot } from './bundle-ref.js';
 
 export {
   OBJECT_REF_KINDS,
@@ -125,8 +108,4 @@ export type {
   UrlObjectRef
 } from './object-ref.js';
 
-export {
-  redactBlockRef,
-  redactContentLink,
-  redactDigestRef
-} from './redaction.js';
+export { redactBlockRef, redactContentLink, redactDigestRef } from './redaction.js';

@@ -144,16 +144,12 @@ describe('computeSpamGateDecision — user override discipline', () => {
   it('a stricter threshold can flag a previously-non-spam subject', () => {
     const input: SpamGateInput = { score: 0.3, seedDistance: 5, hasPositiveAttestation: false };
     expect(computeSpamGateDecision(input).flagSpam).toBe(false); // 0.3 > 0.05 default
-    expect(
-      computeSpamGateDecision(input, { spamScoreThreshold: 0.5 }).flagSpam
-    ).toBe(true);
+    expect(computeSpamGateDecision(input, { spamScoreThreshold: 0.5 }).flagSpam).toBe(true);
   });
 
   it('a stricter seed-distance can flag a previously-non-spam subject', () => {
     const input: SpamGateInput = { score: 0.01, seedDistance: 2, hasPositiveAttestation: false };
     expect(computeSpamGateDecision(input).flagSpam).toBe(false); // distance=2 ≤ 3 default
-    expect(
-      computeSpamGateDecision(input, { spamSeedDistanceMax: 1 }).flagSpam
-    ).toBe(true);
+    expect(computeSpamGateDecision(input, { spamSeedDistanceMax: 1 }).flagSpam).toBe(true);
   });
 });

@@ -51,7 +51,9 @@ describe('PWA contact card helpers', () => {
   });
 
   it('rejects malformed cards and imported controller mismatches', async () => {
-    expect(() => parseContactCardDocument('{"version":"wrong"}')).toThrow(/unsupported contact card version/i);
+    expect(() => parseContactCardDocument('{"version":"wrong"}')).toThrow(
+      /unsupported contact card version/i
+    );
     expect(() =>
       parseContactCardDocument(
         JSON.stringify({
@@ -82,14 +84,18 @@ describe('PWA contact card helpers', () => {
       exportedAt: '2026-05-22T00:00:00.000Z',
       identityId: 'identity:bob'
     };
-    await expect(createImportedContactProfileInput({ card: unsigned })).rejects.toThrow(/must include a detached signature/i);
+    await expect(createImportedContactProfileInput({ card: unsigned })).rejects.toThrow(
+      /must include a detached signature/i
+    );
 
     const signed = signContactCardDocument(unsigned, keypair);
     const tampered = {
       ...signed,
       displayName: 'Mallory'
     };
-    await expect(createImportedContactProfileInput({ card: tampered })).rejects.toThrow(/signature verification failed/i);
+    await expect(createImportedContactProfileInput({ card: tampered })).rejects.toThrow(
+      /signature verification failed/i
+    );
 
     const unsignedBase = {
       version: 'lfp2p.contact-card.v1' as const,

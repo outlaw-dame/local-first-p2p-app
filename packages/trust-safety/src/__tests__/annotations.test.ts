@@ -31,9 +31,9 @@ describe('validateSafetyAnnotation', () => {
   });
 
   it('rejects unknown motivation', () => {
-    expect(() =>
-      validateSafetyAnnotation({ ...ANNOTATION_BASE, motivation: 'shouting' })
-    ).toThrow(/TS_INVALID_ENUM/);
+    expect(() => validateSafetyAnnotation({ ...ANNOTATION_BASE, motivation: 'shouting' })).toThrow(
+      /TS_INVALID_ENUM/
+    );
   });
 
   it('rejects unsupported body format', () => {
@@ -49,13 +49,17 @@ describe('validateSafetyAnnotation', () => {
     const subj = {
       type: 'media' as const,
       mediaId: 'm1',
-      objectRef: { type: 'object-ref' as const, kind: 'media' as const, block: {
-        type: 'block-ref' as const,
-        source: { kind: 'digest' as const, digest: VALID_DIGEST },
-        byteLength: 1024,
-        privacy: 'private' as const,
-        encryption: { scheme: 'xchacha20-poly1305' as const, keyRef: VALID_DIGEST }
-      } }
+      objectRef: {
+        type: 'object-ref' as const,
+        kind: 'media' as const,
+        block: {
+          type: 'block-ref' as const,
+          source: { kind: 'digest' as const, digest: VALID_DIGEST },
+          byteLength: 1024,
+          privacy: 'private' as const,
+          encryption: { scheme: 'xchacha20-poly1305' as const, keyRef: VALID_DIGEST }
+        }
+      }
     };
     expect(() =>
       validateSafetyAnnotation({ ...ANNOTATION_BASE, subject: subj, scope: 'network-advisory' })

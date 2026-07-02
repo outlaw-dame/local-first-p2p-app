@@ -1,7 +1,11 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, generateX25519Keypair } from '@lfp2p/crypto';
-import { createSignedEnvelopeEvent, resolveRecipients, summarizeEnvelopeEventForLog } from '@lfp2p/envelope';
+import {
+  createSignedEnvelopeEvent,
+  resolveRecipients,
+  summarizeEnvelopeEventForLog
+} from '@lfp2p/envelope';
 import { createLocalFirstStore } from './index.js';
 
 describe('DexieLocalFirstStore envelope invariants', () => {

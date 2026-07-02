@@ -47,17 +47,11 @@ export function readUnsignedVarint(bytes: Uint8Array, offset: number): VarintRea
       // Canonical-encoding check: the final byte must not be 0 unless the
       // whole varint is a single zero byte.
       if (i > 0 && part === 0) {
-        throw caError(
-          'CA_INVALID_CID',
-          `varint is not minimally encoded at offset ${offset}`
-        );
+        throw caError('CA_INVALID_CID', `varint is not minimally encoded at offset ${offset}`);
       }
       return { value, bytesRead: i + 1 };
     }
     shift += 7;
   }
-  throw caError(
-    'CA_INVALID_CID',
-    `varint exceeds MAX_VARINT_BYTES (${MAX_VARINT_BYTES})`
-  );
+  throw caError('CA_INVALID_CID', `varint exceeds MAX_VARINT_BYTES (${MAX_VARINT_BYTES})`);
 }

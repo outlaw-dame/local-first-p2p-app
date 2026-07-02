@@ -55,6 +55,7 @@ Wiring requires:
   recipient's preference, not evidence of sender misbehaviour).
 
 Doctrine non-negotiables:
+
 - The lookup result is never stored in the audit log (it is local-policy
   state, not a bridge-level decision).
 - When no lookup is wired, the admission output is byte-identical to
@@ -74,6 +75,7 @@ the `SignedEventEnvelope` admission path.
 **Resolution**: document the structural dependency explicitly. Phase 4.5
 does NOT wire check #10 at the `acceptDelivery` layer; it DOES add a
 dedicated `acceptReportDelivery(request)` entry point that:
+
 - accepts a `ReportAppealEvent` envelope,
 - validates schema + version,
 - checks byte size,
@@ -94,9 +96,10 @@ buckets in memory. A bridge restart resets all HTTP-layer budgets while
 the admission engine's per-peer buckets survive (Phase 4.2).
 
 Required work:
+
 - Extract `RateLimitBucketState` (bucket token count + last-refill timestamp
-  + consecutive-refusal count) as a serializable plain object in
-  `http-hardening.ts`.
+  - consecutive-refusal count) as a serializable plain object in
+    `http-hardening.ts`.
 - Add `HttpRateLimitStore` interface (two methods: `load() → Map<string, RateLimitBucketState>`,
   `save(map) → void`). Default: `InMemoryHttpRateLimitStore` (no-op save).
 - Add `JsonFileHttpRateLimitStore` — atomic temp-rename, same pattern
@@ -118,6 +121,7 @@ Tokens are currently supplied at `BridgeAuthOptions` construction time
 and cannot change without restarting the process.
 
 Required work:
+
 - Define `TokenRegistryStore` interface:
   - `load() → ReadonlyArray<AuthToken>`
   - `save(tokens: ReadonlyArray<AuthToken>) → void`
@@ -146,6 +150,7 @@ Required work:
 Successful and failed auth attempts produce no operator-side log today.
 
 Required work:
+
 - Define `AuthAuditRecord`:
   ```
   { timestamp: string; tokenIdPrefix?: string; outcome: 'accepted' | 'rejected' | 'expired';

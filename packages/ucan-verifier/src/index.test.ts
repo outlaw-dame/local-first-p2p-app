@@ -24,10 +24,7 @@
 import { describe, expect, it } from 'vitest';
 import nacl from 'tweetnacl';
 import type { CapabilityProofRecord } from '@lfp2p/capabilities';
-import {
-  DEFAULT_MAX_CHAIN_DEPTH,
-  createUcanVerifier
-} from './index.js';
+import { DEFAULT_MAX_CHAIN_DEPTH, createUcanVerifier } from './index.js';
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
@@ -105,9 +102,7 @@ function mintUcan(secretKey: Uint8Array, body: UcanBody): string {
   return `${signingInput}.${toBase64Url(signature)}`;
 }
 
-function makeRecord(
-  overrides: Partial<CapabilityProofRecord> = {}
-): CapabilityProofRecord {
+function makeRecord(overrides: Partial<CapabilityProofRecord> = {}): CapabilityProofRecord {
   return {
     proofId: 'proof:ucan:1',
     scheme: 'ucan',
@@ -211,9 +206,7 @@ describe('structural soundness — once scheme === ucan, malformed record is inv
 describe('token resolution', () => {
   it('returns invalid when resolver returns undefined (scheme is claimed, no token to verify)', () => {
     const verifier = createUcanVerifier({ resolveUcanToken: () => undefined });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('invalid');
   });
 
   it('returns invalid when resolver throws (DoS-resistant)', () => {
@@ -222,16 +215,12 @@ describe('token resolution', () => {
         throw new Error('storage broke');
       }
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('invalid');
   });
 
   it('returns invalid when resolver returns an empty string', () => {
     const verifier = createUcanVerifier({ resolveUcanToken: () => '' });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('invalid');
   });
 });
 
@@ -248,9 +237,7 @@ describe('happy-path single-token verification', () => {
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'verified'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('verified');
   });
 });
 
@@ -259,16 +246,14 @@ describe('JWT structural rejection', () => {
     createUcanVerifier({ resolveUcanToken: () => token, now: () => NOW_MS });
 
   it('returns invalid on a token that is not three dot-separated segments', () => {
-    expect(
-      verifier('only.two')(makeRecord({ issuer: { kind: 'actor', id: root.did } }))
-    ).toBe('invalid');
+    expect(verifier('only.two')(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
+      'invalid'
+    );
   });
 
   it('returns invalid when the header is not base64url JSON', () => {
     expect(
-      verifier('not_base64!.abc.def')(
-        makeRecord({ issuer: { kind: 'actor', id: root.did } })
-      )
+      verifier('not_base64!.abc.def')(makeRecord({ issuer: { kind: 'actor', id: root.did } }))
     ).toBe('invalid');
   });
 
@@ -307,9 +292,7 @@ describe('signature verification', () => {
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('invalid');
   });
 
   it('returns invalid when the signing input has been tampered with (payload swap after signing)', () => {
@@ -322,16 +305,19 @@ describe('signature verification', () => {
     const parts = goodToken.split('.');
     const tampered = `${parts[0]}.${toBase64Url(
       new TextEncoder().encode(
-        JSON.stringify({ iss: root.did, aud: audience.did, att: [{ with: 'x', can: 'y' }], prf: [] })
+        JSON.stringify({
+          iss: root.did,
+          aud: audience.did,
+          att: [{ with: 'x', can: 'y' }],
+          prf: []
+        })
       )
     )}.${parts[2]}`;
     const verifier = createUcanVerifier({
       resolveUcanToken: () => tampered,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('invalid');
   });
 });
 
@@ -347,12 +333,12 @@ describe('did:key + issuer-match', () => {
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(
-      verifier(makeRecord({ issuer: { kind: 'actor', id: 'did:web:example.com' } }))
-    ).toBe('invalid');
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: 'did:web:example.com' } }))).toBe(
+      'invalid'
+    );
   });
 
-  it('returns invalid when payload.iss is a did:key with the WRONG public key (signature won\'t verify)', () => {
+  it("returns invalid when payload.iss is a did:key with the WRONG public key (signature won't verify)", () => {
     // Sign with root, but claim iss = stranger.did. Signature is over
     // signing input that includes the false iss claim, so the
     // signature DOES verify against root.secretKey — but the
@@ -368,9 +354,7 @@ describe('did:key + issuer-match', () => {
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(
-      verifier(makeRecord({ issuer: { kind: 'actor', id: stranger.did } }))
-    ).toBe('invalid');
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: stranger.did } }))).toBe('invalid');
   });
 
   it('returns invalid when record.issuer.id !== token.iss (exact-issuer pin)', () => {
@@ -384,9 +368,7 @@ describe('did:key + issuer-match', () => {
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: stranger.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: stranger.did } }))).toBe('invalid');
   });
 });
 
@@ -403,9 +385,7 @@ describe('time bounds', () => {
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('invalid');
   });
 
   it('returns invalid when exp is in the past', () => {
@@ -420,9 +400,7 @@ describe('time bounds', () => {
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('invalid');
   });
 
   it('returns invalid at exp boundary (now == exp is expired — fail closed)', () => {
@@ -437,9 +415,7 @@ describe('time bounds', () => {
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('invalid');
   });
 
   it('default clock is Date.now() — picks up real wall time', () => {
@@ -453,21 +429,21 @@ describe('time bounds', () => {
       exp: 1_000_000 // year 1970
     });
     const verifier = createUcanVerifier({ resolveUcanToken: () => token });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: root.did } }))).toBe('invalid');
   });
 });
 
 describe('chain verification — delegation linkage + attenuation + expiry', () => {
-  const buildChain = (overrides: {
-    childAtt?: UcanCapability[];
-    parentAtt?: UcanCapability[];
-    childExp?: number;
-    parentExp?: number;
-    childAud?: string;
-    parentIss?: string;
-  } = {}) => {
+  const buildChain = (
+    overrides: {
+      childAtt?: UcanCapability[];
+      parentAtt?: UcanCapability[];
+      childExp?: number;
+      parentExp?: number;
+      childAud?: string;
+      parentIss?: string;
+    } = {}
+  ) => {
     const parentToken = mintUcan(root.secretKey, {
       iss: overrides.parentIss ?? root.did,
       aud: audience.did,
@@ -478,9 +454,7 @@ describe('chain verification — delegation linkage + attenuation + expiry', () 
     const childToken = mintUcan(audience.secretKey, {
       iss: audience.did,
       aud: overrides.childAud ?? stranger.did,
-      att: overrides.childAtt ?? [
-        { with: 'community:alpha', can: 'community.member.remove' }
-      ],
+      att: overrides.childAtt ?? [{ with: 'community:alpha', can: 'community.member.remove' }],
       prf: [parentToken],
       exp: overrides.childExp ?? NOW_SEC + 3600
     });
@@ -493,9 +467,7 @@ describe('chain verification — delegation linkage + attenuation + expiry', () 
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(
-      verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))
-    ).toBe('verified');
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe('verified');
   });
 
   it('rejects when child.iss !== parent.aud (delegation linkage broken)', () => {
@@ -523,9 +495,7 @@ describe('chain verification — delegation linkage + attenuation + expiry', () 
       resolveUcanToken: () => childToken,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe('invalid');
     void token; // silence unused
   });
 
@@ -538,23 +508,22 @@ describe('chain verification — delegation linkage + attenuation + expiry', () 
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe('invalid');
   });
 
   it('rejects when child.att claims a capability not in parent.att (attenuation violated)', () => {
     const token = buildChain({
       parentAtt: [{ with: 'community:alpha', can: 'community.member.remove' }],
-      childAtt: [{ with: 'community:alpha', can: 'community.member.remove' }, { with: 'community:alpha', can: 'community.role.assign' }]
+      childAtt: [
+        { with: 'community:alpha', can: 'community.member.remove' },
+        { with: 'community:alpha', can: 'community.role.assign' }
+      ]
     });
     const verifier = createUcanVerifier({
       resolveUcanToken: () => token,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe('invalid');
   });
 
   it('rejects when a prf chain element fails to verify (every link must verify, no silent skips)', () => {
@@ -589,9 +558,7 @@ describe('chain verification — delegation linkage + attenuation + expiry', () 
       resolveUcanToken: () => childToken,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe('invalid');
   });
 
   it('rejects a chain that exceeds maxChainDepth (default depth bound)', () => {
@@ -622,9 +589,7 @@ describe('chain verification — delegation linkage + attenuation + expiry', () 
       now: () => NOW_MS,
       maxChainDepth: 1
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: stranger.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: stranger.did } }))).toBe('invalid');
   });
 
   it('default max chain depth is the documented constant', () => {
@@ -642,8 +607,6 @@ describe('chain verification — delegation linkage + attenuation + expiry', () 
       resolveUcanToken: () => childToken,
       now: () => NOW_MS
     });
-    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe(
-      'invalid'
-    );
+    expect(verifier(makeRecord({ issuer: { kind: 'actor', id: audience.did } }))).toBe('invalid');
   });
 });

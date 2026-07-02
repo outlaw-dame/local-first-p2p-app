@@ -7,7 +7,9 @@ import {
   seedLocalControlState
 } from '../index.js';
 
-function ev(partial: Partial<LocalControlEvent> & { kind: LocalControlEvent['kind'] }): LocalControlEvent {
+function ev(
+  partial: Partial<LocalControlEvent> & { kind: LocalControlEvent['kind'] }
+): LocalControlEvent {
   return {
     version: 'lfp2p.local-control-event.v1' as const,
     eventId: 'evt_' + Math.random().toString(36).slice(2, 10),
@@ -142,9 +144,9 @@ describe('applyLocalControlEvent — adversarial', () => {
         kind: 'safety.account.blocked',
         targetActorId: badId
       });
-      expect(() =>
-        applyLocalControlEvent(createEmptyLocalControlState(), event)
-      ).toThrow(/TS_FORBIDDEN_KEY/);
+      expect(() => applyLocalControlEvent(createEmptyLocalControlState(), event)).toThrow(
+        /TS_FORBIDDEN_KEY/
+      );
     }
   );
 
@@ -161,9 +163,9 @@ describe('applyLocalControlEvent — adversarial', () => {
   });
 
   it('rejects non-object events', () => {
-    expect(() =>
-      applyLocalControlEvent(createEmptyLocalControlState(), 'not an event')
-    ).toThrow(/TS_INVALID_INPUT/);
+    expect(() => applyLocalControlEvent(createEmptyLocalControlState(), 'not an event')).toThrow(
+      /TS_INVALID_INPUT/
+    );
   });
 });
 
@@ -171,7 +173,12 @@ describe('seedLocalControlState — replay equivalence', () => {
   it('replaying a sequence yields the same state as step-by-step application', () => {
     const events: LocalControlEvent[] = [
       ev({ eventId: 'a', kind: 'safety.account.blocked', targetActorId: 'actor_x' }),
-      ev({ eventId: 'b', kind: 'safety.account.muted', targetActorId: 'actor_y', muteScope: 'all' }),
+      ev({
+        eventId: 'b',
+        kind: 'safety.account.muted',
+        targetActorId: 'actor_y',
+        muteScope: 'all'
+      }),
       ev({ eventId: 'c', kind: 'safety.domain.blocked', domain: 'spam.example' }),
       ev({ eventId: 'd', kind: 'safety.thread.muted', threadId: 'thread_1' }),
       ev({ eventId: 'e', kind: 'safety.post.hidden', postEventId: 'post_1' }),
@@ -194,7 +201,12 @@ describe('seedLocalControlState — replay equivalence', () => {
 
   it('replay is order-stable when event ids are unique', () => {
     const a = ev({ eventId: '1', kind: 'safety.account.blocked', targetActorId: 'actor_x' });
-    const b = ev({ eventId: '2', kind: 'safety.account.muted', targetActorId: 'actor_x', muteScope: 'all' });
+    const b = ev({
+      eventId: '2',
+      kind: 'safety.account.muted',
+      targetActorId: 'actor_x',
+      muteScope: 'all'
+    });
     const ab = seedLocalControlState([a, b]);
     const ba = seedLocalControlState([b, a]);
     expect(ab.blockedActors['actor_x']).toBeDefined();

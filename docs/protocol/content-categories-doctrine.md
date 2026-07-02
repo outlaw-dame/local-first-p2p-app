@@ -39,39 +39,39 @@ all subscribed labelers uniformly.
 
 ## How Bluesky's model maps to ours
 
-| Bluesky concept | Our equivalent | Notes |
-|---|---|---|
-| Built-in content filters (Adult Content, Violence, Hate, etc.) | `CONTENT_CATEGORIES` registry | 20 categories under namespace `lfp2p.content-category.v1`. |
-| Per-category Show / Warn / Hide preference | `safety.label.preference.set` with category key under `lfp2p.content-category.v1` | Same 3-action UI; uses our existing 7-action `LabelPreferenceAction` space (`allow` ≡ Show). |
-| Adult-content master gate | `safety.adult-content.gate.set` | New Phase 1.69 local-control kind. |
-| Default-to-hide for adult content on new accounts | `decideContentCategoryAction` | Adult categories force `hide` when the gate is `false` or undefined, regardless of user preference. |
-| Labeler service declares which categories it labels | `LabelerCapability.producesLabels` | Cross-validated as a subset of profile.supportedLabels. |
-| User subscribes to one or more labelers | `safety.labeler.subscribed` (envelope scope: device-local / account-local) | Inherited from Phase 1.66, private by default. |
+| Bluesky concept                                                | Our equivalent                                                                    | Notes                                                                                               |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Built-in content filters (Adult Content, Violence, Hate, etc.) | `CONTENT_CATEGORIES` registry                                                     | 20 categories under namespace `lfp2p.content-category.v1`.                                          |
+| Per-category Show / Warn / Hide preference                     | `safety.label.preference.set` with category key under `lfp2p.content-category.v1` | Same 3-action UI; uses our existing 7-action `LabelPreferenceAction` space (`allow` ≡ Show).        |
+| Adult-content master gate                                      | `safety.adult-content.gate.set`                                                   | New Phase 1.69 local-control kind.                                                                  |
+| Default-to-hide for adult content on new accounts              | `decideContentCategoryAction`                                                     | Adult categories force `hide` when the gate is `false` or undefined, regardless of user preference. |
+| Labeler service declares which categories it labels            | `LabelerCapability.producesLabels`                                                | Cross-validated as a subset of profile.supportedLabels.                                             |
+| User subscribes to one or more labelers                        | `safety.labeler.subscribed` (envelope scope: device-local / account-local)        | Inherited from Phase 1.66, private by default.                                                      |
 
 ## The standard categories
 
-| Category key                       | Adult? | Default | Description |
-|------------------------------------|:------:|:-------:|-------------|
-| `adult.sexually-explicit`          | ✓      | `hide`  | Pornographic or sexually explicit content. |
-| `adult.sexually-suggestive`        | ✓      | `warn`  | Suggestive but not explicit. |
-| `adult.nudity-artistic`            | ✓      | `warn`  | Artistic or non-sexual nudity. |
-| `violence.gore`                    |        | `warn`  | Graphic depictions of injury or death. |
-| `violence.graphic`                 |        | `warn`  | Other graphically violent content. |
-| `violence.threat`                  |        | `hide`  | Credible threats of violence. |
-| `self-harm`                        |        | `warn`  | Self-harm imagery or discussion. |
-| `eating-disorder`                  |        | `warn`  | Pro-eating-disorder content. |
-| `hate.iconography`                 |        | `hide`  | Hate-group iconography. |
-| `hate.slur`                        |        | `hide`  | Slurs targeting protected groups. |
-| `intolerance.targeted`             |        | `warn`  | Targeted intolerance toward a person or group. |
-| `spam`                             |        | `hide`  | Bulk unsolicited content. |
-| `impersonation`                    |        | `hide`  | Impersonating another person or organization. |
-| `misleading-claim`                 |        | `warn`  | Factually misleading claim. |
-| `misleading-context`               |        | `warn`  | Manipulated or out-of-context media. |
-| `bot-account`                      |        | `warn`  | Automated / non-human account. |
-| `political`                        |        | `allow` | Political content. |
-| `religion`                         |        | `allow` | Religious content. |
-| `gambling`                         |        | `warn`  | Gambling-related content. |
-| `screenshot.crossplatform`         |        | `allow` | A screenshot of content from another platform (e.g. X/Bluesky). |
+| Category key                | Adult? | Default | Description                                                     |
+| --------------------------- | :----: | :-----: | --------------------------------------------------------------- |
+| `adult.sexually-explicit`   |   ✓    | `hide`  | Pornographic or sexually explicit content.                      |
+| `adult.sexually-suggestive` |   ✓    | `warn`  | Suggestive but not explicit.                                    |
+| `adult.nudity-artistic`     |   ✓    | `warn`  | Artistic or non-sexual nudity.                                  |
+| `violence.gore`             |        | `warn`  | Graphic depictions of injury or death.                          |
+| `violence.graphic`          |        | `warn`  | Other graphically violent content.                              |
+| `violence.threat`           |        | `hide`  | Credible threats of violence.                                   |
+| `self-harm`                 |        | `warn`  | Self-harm imagery or discussion.                                |
+| `eating-disorder`           |        | `warn`  | Pro-eating-disorder content.                                    |
+| `hate.iconography`          |        | `hide`  | Hate-group iconography.                                         |
+| `hate.slur`                 |        | `hide`  | Slurs targeting protected groups.                               |
+| `intolerance.targeted`      |        | `warn`  | Targeted intolerance toward a person or group.                  |
+| `spam`                      |        | `hide`  | Bulk unsolicited content.                                       |
+| `impersonation`             |        | `hide`  | Impersonating another person or organization.                   |
+| `misleading-claim`          |        | `warn`  | Factually misleading claim.                                     |
+| `misleading-context`        |        | `warn`  | Manipulated or out-of-context media.                            |
+| `bot-account`               |        | `warn`  | Automated / non-human account.                                  |
+| `political`                 |        | `allow` | Political content.                                              |
+| `religion`                  |        | `allow` | Religious content.                                              |
+| `gambling`                  |        | `warn`  | Gambling-related content.                                       |
+| `screenshot.crossplatform`  |        | `allow` | A screenshot of content from another platform (e.g. X/Bluesky). |
 
 Defaults are intentionally conservative: anything that has historically
 caused user harm (spam, impersonation, violence-threat, hate) defaults
@@ -135,7 +135,7 @@ The capability ID namespaces:
 `@lfp2p/trust-safety/labelers-runtime` exports two pure helpers:
 
 - `findOverlappingSubscriptions(state, subscriberActorId)` returns
-  every pair of *active* subscriptions whose capabilities or
+  every pair of _active_ subscriptions whose capabilities or
   `supportedLabels` overlap, with a `level` of:
   - `full` — one side's declared capabilities is a subset of (or equal
     to) the other side's. Strong duplicate signal.

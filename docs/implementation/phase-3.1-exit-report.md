@@ -54,7 +54,7 @@ governs that.
   existing primitives; public scopes / kinds / counts; safe stack
   traces; test output.
 - **Error-message hygiene**: every `Error("…")` and `tsError(code,
-  message)` MUST treat the message as a structural neutral
+message)` MUST treat the message as a structural neutral
   description, not a reprint of the offending input. Existing
   validators in `@lfp2p/trust-safety/validation.ts`,
   `@lfp2p/identity/validation.ts`, and
@@ -131,16 +131,16 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Doctrine defines what may and may not be logged by category | ✓ | `privacy-safe-logging.md` — 8 private + 5 loggable categories |
-| Doctrine names the existing redaction primitives | ✓ | full table |
-| Doctrine covers error-message hygiene | ✓ | dedicated section with code examples |
-| ESLint rule rejects `console.*`/`debugger`/`alert` in production source | ✓ | `eslint.config.js` |
-| Test files and config files are exempt | ✓ | `ignores` block |
-| Two existing intentional consent prompts annotated with doctrine-compliant comments + disable markers | ✓ | `pwa-identity-audit.tsx`, `pwa-trust-safety-settings.tsx` |
-| Defense-in-depth audit-pin test catches violations even if ESLint is weakened | ✓ | `phase-3.1-no-leak.test.ts` |
-| Zero current production violations | ✓ | pre-phase grep + post-phase test pass |
+| Criterion                                                                                             | Status | Evidence                                                      |
+| ----------------------------------------------------------------------------------------------------- | :----: | ------------------------------------------------------------- |
+| Doctrine defines what may and may not be logged by category                                           |   ✓    | `privacy-safe-logging.md` — 8 private + 5 loggable categories |
+| Doctrine names the existing redaction primitives                                                      |   ✓    | full table                                                    |
+| Doctrine covers error-message hygiene                                                                 |   ✓    | dedicated section with code examples                          |
+| ESLint rule rejects `console.*`/`debugger`/`alert` in production source                               |   ✓    | `eslint.config.js`                                            |
+| Test files and config files are exempt                                                                |   ✓    | `ignores` block                                               |
+| Two existing intentional consent prompts annotated with doctrine-compliant comments + disable markers |   ✓    | `pwa-identity-audit.tsx`, `pwa-trust-safety-settings.tsx`     |
+| Defense-in-depth audit-pin test catches violations even if ESLint is weakened                         |   ✓    | `phase-3.1-no-leak.test.ts`                                   |
+| Zero current production violations                                                                    |   ✓    | pre-phase grep + post-phase test pass                         |
 
 ## Hardening review caught
 

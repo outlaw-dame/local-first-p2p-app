@@ -26,7 +26,7 @@ This decision applies to:
 
 This decision does not apply to:
 
-- 
+-
 
 ## Options considered
 
@@ -34,31 +34,31 @@ This decision does not apply to:
 
 Pros:
 
-- 
+-
 
 Cons:
 
-- 
+-
 
 ### Option B
 
 Pros:
 
-- 
+-
 
 Cons:
 
-- 
+-
 
 ## Consequences
 
 Positive consequences:
 
-- 
+-
 
 Negative consequences / tradeoffs:
 
-- 
+-
 
 ## Security and privacy impact
 

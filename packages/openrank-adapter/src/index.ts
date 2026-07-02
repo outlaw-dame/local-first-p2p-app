@@ -130,10 +130,7 @@ export type OpenRankAdapter = Readonly<{
 }>;
 
 export function createOpenRankAdapter(options: OpenRankAdapterOptions): OpenRankAdapter {
-  if (
-    typeof options.labelerId !== 'string' ||
-    options.labelerId.length === 0
-  ) {
+  if (typeof options.labelerId !== 'string' || options.labelerId.length === 0) {
     throw new Error('createOpenRankAdapter: labelerId must be a non-empty string');
   }
   if (typeof options.fetcher !== 'function') {
@@ -179,18 +176,16 @@ export function createOpenRankAdapter(options: OpenRankAdapterOptions): OpenRank
       const cap = REPUTATION_LIMITS.maxSubjectsPerAggregatorBatch;
       for (let i = 0; i < subjects.length; i += cap) {
         const slice = subjects.slice(i, i + cap);
-        const event: Extract<
-          ReputationEvent,
-          { kind: 'reputation.aggregator.published' }
-        > = Object.freeze({
-          version: REPUTATION_EVENT_VERSION,
-          eventId: `evt_openrank_${labelerId}_${i}_${computedAt}`,
-          createdAt: now(),
-          kind: 'reputation.aggregator.published',
-          algorithm,
-          computedAt,
-          subjects: Object.freeze(slice)
-        });
+        const event: Extract<ReputationEvent, { kind: 'reputation.aggregator.published' }> =
+          Object.freeze({
+            version: REPUTATION_EVENT_VERSION,
+            eventId: `evt_openrank_${labelerId}_${i}_${computedAt}`,
+            createdAt: now(),
+            kind: 'reputation.aggregator.published',
+            algorithm,
+            computedAt,
+            subjects: Object.freeze(slice)
+          });
         out.push(
           Object.freeze({
             publisherLabelerId: labelerId,

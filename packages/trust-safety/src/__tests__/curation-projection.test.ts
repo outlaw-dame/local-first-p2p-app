@@ -34,7 +34,10 @@ function makeRule(ruleId: string, action: 'boost' | 'downrank' | 'exclude' = 'do
   };
 }
 
-function created(ruleId: string, action: 'boost' | 'downrank' | 'exclude' = 'downrank'): CurationEvent {
+function created(
+  ruleId: string,
+  action: 'boost' | 'downrank' | 'exclude' = 'downrank'
+): CurationEvent {
   return {
     version: 'lfp2p.curation-event.v1',
     eventId: `evt_create_${ruleId}`,
@@ -57,12 +60,7 @@ function disabled(ruleId: string): CurationEvent {
   } as unknown as CurationEvent;
 }
 
-function downrank(
-  itemEventId: string,
-  ruleId: string,
-  delta = 5,
-  evId?: string
-): CurationEvent {
+function downrank(itemEventId: string, ruleId: string, delta = 5, evId?: string): CurationEvent {
   return {
     version: 'lfp2p.curation-event.v1',
     eventId: evId ?? `evt_dr_${itemEventId}_${ruleId}`,
@@ -122,9 +120,9 @@ describe('curation projection — rule lifecycle', () => {
   });
 
   it('rejects disable of unknown rule', () => {
-    expect(() =>
-      applyCurationEvent(createEmptyCurationState(), disabled('rule_ghost'))
-    ).toThrow(/TS_LIFECYCLE_TRANSITION/);
+    expect(() => applyCurationEvent(createEmptyCurationState(), disabled('rule_ghost'))).toThrow(
+      /TS_LIFECYCLE_TRANSITION/
+    );
   });
 
   it('rejects double-disable', () => {
@@ -194,19 +192,27 @@ describe('curation projection — accumulating actions', () => {
     let s = createEmptyCurationState();
     s = applyCurationEvent(s, created('rule_dr', 'downrank'));
     s = applyCurationEvent(s, downrank('evt_target', 'rule_dr', 10));
-    expect(computeItemRanking(s, { type: 'event', eventId: 'evt_target' }).effectiveNetScoreDelta).toBe(-10);
+    expect(
+      computeItemRanking(s, { type: 'event', eventId: 'evt_target' }).effectiveNetScoreDelta
+    ).toBe(-10);
     s = applyCurationEvent(s, disabled('rule_dr'));
     // After disabling the source rule the downrank no longer counts.
-    expect(computeItemRanking(s, { type: 'event', eventId: 'evt_target' }).effectiveNetScoreDelta).toBe(0);
+    expect(
+      computeItemRanking(s, { type: 'event', eventId: 'evt_target' }).effectiveNetScoreDelta
+    ).toBe(0);
   });
 
   it('disabling a source rule also lifts its exclusions', () => {
     let s = createEmptyCurationState();
     s = applyCurationEvent(s, created('rule_excl', 'exclude'));
     s = applyCurationEvent(s, excluded('evt_target', 'rule_excl', 'search'));
-    expect(computeItemRanking(s, { type: 'event', eventId: 'evt_target' }).isExcludedFromSearch).toBe(true);
+    expect(
+      computeItemRanking(s, { type: 'event', eventId: 'evt_target' }).isExcludedFromSearch
+    ).toBe(true);
     s = applyCurationEvent(s, disabled('rule_excl'));
-    expect(computeItemRanking(s, { type: 'event', eventId: 'evt_target' }).isExcludedFromSearch).toBe(false);
+    expect(
+      computeItemRanking(s, { type: 'event', eventId: 'evt_target' }).isExcludedFromSearch
+    ).toBe(false);
   });
 });
 

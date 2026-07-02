@@ -17,7 +17,10 @@ export type EventSubscriptionTarget = Readonly<{
 export type VisibilitySubscriptionTarget = EventSubscriptionTarget &
   Readonly<{ visibilityState?: DocumentVisibilityState }>;
 
-export type PwaForegroundSyncController = Pick<ForegroundSyncController, 'getState' | 'requestSync'>;
+export type PwaForegroundSyncController = Pick<
+  ForegroundSyncController,
+  'getState' | 'requestSync'
+>;
 
 const UNKNOWN_SYNC_ERROR = 'Unknown foreground sync failure';
 const MAX_STATUS_TEXT_LENGTH = 180;
@@ -51,7 +54,8 @@ export function attachPwaForegroundSyncTriggers(input: {
   let disposed = false;
 
   if (windowTarget !== undefined) {
-    const onlineListener = () => requestAndNotify(input.controller, 'online', input.onResult, input.onUnexpectedError);
+    const onlineListener = () =>
+      requestAndNotify(input.controller, 'online', input.onResult, input.onUnexpectedError);
     windowTarget.addEventListener('online', onlineListener);
     disposers.push(() => windowTarget.removeEventListener('online', onlineListener));
   }
@@ -63,7 +67,9 @@ export function attachPwaForegroundSyncTriggers(input: {
       }
     };
     documentTarget.addEventListener('visibilitychange', visibilityListener);
-    disposers.push(() => documentTarget.removeEventListener('visibilitychange', visibilityListener));
+    disposers.push(() =>
+      documentTarget.removeEventListener('visibilitychange', visibilityListener)
+    );
   }
 
   return () => {
@@ -85,7 +91,8 @@ export async function requestPwaForegroundSync(
 
 export function formatPwaForegroundSyncResult(result: ForegroundSyncResult): string {
   if (result.status === 'completed') return `Foreground sync completed from ${result.trigger}.`;
-  if (result.status === 'failed') return `Foreground sync failed from ${result.trigger}: ${formatPwaSyncStatusText(result.error)}.`;
+  if (result.status === 'failed')
+    return `Foreground sync failed from ${result.trigger}: ${formatPwaSyncStatusText(result.error)}.`;
   if (result.reason === 'backoff' && result.nextRetryAt !== undefined) {
     return `Foreground sync skipped from ${result.trigger}: backing off until ${formatRetryTime(result.nextRetryAt)}.`;
   }
@@ -112,7 +119,9 @@ function requestAndNotify(
   );
 }
 
-function resolveWindowTarget(target: EventSubscriptionTarget | null | undefined): EventSubscriptionTarget | undefined {
+function resolveWindowTarget(
+  target: EventSubscriptionTarget | null | undefined
+): EventSubscriptionTarget | undefined {
   if (target !== undefined) return target ?? undefined;
   const maybeGlobal = globalThis as Partial<EventSubscriptionTarget>;
   if (typeof maybeGlobal.addEventListener !== 'function') return undefined;
@@ -120,9 +129,12 @@ function resolveWindowTarget(target: EventSubscriptionTarget | null | undefined)
   return maybeGlobal as EventSubscriptionTarget;
 }
 
-function resolveDocumentTarget(target: VisibilitySubscriptionTarget | null | undefined): VisibilitySubscriptionTarget | undefined {
+function resolveDocumentTarget(
+  target: VisibilitySubscriptionTarget | null | undefined
+): VisibilitySubscriptionTarget | undefined {
   if (target !== undefined) return target ?? undefined;
-  const maybeDocument = (globalThis as { document?: Partial<VisibilitySubscriptionTarget> }).document;
+  const maybeDocument = (globalThis as { document?: Partial<VisibilitySubscriptionTarget> })
+    .document;
   if (maybeDocument === undefined) return undefined;
   if (typeof maybeDocument.addEventListener !== 'function') return undefined;
   if (typeof maybeDocument.removeEventListener !== 'function') return undefined;
@@ -132,5 +144,7 @@ function resolveDocumentTarget(target: VisibilitySubscriptionTarget | null | und
 function formatRetryTime(value: string): string {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return 'later';
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp));
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+    new Date(timestamp)
+  );
 }

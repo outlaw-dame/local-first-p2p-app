@@ -90,8 +90,7 @@ export interface AdmissionStateStore {
  * On-disk shape. Pinned `version` so a future incompatible change is
  * a structural mismatch rather than a silent corruption.
  */
-export const ADMISSION_STATE_SNAPSHOT_VERSION =
-  'lfp2p.admission-state-snapshot.v1' as const;
+export const ADMISSION_STATE_SNAPSHOT_VERSION = 'lfp2p.admission-state-snapshot.v1' as const;
 
 export type SerializedAdmissionState = Readonly<{
   version: typeof ADMISSION_STATE_SNAPSHOT_VERSION;
@@ -108,9 +107,7 @@ export type SerializedAdmissionState = Readonly<{
   }>;
 }>;
 
-export function serializeAdmissionState(
-  state: TransportAdmissionState
-): SerializedAdmissionState {
+export function serializeAdmissionState(state: TransportAdmissionState): SerializedAdmissionState {
   return Object.freeze({
     version: ADMISSION_STATE_SNAPSHOT_VERSION,
     state: Object.freeze({
@@ -157,9 +154,7 @@ export class AdmissionStateCorruptError extends Error {
   }
 }
 
-export function deserializeAdmissionState(
-  raw: unknown
-): TransportAdmissionState {
+export function deserializeAdmissionState(raw: unknown): TransportAdmissionState {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new AdmissionStateCorruptError('snapshot is not a plain object');
   }
@@ -189,9 +184,7 @@ export function deserializeAdmissionState(
   }
   const appliedEventIds = s.appliedEventIds;
   if (!Array.isArray(appliedEventIds)) {
-    throw new AdmissionStateCorruptError(
-      'snapshot.state.appliedEventIds must be an array'
-    );
+    throw new AdmissionStateCorruptError('snapshot.state.appliedEventIds must be an array');
   }
   for (const id of appliedEventIds) {
     if (typeof id !== 'string') {
@@ -285,8 +278,7 @@ export class JsonFileAdmissionStateStore implements AdmissionStateStore {
       throw new TypeError('JsonFileAdmissionStateStore: filePath is required');
     }
     this.#filePath = options.filePath;
-    this.#tempSuffix =
-      options.tempSuffix ?? Math.random().toString(16).slice(2, 10);
+    this.#tempSuffix = options.tempSuffix ?? Math.random().toString(16).slice(2, 10);
   }
 
   async load(): Promise<TransportAdmissionState | undefined> {
@@ -301,9 +293,7 @@ export class JsonFileAdmissionStateStore implements AdmissionStateStore {
     try {
       parsed = JSON.parse(text);
     } catch (err) {
-      throw new AdmissionStateCorruptError(
-        `invalid JSON (${(err as Error).message})`
-      );
+      throw new AdmissionStateCorruptError(`invalid JSON (${(err as Error).message})`);
     }
     return deserializeAdmissionState(parsed);
   }

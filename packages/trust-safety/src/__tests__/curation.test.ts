@@ -31,27 +31,27 @@ describe('validateCurationRule', () => {
   });
 
   it('rejects moderation actions in curation context (masquerade)', () => {
-    expect(() =>
-      validateCurationRule({ ...RULE_BASE, action: 'hide' })
-    ).toThrow(/TS_CURATION_MASQUERADE/);
-    expect(() =>
-      validateCurationRule({ ...RULE_BASE, action: 'quarantine' })
-    ).toThrow(/TS_CURATION_MASQUERADE/);
-    expect(() =>
-      validateCurationRule({ ...RULE_BASE, action: 'reject-transport' })
-    ).toThrow(/TS_CURATION_MASQUERADE/);
+    expect(() => validateCurationRule({ ...RULE_BASE, action: 'hide' })).toThrow(
+      /TS_CURATION_MASQUERADE/
+    );
+    expect(() => validateCurationRule({ ...RULE_BASE, action: 'quarantine' })).toThrow(
+      /TS_CURATION_MASQUERADE/
+    );
+    expect(() => validateCurationRule({ ...RULE_BASE, action: 'reject-transport' })).toThrow(
+      /TS_CURATION_MASQUERADE/
+    );
   });
 
   it('rejects unknown action', () => {
-    expect(() =>
-      validateCurationRule({ ...RULE_BASE, action: 'pulverize' })
-    ).toThrow(/TS_INVALID_ENUM/);
+    expect(() => validateCurationRule({ ...RULE_BASE, action: 'pulverize' })).toThrow(
+      /TS_INVALID_ENUM/
+    );
   });
 
   it('rejects unknown surface', () => {
-    expect(() =>
-      validateCurationRule({ ...RULE_BASE, surface: 'inbox' })
-    ).toThrow(/TS_INVALID_ENUM/);
+    expect(() => validateCurationRule({ ...RULE_BASE, surface: 'inbox' })).toThrow(
+      /TS_INVALID_ENUM/
+    );
   });
 
   it('rejects domain matcher containing a URL', () => {
@@ -81,8 +81,8 @@ describe('validateCurationExplanation', () => {
   });
 
   it('rejects moderation action in explanation (masquerade)', () => {
-    expect(() =>
-      validateCurationExplanation({ ...EXPLANATION_BASE, action: 'hide' })
-    ).toThrow(/TS_CURATION_MASQUERADE/);
+    expect(() => validateCurationExplanation({ ...EXPLANATION_BASE, action: 'hide' })).toThrow(
+      /TS_CURATION_MASQUERADE/
+    );
   });
 });

@@ -7,10 +7,7 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "references": [
-    { "path": "../capabilities" },
-    { "path": "../content-addressing" }
-  ],
+  "references": [{ "path": "../capabilities" }, { "path": "../content-addressing" }],
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "src/__tests__/**"]
 }

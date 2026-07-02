@@ -34,7 +34,9 @@ describe('authority profiles', () => {
   });
 
   it('throws when a profile does not allow an action', () => {
-    expect(() => assertProfileAllowsAction('relay', 'community.role.assign')).toThrow('CAP_INVALID_ACTION');
+    expect(() => assertProfileAllowsAction('relay', 'community.role.assign')).toThrow(
+      'CAP_INVALID_ACTION'
+    );
   });
 
   it('returns built-in profiles', () => {
@@ -131,7 +133,14 @@ describe('validateDelegationChain — single-step delegation rules', () => {
 
   it('community-moderator CANNOT delegate (mayDelegateTo: [])', () => {
     const parent = getAuthorityProfile('community-moderator');
-    for (const childKind of ['actor', 'device', 'controller', 'relay', 'super-peer', 'bridge'] as const) {
+    for (const childKind of [
+      'actor',
+      'device',
+      'controller',
+      'relay',
+      'super-peer',
+      'bridge'
+    ] as const) {
       expect(() =>
         validateDelegationChain(parent, {
           childKind,
@@ -178,7 +187,9 @@ describe('validateDelegationChain — single-step delegation rules', () => {
     const parent = getAuthorityProfile('super-peer');
     expect(() =>
       // @ts-expect-error: testing runtime guard
-      validateDelegationChain(parent, [{ childKind: 'relay', actions: ['relay.forward-envelope'], depth: 0 }])
+      validateDelegationChain(parent, [
+        { childKind: 'relay', actions: ['relay.forward-envelope'], depth: 0 }
+      ])
     ).toThrow(CapabilityError);
   });
 

@@ -76,7 +76,9 @@ describe('capability-proof persistence: CRUD basics', () => {
   it('listCapabilityProofRecords returns every persisted row', async () => {
     const store = freshStore();
     await store.putCapabilityProofRecord(record({ proofId: 'p1', digest: DIGEST_A }));
-    await store.putCapabilityProofRecord(record({ proofId: 'p2', scheme: 'ucan', digest: DIGEST_B }));
+    await store.putCapabilityProofRecord(
+      record({ proofId: 'p2', scheme: 'ucan', digest: DIGEST_B })
+    );
     await store.putCapabilityProofRecord(record({ proofId: 'p3', scheme: 'vc', digest: DIGEST_C }));
     const rows = await store.listCapabilityProofRecords();
     expect(rows.map((r) => r.proofId).sort()).toEqual(['p1', 'p2', 'p3']);
@@ -154,8 +156,12 @@ describe('capability-proof persistence: loadProofRegistry', () => {
 
   it('hydrates every persisted record into the registry', async () => {
     const store = freshStore();
-    await store.putCapabilityProofRecord(record({ proofId: 'p1', verificationState: 'verified', digest: DIGEST_A }));
-    await store.putCapabilityProofRecord(record({ proofId: 'p2', scheme: 'ucan', verificationState: 'unverified', digest: DIGEST_B }));
+    await store.putCapabilityProofRecord(
+      record({ proofId: 'p1', verificationState: 'verified', digest: DIGEST_A })
+    );
+    await store.putCapabilityProofRecord(
+      record({ proofId: 'p2', scheme: 'ucan', verificationState: 'unverified', digest: DIGEST_B })
+    );
     const reg = await store.loadProofRegistry();
     expect(reg.proofs.size).toBe(2);
     expect(reg.proofs.get('p1')?.verificationState).toBe('verified');
@@ -173,9 +179,7 @@ describe('capability-proof persistence: loadProofRegistry', () => {
 
   it('preserves revokedAt + verificationState === "revoked"', async () => {
     const store = freshStore();
-    await store.putCapabilityProofRecord(
-      record({ revokedAt: NOW, verificationState: 'revoked' })
-    );
+    await store.putCapabilityProofRecord(record({ revokedAt: NOW, verificationState: 'revoked' }));
     const reg = await store.loadProofRegistry();
     const got = reg.proofs.get('proof:native:1');
     expect(got?.revokedAt).toBe(NOW);
@@ -194,7 +198,9 @@ describe('capability-proof persistence: loadProofRegistry', () => {
       transaction: (
         mode: 'rw',
         tables: string[],
-        fn: (tx: { capabilityProofRecords: { put: (row: Record<string, unknown>) => Promise<unknown> } }) => Promise<unknown>
+        fn: (tx: {
+          capabilityProofRecords: { put: (row: Record<string, unknown>) => Promise<unknown> };
+        }) => Promise<unknown>
       ) => Promise<unknown>;
     };
     // Reach into the Dexie instance via the documented table API.
@@ -237,7 +243,9 @@ describe('capability-proof persistence: loadProofRegistry', () => {
       transaction: (
         mode: 'rw',
         tables: string[],
-        fn: (tx: { capabilityProofRecords: { put: (row: Record<string, unknown>) => Promise<unknown> } }) => Promise<unknown>
+        fn: (tx: {
+          capabilityProofRecords: { put: (row: Record<string, unknown>) => Promise<unknown> };
+        }) => Promise<unknown>
       ) => Promise<unknown>;
     };
     await db.transaction('rw', ['capabilityProofRecords'], async (tx) => {
@@ -255,9 +263,10 @@ describe('capability-proof persistence: loadProofRegistry', () => {
     });
 
     // The corrupt row IS at rest.
-    expect((await store.listCapabilityProofRecords()).map((r) => r.proofId).sort()).toEqual(
-      ['corrupt-revoked-but-verified', 'good']
-    );
+    expect((await store.listCapabilityProofRecords()).map((r) => r.proofId).sort()).toEqual([
+      'corrupt-revoked-but-verified',
+      'good'
+    ]);
     // …but loadProofRegistry drops it.
     const reg = await store.loadProofRegistry();
     expect(reg.proofs.has('good')).toBe(true);
@@ -289,35 +298,29 @@ describe('capability-proof persistence: loadProofRegistry', () => {
     await store.putCapabilityProofRecord(updated as CapabilityProofRecord);
 
     const reg2 = await store.loadProofRegistry();
-    expect(reg2.proofs.get('proof:native:1')?.verificationState).toBe(
-      'possession-confirmed'
-    );
+    expect(reg2.proofs.get('proof:native:1')?.verificationState).toBe('possession-confirmed');
   });
 
   it('full canonical flow: registerProof → persist → load → verifyProof → re-persist → load', async () => {
     const store = freshStore();
     // Start from an empty registry, register one proof, persist it.
-    const { record: rec } = registerProof(
-      await store.loadProofRegistry(),
-      {
-        proofId: 'proof:native:flow',
-        scheme: 'native-signed-event',
-        issuer: ISSUER,
-        subject: SUBJECT,
-        issuedAt: NOW,
-        expiresAt: LATER,
-        digest: DIGEST_A
-      }
-    );
+    const { record: rec } = registerProof(await store.loadProofRegistry(), {
+      proofId: 'proof:native:flow',
+      scheme: 'native-signed-event',
+      issuer: ISSUER,
+      subject: SUBJECT,
+      issuedAt: NOW,
+      expiresAt: LATER,
+      digest: DIGEST_A
+    });
     await store.putCapabilityProofRecord(rec);
 
     // Reload, verify, re-persist.
     const reg1 = await store.loadProofRegistry();
-    const { registry: reg2, record: verified } = verifyProof(
-      reg1,
-      'proof:native:flow',
-      { now: NOW, verifier: VERIFY_ALL }
-    );
+    const { registry: reg2, record: verified } = verifyProof(reg1, 'proof:native:flow', {
+      now: NOW,
+      verifier: VERIFY_ALL
+    });
     expect(verified.verificationState).toBe('verified');
     await store.putCapabilityProofRecord(verified);
 

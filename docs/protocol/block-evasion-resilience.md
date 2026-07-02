@@ -58,18 +58,18 @@ normalization pipeline before comparison:
 
 #### What this defeats
 
-| Evasion | Filter `spoiler` matches |
-|---|:---:|
-| Plain `spoiler` (control) | ✓ |
-| `Spoiler` (case) | ✓ |
-| `SPOILER` (case) | ✓ |
-| `sp0iler` (leet) | ✓ |
-| `sp​oiler` (zero-width space) | ✓ |
-| `sp‍oiler` (zero-width joiner) | ✓ |
-| `ѕpoiler` (Cyrillic ѕ U+0455) | ✓ |
-| `ＳＰＯＩＬＥＲ` (full-width) | ✓ |
-| `ⓢⓟⓞⓘⓛⓔⓡ` (circled letters) | ✓ |
-| `sp​0îler` (stacked evasions) | ✓ |
+| Evasion                        | Filter `spoiler` matches |
+| ------------------------------ | :----------------------: |
+| Plain `spoiler` (control)      |            ✓             |
+| `Spoiler` (case)               |            ✓             |
+| `SPOILER` (case)               |            ✓             |
+| `sp0iler` (leet)               |            ✓             |
+| `sp​oiler` (zero-width space)  |            ✓             |
+| `sp‍oiler` (zero-width joiner) |            ✓             |
+| `ѕpoiler` (Cyrillic ѕ U+0455)  |            ✓             |
+| `ＳＰＯＩＬＥＲ` (full-width)  |            ✓             |
+| `ⓢⓟⓞⓘⓛⓔⓡ` (circled letters)    |            ✓             |
+| `sp​0îler` (stacked evasions)  |            ✓             |
 
 #### What this deliberately does NOT defeat
 
@@ -159,16 +159,16 @@ store rebuilds.
 
 #### What this defeats
 
-| Scenario | Behavior |
-|---|---|
-| 1 user files 10 distinct reports against 1 target in 1 day | accepted |
-| Same user files an 11th distinct report on the same day | `TS_REPORT_RATE_LIMITED` |
-| Same user files 10 against subject A, then 10 against subject B | accepted (per-subject budget) |
-| Same user files 10 on 2026-06-03 then 10 on 2026-06-04 | accepted (per-day budget) |
-| Two different users each file 10 against same target on same day | accepted (per-reporter budget) |
-| Same user replays the same `eventId` 1000 times | accepted as 1 (replay idempotent, no budget) |
-| Same user replays the same `idempotencyKey` 1000 times under new `eventId`s | accepted as 1 (dedup, no budget) |
-| Attacker crafts a reporter id to collide with a victim's bucket | lands in attacker's own bucket (JSON-encoded key) |
+| Scenario                                                                    | Behavior                                          |
+| --------------------------------------------------------------------------- | ------------------------------------------------- |
+| 1 user files 10 distinct reports against 1 target in 1 day                  | accepted                                          |
+| Same user files an 11th distinct report on the same day                     | `TS_REPORT_RATE_LIMITED`                          |
+| Same user files 10 against subject A, then 10 against subject B             | accepted (per-subject budget)                     |
+| Same user files 10 on 2026-06-03 then 10 on 2026-06-04                      | accepted (per-day budget)                         |
+| Two different users each file 10 against same target on same day            | accepted (per-reporter budget)                    |
+| Same user replays the same `eventId` 1000 times                             | accepted as 1 (replay idempotent, no budget)      |
+| Same user replays the same `idempotencyKey` 1000 times under new `eventId`s | accepted as 1 (dedup, no budget)                  |
+| Attacker crafts a reporter id to collide with a victim's bucket             | lands in attacker's own bucket (JSON-encoded key) |
 
 #### What this deliberately does NOT defeat
 
@@ -202,11 +202,11 @@ layer:
 
 ## Future work
 
-| Item | Target |
-|---|---|
-| Semantic keyword matcher pipeline (host-supplied embedding) in the PWA | Future T&S slice — protocol shape exists |
-| Per-stranger "first contact" warning UX before any payload renders | Future T&S + PWA slice |
-| Coordinated-brigading detection (cross-reporter, per-target velocity) | Moderation-tools analytics, outside the protocol |
+| Item                                                                          | Target                                                 |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Semantic keyword matcher pipeline (host-supplied embedding) in the PWA        | Future T&S slice — protocol shape exists               |
+| Per-stranger "first contact" warning UX before any payload renders            | Future T&S + PWA slice                                 |
+| Coordinated-brigading detection (cross-reporter, per-target velocity)         | Moderation-tools analytics, outside the protocol       |
 | Confusables expansion (Hebrew / Greek capitals / mathematical fraktur / etc.) | Incremental — driven by real observed evasion patterns |
 
 ## Implementation evidence

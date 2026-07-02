@@ -2,3 +2,7 @@ dist
 coverage
 node_modules
 .pnpm-store
+
+# Generated / tool-owned files — never reformat.
+pnpm-lock.yaml
+*.tsbuildinfo

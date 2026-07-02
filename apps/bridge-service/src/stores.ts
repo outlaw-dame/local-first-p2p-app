@@ -37,7 +37,10 @@ export class InMemoryBridgeStore implements BridgeStore {
   readonly ttlMs: number;
 
   constructor(options: InMemoryBridgeStoreOptions = {}) {
-    this.maxRecords = requirePositiveInteger(options.maxRecords ?? DEFAULT_MAX_RECORDS, 'maxRecords');
+    this.maxRecords = requirePositiveInteger(
+      options.maxRecords ?? DEFAULT_MAX_RECORDS,
+      'maxRecords'
+    );
     this.ttlMs = requirePositiveInteger(options.ttlMs ?? DEFAULT_TTL_MS, 'ttlMs');
     this.#sequence = requireSafeNonNegativeInteger(
       options.initialSequence ?? Math.min(Date.now() * 1000, Number.MAX_SAFE_INTEGER - 1),
@@ -62,7 +65,10 @@ export class InMemoryBridgeStore implements BridgeStore {
     return { status: 'inserted', record: stored };
   }
 
-  async listAfter(input: BridgeStoreListInput, nowMs: number): Promise<readonly StoredBridgeRecord[]> {
+  async listAfter(
+    input: BridgeStoreListInput,
+    nowMs: number
+  ): Promise<readonly StoredBridgeRecord[]> {
     const target = requireNonEmpty(input.target, 'target');
     const afterSequence = requireSafeNonNegativeInteger(input.afterSequence, 'afterSequence');
     const limit = requirePositiveInteger(input.limit, 'limit');
@@ -70,7 +76,12 @@ export class InMemoryBridgeStore implements BridgeStore {
 
     const records: StoredBridgeRecord[] = [];
     for (const record of this.#recordsByIdempotencyKey.values()) {
-      if (record.target !== target || record.sequence <= afterSequence || record.event === undefined) continue;
+      if (
+        record.target !== target ||
+        record.sequence <= afterSequence ||
+        record.event === undefined
+      )
+        continue;
       records.push(record);
       if (records.length >= limit) break;
     }
@@ -125,7 +136,10 @@ export class JsonFileBridgeStore implements BridgeStore {
 
   constructor(options: JsonFileBridgeStoreOptions) {
     this.filePath = requireNonEmpty(options.filePath, 'filePath');
-    this.maxRecords = requirePositiveInteger(options.maxRecords ?? DEFAULT_MAX_RECORDS, 'maxRecords');
+    this.maxRecords = requirePositiveInteger(
+      options.maxRecords ?? DEFAULT_MAX_RECORDS,
+      'maxRecords'
+    );
     this.ttlMs = requirePositiveInteger(options.ttlMs ?? DEFAULT_TTL_MS, 'ttlMs');
     this.#initialSequence = requireSafeNonNegativeInteger(
       options.initialSequence ?? Math.min(Date.now() * 1000, Number.MAX_SAFE_INTEGER - 1),
@@ -148,7 +162,9 @@ export class JsonFileBridgeStore implements BridgeStore {
     return this.#withLock(async () => {
       const state = await this.#loadFreshState();
       pruneExpiredRecords(state, nowMs);
-      const existing = state.records.find((candidate) => candidate.idempotencyKey === record.idempotencyKey);
+      const existing = state.records.find(
+        (candidate) => candidate.idempotencyKey === record.idempotencyKey
+      );
       if (existing) {
         await this.#persistState(state);
         return { status: 'existing', record: existing };
@@ -161,7 +177,10 @@ export class JsonFileBridgeStore implements BridgeStore {
     });
   }
 
-  async listAfter(input: BridgeStoreListInput, nowMs: number): Promise<readonly StoredBridgeRecord[]> {
+  async listAfter(
+    input: BridgeStoreListInput,
+    nowMs: number
+  ): Promise<readonly StoredBridgeRecord[]> {
     const target = requireNonEmpty(input.target, 'target');
     const afterSequence = requireSafeNonNegativeInteger(input.afterSequence, 'afterSequence');
     const limit = requirePositiveInteger(input.limit, 'limit');
@@ -171,7 +190,12 @@ export class JsonFileBridgeStore implements BridgeStore {
 
       const records: StoredBridgeRecord[] = [];
       for (const record of state.records) {
-        if (record.target !== target || record.sequence <= afterSequence || record.event === undefined) continue;
+        if (
+          record.target !== target ||
+          record.sequence <= afterSequence ||
+          record.event === undefined
+        )
+          continue;
         records.push(record);
         if (records.length >= limit) break;
       }
@@ -217,7 +241,10 @@ export class JsonFileBridgeStore implements BridgeStore {
 
   async #loadFreshState(): Promise<MutableJsonBridgeStoreState> {
     try {
-      const state = validateJsonBridgeStoreState(JSON.parse(await readFile(this.filePath, 'utf8')), this.#initialSequence);
+      const state = validateJsonBridgeStoreState(
+        JSON.parse(await readFile(this.filePath, 'utf8')),
+        this.#initialSequence
+      );
       this.#setCachedState(state);
       return mutableState(state);
     } catch (error) {

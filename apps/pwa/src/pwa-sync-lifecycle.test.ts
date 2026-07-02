@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { ForegroundSyncResult, ForegroundSyncTrigger } from '@lfp2p/sync-client/foreground-sync';
+import type {
+  ForegroundSyncResult,
+  ForegroundSyncTrigger
+} from '@lfp2p/sync-client/foreground-sync';
 import {
   attachPwaForegroundSyncTriggers,
   browserIsOnline,
@@ -117,12 +120,16 @@ describe('PWA foreground sync lifecycle helpers', () => {
       }
     };
 
-    await expect(requestPwaForegroundSync(controller, 'manual', (result) => seen.push(result))).resolves.toBe(expected);
+    await expect(
+      requestPwaForegroundSync(controller, 'manual', (result) => seen.push(result))
+    ).resolves.toBe(expected);
     expect(seen).toEqual([expected]);
   });
 
   it('formats foreground sync status strings', () => {
-    expect(formatPwaForegroundSyncResult(completed('startup'))).toBe('Foreground sync completed from startup.');
+    expect(formatPwaForegroundSyncResult(completed('startup'))).toBe(
+      'Foreground sync completed from startup.'
+    );
     expect(
       formatPwaForegroundSyncResult({
         status: 'failed',
@@ -146,7 +153,9 @@ describe('PWA foreground sync lifecycle helpers', () => {
   });
 
   it('normalizes and truncates status text consistently', () => {
-    expect(formatPwaSyncStatusText(new Error('temporary\nrelay\tfailed'))).toBe('temporary relay failed');
+    expect(formatPwaSyncStatusText(new Error('temporary\nrelay\tfailed'))).toBe(
+      'temporary relay failed'
+    );
     expect(formatPwaSyncStatusText('')).toBe('Unknown foreground sync failure');
     expect(formatPwaSyncStatusText('a'.repeat(240))).toHaveLength(180);
   });
@@ -179,7 +188,9 @@ class FakeVisibleTarget extends FakeTarget implements VisibilitySubscriptionTarg
   }
 }
 
-function completed(trigger: ForegroundSyncTrigger): Extract<ForegroundSyncResult, { status: 'completed' }> {
+function completed(
+  trigger: ForegroundSyncTrigger
+): Extract<ForegroundSyncResult, { status: 'completed' }> {
   return {
     status: 'completed',
     trigger,

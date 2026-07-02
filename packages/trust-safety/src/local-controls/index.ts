@@ -62,10 +62,7 @@ export type {
   SnapshotImportOptions
 } from './snapshot.js';
 
-export {
-  VISIBILITY_DECISIONS,
-  decideVisibility
-} from './selector.js';
+export { VISIBILITY_DECISIONS, decideVisibility } from './selector.js';
 export type {
   SelectorContext,
   SelectorLabelHit,

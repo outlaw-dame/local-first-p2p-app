@@ -67,37 +67,37 @@ This distinction matters because the roadmap should remain honest: Phase 4.5/4.6
 
 ## Roadmap overview
 
-| Phase | Status | Summary | Safety placement |
-|---|---:|---|---|
-| 0 | Partial | Doctrine, repo discipline, ADR/exit-report templates | Require roadmap/exit-report discipline before broad feature work |
-| 1 | Partial | Protocol primitives and canonical fixtures | Complete fixture/version/signature discipline before widening protocol surface |
-| 1.56 | Foundation complete | Content addressing and object references | Required for evidence refs, media safety, quarantine, search provenance |
-| 1.6 | Foundation complete | T&S doctrine and protocol boundaries | Establishes safety as protocol/runtime boundary |
-| 1.61 | Foundation complete | T&S protocol core | Defines authorities, scopes, subjects, labels, reports, decisions |
-| 1.62 | Foundation complete | Local user controls | Private-by-default blocks, mutes, label prefs, policy-list subscriptions |
-| 1.63 | Foundation complete | Reports, appeals, encrypted evidence refs | Required for safe abuse reporting and appeals |
-| 1.64 | Foundation complete | Bridge/relay/super-peer admission policy | Core transport safety engine |
-| 1.65 | Foundation complete | Curation and reach controls | Public search/feed/recommendation gate foundation |
-| 1.66 | Foundation complete | Labeler runtime | Stackable signed labels, labeler provenance, media-scanner kind |
-| 1.67 | Foundation complete | Moderation runtime | Policy, queue, decision lifecycle |
-| 1.68 | Complete | T&S completion sweep | Documents full 1.6x stack |
-| 1.69 | Foundation complete | Content categories, capabilities, adult-content gate | Adds `scan.media-csam` and category gates |
-| 1.70 | Foundation complete | PWA T&S settings and safer keyword kinds | User-facing local controls |
-| 1.71 | Foundation complete | Block-evasion hardening | Unicode/confusables and report-rate hardening |
-| 1.8 | Complete for current scope | Local personalized EigenTrust/reputation graph | Reputation becomes local, opt-in, admission/curation signal |
-| 2 | Partial | Private/account-local payload helpers | Must be promoted to full private payload runtime before private chat |
-| 2.3 | Partial/foundation | Identity proof registry, capability proof pipeline, contact-card/outbox gating | Required for authority resolution and safety decisions |
-| 3 | Complete as docs | MLS architecture and dependency decision | Establishes MLS provider boundary before group control |
-| 4 | In progress | MLS group-control phase; PRs #106–#110 landed the plan, validators, first-class event kinds, and deterministic projection | Group safety, stale epoch rejection, revoked-device rejection, fork handling, downgrade prevention |
-| 4a | Foundation complete | MLS group-control protocol records and deterministic projection package | Needs exit-report/current-state reconciliation |
-| 4b | Planned | MLS group-control persistence and bridge/sync wiring | Safety checks must run before forwarding/storing group records |
-| 4.5 | Proposed pull-forward | Bridge resumability + production hardening follow-up from Phase 4.2–4.4 deferrals and old Phase 5/19 ordering | Persistent auth/rate-limit state, hot rotation, auth audit, missing admission deferral wiring |
-| 4.6 | Proposed pull-forward | Narrow operator policy runtime before full super-peer availability | Operator policy/labeler subscriptions, advisory reputation consumption, scoped enforcement; not full Phase 15 super-peer runtime |
-| 5 | Planned/blocked | Private messaging and encrypted mailbox foundation | Must include first-contact/stranger safety before chat UX |
-| 5.1 | Planned | First-contact, stranger-message, and minor-safety interaction barriers | Unknown-sender quarantine, stranger DM friction, and contact-gated defaults |
-| 6 | Planned/blocked | Media safety runtime before media replication | Known-abuse/media-scanner/quarantine phase |
-| 7 | Planned/blocked | Public index/search/recommendation safety gates | Public discovery cannot ingest private/unsafe objects |
-| 8+ | Planned/blocked | Media, social outbox, semantic discovery, recommendations, full-peer work | Only after runtime gates are active |
+| Phase |                     Status | Summary                                                                                                                   | Safety placement                                                                                                                 |
+| ----- | -------------------------: | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 0     |                    Partial | Doctrine, repo discipline, ADR/exit-report templates                                                                      | Require roadmap/exit-report discipline before broad feature work                                                                 |
+| 1     |                    Partial | Protocol primitives and canonical fixtures                                                                                | Complete fixture/version/signature discipline before widening protocol surface                                                   |
+| 1.56  |        Foundation complete | Content addressing and object references                                                                                  | Required for evidence refs, media safety, quarantine, search provenance                                                          |
+| 1.6   |        Foundation complete | T&S doctrine and protocol boundaries                                                                                      | Establishes safety as protocol/runtime boundary                                                                                  |
+| 1.61  |        Foundation complete | T&S protocol core                                                                                                         | Defines authorities, scopes, subjects, labels, reports, decisions                                                                |
+| 1.62  |        Foundation complete | Local user controls                                                                                                       | Private-by-default blocks, mutes, label prefs, policy-list subscriptions                                                         |
+| 1.63  |        Foundation complete | Reports, appeals, encrypted evidence refs                                                                                 | Required for safe abuse reporting and appeals                                                                                    |
+| 1.64  |        Foundation complete | Bridge/relay/super-peer admission policy                                                                                  | Core transport safety engine                                                                                                     |
+| 1.65  |        Foundation complete | Curation and reach controls                                                                                               | Public search/feed/recommendation gate foundation                                                                                |
+| 1.66  |        Foundation complete | Labeler runtime                                                                                                           | Stackable signed labels, labeler provenance, media-scanner kind                                                                  |
+| 1.67  |        Foundation complete | Moderation runtime                                                                                                        | Policy, queue, decision lifecycle                                                                                                |
+| 1.68  |                   Complete | T&S completion sweep                                                                                                      | Documents full 1.6x stack                                                                                                        |
+| 1.69  |        Foundation complete | Content categories, capabilities, adult-content gate                                                                      | Adds `scan.media-csam` and category gates                                                                                        |
+| 1.70  |        Foundation complete | PWA T&S settings and safer keyword kinds                                                                                  | User-facing local controls                                                                                                       |
+| 1.71  |        Foundation complete | Block-evasion hardening                                                                                                   | Unicode/confusables and report-rate hardening                                                                                    |
+| 1.8   | Complete for current scope | Local personalized EigenTrust/reputation graph                                                                            | Reputation becomes local, opt-in, admission/curation signal                                                                      |
+| 2     |                    Partial | Private/account-local payload helpers                                                                                     | Must be promoted to full private payload runtime before private chat                                                             |
+| 2.3   |         Partial/foundation | Identity proof registry, capability proof pipeline, contact-card/outbox gating                                            | Required for authority resolution and safety decisions                                                                           |
+| 3     |           Complete as docs | MLS architecture and dependency decision                                                                                  | Establishes MLS provider boundary before group control                                                                           |
+| 4     |                In progress | MLS group-control phase; PRs #106–#110 landed the plan, validators, first-class event kinds, and deterministic projection | Group safety, stale epoch rejection, revoked-device rejection, fork handling, downgrade prevention                               |
+| 4a    |        Foundation complete | MLS group-control protocol records and deterministic projection package                                                   | Needs exit-report/current-state reconciliation                                                                                   |
+| 4b    |                    Planned | MLS group-control persistence and bridge/sync wiring                                                                      | Safety checks must run before forwarding/storing group records                                                                   |
+| 4.5   |      Proposed pull-forward | Bridge resumability + production hardening follow-up from Phase 4.2–4.4 deferrals and old Phase 5/19 ordering             | Persistent auth/rate-limit state, hot rotation, auth audit, missing admission deferral wiring                                    |
+| 4.6   |      Proposed pull-forward | Narrow operator policy runtime before full super-peer availability                                                        | Operator policy/labeler subscriptions, advisory reputation consumption, scoped enforcement; not full Phase 15 super-peer runtime |
+| 5     |            Planned/blocked | Private messaging and encrypted mailbox foundation                                                                        | Must include first-contact/stranger safety before chat UX                                                                        |
+| 5.1   |                    Planned | First-contact, stranger-message, and minor-safety interaction barriers                                                    | Unknown-sender quarantine, stranger DM friction, and contact-gated defaults                                                      |
+| 6     |            Planned/blocked | Media safety runtime before media replication                                                                             | Known-abuse/media-scanner/quarantine phase                                                                                       |
+| 7     |            Planned/blocked | Public index/search/recommendation safety gates                                                                           | Public discovery cannot ingest private/unsafe objects                                                                            |
+| 8+    |            Planned/blocked | Media, social outbox, semantic discovery, recommendations, full-peer work                                                 | Only after runtime gates are active                                                                                              |
 
 ## Phase 4 clarification
 
@@ -121,20 +121,20 @@ The remaining Phase 4 work is therefore not “start Phase 4.” It is:
 
 Phase 4.5 is grounded in existing deferred-work lists and doctrine, not just new planning. It should close the following gaps:
 
-| Item | Existing source | Current state | Phase 4.5 treatment |
-|---|---|---|---|
-| Persistent per-token HTTP rate-limit buckets | Phase 4.3 exit report; bridge doctrine HTTP hardening | `BridgeHttpRateLimiter` is in-memory only; restart resets HTTP buckets | Persist per-token HTTP buckets or document equivalent durable store |
-| Persistent token registry / hot rotation | Phase 4.3 exit report; roadmap-ordering Phase 5/19 | Tokens supplied at handler-options time | Add file/DB-backed token registry with safe hot rotation |
-| Auth audit log | Phase 4.3 exit report | No operator auth audit log | Add privacy-safe auth audit log for success/failure classes |
-| mTLS / OAuth2 / JWT decision/adapters | Phase 4.3 exit report; roadmap-ordering Phase 19 | Bearer-only v1 | Decide and/or add adapters without weakening bearer-path tests |
-| Persistent per-token streaming rate limit | Phase 4.4 exit report; bridge doctrine deferred Phase 4.4.1+ | Per-socket in-memory cap only | Add token-keyed streaming bucket parallel to HTTP bucket |
-| SSE / long-polling alternate transports | Phase 4.4 exit report; roadmap-ordering Phase 5 | WebSocket adapter exists | Add or explicitly defer adapters with conformance criteria |
-| GET-with-cursor backlog read | Phase 4.4 exit report; roadmap-ordering Phase 5 | POST/WebSocket backlog only | Add CDN-cacheable GET cursor surface or document non-goal |
-| Per-stream subscription cap | Phase 4.4 exit report | No per-stream subscriber cap | Add per-token/per-stream quota |
-| Hot key-rotation of `AdmissionConfig.operatorAuthority` | Phase 4.2 exit report | Requires gateway reconstruction | Add safe rotation path or document reconstruction as operator action |
-| Multi-bridge advisory reputation propagation | Phase 4.2 exit report | Future work | Treat as 4.6 unless only local bridge consumption is needed in 4.5 |
-| `decideUserBlockTransport` gateway wiring | Bridge admission doctrine check #9 | Function exists in T&S; gateway wiring must be verified/added | Wire recipient context into admission gateway before forwarding |
-| `canBridgeForwardReport` gateway wiring | Bridge admission doctrine check #10 | Function exists in T&S; gateway wiring must be verified/added | Wire structural report-forwarding guard without decrypting anything |
+| Item                                                    | Existing source                                              | Current state                                                          | Phase 4.5 treatment                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Persistent per-token HTTP rate-limit buckets            | Phase 4.3 exit report; bridge doctrine HTTP hardening        | `BridgeHttpRateLimiter` is in-memory only; restart resets HTTP buckets | Persist per-token HTTP buckets or document equivalent durable store  |
+| Persistent token registry / hot rotation                | Phase 4.3 exit report; roadmap-ordering Phase 5/19           | Tokens supplied at handler-options time                                | Add file/DB-backed token registry with safe hot rotation             |
+| Auth audit log                                          | Phase 4.3 exit report                                        | No operator auth audit log                                             | Add privacy-safe auth audit log for success/failure classes          |
+| mTLS / OAuth2 / JWT decision/adapters                   | Phase 4.3 exit report; roadmap-ordering Phase 19             | Bearer-only v1                                                         | Decide and/or add adapters without weakening bearer-path tests       |
+| Persistent per-token streaming rate limit               | Phase 4.4 exit report; bridge doctrine deferred Phase 4.4.1+ | Per-socket in-memory cap only                                          | Add token-keyed streaming bucket parallel to HTTP bucket             |
+| SSE / long-polling alternate transports                 | Phase 4.4 exit report; roadmap-ordering Phase 5              | WebSocket adapter exists                                               | Add or explicitly defer adapters with conformance criteria           |
+| GET-with-cursor backlog read                            | Phase 4.4 exit report; roadmap-ordering Phase 5              | POST/WebSocket backlog only                                            | Add CDN-cacheable GET cursor surface or document non-goal            |
+| Per-stream subscription cap                             | Phase 4.4 exit report                                        | No per-stream subscriber cap                                           | Add per-token/per-stream quota                                       |
+| Hot key-rotation of `AdmissionConfig.operatorAuthority` | Phase 4.2 exit report                                        | Requires gateway reconstruction                                        | Add safe rotation path or document reconstruction as operator action |
+| Multi-bridge advisory reputation propagation            | Phase 4.2 exit report                                        | Future work                                                            | Treat as 4.6 unless only local bridge consumption is needed in 4.5   |
+| `decideUserBlockTransport` gateway wiring               | Bridge admission doctrine check #9                           | Function exists in T&S; gateway wiring must be verified/added          | Wire recipient context into admission gateway before forwarding      |
+| `canBridgeForwardReport` gateway wiring                 | Bridge admission doctrine check #10                          | Function exists in T&S; gateway wiring must be verified/added          | Wire structural report-forwarding guard without decrypting anything  |
 
 Phase 4.5 should be an implementation-plan doc before code begins. Suggested doc path:
 
@@ -148,13 +148,13 @@ Phase 4.6 is **not** currently a named phase in the old ordering reference. It i
 
 What should move into 4.6:
 
-| Work | Existing source | Why pull forward |
-|---|---|---|
-| Operator policy-list subscriptions | Phase 1.62 foundation; bridge operator tools in T&S phase plan | Bridge/relay operators need policy inputs before public surfaces scale |
-| Trusted labeler subscriptions for operators | Phase 1.66 foundation; labeler capabilities in Phase 1.69 | Needed for scoped infrastructure policy, media scanner labels, spam/malware labels |
-| Advisory reputation feed consumption | Phase 4.2 deferral; bridge doctrine says advisory feeds are informational, not authoritative | Lets operators share abuse signals without creating global moderation |
-| Scoped enforcement across surfaces | Bridge admission doctrine scope matrix | Relay/super-peer/public-index surfaces have different allowed scopes |
-| Operator quarantine/review workflow | TransportAdmissionState already has quarantine infrastructure | Makes quarantine reviewable instead of invisible runtime state |
+| Work                                        | Existing source                                                                              | Why pull forward                                                                   |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Operator policy-list subscriptions          | Phase 1.62 foundation; bridge operator tools in T&S phase plan                               | Bridge/relay operators need policy inputs before public surfaces scale             |
+| Trusted labeler subscriptions for operators | Phase 1.66 foundation; labeler capabilities in Phase 1.69                                    | Needed for scoped infrastructure policy, media scanner labels, spam/malware labels |
+| Advisory reputation feed consumption        | Phase 4.2 deferral; bridge doctrine says advisory feeds are informational, not authoritative | Lets operators share abuse signals without creating global moderation              |
+| Scoped enforcement across surfaces          | Bridge admission doctrine scope matrix                                                       | Relay/super-peer/public-index surfaces have different allowed scopes               |
+| Operator quarantine/review workflow         | TransportAdmissionState already has quarantine infrastructure                                | Makes quarantine reviewable instead of invisible runtime state                     |
 
 What should **not** move into 4.6:
 

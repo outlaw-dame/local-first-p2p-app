@@ -35,10 +35,7 @@ import {
   DEVICE_LOCAL_PRIVACY_NOTICE,
   type AggregatorSubscriptionInput
 } from './pwa-reputation-state.js';
-import {
-  emitAttestationPublished,
-  emitObservationRecorded
-} from './pwa-reputation-emit.js';
+import { emitAttestationPublished, emitObservationRecorded } from './pwa-reputation-emit.js';
 import {
   DEFAULT_REPUTATION_SYNC_POLICY,
   REPUTATION_SYNC_SCOPES,
@@ -54,15 +51,13 @@ type Store = ReturnType<typeof createLocalFirstStore>;
 
 export type PwaReputationSettingsProps = Readonly<{ store: Store }>;
 
-export function PwaReputationSettings({
-  store
-}: PwaReputationSettingsProps): JSX.Element {
+export function PwaReputationSettings({ store }: PwaReputationSettingsProps): JSX.Element {
   // ---- Phase 1.8.13 cross-device sync policy ---------------------------
   // Lazy initial state so SSR / Node test environments without
   // localStorage fall through to the documented default rather than
   // throwing at module load.
-  const [syncPolicy, setSyncPolicy] = useState<ReputationSyncPolicy>(
-    () => loadReputationSyncPolicy()
+  const [syncPolicy, setSyncPolicy] = useState<ReputationSyncPolicy>(() =>
+    loadReputationSyncPolicy()
   );
   const updateSyncScope = useCallback(
     (kind: ReputationUserEmitKind, next: ReputationSyncScope) => {
@@ -115,15 +110,7 @@ export function PwaReputationSettings({
     } catch (err) {
       setObsStatus(`Could not save: ${(err as Error).message}`);
     }
-  }, [
-    store,
-    obsSubjectActor,
-    obsKind,
-    obsSat,
-    obsUnsat,
-    obsWindowStart,
-    obsWindowEnd
-  ]);
+  }, [store, obsSubjectActor, obsKind, obsSat, obsUnsat, obsWindowStart, obsWindowEnd]);
 
   // ---- attestation form -----------------------------------------------
   const [attSubjectActor, setAttSubjectActor] = useState<string>('');
@@ -153,9 +140,7 @@ export function PwaReputationSettings({
   const [subs, setSubs] = useState<ReadonlyArray<AggregatorSubscriptionInput>>([]);
   const [subDraftLabelerId, setSubDraftLabelerId] = useState<string>('');
   const [subDraftPriority, setSubDraftPriority] = useState<number>(1);
-  const [subDraftAlgo, setSubDraftAlgo] = useState<ReputationAlgorithm>(
-    'openrank.v1'
-  );
+  const [subDraftAlgo, setSubDraftAlgo] = useState<ReputationAlgorithm>('openrank.v1');
   const computedSubs = useMemo(() => buildAggregatorSubscriptionList(subs), [subs]);
 
   const handleAddSub = useCallback(() => {
@@ -179,22 +164,18 @@ export function PwaReputationSettings({
       <BlockTitle>Cross-device sync policy (Phase 1.8.13)</BlockTitle>
       <Block strong>
         <p>
-          <strong>Default:</strong> every reputation event stays on
-          this device. You can elevate specific kinds to
-          <em> account-local</em> so they sync across your own
-          devices. The <em>account-local</em> flow itself ships
-          when the Phase 5.0 private payload envelope lands — until
-          then, every kind is treated as <em>device-local</em>{' '}
-          regardless of what you choose here.
+          <strong>Default:</strong> every reputation event stays on this device. You can elevate
+          specific kinds to
+          <em> account-local</em> so they sync across your own devices. The <em>account-local</em>{' '}
+          flow itself ships when the Phase 5.0 private payload envelope lands — until then, every
+          kind is treated as <em>device-local</em> regardless of what you choose here.
         </p>
         {REPUTATION_USER_EMIT_KINDS.map((kind) => (
           <p key={kind}>
             <strong>{kind}:</strong>{' '}
             <select
               value={syncPolicy[kind]}
-              onChange={(e) =>
-                updateSyncScope(kind, e.target.value as ReputationSyncScope)
-              }
+              onChange={(e) => updateSyncScope(kind, e.target.value as ReputationSyncScope)}
             >
               {REPUTATION_SYNC_SCOPES.map((scope) => (
                 <option key={scope} value={scope}>
@@ -249,8 +230,7 @@ export function PwaReputationSettings({
       <BlockTitle>Record an observation (Phase 1.8.1)</BlockTitle>
       <Block strong>
         <p>
-          <strong>{DEVICE_LOCAL_PRIVACY_NOTICE.title}.</strong>{' '}
-          {DEVICE_LOCAL_PRIVACY_NOTICE.body}
+          <strong>{DEVICE_LOCAL_PRIVACY_NOTICE.title}.</strong> {DEVICE_LOCAL_PRIVACY_NOTICE.body}
         </p>
         <p>
           Subject actor id:{' '}
@@ -262,10 +242,7 @@ export function PwaReputationSettings({
         </p>
         <p>
           Kind:{' '}
-          <select
-            value={obsKind}
-            onChange={(e) => setObsKind(e.target.value as ObservationKind)}
-          >
+          <select value={obsKind} onChange={(e) => setObsKind(e.target.value as ObservationKind)}>
             {OBSERVATION_KINDS.map((k) => (
               <option key={k} value={k}>
                 {k}
@@ -312,8 +289,7 @@ export function PwaReputationSettings({
       <BlockTitle>Publish an attestation (Phase 1.8.1)</BlockTitle>
       <Block strong>
         <p>
-          <strong>{DEVICE_LOCAL_PRIVACY_NOTICE.title}.</strong>{' '}
-          {DEVICE_LOCAL_PRIVACY_NOTICE.body}
+          <strong>{DEVICE_LOCAL_PRIVACY_NOTICE.title}.</strong> {DEVICE_LOCAL_PRIVACY_NOTICE.body}
         </p>
         <p>
           Subject actor id:{' '}
@@ -340,9 +316,7 @@ export function PwaReputationSettings({
           Context tag:{' '}
           <select
             value={attContextTag}
-            onChange={(e) =>
-              setAttContextTag(e.target.value as AttestationContextTag)
-            }
+            onChange={(e) => setAttContextTag(e.target.value as AttestationContextTag)}
           >
             {ATTESTATION_CONTEXT_TAGS.map((t) => (
               <option key={t} value={t}>
@@ -369,9 +343,8 @@ export function PwaReputationSettings({
       <BlockTitle>Aggregator subscriptions (Phase 1.8.4)</BlockTitle>
       <Block strong>
         <p>
-          The local computer is always priority 0 — external aggregators
-          stack below at the priority you choose. Lower numbers win
-          higher rank.
+          The local computer is always priority 0 — external aggregators stack below at the priority
+          you choose. Lower numbers win higher rank.
         </p>
         <p>
           Labeler id:{' '}
@@ -390,9 +363,7 @@ export function PwaReputationSettings({
           Algorithm:{' '}
           <select
             value={subDraftAlgo}
-            onChange={(e) =>
-              setSubDraftAlgo(e.target.value as ReputationAlgorithm)
-            }
+            onChange={(e) => setSubDraftAlgo(e.target.value as ReputationAlgorithm)}
           >
             {REPUTATION_ALGORITHMS.map((a) => (
               <option key={a} value={a}>

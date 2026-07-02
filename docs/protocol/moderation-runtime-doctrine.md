@@ -76,6 +76,7 @@ active@v ──safety.policy.deprecated──▶ deprecated@v (terminal)
 ```
 
 After deprecation:
+
 - Past decisions remain queryable by their `policyVersion` strings.
 - New `safety.policy.created` under the same `policyId` is REJECTED
   (the projection keeps the deprecated record under that id). A
@@ -103,15 +104,15 @@ Append-only by `decisionId`. Duplicate `decisionId` is a silent no-op
 
 ## Cross-references the projection maintains
 
-| Lookup | Source index |
-|---|---|
-| All decisions against subject S | `decisionsBySubjectKey` |
-| All decisions made under policy version string V | `decisionsByPolicyId` |
-| All queue items in a given status | `queueIdsByStatus` |
-| All queue items assigned to authority A | `queueIdsByAssignee` |
+| Lookup                                           | Source index                                        |
+| ------------------------------------------------ | --------------------------------------------------- |
+| All decisions against subject S                  | `decisionsBySubjectKey`                             |
+| All decisions made under policy version string V | `decisionsByPolicyId`                               |
+| All queue items in a given status                | `queueIdsByStatus`                                  |
+| All queue items assigned to authority A          | `queueIdsByAssignee`                                |
 | All queue items spawned from source `(kind, id)` | `queueIdsBySourceId` — used by Phase 1.63 cross-ref |
-| Decision that resolved queue item Q | `queueItemsById[Q].resolutionDecisionId` |
-| Queue item that produced decision D | `decisionsById[D].sourceQueueItemId` |
+| Decision that resolved queue item Q              | `queueItemsById[Q].resolutionDecisionId`            |
+| Queue item that produced decision D              | `decisionsById[D].sourceQueueItemId`                |
 
 ## Integration points
 

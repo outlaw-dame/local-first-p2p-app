@@ -15,15 +15,15 @@ Define the mailbox protocol event kinds, `MailboxDeliveryEnvelope` schema, and l
 
 New event kinds:
 
-| Kind | Privacy | Consistency class |
-|---|---|---|
-| `mailbox.envelope.queued` | `dm` or `group` | D |
-| `mailbox.envelope.delivered` | `dm` or `group` | D |
-| `mailbox.envelope.expired` | `dm` or `group` | B |
-| `mailbox.envelope.fetched` | `self` | D |
-| `mailbox.receipt.issued` | `self` | D |
-| `mailbox.ack.sent` | `dm` | D |
-| `mailbox.checkpoint.advanced` | `self` | D |
+| Kind                          | Privacy         | Consistency class |
+| ----------------------------- | --------------- | ----------------- |
+| `mailbox.envelope.queued`     | `dm` or `group` | D                 |
+| `mailbox.envelope.delivered`  | `dm` or `group` | D                 |
+| `mailbox.envelope.expired`    | `dm` or `group` | B                 |
+| `mailbox.envelope.fetched`    | `self`          | D                 |
+| `mailbox.receipt.issued`      | `self`          | D                 |
+| `mailbox.ack.sent`            | `dm`            | D                 |
+| `mailbox.checkpoint.advanced` | `self`          | D                 |
 
 All non-`self` kinds carry `PrivatePayloadEnvelopeV1`. Bridge MUST NOT decrypt.
 
@@ -37,11 +37,11 @@ One PR. Kinds + privacy rules in `validatePayloadForKind`.
 type MailboxDeliveryEnvelopePayload = Readonly<{
   envelopeId: string;
   recipientIdentityId: string;
-  recipientDeviceId?: string;     // sealed (device-specific) or visible (any device)
+  recipientDeviceId?: string; // sealed (device-specific) or visible (any device)
   senderIdentityId: string;
-  contentRef: string;             // ObjectRef key of the actual message content
-  expiresAt: string;              // ISO-8601; deletion destroys availability, not history
-  forwardedFrom?: string;         // envelopeId of original if forwarded
+  contentRef: string; // ObjectRef key of the actual message content
+  expiresAt: string; // ISO-8601; deletion destroys availability, not history
+  forwardedFrom?: string; // envelopeId of original if forwarded
 }>;
 ```
 

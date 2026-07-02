@@ -79,10 +79,12 @@ export class DeviceIdentityBootstrapError extends Error {
   }
 }
 
-export async function buildIdentityTrustSnapshot(input: Readonly<{
-  projection: StoredIdentityControlProjection | undefined;
-  expectedControllerPublicKey?: string;
-}>): Promise<IdentityTrustSnapshot> {
+export async function buildIdentityTrustSnapshot(
+  input: Readonly<{
+    projection: StoredIdentityControlProjection | undefined;
+    expectedControllerPublicKey?: string;
+  }>
+): Promise<IdentityTrustSnapshot> {
   const projection = input.projection;
   if (projection === undefined || projection.controllerPublicKey === undefined) {
     return { verificationStatus: 'unknown' };
@@ -104,10 +106,12 @@ export async function buildIdentityTrustSnapshot(input: Readonly<{
   };
 }
 
-export function resolveIdentityVerificationStatus(input: Readonly<{
-  projection: StoredIdentityControlProjection | undefined;
-  expectedControllerPublicKey?: string;
-}>): IdentityVerificationStatus {
+export function resolveIdentityVerificationStatus(
+  input: Readonly<{
+    projection: StoredIdentityControlProjection | undefined;
+    expectedControllerPublicKey?: string;
+  }>
+): IdentityVerificationStatus {
   const projection = input.projection;
   if (projection === undefined || projection.controllerPublicKey === undefined) return 'unknown';
   if (
@@ -117,21 +121,26 @@ export function resolveIdentityVerificationStatus(input: Readonly<{
   ) {
     return 'mismatch-detected';
   }
-  const hasRevokedDevice = Object.values(projection.devices).some((device) => device.status === 'revoked');
+  const hasRevokedDevice = Object.values(projection.devices).some(
+    (device) => device.status === 'revoked'
+  );
   if (hasRevokedDevice) return 'revoked-device-seen';
   return 'controller-known';
 }
 
-export function authorizeIdentityOperation(input: Readonly<{
-  projection: StoredIdentityControlProjection | undefined;
-  deviceId: string;
-  scope: string;
-  verificationStatus?: IdentityVerificationStatus;
-  now?: Date | string;
-}>): IdentityOperationAuthorization {
+export function authorizeIdentityOperation(
+  input: Readonly<{
+    projection: StoredIdentityControlProjection | undefined;
+    deviceId: string;
+    scope: string;
+    verificationStatus?: IdentityVerificationStatus;
+    now?: Date | string;
+  }>
+): IdentityOperationAuthorization {
   const deviceId = requireNonEmptyString(input.deviceId, 'deviceId');
   const scope = requireNonEmptyString(input.scope, 'scope');
-  const verificationStatus = input.verificationStatus ?? resolveIdentityVerificationStatus({ projection: input.projection });
+  const verificationStatus =
+    input.verificationStatus ?? resolveIdentityVerificationStatus({ projection: input.projection });
   if (verificationStatus === 'mismatch-detected') {
     return {
       authorized: false,
@@ -180,7 +189,10 @@ export function authorizeIdentityOperation(input: Readonly<{
   }
 
   const grantedCapabilities = Object.values(projection.capabilities).filter(
-    (capability) => capability.delegateDeviceId === deviceId && capability.scope === scope && capability.status === 'granted'
+    (capability) =>
+      capability.delegateDeviceId === deviceId &&
+      capability.scope === scope &&
+      capability.status === 'granted'
   );
   if (Object.keys(projection.capabilities).length === 0) {
     return {
@@ -269,7 +281,9 @@ export class DeviceIdentityManager {
     this.#store = store;
   }
 
-  async getOrCreatePrimaryDeviceSession(now = new Date().toISOString()): Promise<LocalDeviceSession> {
+  async getOrCreatePrimaryDeviceSession(
+    now = new Date().toISOString()
+  ): Promise<LocalDeviceSession> {
     this.#bootstrapInFlight ??= this.#getOrCreatePrimaryDeviceSession(now).finally(() => {
       this.#bootstrapInFlight = null;
     });
@@ -299,7 +313,9 @@ export class DeviceIdentityManager {
       }
     );
 
-    return committed.kind === 'created' ? committed.session : this.#restoreSession(committed.record);
+    return committed.kind === 'created'
+      ? committed.session
+      : this.#restoreSession(committed.record);
   }
 
   async #prepareNewSession(now: string): Promise<PreparedDeviceSession> {

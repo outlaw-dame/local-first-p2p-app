@@ -107,9 +107,9 @@ describe('validateSafetyLabel', () => {
   });
 
   it('rejects confidence outside [0,1]', () => {
-    expect(() =>
-      validateSafetyLabel({ ...LABEL_BASE, confidence: 1.5 })
-    ).toThrow(/TS_INVALID_NUMBER/);
+    expect(() => validateSafetyLabel({ ...LABEL_BASE, confidence: 1.5 })).toThrow(
+      /TS_INVALID_NUMBER/
+    );
     expect(() => validateSafetyLabel({ ...LABEL_BASE, confidence: -0.1 })).toThrow();
   });
 
@@ -153,8 +153,6 @@ describe('validateSafetyLabel', () => {
       kind: 'report',
       digest: VALID_DIGEST
     });
-    expect(() =>
-      validateSafetyLabel({ ...LABEL_BASE, evidenceRefs: big })
-    ).toThrow(/exceeds 32/);
+    expect(() => validateSafetyLabel({ ...LABEL_BASE, evidenceRefs: big })).toThrow(/exceeds 32/);
   });
 });

@@ -147,7 +147,14 @@ export function validatePrivatePayloadEnvelopeShape(
   if (envelope === null || typeof envelope !== 'object' || Array.isArray(envelope)) {
     throw new Error('private payload envelope must be an object');
   }
-  const allowed = new Set(['version', 'algorithm', 'ciphertext', 'nonce', 'keyId', 'recipientWraps']);
+  const allowed = new Set([
+    'version',
+    'algorithm',
+    'ciphertext',
+    'nonce',
+    'keyId',
+    'recipientWraps'
+  ]);
   for (const key of Object.keys(envelope)) {
     if (!allowed.has(key)) throw new Error(`unsupported private payload envelope field: ${key}`);
   }
@@ -155,7 +162,9 @@ export function validatePrivatePayloadEnvelopeShape(
     throw new Error(`unsupported private payload envelope version: ${String(envelope.version)}`);
   }
   if (envelope.algorithm !== 'aes-gcm-256') {
-    throw new Error(`unsupported private payload envelope algorithm: ${String(envelope.algorithm)}`);
+    throw new Error(
+      `unsupported private payload envelope algorithm: ${String(envelope.algorithm)}`
+    );
   }
   requireNonEmpty(envelope.ciphertext, 'ciphertext');
   requireNonEmpty(envelope.nonce, 'nonce');
@@ -191,7 +200,10 @@ function validateAadContext(context: PrivatePayloadAadContext): void {
   if (!Number.isSafeInteger(context.schemaVersion) || context.schemaVersion <= 0) {
     throw new Error('context.schemaVersion must be a safe positive integer');
   }
-  if (context.lamport !== undefined && (!Number.isSafeInteger(context.lamport) || context.lamport < 0)) {
+  if (
+    context.lamport !== undefined &&
+    (!Number.isSafeInteger(context.lamport) || context.lamport < 0)
+  ) {
     throw new Error('context.lamport must be a safe non-negative integer when provided');
   }
   if (context.refs !== undefined && !Array.isArray(context.refs)) {
@@ -249,8 +261,12 @@ function validateRecipientWraps(
       }
     }
     requireNonEmpty(wrap.recipientIdentityId, `recipientWraps[${index}].recipientIdentityId`);
-    const deviceId = requireNonEmpty(wrap.recipientDeviceId, `recipientWraps[${index}].recipientDeviceId`);
-    if (seen.has(deviceId)) throw new Error(`recipientWraps contains duplicate recipientDeviceId: ${deviceId}`);
+    const deviceId = requireNonEmpty(
+      wrap.recipientDeviceId,
+      `recipientWraps[${index}].recipientDeviceId`
+    );
+    if (seen.has(deviceId))
+      throw new Error(`recipientWraps contains duplicate recipientDeviceId: ${deviceId}`);
     seen.add(deviceId);
     if (wrap.keyAgreement !== 'x25519-v1') {
       throw new Error(`recipientWraps[${index}].keyAgreement must be x25519-v1`);

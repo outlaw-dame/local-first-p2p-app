@@ -39,16 +39,16 @@ The existing MLS work established:
 
 ## Specification mapping
 
-| Existing area | Specification owner | Promotion rule |
-|---|---|---|
-| Group creation | future `08-security/mls-groups.md`, `06-social/spaces.md` | Group creation is security state and social context state. |
-| Member proposal/add/remove | future `08-security/mls-groups.md`, `06-social/roles.md` | Membership changes must align with Space/Channel policy and signed authority. |
-| Commit published | future `08-security/mls-groups.md` | Commit state advances group epoch; providers do not decide membership. |
-| Epoch advanced | future `08-security/key-epochs.md` | Epoch state must be explicit and replay-safe. |
-| Welcome routing | `05-mailbox/delivery-envelopes.md` | Welcome material may be delivered by mailbox/provider routes without plaintext access. |
-| Group application messages | `05-mailbox/mailbox.md`, `06-social/channels.md` | Message delivery and social Channel context must remain distinct. |
-| Sync replay | `04-sync/selective-replica-sync.md` | Group-control records must validate before projection and before payload apply. |
-| Fork detection/recovery | future `08-security/mls-groups.md` | Fork handling is security state, not provider policy. |
+| Existing area              | Specification owner                                       | Promotion rule                                                                         |
+| -------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Group creation             | future `08-security/mls-groups.md`, `06-social/spaces.md` | Group creation is security state and social context state.                             |
+| Member proposal/add/remove | future `08-security/mls-groups.md`, `06-social/roles.md`  | Membership changes must align with Space/Channel policy and signed authority.          |
+| Commit published           | future `08-security/mls-groups.md`                        | Commit state advances group epoch; providers do not decide membership.                 |
+| Epoch advanced             | future `08-security/key-epochs.md`                        | Epoch state must be explicit and replay-safe.                                          |
+| Welcome routing            | `05-mailbox/delivery-envelopes.md`                        | Welcome material may be delivered by mailbox/provider routes without plaintext access. |
+| Group application messages | `05-mailbox/mailbox.md`, `06-social/channels.md`          | Message delivery and social Channel context must remain distinct.                      |
+| Sync replay                | `04-sync/selective-replica-sync.md`                       | Group-control records must validate before projection and before payload apply.        |
+| Fork detection/recovery    | future `08-security/mls-groups.md`                        | Fork handling is security state, not provider policy.                                  |
 
 ## Required boundaries
 

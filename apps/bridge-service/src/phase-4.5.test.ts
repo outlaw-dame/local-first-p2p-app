@@ -128,8 +128,7 @@ describe('Phase 4.5 — check #9: decideUserBlockTransport', () => {
     const blockedState = stateWithBlock();
     const gw = new BridgeAdmissionGateway({
       config: GATEWAY_CONFIG,
-      localControlStateLookup: (actorId) =>
-        actorId === 'identity:bob' ? blockedState : undefined
+      localControlStateLookup: (actorId) => (actorId === 'identity:bob' ? blockedState : undefined)
     });
     const req = makeRequest('evt_blocked', 'identity:bob');
     const dec = gw.admit(req, T0);
@@ -387,8 +386,17 @@ describe('Phase 4.5 — JsonFileHttpRateLimitStore', () => {
     // refillRatePerSecond must be > 0; use the engine minimum to
     // effectively prevent refill within the test's time range.
     // refillRatePerSecond: 0.001 = 1 token per 1000 s — negligible over ms-scale test time.
-    const tinyConfig = { capacity: 2, refillRatePerSecond: 0.001, baseBackoffMs: 1000, maxBackoffMs: 60000 };
-    const limiterA = await BridgeHttpRateLimiter.create({ store, config: tinyConfig, flushIntervalMs: 60_000 });
+    const tinyConfig = {
+      capacity: 2,
+      refillRatePerSecond: 0.001,
+      baseBackoffMs: 1000,
+      maxBackoffMs: 60000
+    };
+    const limiterA = await BridgeHttpRateLimiter.create({
+      store,
+      config: tinyConfig,
+      flushIntervalMs: 60_000
+    });
     limiterA.consume('tok', T0);
     limiterA.consume('tok', T0 + 1);
     const r1 = limiterA.consume('tok', T0 + 2); // should be denied
@@ -397,7 +405,11 @@ describe('Phase 4.5 — JsonFileHttpRateLimitStore', () => {
     await limiterA.dispose();
 
     // Restart: new limiter, same store
-    const limiterB = await BridgeHttpRateLimiter.create({ store, config: tinyConfig, flushIntervalMs: 60_000 });
+    const limiterB = await BridgeHttpRateLimiter.create({
+      store,
+      config: tinyConfig,
+      flushIntervalMs: 60_000
+    });
     const r2 = limiterB.consume('tok', T0 + 3); // still denied — budget persisted
     expect(r2.allowed).toBe(false);
     await limiterB.dispose();
@@ -426,9 +438,7 @@ describe('Phase 4.5 — BridgeTokenRegistry', () => {
 
   it('revokeToken takes effect immediately on next request', async () => {
     const registry = new BridgeTokenRegistry({
-      initialTokens: [
-        { tokenId: 'tok-rev', hashedValue: hashBearerToken('to-revoke') }
-      ]
+      initialTokens: [{ tokenId: 'tok-rev', hashedValue: hashBearerToken('to-revoke') }]
     });
     expect(registry.validateBearerToken('to-revoke', T0).status).toBe('valid');
     await registry.revokeToken('tok-rev');
@@ -454,9 +464,7 @@ describe('Phase 4.5 — BridgeTokenRegistry', () => {
 
   it('unknown bearer returns invalid without leaking registry info', () => {
     const registry = new BridgeTokenRegistry({
-      initialTokens: [
-        { tokenId: 'tok-a', hashedValue: hashBearerToken('real-secret') }
-      ]
+      initialTokens: [{ tokenId: 'tok-a', hashedValue: hashBearerToken('real-secret') }]
     });
     const result = registry.validateBearerToken('not-in-registry', T0);
     expect(result.status).toBe('invalid');
@@ -487,9 +495,9 @@ describe('Phase 4.5 — BridgeTokenRegistry', () => {
 
   it('rejects hashedValue that is not a 64-char hex sha-256', async () => {
     const registry = new BridgeTokenRegistry();
-    await expect(
-      registry.addToken({ tokenId: 'bad', hashedValue: 'not-a-hash' })
-    ).rejects.toThrow('hashedValue');
+    await expect(registry.addToken({ tokenId: 'bad', hashedValue: 'not-a-hash' })).rejects.toThrow(
+      'hashedValue'
+    );
   });
 });
 
@@ -500,8 +508,17 @@ describe('Phase 4.5 — BridgeTokenRegistry', () => {
 describe('Phase 4.5 — AuthAuditLog', () => {
   it('records accepted and rejected entries', () => {
     const log = new AuthAuditLog();
-    log.record({ timestamp: '2026-06-01T00:00:00Z', outcome: 'accepted', tokenIdPrefix: 'tok-abc1', requestPath: '/bridge/deliver' });
-    log.record({ timestamp: '2026-06-01T00:00:01Z', outcome: 'rejected', requestPath: '/bridge/deliver' });
+    log.record({
+      timestamp: '2026-06-01T00:00:00Z',
+      outcome: 'accepted',
+      tokenIdPrefix: 'tok-abc1',
+      requestPath: '/bridge/deliver'
+    });
+    log.record({
+      timestamp: '2026-06-01T00:00:01Z',
+      outcome: 'rejected',
+      requestPath: '/bridge/deliver'
+    });
     expect(log.size).toBe(2);
     const entries = log.entries();
     expect(entries[0]!.outcome).toBe('accepted');
@@ -545,7 +562,12 @@ describe('Phase 4.5 — AuthAuditLog', () => {
     const filePath = join(dir, 'audit.jsonl');
     const store = new JsonFileAuthAuditStore({ filePath });
     const log = new AuthAuditLog({ capacity: 100, store });
-    log.record({ timestamp: 'T1', outcome: 'accepted', tokenIdPrefix: 'tok12345', requestPath: '/bridge/deliver' });
+    log.record({
+      timestamp: 'T1',
+      outcome: 'accepted',
+      tokenIdPrefix: 'tok12345',
+      requestPath: '/bridge/deliver'
+    });
     log.record({ timestamp: 'T2', outcome: 'rejected', requestPath: '/bridge/deliver' });
     // Give the best-effort async writes a moment to complete.
     // appendFile calls are queued to libuv's thread pool; two

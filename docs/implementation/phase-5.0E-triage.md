@@ -9,11 +9,11 @@
 Commit `51a990c` introduced a new protocol invariant in
 `packages/protocol/src/index.ts` `validatePayloadPrivacyScope`:
 
-| Privacy scope | Pre-5.0E payload requirement | Post-5.0E payload requirement |
-|---|---|---|
-| `device-local`, `public` | any non-private-shape JSON object | must NOT look like a private payload envelope |
-| `self` (non-identity kinds) | any JSON object | MUST be a valid `PrivatePayloadEnvelopeV1` |
-| `dm`, `group` | any JSON object | MUST be a valid `PrivatePayloadEnvelopeV1` |
+| Privacy scope               | Pre-5.0E payload requirement      | Post-5.0E payload requirement                 |
+| --------------------------- | --------------------------------- | --------------------------------------------- |
+| `device-local`, `public`    | any non-private-shape JSON object | must NOT look like a private payload envelope |
+| `self` (non-identity kinds) | any JSON object                   | MUST be a valid `PrivatePayloadEnvelopeV1`    |
+| `dm`, `group`               | any JSON object                   | MUST be a valid `PrivatePayloadEnvelopeV1`    |
 
 `looksLikePrivatePayloadEnvelope` checks for the presence of all of:
 `version`, `algorithm`, `ciphertext`, `nonce`, `keyId`.
@@ -33,11 +33,11 @@ throws at envelope construction time.
 
 ## Lint failures (3)
 
-| File | Line | Issue | Fix |
-|---|---|---|---|
-| `packages/crypto/src/index.ts` | 12 | `KeyAgreementAlgorithm` imported but never used | Drop the import (it's exported via `export type *`) or use it |
-| `packages/protocol/src/index.ts` | 229 | `any` | Replace with `unknown` or a precise type |
-| `packages/protocol/src/index.ts` | 447 | `any` | Replace with `unknown` or a precise type |
+| File                             | Line | Issue                                           | Fix                                                           |
+| -------------------------------- | ---- | ----------------------------------------------- | ------------------------------------------------------------- |
+| `packages/crypto/src/index.ts`   | 12   | `KeyAgreementAlgorithm` imported but never used | Drop the import (it's exported via `export type *`) or use it |
+| `packages/protocol/src/index.ts` | 229  | `any`                                           | Replace with `unknown` or a precise type                      |
+| `packages/protocol/src/index.ts` | 447  | `any`                                           | Replace with `unknown` or a precise type                      |
 
 ## Failing test files — classification
 
@@ -50,18 +50,18 @@ use those privacy scopes only because they need any envelope that
 the bridge accepts (the bridge-safe scope set is `{dm, group, public}`).
 Switching the fixture to `public` preserves test intent at zero cost.
 
-| File | Test focus | Why public is fine |
-|---|---|---|
-| `apps/bridge-service/src/admission-gateway.test.ts` | Phase 4.1 admission engine (rate limit, byte cap, kind allowlist, peer rep) | Admission checks operate on envelope shape; privacy scope is just a bridge-safe gate |
-| `apps/bridge-service/src/admission-state-store.test.ts` | Phase 4.2 admission state persistence | Same — testing the gateway, not encryption |
-| `apps/bridge-service/src/http-hardening.test.ts` | Phase 4.3 HTTP-layer hardening (auth, size cap, rate limit) | Doesn't read the envelope body; only checks transport |
-| `apps/bridge-service/src/inbound-read.test.ts` | Bridge inbound-read pagination + cursor | Tests storage + listing; privacy is incidental |
-| `apps/bridge-service/src/index.test.ts` | Public surface re-exports | Same |
-| `apps/pwa/src/pwa-outbox-manual-gate.test.ts` | Outbox manual-gate ordering | Privacy is incidental — testing scheduling |
-| `packages/local-store/src/inbound-sync.test.ts` | Inbound-sync stamping | Storage path test |
-| `packages/sync-client/src/http-bridge-integration.test.ts` | HTTP bridge transport round-trip | Wire-level test |
-| `packages/sync-client/src/inbound-runner.test.ts` | Inbound runner scheduling | Scheduling — payload contents don't matter |
-| `packages/sync-client/src/outbox-jitter.test.ts` | Outbox retry-jitter timing | Same |
+| File                                                       | Test focus                                                                  | Why public is fine                                                                   |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `apps/bridge-service/src/admission-gateway.test.ts`        | Phase 4.1 admission engine (rate limit, byte cap, kind allowlist, peer rep) | Admission checks operate on envelope shape; privacy scope is just a bridge-safe gate |
+| `apps/bridge-service/src/admission-state-store.test.ts`    | Phase 4.2 admission state persistence                                       | Same — testing the gateway, not encryption                                           |
+| `apps/bridge-service/src/http-hardening.test.ts`           | Phase 4.3 HTTP-layer hardening (auth, size cap, rate limit)                 | Doesn't read the envelope body; only checks transport                                |
+| `apps/bridge-service/src/inbound-read.test.ts`             | Bridge inbound-read pagination + cursor                                     | Tests storage + listing; privacy is incidental                                       |
+| `apps/bridge-service/src/index.test.ts`                    | Public surface re-exports                                                   | Same                                                                                 |
+| `apps/pwa/src/pwa-outbox-manual-gate.test.ts`              | Outbox manual-gate ordering                                                 | Privacy is incidental — testing scheduling                                           |
+| `packages/local-store/src/inbound-sync.test.ts`            | Inbound-sync stamping                                                       | Storage path test                                                                    |
+| `packages/sync-client/src/http-bridge-integration.test.ts` | HTTP bridge transport round-trip                                            | Wire-level test                                                                      |
+| `packages/sync-client/src/inbound-runner.test.ts`          | Inbound runner scheduling                                                   | Scheduling — payload contents don't matter                                           |
+| `packages/sync-client/src/outbox-jitter.test.ts`           | Outbox retry-jitter timing                                                  | Same                                                                                 |
 
 ### Family B — wrap in placeholder `PrivatePayloadEnvelopeV1` (5 files)
 
@@ -71,13 +71,13 @@ Switching to `public` would silently change test coverage. The
 correct fix is to use a placeholder valid private-payload envelope
 shape in the existing payload position.
 
-| File | Test focus | Why placeholder is right |
-|---|---|---|
-| `packages/sync-client/src/inbound-http.test.ts` | Bridge inbound HTTP flow including DM events | DM is part of the surface being tested |
-| `packages/sync-client/src/inbound-sync.test.ts` | Inbound sync with both DM and self privacy scopes | Privacy-scope-routing behavior matters |
-| `packages/sync-client/src/index.test.ts` | Sync-client public surface | Mixed-privacy fixtures across multiple tests |
-| `packages/sync-client/src/phase-2.2.test.ts` | Phase 2.2 identity persistence (`self`-scoped identity events) | Identity events on `self` MUST pass through the new validator |
-| `packages/sync-client/src/verifier-boundary.test.ts` | Boundary verifier exercising dm + self + identity envelope shapes | Mixed-privacy coverage |
+| File                                                 | Test focus                                                        | Why placeholder is right                                      |
+| ---------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------- |
+| `packages/sync-client/src/inbound-http.test.ts`      | Bridge inbound HTTP flow including DM events                      | DM is part of the surface being tested                        |
+| `packages/sync-client/src/inbound-sync.test.ts`      | Inbound sync with both DM and self privacy scopes                 | Privacy-scope-routing behavior matters                        |
+| `packages/sync-client/src/index.test.ts`             | Sync-client public surface                                        | Mixed-privacy fixtures across multiple tests                  |
+| `packages/sync-client/src/phase-2.2.test.ts`         | Phase 2.2 identity persistence (`self`-scoped identity events)    | Identity events on `self` MUST pass through the new validator |
+| `packages/sync-client/src/verifier-boundary.test.ts` | Boundary verifier exercising dm + self + identity envelope shapes | Mixed-privacy coverage                                        |
 
 ## Strategy
 
@@ -95,7 +95,7 @@ shape in the existing payload position.
        version: PRIVATE_PAYLOAD_ENVELOPE_VERSION,
        algorithm: 'aes-gcm-256',
        ciphertext: overrides.ciphertext ?? 'AAAA',
-       nonce: 'AAAAAAAAAAAAAAAA',   // base64url of 12 zero bytes
+       nonce: 'AAAAAAAAAAAAAAAA', // base64url of 12 zero bytes
        keyId: overrides.keyId ?? 'placeholder-key'
      });
    }
@@ -104,6 +104,7 @@ shape in the existing payload position.
    Exporting from `@lfp2p/protocol` (not from a test util) is
    intentional: test fixtures across `apps/` + `packages/` would
    otherwise duplicate the shape. Single source of truth.
+
 3. **Family A**: per-file mechanical sweep changing `privacy: 'dm'`
    / `'group'` to `privacy: 'public'` for fixtures where the test
    body does not branch on privacy scope.

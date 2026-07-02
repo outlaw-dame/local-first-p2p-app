@@ -24,18 +24,9 @@ import {
   decayReputation,
   isQuarantined
 } from './peer-reputation.js';
-import {
-  type RateLimitBucket,
-  createRateLimitBucket
-} from './rate-limit.js';
-import {
-  type ReplayCache,
-  createReplayCache
-} from './replay-cache.js';
-import {
-  type TransportEvent,
-  validateTransportEvent
-} from './events.js';
+import { type RateLimitBucket, createRateLimitBucket } from './rate-limit.js';
+import { type ReplayCache, createReplayCache } from './replay-cache.js';
+import { type TransportEvent, validateTransportEvent } from './events.js';
 
 export type QuarantineRecord = Readonly<{
   since: string;
@@ -108,8 +99,7 @@ export function admitEnvelope(
 ): Readonly<{ nextState: TransportAdmissionState; result: AdmissionResult }> {
   const peerBucket =
     state.rateLimitState[envelope.peerId] ?? createRateLimitBucket(now, config.rateLimit);
-  const peerRep =
-    state.peerReputation[envelope.peerId] ?? createReputation(now);
+  const peerRep = state.peerReputation[envelope.peerId] ?? createReputation(now);
 
   const baseInputs = {
     config,
@@ -150,10 +140,7 @@ export function admitEnvelope(
 
   // If the post-decision reputation crosses into quarantine, record it.
   let quarantinedPeers = state.quarantinedPeers;
-  if (
-    isQuarantined(outputs.reputation, now) &&
-    quarantinedPeers[envelope.peerId] === undefined
-  ) {
+  if (isQuarantined(outputs.reputation, now) && quarantinedPeers[envelope.peerId] === undefined) {
     const quarantineExpiresAt = outputs.reputation.quarantineUntil;
     const record: QuarantineRecord =
       quarantineExpiresAt !== undefined
@@ -214,16 +201,17 @@ export function applyTransportEvent(
       if (subject.type !== 'event') {
         return Object.freeze({ ...state, appliedEventIds });
       }
-      const record: QuarantineRecord = e.quarantineExpiresAt !== undefined
-        ? Object.freeze({
-            since: e.createdAt,
-            expiresAt: e.quarantineExpiresAt,
-            reasonCode: e.decision.reasonCode
-          })
-        : Object.freeze({
-            since: e.createdAt,
-            reasonCode: e.decision.reasonCode
-          });
+      const record: QuarantineRecord =
+        e.quarantineExpiresAt !== undefined
+          ? Object.freeze({
+              since: e.createdAt,
+              expiresAt: e.quarantineExpiresAt,
+              reasonCode: e.decision.reasonCode
+            })
+          : Object.freeze({
+              since: e.createdAt,
+              reasonCode: e.decision.reasonCode
+            });
       return Object.freeze({
         ...state,
         quarantinedEvents: withRecordSet(state.quarantinedEvents, subject.eventId, record),
@@ -247,16 +235,17 @@ export function applyTransportEvent(
       });
     }
     case 'transport.peer.quarantined': {
-      const record: QuarantineRecord = e.quarantineExpiresAt !== undefined
-        ? Object.freeze({
-            since: e.createdAt,
-            expiresAt: e.quarantineExpiresAt,
-            reasonCode: e.reasonCode
-          })
-        : Object.freeze({
-            since: e.createdAt,
-            reasonCode: e.reasonCode
-          });
+      const record: QuarantineRecord =
+        e.quarantineExpiresAt !== undefined
+          ? Object.freeze({
+              since: e.createdAt,
+              expiresAt: e.quarantineExpiresAt,
+              reasonCode: e.reasonCode
+            })
+          : Object.freeze({
+              since: e.createdAt,
+              reasonCode: e.reasonCode
+            });
       // Also push score below the quarantine threshold so the engine
       // continues to refuse traffic until reputation recovers.
       const rep =

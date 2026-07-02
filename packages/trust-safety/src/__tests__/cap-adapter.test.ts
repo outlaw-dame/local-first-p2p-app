@@ -33,7 +33,10 @@ const PROOF_INPUT = {
 const VERIFY_ALL: CapabilityProofVerifier = () => 'verified';
 const REJECT_ALL: CapabilityProofVerifier = () => 'invalid';
 
-function regWithProof(): { registry: ReturnType<typeof createProofRegistry>; record: CapabilityProofRecord } {
+function regWithProof(): {
+  registry: ReturnType<typeof createProofRegistry>;
+  record: CapabilityProofRecord;
+} {
   const { registry, record } = registerProof(createProofRegistry(), PROOF_INPUT);
   return { registry, record };
 }

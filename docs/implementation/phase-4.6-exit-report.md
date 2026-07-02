@@ -63,19 +63,19 @@ Both methods are synchronous mutations on the in-memory store; persistence (if a
 
 ## New files
 
-| File | Purpose |
-|------|---------|
-| `apps/bridge-service/src/operator-surface.ts` | `OperatorSurface`, `OperatorSurfaceConfig`, validation/default helpers |
-| `apps/bridge-service/src/policy-subscription.ts` | `PolicySubscriptionRuntime`, check #8.5 |
-| `apps/bridge-service/src/phase-4.6.test.ts` | 38 adversarial tests |
+| File                                             | Purpose                                                                |
+| ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `apps/bridge-service/src/operator-surface.ts`    | `OperatorSurface`, `OperatorSurfaceConfig`, validation/default helpers |
+| `apps/bridge-service/src/policy-subscription.ts` | `PolicySubscriptionRuntime`, check #8.5                                |
+| `apps/bridge-service/src/phase-4.6.test.ts`      | 38 adversarial tests                                                   |
 
 ## Modified files
 
-| File | Change |
-|------|--------|
+| File                                           | Change                                                                                                                                                            |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/bridge-service/src/admission-gateway.ts` | `ingestAdvisoryFeed`, `quarantinePeer`, `liftQuarantine`, `registerAppealHook`, appeal hook fire, check #8.5 in `admitAndPersist`, `AdvisoryReputationEntry` type |
-| `apps/bridge-service/src/index.ts` | Re-exports for `operator-surface.ts`, `policy-subscription.ts` |
-| `packages/trust-safety/src/reason-codes.ts` | `'policy.operator-label'` added to `SAFETY_REASON_CODES` |
+| `apps/bridge-service/src/index.ts`             | Re-exports for `operator-surface.ts`, `policy-subscription.ts`                                                                                                    |
+| `packages/trust-safety/src/reason-codes.ts`    | `'policy.operator-label'` added to `SAFETY_REASON_CODES`                                                                                                          |
 
 ## Test coverage (38 new tests)
 

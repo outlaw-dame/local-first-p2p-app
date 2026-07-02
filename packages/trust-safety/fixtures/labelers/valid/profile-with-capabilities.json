@@ -10,11 +10,7 @@
     "displayName": "Cross-Platform Screenshot Detector",
     "description": "Detects screenshots of posts from X/Twitter, Bluesky, and other platforms.",
     "supportedNamespaces": ["lfp2p.safety", "lfp2p.content-category.v1"],
-    "supportedLabels": [
-      "screenshot.crossplatform",
-      "provenance.x-twitter",
-      "provenance.bluesky"
-    ],
+    "supportedLabels": ["screenshot.crossplatform", "provenance.x-twitter", "provenance.bluesky"],
     "serviceEndpoint": "https://labeler-screenshot.example.com/stream",
     "createdAt": "2026-01-15T00:00:00Z",
     "updatedAt": "2026-06-02T00:00:00Z",

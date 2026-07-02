@@ -58,11 +58,7 @@ export type BridgeStreamRecord = Readonly<{
   receivedAt: string;
 }>;
 
-export type BridgeStreamSubscriptionState =
-  | 'buffering'
-  | 'live'
-  | 'closed'
-  | 'overflowed';
+export type BridgeStreamSubscriptionState = 'buffering' | 'live' | 'closed' | 'overflowed';
 
 export const DEFAULT_BRIDGE_STREAM_BUFFER = 1000;
 

@@ -67,19 +67,19 @@ New `auth-audit-log.ts` module:
 
 ## New files
 
-| File | Purpose |
-|------|---------|
+| File                                        | Purpose                                                          |
+| ------------------------------------------- | ---------------------------------------------------------------- |
 | `apps/bridge-service/src/token-registry.ts` | `AuthToken`, `BridgeTokenRegistry`, `JsonFileTokenRegistryStore` |
-| `apps/bridge-service/src/auth-audit-log.ts` | `AuthAuditLog`, `JsonFileAuthAuditStore`, `AuthAuditRecord` |
-| `apps/bridge-service/src/phase-4.5.test.ts` | 30 adversarial tests |
+| `apps/bridge-service/src/auth-audit-log.ts` | `AuthAuditLog`, `JsonFileAuthAuditStore`, `AuthAuditRecord`      |
+| `apps/bridge-service/src/phase-4.5.test.ts` | 30 adversarial tests                                             |
 
 ## Modified files
 
-| File | Change |
-|------|--------|
+| File                                           | Change                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `apps/bridge-service/src/admission-gateway.ts` | Check #9 wiring, `acceptReportDelivery`, `rotateOperatorAuthority`, `admitAndPersist` restructure |
-| `apps/bridge-service/src/http-hardening.ts` | `RateLimitBucketState`, `HttpRateLimitStore`, `JsonFileHttpRateLimitStore` |
-| `apps/bridge-service/src/index.ts` | Re-exports for new modules |
+| `apps/bridge-service/src/http-hardening.ts`    | `RateLimitBucketState`, `HttpRateLimitStore`, `JsonFileHttpRateLimitStore`                        |
+| `apps/bridge-service/src/index.ts`             | Re-exports for new modules                                                                        |
 
 ## Test coverage (30 new tests)
 

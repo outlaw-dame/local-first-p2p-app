@@ -42,7 +42,9 @@ describe('acceptSyncCheckpoint', () => {
   });
 
   it('returns false for checkpoint rejection but does not mask validation errors', async () => {
-    const store = createLocalFirstStore(`sync-checkpoint-validation-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `sync-checkpoint-validation-${globalThis.crypto.randomUUID()}`
+    );
     try {
       await expect(
         acceptSyncCheckpoint({

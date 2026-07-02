@@ -8,7 +8,5 @@
     "rootDir": "src"
   },
   "include": ["src"],
-  "references": [
-    { "path": "../protocol" }
-  ]
+  "references": [{ "path": "../protocol" }]
 }

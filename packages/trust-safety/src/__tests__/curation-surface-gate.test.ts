@@ -29,52 +29,30 @@ const KEY_DIGEST = {
 };
 
 describe('decideCurationSurfaceIngest — public surfaces', () => {
-  it.each([...PUBLIC_CURATION_SURFACES])(
-    'rejects device-local envelope scope on %s',
-    (surface) => {
-      const d = decideCurationSurfaceIngest(
-        surface,
-        'device-local',
-        { type: 'event', eventId: 'evt_x' }
-      );
-      expect(d.allowed).toBe(false);
-      expect(d.reason).toBe('private-envelope-scope');
-    }
-  );
+  it.each([...PUBLIC_CURATION_SURFACES])('rejects device-local envelope scope on %s', (surface) => {
+    const d = decideCurationSurfaceIngest(surface, 'device-local', {
+      type: 'event',
+      eventId: 'evt_x'
+    });
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toBe('private-envelope-scope');
+  });
 
-  it.each([...PUBLIC_CURATION_SURFACES])(
-    'rejects dm envelope scope on %s',
-    (surface) => {
-      const d = decideCurationSurfaceIngest(
-        surface,
-        'dm',
-        { type: 'event', eventId: 'evt_x' }
-      );
-      expect(d.allowed).toBe(false);
-      expect(d.reason).toBe('private-envelope-scope');
-    }
-  );
+  it.each([...PUBLIC_CURATION_SURFACES])('rejects dm envelope scope on %s', (surface) => {
+    const d = decideCurationSurfaceIngest(surface, 'dm', { type: 'event', eventId: 'evt_x' });
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toBe('private-envelope-scope');
+  });
 
-  it.each([...PUBLIC_CURATION_SURFACES])(
-    'rejects group envelope scope on %s',
-    (surface) => {
-      const d = decideCurationSurfaceIngest(
-        surface,
-        'group',
-        { type: 'event', eventId: 'evt_x' }
-      );
-      expect(d.allowed).toBe(false);
-    }
-  );
+  it.each([...PUBLIC_CURATION_SURFACES])('rejects group envelope scope on %s', (surface) => {
+    const d = decideCurationSurfaceIngest(surface, 'group', { type: 'event', eventId: 'evt_x' });
+    expect(d.allowed).toBe(false);
+  });
 
   it.each([...PUBLIC_CURATION_SURFACES])(
     'accepts public envelope + event subject on %s',
     (surface) => {
-      const d = decideCurationSurfaceIngest(
-        surface,
-        'public',
-        { type: 'event', eventId: 'evt_x' }
-      );
+      const d = decideCurationSurfaceIngest(surface, 'public', { type: 'event', eventId: 'evt_x' });
       expect(d.allowed).toBe(true);
     }
   );
@@ -82,21 +60,17 @@ describe('decideCurationSurfaceIngest — public surfaces', () => {
   it.each([...PUBLIC_CURATION_SURFACES])(
     'rejects private-by-nature subject (blob) on %s even when envelope is public',
     (surface) => {
-      const d = decideCurationSurfaceIngest(
-        surface,
-        'public',
-        {
-          type: 'blob',
-          blockRef: {
-            type: 'block-ref',
-            source: { kind: 'digest', digest: VALID_DIGEST },
-            byteLength: 1024,
-            offset: 0,
-            privacy: 'private',
-            encryption: { scheme: 'xchacha20-poly1305', keyRef: KEY_DIGEST }
-          }
+      const d = decideCurationSurfaceIngest(surface, 'public', {
+        type: 'blob',
+        blockRef: {
+          type: 'block-ref',
+          source: { kind: 'digest', digest: VALID_DIGEST },
+          byteLength: 1024,
+          offset: 0,
+          privacy: 'private',
+          encryption: { scheme: 'xchacha20-poly1305', keyRef: KEY_DIGEST }
         }
-      );
+      });
       expect(d.allowed).toBe(false);
       expect(d.reason).toBe('private-by-nature-subject');
     }
@@ -104,19 +78,12 @@ describe('decideCurationSurfaceIngest — public surfaces', () => {
 });
 
 describe('decideCurationSurfaceIngest — local surfaces', () => {
-  it.each([...LOCAL_CURATION_SURFACES])(
-    'accepts any envelope scope on %s',
-    (surface) => {
-      for (const scope of ['device-local', 'self', 'dm', 'group', 'public'] as const) {
-        const d = decideCurationSurfaceIngest(
-          surface,
-          scope,
-          { type: 'event', eventId: 'evt_x' }
-        );
-        expect(d.allowed, `surface=${surface} scope=${scope}`).toBe(true);
-      }
+  it.each([...LOCAL_CURATION_SURFACES])('accepts any envelope scope on %s', (surface) => {
+    for (const scope of ['device-local', 'self', 'dm', 'group', 'public'] as const) {
+      const d = decideCurationSurfaceIngest(surface, scope, { type: 'event', eventId: 'evt_x' });
+      expect(d.allowed, `surface=${surface} scope=${scope}`).toBe(true);
     }
-  );
+  });
 });
 
 describe('assertCurationSurfaceIngest', () => {
@@ -201,8 +168,8 @@ describe('decideReportAsCurationSignal — Phase 1.63 deferral', () => {
   );
 
   it('assertReportAsCurationSignal throws TS_PRIVATE_LEAK on private/public', () => {
-    expect(() =>
-      assertReportAsCurationSignal(PRIVATE_REPORT, 'public-feed')
-    ).toThrow(/TS_PRIVATE_LEAK/);
+    expect(() => assertReportAsCurationSignal(PRIVATE_REPORT, 'public-feed')).toThrow(
+      /TS_PRIVATE_LEAK/
+    );
   });
 });

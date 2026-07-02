@@ -187,8 +187,7 @@ export function buildIdentityAuditViewModel(
   );
 
   const capabilities = Object.values(projection.capabilities).map((cap) => {
-    const expired =
-      cap.expiresAt !== undefined && Date.parse(cap.expiresAt) <= now;
+    const expired = cap.expiresAt !== undefined && Date.parse(cap.expiresAt) <= now;
     const matched = proofsByDevice.get(cap.delegateDeviceId);
     const base = {
       capabilityId: cap.capabilityId,
@@ -319,14 +318,10 @@ export function prepareRotationIntent(
     );
   }
   if (!row.isRotatable) {
-    throw new Error(
-      `prepareRotationIntent: ${deviceId} is not rotatable (status=${row.status})`
-    );
+    throw new Error(`prepareRotationIntent: ${deviceId} is not rotatable (status=${row.status})`);
   }
   if (newPublicKey === row.publicKey) {
-    throw new Error(
-      'prepareRotationIntent: newPublicKey must differ from the current publicKey'
-    );
+    throw new Error('prepareRotationIntent: newPublicKey must differ from the current publicKey');
   }
   return Object.freeze({
     identityId: viewModel.identityId,

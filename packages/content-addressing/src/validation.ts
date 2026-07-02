@@ -12,11 +12,7 @@ export const MAX_CANONICAL_DEPTH = 64;
  */
 export const MAX_SAFE_BYTE_LENGTH = Number.MAX_SAFE_INTEGER;
 
-const FORBIDDEN_KEYS: ReadonlySet<string> = new Set([
-  '__proto__',
-  'prototype',
-  'constructor'
-]);
+const FORBIDDEN_KEYS: ReadonlySet<string> = new Set(['__proto__', 'prototype', 'constructor']);
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {

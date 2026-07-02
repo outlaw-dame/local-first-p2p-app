@@ -24,24 +24,15 @@ import {
 
 describe('pwa-trust-safety-state — KEYWORD_MATCH_KINDS_AVAILABLE_IN_UI', () => {
   it('does not include semantic (deferred — no embedding pipeline yet)', () => {
-    expect((KEYWORD_MATCH_KINDS_AVAILABLE_IN_UI as readonly string[])).not.toContain(
-      'semantic'
-    );
+    expect(KEYWORD_MATCH_KINDS_AVAILABLE_IN_UI as readonly string[]).not.toContain('semantic');
   });
 
   it('does not include regex (deliberate ReDoS guard)', () => {
-    expect((KEYWORD_MATCH_KINDS_AVAILABLE_IN_UI as readonly string[])).not.toContain(
-      'regex'
-    );
+    expect(KEYWORD_MATCH_KINDS_AVAILABLE_IN_UI as readonly string[]).not.toContain('regex');
   });
 
   it('includes substring, word, phrase, hashtag', () => {
-    expect(KEYWORD_MATCH_KINDS_AVAILABLE_IN_UI).toEqual([
-      'substring',
-      'word',
-      'phrase',
-      'hashtag'
-    ]);
+    expect(KEYWORD_MATCH_KINDS_AVAILABLE_IN_UI).toEqual(['substring', 'word', 'phrase', 'hashtag']);
   });
 });
 
@@ -87,9 +78,9 @@ describe('pwa-trust-safety-state — content-category preference', () => {
   });
 
   it('rejects an unknown category', () => {
-    expect(() =>
-      buildContentCategoryPreferenceEvent('not.a.category', 'hide')
-    ).toThrow(/Unknown content category/);
+    expect(() => buildContentCategoryPreferenceEvent('not.a.category', 'hide')).toThrow(
+      /Unknown content category/
+    );
   });
 });
 
@@ -175,10 +166,7 @@ describe('pwa-trust-safety-state — buildContentCategoryRows', () => {
 describe('pwa-trust-safety-state — buildKeywordFilterRows', () => {
   it('lists every active filter in stable sort order', () => {
     let s = createEmptyLocalControlState();
-    s = applyLocalControlEvent(
-      s,
-      buildKeywordFilterEvent({ keyword: 'zebra', matchKind: 'word' })
-    );
+    s = applyLocalControlEvent(s, buildKeywordFilterEvent({ keyword: 'zebra', matchKind: 'word' }));
     s = applyLocalControlEvent(
       s,
       buildKeywordFilterEvent({ keyword: 'apple', matchKind: 'substring' })
@@ -197,34 +185,31 @@ describe('pwa-trust-safety-state — labeler subscriptions', () => {
   const SUBSCRIBER = 'actor_user';
 
   function profile(labelerId: string, labels: string[], caps?: { capabilityId: string }[]) {
-    return applyLabelerEvent(
-      createEmptyLabelersState(),
-      {
-        version: 'lfp2p.labeler-event.v1',
-        eventId: `evt_p_${labelerId}`,
-        createdAt: '2026-06-02T00:00:00Z',
-        kind: 'safety.labeler.profile.published',
-        profile: {
-          version: 'lfp2p.safety-labeler-profile.v1',
-          labelerId,
-          actorId: `actor_${labelerId}`,
-          displayName: labelerId,
-          supportedNamespaces: ['lfp2p.safety'],
-          supportedLabels: labels,
-          createdAt: '2026-01-01T00:00:00Z',
-          updatedAt: '2026-06-02T00:00:00Z',
-          ...(caps !== undefined
-            ? {
-                capabilities: caps.map((c) => ({
-                  capabilityId: c.capabilityId,
-                  description: c.capabilityId,
-                  producesLabels: labels
-                }))
-              }
-            : {})
-        }
-      } as Parameters<typeof applyLabelerEvent>[1]
-    );
+    return applyLabelerEvent(createEmptyLabelersState(), {
+      version: 'lfp2p.labeler-event.v1',
+      eventId: `evt_p_${labelerId}`,
+      createdAt: '2026-06-02T00:00:00Z',
+      kind: 'safety.labeler.profile.published',
+      profile: {
+        version: 'lfp2p.safety-labeler-profile.v1',
+        labelerId,
+        actorId: `actor_${labelerId}`,
+        displayName: labelerId,
+        supportedNamespaces: ['lfp2p.safety'],
+        supportedLabels: labels,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-06-02T00:00:00Z',
+        ...(caps !== undefined
+          ? {
+              capabilities: caps.map((c) => ({
+                capabilityId: c.capabilityId,
+                description: c.capabilityId,
+                producesLabels: labels
+              }))
+            }
+          : {})
+      }
+    } as Parameters<typeof applyLabelerEvent>[1]);
   }
 
   it('subscribe + unsubscribe events project correctly', () => {
@@ -248,35 +233,30 @@ describe('pwa-trust-safety-state — labeler subscriptions', () => {
   });
 
   it('assessSubscribeIntent flags a redundant subscription', () => {
-    let s = profile('labeler_existing', ['security.spam'], [
-      { capabilityId: 'classify.spam' }
-    ]);
-    s = applyLabelerEvent(
-      s,
-      {
-        version: 'lfp2p.labeler-event.v1',
-        eventId: 'evt_p_candidate',
-        createdAt: '2026-06-02T00:00:00Z',
-        kind: 'safety.labeler.profile.published',
-        profile: {
-          version: 'lfp2p.safety-labeler-profile.v1',
-          labelerId: 'labeler_candidate',
-          actorId: 'actor_candidate',
-          displayName: 'labeler_candidate',
-          supportedNamespaces: ['lfp2p.safety'],
-          supportedLabels: ['security.spam'],
-          createdAt: '2026-01-01T00:00:00Z',
-          updatedAt: '2026-06-02T00:00:00Z',
-          capabilities: [
-            {
-              capabilityId: 'classify.spam',
-              description: 'spam classifier',
-              producesLabels: ['security.spam']
-            }
-          ]
-        }
-      } as Parameters<typeof applyLabelerEvent>[1]
-    );
+    let s = profile('labeler_existing', ['security.spam'], [{ capabilityId: 'classify.spam' }]);
+    s = applyLabelerEvent(s, {
+      version: 'lfp2p.labeler-event.v1',
+      eventId: 'evt_p_candidate',
+      createdAt: '2026-06-02T00:00:00Z',
+      kind: 'safety.labeler.profile.published',
+      profile: {
+        version: 'lfp2p.safety-labeler-profile.v1',
+        labelerId: 'labeler_candidate',
+        actorId: 'actor_candidate',
+        displayName: 'labeler_candidate',
+        supportedNamespaces: ['lfp2p.safety'],
+        supportedLabels: ['security.spam'],
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-06-02T00:00:00Z',
+        capabilities: [
+          {
+            capabilityId: 'classify.spam',
+            description: 'spam classifier',
+            producesLabels: ['security.spam']
+          }
+        ]
+      }
+    } as Parameters<typeof applyLabelerEvent>[1]);
     s = applyLabelerEvent(
       s,
       buildLabelerSubscribeEvent({
@@ -293,35 +273,34 @@ describe('pwa-trust-safety-state — labeler subscriptions', () => {
   });
 
   it('assessSubscribeIntent passes when the candidate does a different job', () => {
-    let s = profile('labeler_screenshot', ['screenshot.x'], [
-      { capabilityId: 'detect.twitter-screenshot' }
-    ]);
-    s = applyLabelerEvent(
-      s,
-      {
-        version: 'lfp2p.labeler-event.v1',
-        eventId: 'evt_p_profanity',
-        createdAt: '2026-06-02T00:00:00Z',
-        kind: 'safety.labeler.profile.published',
-        profile: {
-          version: 'lfp2p.safety-labeler-profile.v1',
-          labelerId: 'labeler_profanity',
-          actorId: 'actor_profanity',
-          displayName: 'labeler_profanity',
-          supportedNamespaces: ['lfp2p.safety'],
-          supportedLabels: ['quality.profanity'],
-          createdAt: '2026-01-01T00:00:00Z',
-          updatedAt: '2026-06-02T00:00:00Z',
-          capabilities: [
-            {
-              capabilityId: 'detect.profanity-en',
-              description: 'profanity detector',
-              producesLabels: ['quality.profanity']
-            }
-          ]
-        }
-      } as Parameters<typeof applyLabelerEvent>[1]
+    let s = profile(
+      'labeler_screenshot',
+      ['screenshot.x'],
+      [{ capabilityId: 'detect.twitter-screenshot' }]
     );
+    s = applyLabelerEvent(s, {
+      version: 'lfp2p.labeler-event.v1',
+      eventId: 'evt_p_profanity',
+      createdAt: '2026-06-02T00:00:00Z',
+      kind: 'safety.labeler.profile.published',
+      profile: {
+        version: 'lfp2p.safety-labeler-profile.v1',
+        labelerId: 'labeler_profanity',
+        actorId: 'actor_profanity',
+        displayName: 'labeler_profanity',
+        supportedNamespaces: ['lfp2p.safety'],
+        supportedLabels: ['quality.profanity'],
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-06-02T00:00:00Z',
+        capabilities: [
+          {
+            capabilityId: 'detect.profanity-en',
+            description: 'profanity detector',
+            producesLabels: ['quality.profanity']
+          }
+        ]
+      }
+    } as Parameters<typeof applyLabelerEvent>[1]);
     s = applyLabelerEvent(
       s,
       buildLabelerSubscribeEvent({
@@ -338,32 +317,29 @@ describe('pwa-trust-safety-state — labeler subscriptions', () => {
 
   it('listExistingOverlaps surfaces an existing overlap pair', () => {
     let s = profile('labeler_a', ['security.spam'], [{ capabilityId: 'classify.spam' }]);
-    s = applyLabelerEvent(
-      s,
-      {
-        version: 'lfp2p.labeler-event.v1',
-        eventId: 'evt_p_b',
-        createdAt: '2026-06-02T00:00:00Z',
-        kind: 'safety.labeler.profile.published',
-        profile: {
-          version: 'lfp2p.safety-labeler-profile.v1',
-          labelerId: 'labeler_b',
-          actorId: 'actor_b',
-          displayName: 'labeler_b',
-          supportedNamespaces: ['lfp2p.safety'],
-          supportedLabels: ['security.spam'],
-          createdAt: '2026-01-01T00:00:00Z',
-          updatedAt: '2026-06-02T00:00:00Z',
-          capabilities: [
-            {
-              capabilityId: 'classify.spam',
-              description: 'spam classifier b',
-              producesLabels: ['security.spam']
-            }
-          ]
-        }
-      } as Parameters<typeof applyLabelerEvent>[1]
-    );
+    s = applyLabelerEvent(s, {
+      version: 'lfp2p.labeler-event.v1',
+      eventId: 'evt_p_b',
+      createdAt: '2026-06-02T00:00:00Z',
+      kind: 'safety.labeler.profile.published',
+      profile: {
+        version: 'lfp2p.safety-labeler-profile.v1',
+        labelerId: 'labeler_b',
+        actorId: 'actor_b',
+        displayName: 'labeler_b',
+        supportedNamespaces: ['lfp2p.safety'],
+        supportedLabels: ['security.spam'],
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-06-02T00:00:00Z',
+        capabilities: [
+          {
+            capabilityId: 'classify.spam',
+            description: 'spam classifier b',
+            producesLabels: ['security.spam']
+          }
+        ]
+      }
+    } as Parameters<typeof applyLabelerEvent>[1]);
     for (const subscriptionId of ['sub_a', 'sub_b'] as const) {
       const labelerId = subscriptionId === 'sub_a' ? 'labeler_a' : 'labeler_b';
       s = applyLabelerEvent(

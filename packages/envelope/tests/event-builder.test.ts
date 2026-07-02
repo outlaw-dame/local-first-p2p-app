@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { generateSigningKeypair, generateX25519Keypair, verifySignedEventEnvelope } from '@lfp2p/crypto';
-import { buildPrivatePayloadAad, createSignedEnvelopeEvent, resolveRecipients } from '../src/index.js';
+import {
+  generateSigningKeypair,
+  generateX25519Keypair,
+  verifySignedEventEnvelope
+} from '@lfp2p/crypto';
+import {
+  buildPrivatePayloadAad,
+  createSignedEnvelopeEvent,
+  resolveRecipients
+} from '../src/index.js';
 
 describe('createSignedEnvelopeEvent', () => {
   it('creates a signed private envelope event without plaintext payload fields', async () => {

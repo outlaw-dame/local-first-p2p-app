@@ -96,8 +96,7 @@ export type ReputationView = Readonly<{
   entries: ReadonlyArray<ReputationViewEntry>;
 }>;
 
-export const REPUTATION_VIEW_VERSION =
-  'lfp2p.pwa-reputation-view.v1' as const;
+export const REPUTATION_VIEW_VERSION = 'lfp2p.pwa-reputation-view.v1' as const;
 
 /**
  * Load the locally-persisted reputation event log, run the Phase
@@ -120,9 +119,7 @@ export async function buildReputationView(
   });
   const state = computeReputation(inputs);
   const totalConsumed =
-    inputs.observations.length +
-    inputs.attestations.length +
-    inputs.revocations.length;
+    inputs.observations.length + inputs.attestations.length + inputs.revocations.length;
   const rows: ReputationViewEntry[] = [];
   for (const [subject, score] of state.scores) {
     rows.push(

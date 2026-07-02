@@ -142,9 +142,7 @@ export type AdmissionGatewayOptions = Readonly<{
    * policy state, not a bridge-level decision. The rejection reason
    * `policy.local-preference` is stable and audit-safe.
    */
-  localControlStateLookup?: (
-    recipientActorId: string
-  ) => LocalControlState | undefined;
+  localControlStateLookup?: (recipientActorId: string) => LocalControlState | undefined;
   /**
    * Phase 4.6 — optional policy subscription runtime for check #8.5.
    * When set, after the rate-limit check (#8) and before the user-block
@@ -186,18 +184,14 @@ export function estimateEnvelopeByteSize(event: SignedEventEnvelope): number {
   return new TextEncoder().encode(JSON.stringify(event)).length;
 }
 
-function buildAdmissionEnvelope(
-  request: BridgeDeliveryRequest
-): AdmissionEnvelope {
+function buildAdmissionEnvelope(request: BridgeDeliveryRequest): AdmissionEnvelope {
   const event = request.event;
   // `peerId` falls back to `deviceId`. We document the fallback
   // openly because production wiring SHOULD supply a transport-level
   // peer identifier and the engine's per-peer reputation only
   // matters when distinct peers map to distinct identifiers.
   const peerId =
-    request.peerId !== undefined && request.peerId.length > 0
-      ? request.peerId
-      : event.deviceId;
+    request.peerId !== undefined && request.peerId.length > 0 ? request.peerId : event.deviceId;
 
   // NOTE: `safety.report.created` is NOT a `SignedEventEnvelope`
   // kind today — reports ride the separate `ReportAppealEvent`
@@ -310,9 +304,7 @@ export class BridgeAdmissionGateway {
    * (or a buggy upgrade producing an incompatible shape) gain a
    * fresh budget every restart.
    */
-  static async create(
-    options: AdmissionGatewayOptions
-  ): Promise<BridgeAdmissionGateway> {
+  static async create(options: AdmissionGatewayOptions): Promise<BridgeAdmissionGateway> {
     if (options.stateStore !== undefined) {
       const loaded = await options.stateStore.load();
       if (loaded !== undefined) {
@@ -435,7 +427,11 @@ export class BridgeAdmissionGateway {
         this.#maybeFireAppealHook(policyDecision.result.decision, request.event.kind);
       }
     }
-    if (policyDecision === undefined && result.admitted && result.decision.action !== 'drop-duplicate') {
+    if (
+      policyDecision === undefined &&
+      result.admitted &&
+      result.decision.action !== 'drop-duplicate'
+    ) {
       // Check #9 — user-block transport
       policyDecision = this.#checkUserBlock(request, nowMs);
     }
@@ -531,7 +527,10 @@ export class BridgeAdmissionGateway {
       const existingSource = sourceMap.get(entry.sourceId);
       if (existingSource === undefined || updatedAtMs >= existingSource.updatedAt) {
         if (clampedScore < 0) {
-          sourceMap.set(entry.sourceId, Object.freeze({ score: clampedScore, updatedAt: updatedAtMs }));
+          sourceMap.set(
+            entry.sourceId,
+            Object.freeze({ score: clampedScore, updatedAt: updatedAtMs })
+          );
         } else {
           // Score is 0 (i.e. original was positive/zero) — source is retracting
           sourceMap.delete(entry.sourceId);
@@ -562,10 +561,12 @@ export class BridgeAdmissionGateway {
    */
   quarantinePeer(peerId: string, reason: string, durationMs: number): void {
     if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) {
-      throw new Error(`quarantinePeer: durationMs must be a non-negative finite number, got ${String(durationMs)}`);
+      throw new Error(
+        `quarantinePeer: durationMs must be a non-negative finite number, got ${String(durationMs)}`
+      );
     }
     const repConfig = this.#config.reputation;
-    const maxQuarantineMs = repConfig?.maxQuarantineMs ?? (7 * 24 * 60 * 60 * 1_000);
+    const maxQuarantineMs = repConfig?.maxQuarantineMs ?? 7 * 24 * 60 * 60 * 1_000;
     const quarantineThreshold = repConfig?.quarantineThreshold ?? -500;
     const now = Date.now();
     const quarantineUntil = now + Math.min(durationMs, maxQuarantineMs);
@@ -663,9 +664,7 @@ export class BridgeAdmissionGateway {
       });
     }
     // Byte-size cap (use the same cap as the gateway's SignedEventEnvelope surface).
-    const byteSize =
-      request.byteSize ??
-      new TextEncoder().encode(JSON.stringify(envelope)).length;
+    const byteSize = request.byteSize ?? new TextEncoder().encode(JSON.stringify(envelope)).length;
     const maxBytes = this.#config.maxBytes ?? 1_048_576;
     if (byteSize > maxBytes) {
       return Object.freeze({
@@ -839,10 +838,7 @@ export class BridgeAdmissionGateway {
     request: BridgeDeliveryRequest,
     nowMs: number
   ): AdmissionGatewayDecision | undefined {
-    if (
-      this.#localControlStateLookup === undefined ||
-      request.recipientActorId === undefined
-    ) {
+    if (this.#localControlStateLookup === undefined || request.recipientActorId === undefined) {
       return undefined;
     }
     const localState = this.#localControlStateLookup(request.recipientActorId);

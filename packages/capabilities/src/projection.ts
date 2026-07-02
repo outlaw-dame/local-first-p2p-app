@@ -1,8 +1,4 @@
-import type {
-  CapabilityGrantV1,
-  CapabilityInvocationV1,
-  CapabilityRevocationV1
-} from './types.js';
+import type { CapabilityGrantV1, CapabilityInvocationV1, CapabilityRevocationV1 } from './types.js';
 import {
   validateCapabilityGrant,
   validateCapabilityInvocation,
@@ -79,9 +75,10 @@ export function applyCapabilityRevocation(
 ): CapabilityProjection {
   const revocation = validateCapabilityRevocation(value);
   const existingGrant = projection.grants[revocation.capabilityId];
-  const revocationIds = existingGrant === undefined
-    ? Object.freeze([revocation.revocationId])
-    : Object.freeze([...new Set([...existingGrant.revocationIds, revocation.revocationId])]);
+  const revocationIds =
+    existingGrant === undefined
+      ? Object.freeze([revocation.revocationId])
+      : Object.freeze([...new Set([...existingGrant.revocationIds, revocation.revocationId])]);
 
   return freezeProjection({
     ...projection,
@@ -89,17 +86,18 @@ export function applyCapabilityRevocation(
       ...projection.revocations,
       [revocation.revocationId]: revocation
     },
-    grants: existingGrant === undefined
-      ? projection.grants
-      : {
-          ...projection.grants,
-          [revocation.capabilityId]: {
-            ...existingGrant,
-            state: 'revoked',
-            revokedAt: existingGrant.revokedAt ?? revocation.createdAt,
-            revocationIds
+    grants:
+      existingGrant === undefined
+        ? projection.grants
+        : {
+            ...projection.grants,
+            [revocation.capabilityId]: {
+              ...existingGrant,
+              state: 'revoked',
+              revokedAt: existingGrant.revokedAt ?? revocation.createdAt,
+              revocationIds
+            }
           }
-        }
   });
 }
 
@@ -136,14 +134,19 @@ function revocationsForCapability(
   projection: CapabilityProjection,
   capabilityId: string
 ): readonly CapabilityRevocationV1[] {
-  return Object.freeze(Object.values(projection.revocations).filter((revocation) => revocation.capabilityId === capabilityId));
+  return Object.freeze(
+    Object.values(projection.revocations).filter(
+      (revocation) => revocation.capabilityId === capabilityId
+    )
+  );
 }
 
 function freezeProjection(projection: CapabilityProjection): CapabilityProjection {
   const grants: Record<string, CapabilityProjectionGrant> = {};
   for (const [id, grant] of Object.entries(projection.grants)) grants[id] = deepFreeze(grant);
   const revocations: Record<string, CapabilityRevocationV1> = {};
-  for (const [id, revocation] of Object.entries(projection.revocations)) revocations[id] = deepFreeze(revocation);
+  for (const [id, revocation] of Object.entries(projection.revocations))
+    revocations[id] = deepFreeze(revocation);
   const invocationIds: Record<string, true> = {};
   for (const id of Object.keys(projection.invocationIds)) invocationIds[id] = true;
   return deepFreeze({ grants, revocations, invocationIds });

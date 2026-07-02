@@ -23,28 +23,47 @@ export const AUTHORITY_DELEGATION_PROFILES: readonly AuthorityDelegationProfile[
   Object.freeze({
     profileId: 'relay',
     authorityKind: 'relay',
-    allowedActions: Object.freeze<readonly CapabilityAction[]>(['relay.forward-envelope', 'relay.cache-object']),
+    allowedActions: Object.freeze<readonly CapabilityAction[]>([
+      'relay.forward-envelope',
+      'relay.cache-object'
+    ]),
     maxDelegationDepth: 0,
     mayDelegateTo: Object.freeze<readonly CapabilityPartyKind[]>([])
   }),
   Object.freeze({
     profileId: 'bridge',
     authorityKind: 'bridge',
-    allowedActions: Object.freeze<readonly CapabilityAction[]>(['bridge.store-bundle', 'bridge.forward-envelope', 'bridge.publish-admission-decision']),
+    allowedActions: Object.freeze<readonly CapabilityAction[]>([
+      'bridge.store-bundle',
+      'bridge.forward-envelope',
+      'bridge.publish-admission-decision'
+    ]),
     maxDelegationDepth: 0,
     mayDelegateTo: Object.freeze<readonly CapabilityPartyKind[]>(['relay'])
   }),
   Object.freeze({
     profileId: 'super-peer',
     authorityKind: 'super-peer',
-    allowedActions: Object.freeze<readonly CapabilityAction[]>(['super-peer.store-bundle', 'relay.forward-envelope', 'relay.cache-object']),
+    allowedActions: Object.freeze<readonly CapabilityAction[]>([
+      'super-peer.store-bundle',
+      'relay.forward-envelope',
+      'relay.cache-object'
+    ]),
     maxDelegationDepth: 1,
     mayDelegateTo: Object.freeze<readonly CapabilityPartyKind[]>(['relay'])
   }),
   Object.freeze({
     profileId: 'community-moderator',
     authorityKind: 'actor',
-    allowedActions: Object.freeze<readonly CapabilityAction[]>(['community.member.approve', 'community.member.remove', 'label.issue', 'label.revoke', 'report.resolve', 'appeal.resolve', 'room.moderate']),
+    allowedActions: Object.freeze<readonly CapabilityAction[]>([
+      'community.member.approve',
+      'community.member.remove',
+      'label.issue',
+      'label.revoke',
+      'report.resolve',
+      'appeal.resolve',
+      'room.moderate'
+    ]),
     maxDelegationDepth: 0,
     mayDelegateTo: Object.freeze<readonly CapabilityPartyKind[]>([])
   })
@@ -52,7 +71,8 @@ export const AUTHORITY_DELEGATION_PROFILES: readonly AuthorityDelegationProfile[
 
 export function getAuthorityProfile(profileId: AuthorityProfileId): AuthorityDelegationProfile {
   const profile = AUTHORITY_DELEGATION_PROFILES.find((item) => item.profileId === profileId);
-  if (profile === undefined) throw capabilityError('CAP_INVALID_ENUM', 'authority profile is not supported');
+  if (profile === undefined)
+    throw capabilityError('CAP_INVALID_ENUM', 'authority profile is not supported');
   return profile;
 }
 
@@ -61,20 +81,38 @@ export function validateAuthorityProfile(value: unknown): AuthorityDelegationPro
   const profileId = assertProfileId(record.profileId);
   const authorityKind = assertPartyKind(record.authorityKind);
   const allowedActions = assertActions(record.allowedActions);
-  const maxDelegationDepth = assertNonNegativeInteger(record.maxDelegationDepth, 'AuthorityDelegationProfile.maxDelegationDepth');
+  const maxDelegationDepth = assertNonNegativeInteger(
+    record.maxDelegationDepth,
+    'AuthorityDelegationProfile.maxDelegationDepth'
+  );
   const mayDelegateTo = assertPartyKinds(record.mayDelegateTo);
-  return Object.freeze({ profileId, authorityKind, allowedActions, maxDelegationDepth, mayDelegateTo });
+  return Object.freeze({
+    profileId,
+    authorityKind,
+    allowedActions,
+    maxDelegationDepth,
+    mayDelegateTo
+  });
 }
 
-export function canProfilePerformAction(profileId: AuthorityProfileId, action: CapabilityAction): boolean {
+export function canProfilePerformAction(
+  profileId: AuthorityProfileId,
+  action: CapabilityAction
+): boolean {
   return getAuthorityProfile(profileId).allowedActions.includes(action);
 }
 
-export function canProfileDelegateTo(profileId: AuthorityProfileId, targetKind: CapabilityPartyKind): boolean {
+export function canProfileDelegateTo(
+  profileId: AuthorityProfileId,
+  targetKind: CapabilityPartyKind
+): boolean {
   return getAuthorityProfile(profileId).mayDelegateTo.includes(targetKind);
 }
 
-export function assertProfileAllowsAction(profileId: AuthorityProfileId, action: CapabilityAction): void {
+export function assertProfileAllowsAction(
+  profileId: AuthorityProfileId,
+  action: CapabilityAction
+): void {
   if (!canProfilePerformAction(profileId, action)) {
     throw capabilityError('CAP_INVALID_ACTION', 'authority profile does not allow this action');
   }
@@ -177,7 +215,18 @@ function assertProfileId(value: unknown): AuthorityProfileId {
 }
 
 function assertPartyKind(value: unknown): CapabilityPartyKind {
-  const allowed: readonly CapabilityPartyKind[] = ['actor', 'device', 'controller', 'service', 'bridge', 'relay', 'super-peer', 'labeler', 'bot', 'pseudonym'];
+  const allowed: readonly CapabilityPartyKind[] = [
+    'actor',
+    'device',
+    'controller',
+    'service',
+    'bridge',
+    'relay',
+    'super-peer',
+    'labeler',
+    'bot',
+    'pseudonym'
+  ];
   if (typeof value !== 'string' || !allowed.includes(value as CapabilityPartyKind)) {
     throw capabilityError('CAP_INVALID_ENUM', 'authorityKind is not supported');
   }
@@ -185,7 +234,8 @@ function assertPartyKind(value: unknown): CapabilityPartyKind {
 }
 
 function assertPartyKinds(value: unknown): readonly CapabilityPartyKind[] {
-  if (!Array.isArray(value)) throw capabilityError('CAP_INVALID_INPUT', 'mayDelegateTo must be an array');
+  if (!Array.isArray(value))
+    throw capabilityError('CAP_INVALID_INPUT', 'mayDelegateTo must be an array');
   return Object.freeze(value.map(assertPartyKind));
 }
 
@@ -194,14 +244,17 @@ function assertActions(value: unknown): readonly CapabilityAction[] {
     throw capabilityError('CAP_INVALID_ACTION', 'allowedActions must be a non-empty array');
   }
   const seen = new Set<string>();
-  return Object.freeze(value.map((item) => {
-    if (typeof item !== 'string' || !(CAPABILITY_ACTIONS as readonly string[]).includes(item)) {
-      throw capabilityError('CAP_INVALID_ACTION', 'allowed action is not supported');
-    }
-    if (seen.has(item)) throw capabilityError('CAP_DUPLICATE_VALUE', 'allowedActions contains duplicate action');
-    seen.add(item);
-    return item as CapabilityAction;
-  }));
+  return Object.freeze(
+    value.map((item) => {
+      if (typeof item !== 'string' || !(CAPABILITY_ACTIONS as readonly string[]).includes(item)) {
+        throw capabilityError('CAP_INVALID_ACTION', 'allowed action is not supported');
+      }
+      if (seen.has(item))
+        throw capabilityError('CAP_DUPLICATE_VALUE', 'allowedActions contains duplicate action');
+      seen.add(item);
+      return item as CapabilityAction;
+    })
+  );
 }
 
 function assertNonNegativeInteger(value: unknown, label: string): number {

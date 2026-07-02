@@ -90,7 +90,11 @@ function memberAddedEvent(controlId: string, previousControlId: string): SignedE
   });
 }
 
-function makeRecord(event: SignedEventEnvelope, cursor: string, sequence: number): InboundSyncRecord {
+function makeRecord(
+  event: SignedEventEnvelope,
+  cursor: string,
+  sequence: number
+): InboundSyncRecord {
   return {
     sourceId: 'bridge:primary',
     streamId: 'durable-stream:inbox',
@@ -140,10 +144,7 @@ describe('processInboundSyncBatch — MLS group-control dispatch (mlsGroupContro
 
       const result = await processInboundSyncBatch({
         store,
-        records: [
-          makeRecord(createEvt, 'cursor-1', 1),
-          makeRecord(addEvt, 'cursor-2', 2)
-        ],
+        records: [makeRecord(createEvt, 'cursor-1', 1), makeRecord(addEvt, 'cursor-2', 2)],
         mlsGroupControlOptions: { localDeviceId: CREATOR_DEVICE }
       });
 
@@ -173,10 +174,7 @@ describe('processInboundSyncBatch — MLS group-control dispatch (mlsGroupContro
 
       const result = await processInboundSyncBatch({
         store,
-        records: [
-          makeRecord(orphanEvt, 'cursor-1', 1),
-          makeRecord(createEvt, 'cursor-2', 2)
-        ],
+        records: [makeRecord(orphanEvt, 'cursor-1', 1), makeRecord(createEvt, 'cursor-2', 2)],
         mlsGroupControlOptions: { localDeviceId: CREATOR_DEVICE }
       });
 
@@ -270,7 +268,9 @@ describe('processInboundSyncBatch — MLS group-control dispatch (mlsGroupContro
 
       // Projection state unchanged — no duplicate acceptedControlIds
       const state = await store.getMlsGroupProjection(GROUP_ID);
-      const timesCtrl000Appears = state?.acceptedControlIds.filter((id) => id === 'ctrl-000').length;
+      const timesCtrl000Appears = state?.acceptedControlIds.filter(
+        (id) => id === 'ctrl-000'
+      ).length;
       expect(timesCtrl000Appears).toBe(1);
     } finally {
       await store.delete();
@@ -307,7 +307,10 @@ describe('processInboundSyncBatch — MLS group-control dispatch (mlsGroupContro
       await expect(
         store.updateMlsGroupProjection({
           ...noGroupIdEvt,
-          payload: { ...noGroupIdEvt.payload, groupId: '' } as unknown as SignedEventEnvelope['payload']
+          payload: {
+            ...noGroupIdEvt.payload,
+            groupId: ''
+          } as unknown as SignedEventEnvelope['payload']
         })
       ).rejects.toThrow(/groupId/);
     } finally {

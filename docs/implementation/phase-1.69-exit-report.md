@@ -59,7 +59,7 @@ they configure Bluesky moderation?":
 - `CONTENT_CATEGORY_NAMESPACE = 'lfp2p.content-category.v1'`.
 - 20 standard categories with `key`, `isAdult`, `defaultAction`,
   `description`. Defaults are conservative (spam → hide,
-  violence.threat → hide, hate.* → hide; ambiguous → warn or allow).
+  violence.threat → hide, hate.\* → hide; ambiguous → warn or allow).
 - `ADULT_CONTENT_CATEGORY_KEYS` set.
 - `decideContentCategoryAction(category, userPreference, gateEnabled)`
   resolver:
@@ -141,16 +141,16 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion                                                                                                         | Status | Evidence                                                                |
-|-------------------------------------------------------------------------------------------------------------------|:------:|-------------------------------------------------------------------------|
-| Labeler profile carries structured capabilities (additive, v1-compatible)                                         |   ✓    | `SafetyLabelerProfile.capabilities`, `validateLabelerCapability`        |
-| Standard content-category registry exists and matches Bluesky's built-in filter set                               |   ✓    | `CONTENT_CATEGORIES` (20 entries)                                       |
-| Adult-content master gate is expressible and overrides user preference for adult categories when off              |   ✓    | `safety.adult-content.gate.set`, `decideContentCategoryAction`          |
-| Overlap detection between subscribed labelers is available as a pure helper                                       |   ✓    | `findOverlappingSubscriptions`, `detectRedundantSubscription`           |
-| New fixtures are validated by existing `it.each` validators                                                       |   ✓    | 913 tests passing                                                       |
-| All new behaviours covered by adversarial tests                                                                   |   ✓    | `phase-1.69.test.ts` (27 tests)                                         |
-| Doctrine doc documents categories, gate, capabilities, and overlap                                                |   ✓    | `docs/protocol/content-categories-doctrine.md`                          |
-| Local controls keep scope-leak protection (`TS_PRIVATE_LEAK`)                                                     |   ✓    | unchanged `assertLocalControlEnvelopeScope`                             |
+| Criterion                                                                                            | Status | Evidence                                                         |
+| ---------------------------------------------------------------------------------------------------- | :----: | ---------------------------------------------------------------- |
+| Labeler profile carries structured capabilities (additive, v1-compatible)                            |   ✓    | `SafetyLabelerProfile.capabilities`, `validateLabelerCapability` |
+| Standard content-category registry exists and matches Bluesky's built-in filter set                  |   ✓    | `CONTENT_CATEGORIES` (20 entries)                                |
+| Adult-content master gate is expressible and overrides user preference for adult categories when off |   ✓    | `safety.adult-content.gate.set`, `decideContentCategoryAction`   |
+| Overlap detection between subscribed labelers is available as a pure helper                          |   ✓    | `findOverlappingSubscriptions`, `detectRedundantSubscription`    |
+| New fixtures are validated by existing `it.each` validators                                          |   ✓    | 913 tests passing                                                |
+| All new behaviours covered by adversarial tests                                                      |   ✓    | `phase-1.69.test.ts` (27 tests)                                  |
+| Doctrine doc documents categories, gate, capabilities, and overlap                                   |   ✓    | `docs/protocol/content-categories-doctrine.md`                   |
+| Local controls keep scope-leak protection (`TS_PRIVATE_LEAK`)                                        |   ✓    | unchanged `assertLocalControlEnvelopeScope`                      |
 
 ## Deferred work
 

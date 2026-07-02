@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createUnsignedEvent, type PrivacyScope, type SignedEventEnvelope } from '@lfp2p/protocol';
-import {
-  BridgeStreamBroker,
-  type BridgeStreamRecord
-} from './stream-broker.js';
+import { BridgeStreamBroker, type BridgeStreamRecord } from './stream-broker.js';
 
 describe('BridgeStreamBroker — Phase 4.4 broker', () => {
   describe('constructor validation', () => {
@@ -278,9 +275,7 @@ describe('BridgeStreamBroker — Phase 4.4 broker', () => {
   describe('subscribe validation', () => {
     it('rejects empty streamKey', () => {
       const broker = new BridgeStreamBroker();
-      expect(() =>
-        broker.subscribe({ streamKey: '', onRecord: () => undefined })
-      ).toThrow();
+      expect(() => broker.subscribe({ streamKey: '', onRecord: () => undefined })).toThrow();
     });
     it('rejects non-function onRecord', () => {
       const broker = new BridgeStreamBroker();

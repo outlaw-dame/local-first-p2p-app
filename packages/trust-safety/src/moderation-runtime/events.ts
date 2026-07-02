@@ -70,52 +70,66 @@ type CommonFields = Readonly<{
 }>;
 
 export type ModerationEvent =
-  | Readonly<CommonFields & {
-      kind: 'safety.policy.created';
-      policy: SafetyPolicy;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.policy.updated';
-      policy: SafetyPolicy;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.policy.deprecated';
-      policyId: string;
-      deprecatedBy: SafetyAuthority;
-      deprecatedAt: string;
-      reasonCode: SafetyReasonCode;
-      replacementPolicyId?: string;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.policy.decision.recorded';
-      decision: SafetyPolicyDecision;
-      sourceQueueItemId?: string;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'moderation.queue.item.created';
-      queueItemId: string;
-      ownerAuthority: SafetyAuthority;
-      sourceKind: QueueSourceKind;
-      sourceId: string;
-      reasonCode: SafetyReasonCode;
-      summary?: string;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'moderation.queue.item.assigned';
-      queueItemId: string;
-      assignedTo: SafetyAuthority;
-      assignedAt: string;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'moderation.queue.item.resolved';
-      queueItemId: string;
-      resolvedBy: SafetyAuthority;
-      resolvedAt: string;
-      resolution: QueueResolution;
-      resolutionReasonCode: SafetyReasonCode;
-      resolutionDecisionId?: string;
-      resolutionNotes?: string;
-    }>;
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.policy.created';
+        policy: SafetyPolicy;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.policy.updated';
+        policy: SafetyPolicy;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.policy.deprecated';
+        policyId: string;
+        deprecatedBy: SafetyAuthority;
+        deprecatedAt: string;
+        reasonCode: SafetyReasonCode;
+        replacementPolicyId?: string;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.policy.decision.recorded';
+        decision: SafetyPolicyDecision;
+        sourceQueueItemId?: string;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'moderation.queue.item.created';
+        queueItemId: string;
+        ownerAuthority: SafetyAuthority;
+        sourceKind: QueueSourceKind;
+        sourceId: string;
+        reasonCode: SafetyReasonCode;
+        summary?: string;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'moderation.queue.item.assigned';
+        queueItemId: string;
+        assignedTo: SafetyAuthority;
+        assignedAt: string;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'moderation.queue.item.resolved';
+        queueItemId: string;
+        resolvedBy: SafetyAuthority;
+        resolvedAt: string;
+        resolution: QueueResolution;
+        resolutionReasonCode: SafetyReasonCode;
+        resolutionDecisionId?: string;
+        resolutionNotes?: string;
+      }
+    >;
 
 const MAX_SUMMARY_LENGTH = 2048;
 const MAX_RESOLUTION_NOTES_LENGTH = 4096;
@@ -133,10 +147,7 @@ export function validateModerationEvent(
 ): ModerationEvent {
   const record = assertPlainObject(value, label);
   const kind = record.kind;
-  if (
-    typeof kind !== 'string' ||
-    !(MODERATION_EVENT_KINDS as readonly string[]).includes(kind)
-  ) {
+  if (typeof kind !== 'string' || !(MODERATION_EVENT_KINDS as readonly string[]).includes(kind)) {
     throw tsError(
       'TS_INVALID_ENUM',
       `${label}.kind must be one of ${MODERATION_EVENT_KINDS.join(', ')} (got: ${String(kind)})`
@@ -153,19 +164,14 @@ export function validateModerationEvent(
     }
     case 'safety.policy.deprecated': {
       const policyId = assertId(record.policyId, `${label}.policyId`);
-      const deprecatedBy = validateSafetyAuthority(
-        record.deprecatedBy,
-        `${label}.deprecatedBy`
-      );
+      const deprecatedBy = validateSafetyAuthority(record.deprecatedBy, `${label}.deprecatedBy`);
       const deprecatedAt = assertIso8601(record.deprecatedAt, `${label}.deprecatedAt`);
-      const reasonCode = assertOneOf(
-        record.reasonCode,
-        SAFETY_REASON_CODES,
-        `${label}.reasonCode`
-      );
+      const reasonCode = assertOneOf(record.reasonCode, SAFETY_REASON_CODES, `${label}.reasonCode`);
       const out: {
-        -readonly [K in keyof Extract<ModerationEvent, { kind: 'safety.policy.deprecated' }>]:
-          Extract<ModerationEvent, { kind: 'safety.policy.deprecated' }>[K];
+        -readonly [K in keyof Extract<
+          ModerationEvent,
+          { kind: 'safety.policy.deprecated' }
+        >]: Extract<ModerationEvent, { kind: 'safety.policy.deprecated' }>[K];
       } = {
         ...common,
         kind: 'safety.policy.deprecated',
@@ -185,18 +191,17 @@ export function validateModerationEvent(
     case 'safety.policy.decision.recorded': {
       const decision = validateSafetyPolicyDecision(record.decision, `${label}.decision`);
       const out: {
-        -readonly [K in keyof Extract<ModerationEvent, { kind: 'safety.policy.decision.recorded' }>]:
-          Extract<ModerationEvent, { kind: 'safety.policy.decision.recorded' }>[K];
+        -readonly [K in keyof Extract<
+          ModerationEvent,
+          { kind: 'safety.policy.decision.recorded' }
+        >]: Extract<ModerationEvent, { kind: 'safety.policy.decision.recorded' }>[K];
       } = {
         ...common,
         kind: 'safety.policy.decision.recorded',
         decision
       };
       if (record.sourceQueueItemId !== undefined) {
-        out.sourceQueueItemId = assertId(
-          record.sourceQueueItemId,
-          `${label}.sourceQueueItemId`
-        );
+        out.sourceQueueItemId = assertId(record.sourceQueueItemId, `${label}.sourceQueueItemId`);
       }
       return Object.freeze(out);
     }
@@ -206,20 +211,14 @@ export function validateModerationEvent(
         record.ownerAuthority,
         `${label}.ownerAuthority`
       );
-      const sourceKind = assertOneOf(
-        record.sourceKind,
-        QUEUE_SOURCE_KINDS,
-        `${label}.sourceKind`
-      );
+      const sourceKind = assertOneOf(record.sourceKind, QUEUE_SOURCE_KINDS, `${label}.sourceKind`);
       const sourceId = assertId(record.sourceId, `${label}.sourceId`);
-      const reasonCode = assertOneOf(
-        record.reasonCode,
-        SAFETY_REASON_CODES,
-        `${label}.reasonCode`
-      );
+      const reasonCode = assertOneOf(record.reasonCode, SAFETY_REASON_CODES, `${label}.reasonCode`);
       const out: {
-        -readonly [K in keyof Extract<ModerationEvent, { kind: 'moderation.queue.item.created' }>]:
-          Extract<ModerationEvent, { kind: 'moderation.queue.item.created' }>[K];
+        -readonly [K in keyof Extract<
+          ModerationEvent,
+          { kind: 'moderation.queue.item.created' }
+        >]: Extract<ModerationEvent, { kind: 'moderation.queue.item.created' }>[K];
       } = {
         ...common,
         kind: 'moderation.queue.item.created',
@@ -261,8 +260,10 @@ export function validateModerationEvent(
       // record an `acted` queue close referring to a decision made
       // elsewhere; if the field is present, it must be a valid id.
       const out: {
-        -readonly [K in keyof Extract<ModerationEvent, { kind: 'moderation.queue.item.resolved' }>]:
-          Extract<ModerationEvent, { kind: 'moderation.queue.item.resolved' }>[K];
+        -readonly [K in keyof Extract<
+          ModerationEvent,
+          { kind: 'moderation.queue.item.resolved' }
+        >]: Extract<ModerationEvent, { kind: 'moderation.queue.item.resolved' }>[K];
       } = {
         ...common,
         kind: 'moderation.queue.item.resolved',

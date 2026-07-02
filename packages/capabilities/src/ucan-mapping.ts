@@ -37,7 +37,9 @@ export type UcanLikeGrantInput = Readonly<{
 
 export function mapUcanLikeGrantToCapabilityGrant(input: UcanLikeGrantInput): CapabilityGrantV1 {
   const proofRefs: readonly CapabilityProofRef[] = Object.freeze(
-    (input.proofs ?? []).map((proof) => Object.freeze({ proofId: proof.proofId, scheme: 'ucan' as const }))
+    (input.proofs ?? []).map((proof) =>
+      Object.freeze({ proofId: proof.proofId, scheme: 'ucan' as const })
+    )
   );
 
   return validateCapabilityGrant({

@@ -146,30 +146,30 @@ What must be protected?
 
 ## Threats
 
-| Threat | Impact | Existing mitigation | Missing mitigation | Test required |
-|---|---|---|---|---|
-| Block substitution | Wrong bytes served for a ref | Digest helpers exist | BlockRef validation and verify-after-fetch | Retrieved bytes mismatch rejected |
-| CID/hash mismatch | Malformed or malicious content link accepted | None specific | CID parsing/digest matching | CID digest mismatch rejected |
-| Unsupported codec accepted | Parser crash or unsafe decode | None specific | Codec allowlist | Unsupported codec rejected |
-| Codec confusion | Treat bytes as safer/different type | None specific | Strict codec/media sniff validation | Declared/sniffed mismatch handled |
-| Hash downgrade | Weak/unknown digest used | SHA-256 helper exists | algorithm allowlist | Unknown/weak algorithm rejected |
-| Oversized block | Storage/memory exhaustion | None specific | byte-length limits | Oversized block rejected |
-| Decompression bomb | CPU/memory exhaustion | None specific | decoded-size bounds | Unbounded compressed block rejected |
-| Bundle traversal bomb | Import/export DoS | None specific | max blocks/bytes/depth | Bundle over limit rejected |
-| Malicious CAR/bundle roots | Unsafe graph import | None specific | root validation and traversal policy | Empty/malformed roots rejected |
-| Poisoned location hint | SSRF, credential leakage, bad fetch | None specific | URL validation, no credentials, policy fetcher | Credential URL rejected |
-| Location hint as authority | Trust wrong storage backend | None specific | verify-after-fetch and docs | Hint cannot bypass digest check |
-| Private/public dedupe leakage | Correlates private content | None specific | dedupe scope policy | Private/public dedupe isolation |
-| Digest correlation | Same private blob recognized across contexts | Encryption planned | per-scope encryption/dedupe policy | Encrypted private refs scoped |
-| Harmful content persistence | Content-addressed public blocks persist | None specific | quarantine/refusal, no global deletion claim | Quarantine scoped behavior tested |
-| Malware hash replication | Infrastructure stores harmful blocks | None specific | media/hash scan/admission policy | Known bad block rejected/quarantined |
-| Illegal content replication | Operator/legal risk | None specific | admission/quarantine/legal escalation policy | Quarantine prevents serving |
-| Stale cached block bypasses quarantine | Unsafe content remains visible | None specific | cache invalidation and policy checks before render | Quarantined cached block hidden |
-| Public index ingests private object refs | Privacy breach | None specific | scope validation | Private refs rejected by public index |
-| Report evidence leaked by ref | Sensitive evidence exposed | Private payload ADR exists | encrypted evidence BundleRef | Public evidence leak rejected |
-| Blob rendered before verification | Corrupted or malicious bytes shown | None specific | verify-before-render rule | Unverified render path impossible |
-| Access-pattern leakage | Backend learns who requests what | None specific | privacy guidance, proxy/fetch policy later | Documentation/adapter tests |
-| Hash-flood / many tiny blocks | DB/storage exhaustion | None specific | quotas, batching, eviction | Many-block flood bounded |
+| Threat                                   | Impact                                       | Existing mitigation        | Missing mitigation                                 | Test required                         |
+| ---------------------------------------- | -------------------------------------------- | -------------------------- | -------------------------------------------------- | ------------------------------------- |
+| Block substitution                       | Wrong bytes served for a ref                 | Digest helpers exist       | BlockRef validation and verify-after-fetch         | Retrieved bytes mismatch rejected     |
+| CID/hash mismatch                        | Malformed or malicious content link accepted | None specific              | CID parsing/digest matching                        | CID digest mismatch rejected          |
+| Unsupported codec accepted               | Parser crash or unsafe decode                | None specific              | Codec allowlist                                    | Unsupported codec rejected            |
+| Codec confusion                          | Treat bytes as safer/different type          | None specific              | Strict codec/media sniff validation                | Declared/sniffed mismatch handled     |
+| Hash downgrade                           | Weak/unknown digest used                     | SHA-256 helper exists      | algorithm allowlist                                | Unknown/weak algorithm rejected       |
+| Oversized block                          | Storage/memory exhaustion                    | None specific              | byte-length limits                                 | Oversized block rejected              |
+| Decompression bomb                       | CPU/memory exhaustion                        | None specific              | decoded-size bounds                                | Unbounded compressed block rejected   |
+| Bundle traversal bomb                    | Import/export DoS                            | None specific              | max blocks/bytes/depth                             | Bundle over limit rejected            |
+| Malicious CAR/bundle roots               | Unsafe graph import                          | None specific              | root validation and traversal policy               | Empty/malformed roots rejected        |
+| Poisoned location hint                   | SSRF, credential leakage, bad fetch          | None specific              | URL validation, no credentials, policy fetcher     | Credential URL rejected               |
+| Location hint as authority               | Trust wrong storage backend                  | None specific              | verify-after-fetch and docs                        | Hint cannot bypass digest check       |
+| Private/public dedupe leakage            | Correlates private content                   | None specific              | dedupe scope policy                                | Private/public dedupe isolation       |
+| Digest correlation                       | Same private blob recognized across contexts | Encryption planned         | per-scope encryption/dedupe policy                 | Encrypted private refs scoped         |
+| Harmful content persistence              | Content-addressed public blocks persist      | None specific              | quarantine/refusal, no global deletion claim       | Quarantine scoped behavior tested     |
+| Malware hash replication                 | Infrastructure stores harmful blocks         | None specific              | media/hash scan/admission policy                   | Known bad block rejected/quarantined  |
+| Illegal content replication              | Operator/legal risk                          | None specific              | admission/quarantine/legal escalation policy       | Quarantine prevents serving           |
+| Stale cached block bypasses quarantine   | Unsafe content remains visible               | None specific              | cache invalidation and policy checks before render | Quarantined cached block hidden       |
+| Public index ingests private object refs | Privacy breach                               | None specific              | scope validation                                   | Private refs rejected by public index |
+| Report evidence leaked by ref            | Sensitive evidence exposed                   | Private payload ADR exists | encrypted evidence BundleRef                       | Public evidence leak rejected         |
+| Blob rendered before verification        | Corrupted or malicious bytes shown           | None specific              | verify-before-render rule                          | Unverified render path impossible     |
+| Access-pattern leakage                   | Backend learns who requests what             | None specific              | privacy guidance, proxy/fetch policy later         | Documentation/adapter tests           |
+| Hash-flood / many tiny blocks            | DB/storage exhaustion                        | None specific              | quotas, batching, eviction                         | Many-block flood bounded              |
 
 ## Logging and telemetry rules
 

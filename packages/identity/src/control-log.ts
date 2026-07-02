@@ -1,4 +1,9 @@
-import { canonicalizeJson, type SignedEventEnvelope, unsignedProjection, validateSignedEvent } from '@lfp2p/protocol';
+import {
+  canonicalizeJson,
+  type SignedEventEnvelope,
+  unsignedProjection,
+  validateSignedEvent
+} from '@lfp2p/protocol';
 import { identityError } from './errors.js';
 import { validateIdentityEvent } from './validation.js';
 
@@ -126,7 +131,9 @@ export function applyIdentityControlEvent(
   }
 }
 
-export function seedIdentityControlProjection(events: readonly SignedEventEnvelope[]): IdentityControlState {
+export function seedIdentityControlProjection(
+  events: readonly SignedEventEnvelope[]
+): IdentityControlState {
   for (const event of events) {
     validateSignedEvent(event);
   }
@@ -146,16 +153,23 @@ export function seedIdentityControlProjection(events: readonly SignedEventEnvelo
   return state;
 }
 
-function applyControllerCreated(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
+function applyControllerCreated(
+  state: IdentityControlState,
+  event: SignedEventEnvelope
+): IdentityControlState {
   const payload = event.payload as Record<string, unknown>;
   const controllerPublicKey = requireString(payload.controllerPublicKey, 'controllerPublicKey');
   const initialDeviceId = requireString(payload.initialDeviceId, 'initialDeviceId');
 
   if (state.controllerPublicKey !== undefined) {
-    throw new Error('identity.controller.created may only be applied once per identity control state');
+    throw new Error(
+      'identity.controller.created may only be applied once per identity control state'
+    );
   }
   if (event.signature.publicKey !== controllerPublicKey) {
-    throw new Error('identity.controller.created signature.publicKey must match payload.controllerPublicKey');
+    throw new Error(
+      'identity.controller.created signature.publicKey must match payload.controllerPublicKey'
+    );
   }
 
   return freezeIdentityControlState({
@@ -174,7 +188,10 @@ function applyControllerCreated(state: IdentityControlState, event: SignedEventE
   });
 }
 
-function applyDeviceAuthorized(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
+function applyDeviceAuthorized(
+  state: IdentityControlState,
+  event: SignedEventEnvelope
+): IdentityControlState {
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const deviceId = requireString(payload.authorizedDeviceId, 'authorizedDeviceId');
@@ -198,13 +215,17 @@ function applyDeviceAuthorized(state: IdentityControlState, event: SignedEventEn
   });
 }
 
-function applyDeviceRevoked(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
+function applyDeviceRevoked(
+  state: IdentityControlState,
+  event: SignedEventEnvelope
+): IdentityControlState {
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const deviceId = requireString(payload.revokedDeviceId, 'revokedDeviceId');
   const epoch = requirePositiveInteger(payload.epoch, 'epoch');
   const existing = state.devices[deviceId];
-  if (existing === undefined) throw new Error(`identity.device.revoked references unknown device ${deviceId}`);
+  if (existing === undefined)
+    throw new Error(`identity.device.revoked references unknown device ${deviceId}`);
   if (existing.status === 'revoked') {
     return freezeIdentityControlState({
       ...state,
@@ -228,14 +249,18 @@ function applyDeviceRevoked(state: IdentityControlState, event: SignedEventEnvel
   });
 }
 
-function applyCapabilityGranted(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
+function applyCapabilityGranted(
+  state: IdentityControlState,
+  event: SignedEventEnvelope
+): IdentityControlState {
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const capabilityId = requireString(payload.capabilityId, 'capabilityId');
   const delegateDeviceId = requireString(payload.delegateDeviceId, 'delegateDeviceId');
   const scope = requireString(payload.scope, 'scope');
   const expiresAt = requireString(payload.expiresAt, 'expiresAt');
-  if (!Number.isFinite(Date.parse(expiresAt))) throw new Error('identity.capability.granted payload.expiresAt must be an ISO date string');
+  if (!Number.isFinite(Date.parse(expiresAt)))
+    throw new Error('identity.capability.granted payload.expiresAt must be an ISO date string');
 
   return freezeIdentityControlState({
     ...state,
@@ -254,15 +279,21 @@ function applyCapabilityGranted(state: IdentityControlState, event: SignedEventE
   });
 }
 
-function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
+function applyCapabilityRevoked(
+  state: IdentityControlState,
+  event: SignedEventEnvelope
+): IdentityControlState {
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const capabilityId = requireString(payload.capabilityId, 'capabilityId');
   const delegateDeviceId = requireString(payload.delegateDeviceId, 'delegateDeviceId');
   const existing = state.capabilities[capabilityId];
-  if (existing === undefined) throw new Error(`identity.capability.revoked references unknown capability ${capabilityId}`);
+  if (existing === undefined)
+    throw new Error(`identity.capability.revoked references unknown capability ${capabilityId}`);
   if (existing.delegateDeviceId !== delegateDeviceId) {
-    throw new Error('identity.capability.revoked payload.delegateDeviceId does not match granted capability delegate');
+    throw new Error(
+      'identity.capability.revoked payload.delegateDeviceId does not match granted capability delegate'
+    );
   }
   if (existing.status === 'revoked') {
     return freezeIdentityControlState({
@@ -285,7 +316,10 @@ function applyCapabilityRevoked(state: IdentityControlState, event: SignedEventE
   });
 }
 
-function applyDeviceRotated(state: IdentityControlState, event: SignedEventEnvelope): IdentityControlState {
+function applyDeviceRotated(
+  state: IdentityControlState,
+  event: SignedEventEnvelope
+): IdentityControlState {
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const deviceId = requireString(payload.deviceId, 'deviceId');

@@ -104,7 +104,10 @@ describe('@lfp2p/private-payload', () => {
       buildPrivatePayloadAad({
         ...CONTEXT,
         lamport: 3,
-        refs: [{ sourceId: 'src-a', sequence: 1 }, { sourceId: 'src-b', hash: 'sha256:abc' }]
+        refs: [
+          { sourceId: 'src-a', sequence: 1 },
+          { sourceId: 'src-b', hash: 'sha256:abc' }
+        ]
       })
     ) as Record<string, unknown>;
     expect(aad['lamport']).toBe(3);
@@ -152,7 +155,9 @@ describe('@lfp2p/private-payload', () => {
       ]
     } satisfies PrivatePayloadEnvelopeV1;
 
-    expect(() => validatePrivatePayloadEnvelopeShape(malformed)).toThrow(/duplicate recipientDeviceId/);
+    expect(() => validatePrivatePayloadEnvelopeShape(malformed)).toThrow(
+      /duplicate recipientDeviceId/
+    );
   });
 
   it('rejects recipient wraps with unsupported fields (strict key check)', () => {
@@ -177,7 +182,9 @@ describe('@lfp2p/private-payload', () => {
       ]
     } as unknown as PrivatePayloadEnvelopeV1;
 
-    expect(() => validatePrivatePayloadEnvelopeShape(withExtra)).toThrow(/unsupported field: extraField/);
+    expect(() => validatePrivatePayloadEnvelopeShape(withExtra)).toThrow(
+      /unsupported field: extraField/
+    );
   });
 
   it('rejects public/device-local contexts for private payload AAD', () => {

@@ -37,7 +37,9 @@ function base(kind: CurationEvent['kind']): Record<string, unknown> {
 
 describe('validateCurationEvent — kinds', () => {
   it('accepts curation.rule.created', () => {
-    expect(() => validateCurationEvent({ ...base('curation.rule.created'), rule: RULE })).not.toThrow();
+    expect(() =>
+      validateCurationEvent({ ...base('curation.rule.created'), rule: RULE })
+    ).not.toThrow();
   });
 
   it('accepts curation.rule.disabled', () => {

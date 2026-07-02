@@ -39,9 +39,18 @@ import {
   signContactCardDocument,
   serializeContactCardDocument
 } from './pwa-contact-card.js';
-import { formatIdentityVerificationStatus, identityVerificationBadgeColor } from './pwa-identity-tools.js';
-import { manualOutboxDeliveryActionEnabled, runManualOutboxDelivery } from './pwa-outbox-manual-gate.js';
-import { createPwaOutboxDeliveryPlan, formatPwaOutboxDeliveryPlan } from './pwa-outbox-delivery-plan.js';
+import {
+  formatIdentityVerificationStatus,
+  identityVerificationBadgeColor
+} from './pwa-identity-tools.js';
+import {
+  manualOutboxDeliveryActionEnabled,
+  runManualOutboxDelivery
+} from './pwa-outbox-manual-gate.js';
+import {
+  createPwaOutboxDeliveryPlan,
+  formatPwaOutboxDeliveryPlan
+} from './pwa-outbox-delivery-plan.js';
 import {
   attachPwaForegroundSyncTriggers,
   createPwaForegroundSyncController,
@@ -102,20 +111,26 @@ function HomePage(): JSX.Element {
   const [contactProfile, setContactProfile] = useState<StoredContactProfile | null>(null);
   const [knownContacts, setKnownContacts] = useState<StoredContactProfile[]>([]);
   const [trustSnapshot, setTrustSnapshot] = useState<IdentityTrustSnapshot | null>(null);
-  const [syncAuthorization, setSyncAuthorization] = useState<IdentityOperationAuthorization | null>(null);
+  const [syncAuthorization, setSyncAuthorization] = useState<IdentityOperationAuthorization | null>(
+    null
+  );
   const [petnameDraft, setPetnameDraft] = useState('');
   const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [avatarUrlDraft, setAvatarUrlDraft] = useState('');
   const [websiteUrlDraft, setWebsiteUrlDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   const [compareDraft, setCompareDraft] = useState('');
-  const [compareStatus, setCompareStatus] = useState('Paste a fingerprint or controller key to compare.');
+  const [compareStatus, setCompareStatus] = useState(
+    'Paste a fingerprint or controller key to compare.'
+  );
   const [importDraft, setImportDraft] = useState('');
   const [events, setEvents] = useState<EventSummaryView[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [status, setStatus] = useState('Bootstrapping local device identity.');
   const [syncStatus, setSyncStatus] = useState('Foreground sync idle.');
-  const [manualDeliveryStatus, setManualDeliveryStatus] = useState('Manual outbox delivery is disabled.');
+  const [manualDeliveryStatus, setManualDeliveryStatus] = useState(
+    'Manual outbox delivery is disabled.'
+  );
   const [manualDeliveryRunning, setManualDeliveryRunning] = useState(false);
   const outboxDeliveryPlan = useMemo(
     () => createPwaOutboxDeliveryPlan({ pendingOutboxCount: pendingCount }),
@@ -162,22 +177,25 @@ function HomePage(): JSX.Element {
     };
   }, [identityManager, store]);
 
-  const applyLocalStateSnapshot = useCallback((snapshot: LocalRefreshSnapshot, readyStatus: string): void => {
-    setIdentity(snapshot.identity);
-    setKeypair(snapshot.keypair);
-    setContactProfile(snapshot.contactProfile);
-    setKnownContacts(snapshot.knownContacts);
-    setTrustSnapshot(snapshot.trustSnapshot);
-    setSyncAuthorization(snapshot.syncAuthorization);
-    setPetnameDraft(snapshot.contactProfile.petname ?? '');
-    setDisplayNameDraft(snapshot.contactProfile.displayName ?? '');
-    setAvatarUrlDraft(snapshot.contactProfile.avatarUrl ?? '');
-    setWebsiteUrlDraft(snapshot.contactProfile.websiteUrl ?? '');
-    setNoteDraft(snapshot.contactProfile.note ?? '');
-    setEvents(snapshot.events);
-    setPendingCount(snapshot.pendingOutboxCount);
-    setStatus(readyStatus);
-  }, []);
+  const applyLocalStateSnapshot = useCallback(
+    (snapshot: LocalRefreshSnapshot, readyStatus: string): void => {
+      setIdentity(snapshot.identity);
+      setKeypair(snapshot.keypair);
+      setContactProfile(snapshot.contactProfile);
+      setKnownContacts(snapshot.knownContacts);
+      setTrustSnapshot(snapshot.trustSnapshot);
+      setSyncAuthorization(snapshot.syncAuthorization);
+      setPetnameDraft(snapshot.contactProfile.petname ?? '');
+      setDisplayNameDraft(snapshot.contactProfile.displayName ?? '');
+      setAvatarUrlDraft(snapshot.contactProfile.avatarUrl ?? '');
+      setWebsiteUrlDraft(snapshot.contactProfile.websiteUrl ?? '');
+      setNoteDraft(snapshot.contactProfile.note ?? '');
+      setEvents(snapshot.events);
+      setPendingCount(snapshot.pendingOutboxCount);
+      setStatus(readyStatus);
+    },
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -204,7 +222,10 @@ function HomePage(): JSX.Element {
       async run() {
         const snapshot = await loadLocalState();
         if (!cancelled) applyLocalStateSnapshot(snapshot, 'Foreground sync refreshed local state.');
-        return { eventCount: snapshot.events.length, pendingOutboxCount: snapshot.pendingOutboxCount };
+        return {
+          eventCount: snapshot.events.length,
+          pendingOutboxCount: snapshot.pendingOutboxCount
+        };
       }
     });
     syncControllerRef.current = controller;
@@ -215,11 +236,14 @@ function HomePage(): JSX.Element {
     const dispose = attachPwaForegroundSyncTriggers({
       controller,
       onResult: (result) => updateSyncStatus(formatPwaForegroundSyncResult(result)),
-      onUnexpectedError: (error) => updateSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`)
+      onUnexpectedError: (error) =>
+        updateSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`)
     });
     void requestPwaForegroundSync(controller, 'startup', (result) => {
       updateSyncStatus(formatPwaForegroundSyncResult(result));
-    }).catch((error: unknown) => updateSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`));
+    }).catch((error: unknown) =>
+      updateSyncStatus(`Foreground sync failed: ${formatUiError(error)}.`)
+    );
 
     return () => {
       cancelled = true;
@@ -254,7 +278,8 @@ function HomePage(): JSX.Element {
 
     return () => {
       cancelled = true;
-      if (controlledDeliveryControllerRef.current === controller) controlledDeliveryControllerRef.current = null;
+      if (controlledDeliveryControllerRef.current === controller)
+        controlledDeliveryControllerRef.current = null;
     };
   }, [applyLocalStateSnapshot, loadLocalState, store]);
 
@@ -296,7 +321,10 @@ function HomePage(): JSX.Element {
       createdAt: now,
       updatedAt: now
     });
-    applyLocalStateSnapshot(await loadLocalState(), 'Local event created and queued without waiting for the network.');
+    applyLocalStateSnapshot(
+      await loadLocalState(),
+      'Local event created and queued without waiting for the network.'
+    );
   }
 
   async function saveContactProfile(): Promise<void> {
@@ -312,7 +340,9 @@ function HomePage(): JSX.Element {
         avatarUrl: avatarUrlDraft,
         websiteUrl: websiteUrlDraft,
         note: noteDraft,
-        ...(contactProfile.primaryDeviceId === undefined ? {} : { primaryDeviceId: contactProfile.primaryDeviceId }),
+        ...(contactProfile.primaryDeviceId === undefined
+          ? {}
+          : { primaryDeviceId: contactProfile.primaryDeviceId }),
         ...(contactProfile.controllerPublicKey === undefined
           ? {}
           : { controllerPublicKey: contactProfile.controllerPublicKey }),
@@ -333,7 +363,8 @@ function HomePage(): JSX.Element {
       setStatus('No trusted controller fingerprint is available yet.');
       return;
     }
-    const payload = `${trustSnapshot.shortFingerprint} ${trustSnapshot.controllerPublicKey ?? ''}`.trim();
+    const payload =
+      `${trustSnapshot.shortFingerprint} ${trustSnapshot.controllerPublicKey ?? ''}`.trim();
     if (typeof globalThis.navigator?.clipboard?.writeText !== 'function') {
       setStatus('Clipboard API is unavailable in this runtime.');
       return;
@@ -347,7 +378,12 @@ function HomePage(): JSX.Element {
   }
 
   async function exportContactCard(): Promise<void> {
-    if (identity === null || keypair === null || contactProfile === null || trustSnapshot === null) {
+    if (
+      identity === null ||
+      keypair === null ||
+      contactProfile === null ||
+      trustSnapshot === null
+    ) {
       setStatus('Identity contact card is not ready yet.');
       return;
     }
@@ -408,10 +444,15 @@ function HomePage(): JSX.Element {
       const nextProfile = await createImportedContactProfileInput({
         card,
         ...(existing === undefined ? {} : { existingProfile: existing }),
-        ...(existing?.controllerPublicKey === undefined ? {} : { trustedControllerPublicKey: existing.controllerPublicKey })
+        ...(existing?.controllerPublicKey === undefined
+          ? {}
+          : { trustedControllerPublicKey: existing.controllerPublicKey })
       });
       await store.putContactProfile(nextProfile);
-      applyLocalStateSnapshot(await loadLocalState(), `Imported contact card for ${card.identityId}.`);
+      applyLocalStateSnapshot(
+        await loadLocalState(),
+        `Imported contact card for ${card.identityId}.`
+      );
     } catch (error: unknown) {
       setStatus(`Contact card import failed: ${formatUiError(error)}`);
     }
@@ -420,8 +461,12 @@ function HomePage(): JSX.Element {
   async function runIdentityCompare(): Promise<void> {
     try {
       const result = await compareIdentityCode({
-        ...(trustSnapshot?.shortFingerprint === undefined ? {} : { expectedFingerprint: trustSnapshot.shortFingerprint }),
-        ...(trustSnapshot?.controllerPublicKey === undefined ? {} : { controllerPublicKey: trustSnapshot.controllerPublicKey }),
+        ...(trustSnapshot?.shortFingerprint === undefined
+          ? {}
+          : { expectedFingerprint: trustSnapshot.shortFingerprint }),
+        ...(trustSnapshot?.controllerPublicKey === undefined
+          ? {}
+          : { controllerPublicKey: trustSnapshot.controllerPublicKey }),
         candidate: compareDraft
       });
       setCompareStatus(
@@ -430,7 +475,9 @@ function HomePage(): JSX.Element {
           : 'Identity comparison did not match the current trusted controller fingerprint.'
       );
       if (!result.matches) {
-        setStatus('Identity comparison mismatch detected. Treat this identity as untrusted until re-verified.');
+        setStatus(
+          'Identity comparison mismatch detected. Treat this identity as untrusted until re-verified.'
+        );
       }
     } catch (error: unknown) {
       setCompareStatus(`Identity comparison failed: ${formatUiError(error)}`);
@@ -469,13 +516,16 @@ function HomePage(): JSX.Element {
       const result = await requestPwaForegroundSync(controller, 'manual');
       if (mountedRef.current) {
         if (result.status === 'failed') {
-          setManualDeliveryStatus(`Manual outbox delivery failed: ${formatPwaSyncStatusText(result.error)}.`);
+          setManualDeliveryStatus(
+            `Manual outbox delivery failed: ${formatPwaSyncStatusText(result.error)}.`
+          );
         } else if (result.status === 'skipped') {
           setManualDeliveryStatus(`Manual outbox delivery skipped: ${result.reason}.`);
         }
       }
     } catch (error: unknown) {
-      if (mountedRef.current) setManualDeliveryStatus(`Manual outbox delivery failed: ${formatUiError(error)}.`);
+      if (mountedRef.current)
+        setManualDeliveryStatus(`Manual outbox delivery failed: ${formatUiError(error)}.`);
     } finally {
       if (mountedRef.current) setManualDeliveryRunning(false);
     }
@@ -491,7 +541,12 @@ function HomePage(): JSX.Element {
             This PWA writes signed protocol events to local storage first, renders from local views,
             and syncs later through bridge infrastructure.
           </p>
-          <Button fill large disabled={!identity || !keypair} onClick={() => void createLocalEvent()}>
+          <Button
+            fill
+            large
+            disabled={!identity || !keypair}
+            onClick={() => void createLocalEvent()}
+          >
             Create signed local event
           </Button>
         </LocalFirstStatusCard>
@@ -499,21 +554,40 @@ function HomePage(): JSX.Element {
 
       <BlockTitle>Local device identity</BlockTitle>
       <List inset strong>
-        <ListItem title="Identity" after={identity ? truncateMiddle(identity.identityId) : 'bootstrapping'} />
-        <ListItem title="Device" after={identity ? truncateMiddle(identity.deviceId) : 'bootstrapping'} />
+        <ListItem
+          title="Identity"
+          after={identity ? truncateMiddle(identity.identityId) : 'bootstrapping'}
+        />
+        <ListItem
+          title="Device"
+          after={identity ? truncateMiddle(identity.deviceId) : 'bootstrapping'}
+        />
       </List>
 
       <BlockTitle>
         Identity trust cues{' '}
-        <Badge color={identityVerificationBadgeColor(trustSnapshot?.verificationStatus ?? 'unknown')}>
+        <Badge
+          color={identityVerificationBadgeColor(trustSnapshot?.verificationStatus ?? 'unknown')}
+        >
           {trustSnapshot?.verificationStatus ?? 'unknown'}
         </Badge>
       </BlockTitle>
       <Block inset strong>
         <p>{formatIdentityVerificationStatus(trustSnapshot?.verificationStatus ?? 'unknown')}</p>
-        <p className="lfp2p-muted-detail">Controller key: {trustSnapshot?.controllerPublicKey ? truncateMiddle(trustSnapshot.controllerPublicKey, 42) : 'not available yet'}</p>
-        <p className="lfp2p-muted-detail">Fingerprint: {trustSnapshot?.shortFingerprint ?? 'not available yet'}</p>
-        <Button outline disabled={trustSnapshot?.shortFingerprint === undefined} onClick={() => void copyFingerprint()}>
+        <p className="lfp2p-muted-detail">
+          Controller key:{' '}
+          {trustSnapshot?.controllerPublicKey
+            ? truncateMiddle(trustSnapshot.controllerPublicKey, 42)
+            : 'not available yet'}
+        </p>
+        <p className="lfp2p-muted-detail">
+          Fingerprint: {trustSnapshot?.shortFingerprint ?? 'not available yet'}
+        </p>
+        <Button
+          outline
+          disabled={trustSnapshot?.shortFingerprint === undefined}
+          onClick={() => void copyFingerprint()}
+        >
           Copy fingerprint
         </Button>
       </Block>
@@ -585,15 +659,24 @@ function HomePage(): JSX.Element {
         <Button outline disabled={identity === null} onClick={() => void saveContactProfile()}>
           Save contact card
         </Button>
-        <p className="lfp2p-muted-detail">Current petname: {contactProfile?.petname ?? 'not set'}</p>
+        <p className="lfp2p-muted-detail">
+          Current petname: {contactProfile?.petname ?? 'not set'}
+        </p>
       </Block>
 
       <BlockTitle>Contact card exchange</BlockTitle>
       <Block inset strong>
-        <p className="lfp2p-muted-detail">Export your local contact card or paste a contact card JSON document to import it locally.</p>
+        <p className="lfp2p-muted-detail">
+          Export your local contact card or paste a contact card JSON document to import it locally.
+        </p>
         <Button
           outline
-          disabled={identity === null || keypair === null || contactProfile === null || trustSnapshot === null}
+          disabled={
+            identity === null ||
+            keypair === null ||
+            contactProfile === null ||
+            trustSnapshot === null
+          }
           onClick={() => void exportContactCard()}
         >
           Export contact card
@@ -608,14 +691,21 @@ function HomePage(): JSX.Element {
           onChange={(event) => setImportDraft(event.target.value)}
           placeholder="Paste an lfp2p.contact-card.v1 JSON document"
         />
-        <Button outline disabled={importDraft.trim().length === 0} onClick={() => void importContactCard()}>
+        <Button
+          outline
+          disabled={importDraft.trim().length === 0}
+          onClick={() => void importContactCard()}
+        >
           Import contact card
         </Button>
       </Block>
 
       <BlockTitle>Fingerprint compare</BlockTitle>
       <Block inset strong>
-        <p className="lfp2p-muted-detail">Paste the fingerprint or controller public key you received out-of-band to compare it with the local trusted value.</p>
+        <p className="lfp2p-muted-detail">
+          Paste the fingerprint or controller public key you received out-of-band to compare it with
+          the local trusted value.
+        </p>
         <input
           className="lfp2p-input"
           value={compareDraft}
@@ -624,7 +714,13 @@ function HomePage(): JSX.Element {
           onChange={(event) => setCompareDraft(event.target.value)}
           placeholder="Paste a fingerprint or controller key"
         />
-        <Button outline disabled={compareDraft.trim().length === 0 || trustSnapshot?.shortFingerprint === undefined} onClick={() => void runIdentityCompare()}>
+        <Button
+          outline
+          disabled={
+            compareDraft.trim().length === 0 || trustSnapshot?.shortFingerprint === undefined
+          }
+          onClick={() => void runIdentityCompare()}
+        >
           Compare identity code
         </Button>
         <p className="lfp2p-muted-detail">{compareStatus}</p>
@@ -660,10 +756,17 @@ function HomePage(): JSX.Element {
       <BlockTitle>Manual outbox delivery</BlockTitle>
       <Block inset strong>
         <p>{manualDeliveryStatus}</p>
-        <p className="lfp2p-muted-detail">Sync authorization: {syncAuthorization?.reason ?? 'loading identity authorization'}</p>
+        <p className="lfp2p-muted-detail">
+          Sync authorization: {syncAuthorization?.reason ?? 'loading identity authorization'}
+        </p>
         <Button
           outline
-          disabled={!manualDeliveryEnabled || pendingCount === 0 || manualDeliveryRunning || syncAuthorization?.authorized === false}
+          disabled={
+            !manualDeliveryEnabled ||
+            pendingCount === 0 ||
+            manualDeliveryRunning ||
+            syncAuthorization?.authorized === false
+          }
           onClick={() => void runManualOutboxDeliveryOnce()}
         >
           Deliver one outbox entry
@@ -680,10 +783,18 @@ function HomePage(): JSX.Element {
       <BlockTitle>Local materialized events</BlockTitle>
       <List inset strong>
         {events.length === 0 ? (
-          <ListItem title="No local events yet" subtitle="Create one above to test the vertical slice." />
+          <ListItem
+            title="No local events yet"
+            subtitle="Create one above to test the vertical slice."
+          />
         ) : (
           events.map((event) => (
-            <ListItem key={event.eventId} title={event.title} subtitle={event.subtitle} after="local" />
+            <ListItem
+              key={event.eventId}
+              title={event.title}
+              subtitle={event.subtitle}
+              after="local"
+            />
           ))
         )}
       </List>
@@ -691,7 +802,10 @@ function HomePage(): JSX.Element {
       <BlockTitle>Known contact cards</BlockTitle>
       <List inset strong>
         {knownContacts.length === 0 ? (
-          <ListItem title="No contact cards yet" subtitle="Import one or edit your local contact card above." />
+          <ListItem
+            title="No contact cards yet"
+            subtitle="Import one or edit your local contact card above."
+          />
         ) : (
           knownContacts.map((profile) => (
             <ListItem
@@ -717,13 +831,9 @@ function HomePage(): JSX.Element {
         <TrustSafetySettings store={store} subscriberActorId={identity.identityId} />
       ) : null}
 
-      {identity ? (
-        <PwaReputationSettings store={store} />
-      ) : null}
+      {identity ? <PwaReputationSettings store={store} /> : null}
 
-      {identity ? (
-        <PwaReputationView store={store} observerActorId={identity.identityId} />
-      ) : null}
+      {identity ? <PwaReputationView store={store} observerActorId={identity.identityId} /> : null}
     </Page>
   );
 }
@@ -738,15 +848,18 @@ function formatUiError(error: unknown): string {
   return formatPwaSyncStatusText(error, 'Unknown error');
 }
 
-async function upsertSelfContactProfile(input: Readonly<{
-  store: ReturnType<typeof createLocalFirstStore>;
-  identity: LocalDeviceIdentity;
-  trust: IdentityTrustSnapshot;
-  existingProfile: StoredContactProfile | undefined;
-}>): Promise<StoredContactProfile> {
+async function upsertSelfContactProfile(
+  input: Readonly<{
+    store: ReturnType<typeof createLocalFirstStore>;
+    identity: LocalDeviceIdentity;
+    trust: IdentityTrustSnapshot;
+    existingProfile: StoredContactProfile | undefined;
+  }>
+): Promise<StoredContactProfile> {
   const existing = input.existingProfile;
   const nextVerificationStatus = input.trust.verificationStatus;
-  const nextPrimaryDeviceId = input.trust.primaryDeviceId ?? existing?.primaryDeviceId ?? input.identity.deviceId;
+  const nextPrimaryDeviceId =
+    input.trust.primaryDeviceId ?? existing?.primaryDeviceId ?? input.identity.deviceId;
   const nextControllerPublicKey = input.trust.controllerPublicKey ?? existing?.controllerPublicKey;
   const nextShortFingerprint = input.trust.shortFingerprint ?? existing?.shortFingerprint;
 
@@ -767,7 +880,9 @@ async function upsertSelfContactProfile(input: Readonly<{
     ...(existing?.websiteUrl === undefined ? {} : { websiteUrl: existing.websiteUrl }),
     ...(existing?.note === undefined ? {} : { note: existing.note }),
     primaryDeviceId: nextPrimaryDeviceId,
-    ...(nextControllerPublicKey === undefined ? {} : { controllerPublicKey: nextControllerPublicKey }),
+    ...(nextControllerPublicKey === undefined
+      ? {}
+      : { controllerPublicKey: nextControllerPublicKey }),
     ...(nextShortFingerprint === undefined ? {} : { shortFingerprint: nextShortFingerprint }),
     verificationStatus: nextVerificationStatus,
     updatedAt: new Date().toISOString()

@@ -73,9 +73,7 @@ describe('assertIso8601', () => {
   it('accepts ISO timestamps with Z or ±HH:MM', () => {
     const now = Date.UTC(2026, 0, 1);
     expect(assertIso8601('2026-01-01T00:00:00Z', 'X', now)).toBe('2026-01-01T00:00:00Z');
-    expect(assertIso8601('2026-01-01T00:00:00+09:00', 'X', now)).toBe(
-      '2026-01-01T00:00:00+09:00'
-    );
+    expect(assertIso8601('2026-01-01T00:00:00+09:00', 'X', now)).toBe('2026-01-01T00:00:00+09:00');
   });
   it('rejects bare local times (no timezone)', () => {
     expect(() => assertIso8601('2026-01-01T00:00:00', 'X')).toThrow(/TS_INVALID_TIMESTAMP/);
@@ -84,9 +82,9 @@ describe('assertIso8601', () => {
     expect(() => assertIso8601('2019-12-31T23:59:59Z', 'X')).toThrow(/before 2020/);
   });
   it('rejects timestamps absurdly in the future', () => {
-    expect(() =>
-      assertIso8601('2300-01-01T00:00:00Z', 'X', Date.UTC(2026, 0, 1))
-    ).toThrow(/future/);
+    expect(() => assertIso8601('2300-01-01T00:00:00Z', 'X', Date.UTC(2026, 0, 1))).toThrow(
+      /future/
+    );
   });
   it('rejects non-ISO strings', () => {
     expect(() => assertIso8601('yesterday', 'X')).toThrow(/TS_INVALID_TIMESTAMP/);
@@ -95,8 +93,12 @@ describe('assertIso8601', () => {
 
 describe('assertNotBefore', () => {
   it('accepts equal and ascending timestamps', () => {
-    expect(() => assertNotBefore('2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'a', 'b')).not.toThrow();
-    expect(() => assertNotBefore('2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z', 'a', 'b')).not.toThrow();
+    expect(() =>
+      assertNotBefore('2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'a', 'b')
+    ).not.toThrow();
+    expect(() =>
+      assertNotBefore('2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z', 'a', 'b')
+    ).not.toThrow();
   });
   it('rejects descending pairs', () => {
     expect(() => assertNotBefore('2026-12-31T00:00:00Z', '2026-01-01T00:00:00Z', 'a', 'b')).toThrow(
@@ -114,9 +116,7 @@ describe('assertReadonlyArray', () => {
   });
   it('runs the per-item validator', () => {
     expect(() =>
-      assertReadonlyArray(['ok', ''], 'X', 10, (item, i) =>
-        assertNonEmptyString(item, `X[${i}]`)
-      )
+      assertReadonlyArray(['ok', ''], 'X', 10, (item, i) => assertNonEmptyString(item, `X[${i}]`))
     ).toThrow();
   });
 });

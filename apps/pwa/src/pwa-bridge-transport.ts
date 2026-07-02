@@ -48,7 +48,9 @@ export type PwaBridgeTransportPreparation =
       message: string;
     }>;
 
-export function preparePwaBridgeTransport(input: PreparePwaBridgeTransportInput = {}): PwaBridgeTransportPreparation {
+export function preparePwaBridgeTransport(
+  input: PreparePwaBridgeTransportInput = {}
+): PwaBridgeTransportPreparation {
   const config = resolvePwaBridgeConfig(input.env);
   if (config.status === 'disabled') {
     return {
@@ -77,7 +79,8 @@ export function preparePwaBridgeTransport(input: PreparePwaBridgeTransportInput 
     };
   }
 
-  const transportFetch = config.auth === undefined ? fetchImpl : createAuthenticatedFetch(fetchImpl, config.auth);
+  const transportFetch =
+    config.auth === undefined ? fetchImpl : createAuthenticatedFetch(fetchImpl, config.auth);
   const createTransport = input.createTransport ?? createHttpBridgeTransport;
   const transport = createTransport({
     endpoint: config.endpoint,
@@ -89,11 +92,15 @@ export function preparePwaBridgeTransport(input: PreparePwaBridgeTransportInput 
     status: 'prepared',
     config,
     transport,
-    message: 'Bridge transport prepared but not attached to foreground sync or outbox delivery in this slice.'
+    message:
+      'Bridge transport prepared but not attached to foreground sync or outbox delivery in this slice.'
   };
 }
 
-function createAuthenticatedFetch(fetchImpl: typeof fetch, auth: PwaBridgeAuthConfig): typeof fetch {
+function createAuthenticatedFetch(
+  fetchImpl: typeof fetch,
+  auth: PwaBridgeAuthConfig
+): typeof fetch {
   return async (input, init) => {
     if (input instanceof Request) {
       const headers = mergeHeaders(input.headers, init?.headers);

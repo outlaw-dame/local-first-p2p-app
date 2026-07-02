@@ -7,10 +7,7 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "references": [
-    { "path": "../capabilities" },
-    { "path": "../crypto" }
-  ],
+  "references": [{ "path": "../capabilities" }, { "path": "../crypto" }],
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "src/__tests__/**"]
 }

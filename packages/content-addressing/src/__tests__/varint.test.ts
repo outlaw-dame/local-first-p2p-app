@@ -24,16 +24,16 @@ describe('readUnsignedVarint', () => {
   });
 
   it('rejects truncated input (continuation byte never closes)', () => {
-    expect(() =>
-      readUnsignedVarint(new Uint8Array([0x80, 0x80, 0x80]), 0)
-    ).toThrow(/CA_INVALID_CID/);
+    expect(() => readUnsignedVarint(new Uint8Array([0x80, 0x80, 0x80]), 0)).toThrow(
+      /CA_INVALID_CID/
+    );
   });
 
   it('rejects a non-minimally-encoded varint (trailing zero byte)', () => {
     // 0x01 0x00 -> encodes value 0 with a wasted continuation; not canonical.
-    expect(() =>
-      readUnsignedVarint(new Uint8Array([0x80, 0x00]), 0)
-    ).toThrow(/not minimally encoded/);
+    expect(() => readUnsignedVarint(new Uint8Array([0x80, 0x00]), 0)).toThrow(
+      /not minimally encoded/
+    );
   });
 
   it('rejects continuation runs that would consume more than MAX_VARINT_BYTES', () => {

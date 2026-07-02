@@ -100,7 +100,10 @@ describe('createProofRegistry + registerProof + getProof', () => {
       CapabilityError
     );
     expect(() =>
-      registerProof(createProofRegistry(), input({ issuedAt: '2027-01-01T00:00:00Z', expiresAt: '2026-01-01T00:00:00Z' }))
+      registerProof(
+        createProofRegistry(),
+        input({ issuedAt: '2027-01-01T00:00:00Z', expiresAt: '2026-01-01T00:00:00Z' })
+      )
     ).toThrow(/issuedAt must be before expiresAt/);
     expect(() =>
       // @ts-expect-error: testing prototype-pollution guard
@@ -143,7 +146,8 @@ describe('verifyProof — verification state machine', () => {
       'unverified'
     );
     expect(
-      verifyProof(registry, 'proof:native:1', { now: NOW, verifier: abstain }).record.verificationState
+      verifyProof(registry, 'proof:native:1', { now: NOW, verifier: abstain }).record
+        .verificationState
     ).toBe('unverified');
   });
 
@@ -154,12 +158,12 @@ describe('verifyProof — verification state machine', () => {
     // A verifier that only knows native-signed-event abstains on others.
     const nativeOnly: CapabilityProofVerifier = (r) =>
       r.scheme === 'native-signed-event' ? 'verified' : undefined;
-    expect(verifyProof(reg, 'proof:ucan:1', { now: NOW, verifier: nativeOnly }).record.verificationState).toBe(
-      'unverified'
-    );
-    expect(verifyProof(reg, 'proof:vc:1', { now: NOW, verifier: nativeOnly }).record.verificationState).toBe(
-      'unverified'
-    );
+    expect(
+      verifyProof(reg, 'proof:ucan:1', { now: NOW, verifier: nativeOnly }).record.verificationState
+    ).toBe('unverified');
+    expect(
+      verifyProof(reg, 'proof:vc:1', { now: NOW, verifier: nativeOnly }).record.verificationState
+    ).toBe('unverified');
   });
 
   it('expired beats cryptography: an expired proof is expired even if the verifier would verify it', () => {
@@ -226,13 +230,18 @@ describe('revokeProof', () => {
   it('a revoked proof can never return to verified', () => {
     const { registry } = registerProof(createProofRegistry(), input());
     const revoked = revokeProof(registry, 'proof:native:1', { revokedAt: NOW });
-    const reverified = verifyProof(revoked.registry, 'proof:native:1', { now: NOW, verifier: verifyAll });
+    const reverified = verifyProof(revoked.registry, 'proof:native:1', {
+      now: NOW,
+      verifier: verifyAll
+    });
     expect(reverified.record.verificationState).toBe('revoked');
   });
 
   it('throws on unknown proofId', () => {
     const { registry } = registerProof(createProofRegistry(), input());
-    expect(() => revokeProof(registry, 'proof:missing', { revokedAt: NOW })).toThrow(/unknown proofId/);
+    expect(() => revokeProof(registry, 'proof:missing', { revokedAt: NOW })).toThrow(
+      /unknown proofId/
+    );
   });
 });
 
@@ -245,9 +254,9 @@ describe('summarizeProofStates — worst-case aggregation (fail closed)', () => 
 
   it('a ref pointing at an unknown proof → unverified', () => {
     const { registry } = registerProof(createProofRegistry(), input());
-    expect(
-      summarizeProofStates(registry, [{ proofId: 'proof:ghost', scheme: 'ucan' }])
-    ).toBe('unverified');
+    expect(summarizeProofStates(registry, [{ proofId: 'proof:ghost', scheme: 'ucan' }])).toBe(
+      'unverified'
+    );
   });
 
   it('all verified → verified', () => {
@@ -309,7 +318,10 @@ describe('summarizeProofStates — worst-case aggregation (fail closed)', () => 
   it('severity order: invalid outranks expired outranks unverified outranks verified', () => {
     let reg = createProofRegistry();
     reg = registerProof(reg, input({ proofId: 'inv' })).registry;
-    reg = registerProof(reg, input({ proofId: 'exp', expiresAt: '2026-06-02T00:00:00.000Z' })).registry;
+    reg = registerProof(
+      reg,
+      input({ proofId: 'exp', expiresAt: '2026-06-02T00:00:00.000Z' })
+    ).registry;
     reg = verifyProof(reg, 'inv', { now: NOW, verifier: rejectAll }).registry; // invalid
     reg = verifyProof(reg, 'exp', { now: LATER, verifier: verifyAll }).registry; // expired
     expect(
@@ -450,27 +462,27 @@ describe('seedProofRegistry — reconstruct from stored records', () => {
   });
 
   it('rejects an unknown scheme (defense-in-depth against corrupt rows)', () => {
-    expect(() =>
-      seedProofRegistry([{ ...REC_A, scheme: 'bogus-scheme' as never }])
-    ).toThrow(CapabilityError);
+    expect(() => seedProofRegistry([{ ...REC_A, scheme: 'bogus-scheme' as never }])).toThrow(
+      CapabilityError
+    );
   });
 
   it('rejects an unknown verificationState (corrupt row cannot inject)', () => {
-    expect(() =>
-      seedProofRegistry([{ ...REC_A, verificationState: 'pwned' as never }])
-    ).toThrow(CapabilityError);
+    expect(() => seedProofRegistry([{ ...REC_A, verificationState: 'pwned' as never }])).toThrow(
+      CapabilityError
+    );
   });
 
   it('rejects malformed digest', () => {
-    expect(() =>
-      seedProofRegistry([{ ...REC_A, digest: 'not-a-digest' }])
-    ).toThrow(CapabilityError);
+    expect(() => seedProofRegistry([{ ...REC_A, digest: 'not-a-digest' }])).toThrow(
+      CapabilityError
+    );
   });
 
   it('rejects issuedAt >= expiresAt', () => {
-    expect(() =>
-      seedProofRegistry([{ ...REC_A, issuedAt: LATER, expiresAt: NOW }])
-    ).toThrow(/issuedAt must be before expiresAt/);
+    expect(() => seedProofRegistry([{ ...REC_A, issuedAt: LATER, expiresAt: NOW }])).toThrow(
+      /issuedAt must be before expiresAt/
+    );
   });
 
   it('rejects revokedAt before issuedAt', () => {
@@ -491,9 +503,7 @@ describe('seedProofRegistry — reconstruct from stored records', () => {
     // proof past summarizeProofStates by claiming verificationState:
     // "verified". The cross-field invariant matches register/revoke.
     expect(() =>
-      seedProofRegistry([
-        { ...REC_A, revokedAt: NOW, verificationState: 'verified' }
-      ])
+      seedProofRegistry([{ ...REC_A, revokedAt: NOW, verificationState: 'verified' }])
     ).toThrow(/with revokedAt must have verificationState === "revoked"/);
   });
 
@@ -614,9 +624,7 @@ describe('summarizeProofStates — proofId validation via assertId (defense-in-d
   it('rejects a ref whose proofId is overlong (> 256 chars)', () => {
     const { registry } = registerProof(createProofRegistry(), input());
     expect(() =>
-      summarizeProofStates(registry, [
-        { proofId: 'x'.repeat(257), scheme: 'native-signed-event' }
-      ])
+      summarizeProofStates(registry, [{ proofId: 'x'.repeat(257), scheme: 'native-signed-event' }])
     ).toThrow(CapabilityError);
   });
 

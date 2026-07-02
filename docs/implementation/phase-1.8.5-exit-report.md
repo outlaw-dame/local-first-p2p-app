@@ -24,8 +24,8 @@ spec-deterministic floating-point math.
    observations by `floor(windowEndMs / observationBucketMs)` per
    `(observer, subject)` pair, then applies a sqrt-style concave
    compression per bucket. A 10 000-burst contributes `sqrt(10 000) =
-   100`; the same 10 000 spread across 10 buckets contributes `10 ×
-   sqrt(1 000) ≈ 316`. Spread is rewarded >3×, burst is penalized —
+100`; the same 10 000 spread across 10 buckets contributes `10 ×
+sqrt(1 000) ≈ 316`. Spread is rewarded >3×, burst is penalized —
    resists trust laundering via short-lived hot accounts.
 
 2. **`applyEdgeMultipliers(raw, attestations, config)`** — runs at
@@ -141,15 +141,15 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Clique-detection penalty implemented; test pinned with N-clique scenario showing rank suppression | ✓ | 5-clique e2e + 3-clique exact-factor unit |
-| Path-quality damping implemented; test pinned with attested-vs-unattested path scenario | ✓ | mixed-row test + unit on `applyEdgeMultipliers` |
-| Time-windowed aggregation pinned with burst-vs-spread test | ✓ | end-to-end test computed via `computeReputation` |
-| Fingerprint amplifier verified against Phase 2.3 contact-verification context tags | ✓ | dedicated test + frozen context-tag set |
-| Replay equivalence preserved across hardening | ✓ | byte-identical replay test |
-| All pre-1.8.5 tests continue to pass | ✓ | 144 → 144 pre-hardening tests still green |
-| Threat-model row updated with each mitigation citing the test | n/a at this slice | doctrine table already covers; threat-model.md update deferred to Phase 1.68 refresh |
+| Criterion                                                                                         |      Status       | Evidence                                                                             |
+| ------------------------------------------------------------------------------------------------- | :---------------: | ------------------------------------------------------------------------------------ |
+| Clique-detection penalty implemented; test pinned with N-clique scenario showing rank suppression |         ✓         | 5-clique e2e + 3-clique exact-factor unit                                            |
+| Path-quality damping implemented; test pinned with attested-vs-unattested path scenario           |         ✓         | mixed-row test + unit on `applyEdgeMultipliers`                                      |
+| Time-windowed aggregation pinned with burst-vs-spread test                                        |         ✓         | end-to-end test computed via `computeReputation`                                     |
+| Fingerprint amplifier verified against Phase 2.3 contact-verification context tags                |         ✓         | dedicated test + frozen context-tag set                                              |
+| Replay equivalence preserved across hardening                                                     |         ✓         | byte-identical replay test                                                           |
+| All pre-1.8.5 tests continue to pass                                                              |         ✓         | 144 → 144 pre-hardening tests still green                                            |
+| Threat-model row updated with each mitigation citing the test                                     | n/a at this slice | doctrine table already covers; threat-model.md update deferred to Phase 1.68 refresh |
 
 ## Deferred
 

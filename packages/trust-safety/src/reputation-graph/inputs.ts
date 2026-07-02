@@ -18,11 +18,7 @@
 
 import type { BlockRef } from '@lfp2p/content-addressing';
 import type { SafetySubjectRef } from '../subjects.js';
-import type {
-  AttestationContextTag,
-  AttestationValence,
-  ObservationKind
-} from './constants.js';
+import type { AttestationContextTag, AttestationValence, ObservationKind } from './constants.js';
 
 /**
  * Stable string identity for a subject in the reputation graph.

@@ -1,9 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { MLS_GROUP_CONTROL_VERSION, type SignedEventEnvelope } from '@lfp2p/protocol';
-import {
-  createLocalFirstStore
-} from './index.js';
+import { createLocalFirstStore } from './index.js';
 
 // ---------------------------------------------------------------------------
 // Fixtures

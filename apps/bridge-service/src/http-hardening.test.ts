@@ -217,9 +217,7 @@ describe('Phase 4.3 — multi-token auth registry', () => {
       { auth: MULTI_AUTH }
     );
     expect(response.status).toBe(401);
-    expect(response.headers.get('www-authenticate')).toBe(
-      'Bearer realm="lfp2p-bridge"'
-    );
+    expect(response.headers.get('www-authenticate')).toBe('Bearer realm="lfp2p-bridge"');
   });
 
   it('rejects an expired token with the same 401 + body as unknown (no fingerprinting)', async () => {
@@ -260,9 +258,7 @@ describe('Phase 4.3 — multi-token auth registry', () => {
 
 describe('Phase 4.3 — normalizeAuthConfig validation', () => {
   it('rejects an empty tokens array', () => {
-    expect(() =>
-      normalizeAuthConfig({ scheme: 'bearer', tokens: [] })
-    ).toThrow(/non-empty array/);
+    expect(() => normalizeAuthConfig({ scheme: 'bearer', tokens: [] })).toThrow(/non-empty array/);
   });
 
   it('rejects duplicate token ids', () => {
@@ -290,9 +286,7 @@ describe('Phase 4.3 — normalizeAuthConfig validation', () => {
     expect(() =>
       normalizeAuthConfig({
         scheme: 'bearer',
-        tokens: [
-          { id: 'bad-time', token: 'tok-ok-1234567890', expiresAt: 'not-iso' }
-        ]
+        tokens: [{ id: 'bad-time', token: 'tok-ok-1234567890', expiresAt: 'not-iso' }]
       })
     ).toThrow(/ISO-8601/);
   });
@@ -509,16 +503,11 @@ describe('Phase 4.3 — inbound-read endpoint also hardened', () => {
 
   it('a missing token on inbound-read yields 401 with the legacy body shape', async () => {
     const bridge = new InMemoryBridgeService();
-    const response = await handleBridgeInboundReadRequest(
-      bridge,
-      inboundReadRequest(),
-      NOW_ISO,
-      { auth: MULTI_AUTH }
-    );
+    const response = await handleBridgeInboundReadRequest(bridge, inboundReadRequest(), NOW_ISO, {
+      auth: MULTI_AUTH
+    });
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ reason: 'Unauthorized' });
-    expect(response.headers.get('www-authenticate')).toBe(
-      'Bearer realm="lfp2p-bridge"'
-    );
+    expect(response.headers.get('www-authenticate')).toBe('Bearer realm="lfp2p-bridge"');
   });
 });

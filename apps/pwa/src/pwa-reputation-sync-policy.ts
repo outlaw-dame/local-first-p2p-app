@@ -50,13 +50,9 @@
  * with the Phase 5.0 private payload envelope.
  */
 
-export const REPUTATION_SYNC_POLICY_VERSION =
-  'lfp2p.reputation-sync-policy.v1' as const;
+export const REPUTATION_SYNC_POLICY_VERSION = 'lfp2p.reputation-sync-policy.v1' as const;
 
-export const REPUTATION_SYNC_SCOPES = Object.freeze([
-  'device-local',
-  'account-local'
-] as const);
+export const REPUTATION_SYNC_SCOPES = Object.freeze(['device-local', 'account-local'] as const);
 export type ReputationSyncScope = (typeof REPUTATION_SYNC_SCOPES)[number];
 
 /**

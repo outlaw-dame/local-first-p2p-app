@@ -17,7 +17,7 @@
 
 Local-first / P2P architectures cannot guarantee what a remote device
 has already done with data once that data has been decrypted and
-copied. Revocation events in the identity-control log stop *future*
+copied. Revocation events in the identity-control log stop _future_
 authority, decryption, or admission decisions; they cannot
 retroactively delete data a peer has already received, decoded, and
 chosen to retain.
@@ -28,14 +28,14 @@ docs do not overpromise.
 
 ## What revocation guarantees
 
-| Revocation primitive                                  | Effective for                                                                                      | Not effective for                                                                                  |
-|-------------------------------------------------------|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
-| `identity.device.revoked`                              | Every event signed by the revoked device's key after the revocation event (the verifier rejects the signature against the now-revoked device). | Past events the device signed while still active. Those events remain valid history. The verifier still accepts past events from the now-revoked device. |
-| `identity.capability.revoked`                          | Every operation requiring that capability after the revocation event.                              | Past actions taken under that capability. Their effects remain in the log.                          |
-| `identity.device.rotated` (Phase 2.1)                  | Future events under the device's new public key. Stops the old key from authorizing new events.    | Past events signed under the previous key. Does not invalidate already-replicated content. The `previousPublicKey` cross-check prevents a stale rotation from rolling the key back. |
-| Key-epoch rotation (Class D — pending Phase 5/6)       | Future ciphertexts encrypted under the new epoch.                                                  | Already-decrypted plaintext on any device the peer chose to retain. |
-| Local block / mute / hide (`@lfp2p/trust-safety`)      | The local viewer's projection on this device, and (via `safety.preferences.snapshot`) the user's other apps.                                                                | Anyone else's view of the same content. Not a global delete. |
-| `safety.label.revoked`                                 | The labeler's own future label decisions (the projection's stack stops including the revoked label). Phase 1.66 forbids cross-labeler revoke. | Other labelers' independent decisions about the same subject.                                       |
+| Revocation primitive                              | Effective for                                                                                                                                  | Not effective for                                                                                                                                                                   |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identity.device.revoked`                         | Every event signed by the revoked device's key after the revocation event (the verifier rejects the signature against the now-revoked device). | Past events the device signed while still active. Those events remain valid history. The verifier still accepts past events from the now-revoked device.                            |
+| `identity.capability.revoked`                     | Every operation requiring that capability after the revocation event.                                                                          | Past actions taken under that capability. Their effects remain in the log.                                                                                                          |
+| `identity.device.rotated` (Phase 2.1)             | Future events under the device's new public key. Stops the old key from authorizing new events.                                                | Past events signed under the previous key. Does not invalidate already-replicated content. The `previousPublicKey` cross-check prevents a stale rotation from rolling the key back. |
+| Key-epoch rotation (Class D — pending Phase 5/6)  | Future ciphertexts encrypted under the new epoch.                                                                                              | Already-decrypted plaintext on any device the peer chose to retain.                                                                                                                 |
+| Local block / mute / hide (`@lfp2p/trust-safety`) | The local viewer's projection on this device, and (via `safety.preferences.snapshot`) the user's other apps.                                   | Anyone else's view of the same content. Not a global delete.                                                                                                                        |
+| `safety.label.revoked`                            | The labeler's own future label decisions (the projection's stack stops including the revoked label). Phase 1.66 forbids cross-labeler revoke.  | Other labelers' independent decisions about the same subject.                                                                                                                       |
 
 ## What revocation does NOT guarantee
 
@@ -72,13 +72,13 @@ The PWA MUST NOT use language that implies retroactive deletion or
 remote enforcement of local moderation choices. Recommended
 substitutions:
 
-| Avoid                                | Use instead                                                                          |
-|--------------------------------------|---------------------------------------------------------------------------------------|
-| "Delete this from everywhere"        | "Stop showing this to me" (block / mute / hide is local).                              |
-| "Erase this account"                  | "Revoke future authority for this device" (`identity.device.revoked`).                |
-| "Unsend this message"                 | "Mark as withdrawn locally" — and disclose that remote copies may persist.            |
-| "Take down this post"                  | "Recommend takedown to the moderation queue" (Phase 1.67) — the queue is not the same as enforced removal. |
-| "Erase your contact card from peers"  | "Publish a superseding contact-card digest. Peers honoring the latest publication will adopt it; older copies persist." |
+| Avoid                                | Use instead                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| "Delete this from everywhere"        | "Stop showing this to me" (block / mute / hide is local).                                                               |
+| "Erase this account"                 | "Revoke future authority for this device" (`identity.device.revoked`).                                                  |
+| "Unsend this message"                | "Mark as withdrawn locally" — and disclose that remote copies may persist.                                              |
+| "Take down this post"                | "Recommend takedown to the moderation queue" (Phase 1.67) — the queue is not the same as enforced removal.              |
+| "Erase your contact card from peers" | "Publish a superseding contact-card digest. Peers honoring the latest publication will adopt it; older copies persist." |
 
 ## What this means for product surfaces
 
@@ -92,7 +92,7 @@ substitutions:
   "ban." Keep that discipline.
 - **Contact-card publication** (Phase 2.2): expose the
   most-recently-published digest in the UI and explain that the
-  identity-control log retains the *latest* publication; older
+  identity-control log retains the _latest_ publication; older
   publications stay in history for audit. Do not call this "deleting
   the old card."
 - **Future encrypted-evidence UI** (Phase 1.63 follow-on): never

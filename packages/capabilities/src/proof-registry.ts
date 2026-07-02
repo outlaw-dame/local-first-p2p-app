@@ -424,7 +424,11 @@ function computeVerificationState(
  * Pure on inputs; the returned registry is deep-frozen.
  */
 export function seedProofRegistry(records: Iterable<unknown>): ProofRegistry {
-  if (records === null || typeof records !== 'object' || typeof (records as Iterable<unknown>)[Symbol.iterator] !== 'function') {
+  if (
+    records === null ||
+    typeof records !== 'object' ||
+    typeof (records as Iterable<unknown>)[Symbol.iterator] !== 'function'
+  ) {
     throw capabilityError('CAP_INVALID_INPUT', 'seedProofRegistry: records must be iterable');
   }
   const map = new Map<string, CapabilityProofRecord>();
@@ -536,11 +540,17 @@ function validateRegisterProofInput(value: unknown): CapabilityProofRecord {
   const issuedAt = assertTimestamp(record.issuedAt, 'RegisterProofInput.issuedAt');
   const expiresAt = assertTimestamp(record.expiresAt, 'RegisterProofInput.expiresAt');
   if (Date.parse(issuedAt) >= Date.parse(expiresAt)) {
-    throw capabilityError('CAP_INVALID_TIMESTAMP', 'RegisterProofInput.issuedAt must be before expiresAt');
+    throw capabilityError(
+      'CAP_INVALID_TIMESTAMP',
+      'RegisterProofInput.issuedAt must be before expiresAt'
+    );
   }
   const revokedAt = optionalTimestamp(record.revokedAt, 'RegisterProofInput.revokedAt');
   if (revokedAt !== undefined && Date.parse(revokedAt) < Date.parse(issuedAt)) {
-    throw capabilityError('CAP_INVALID_TIMESTAMP', 'RegisterProofInput.revokedAt must not predate issuedAt');
+    throw capabilityError(
+      'CAP_INVALID_TIMESTAMP',
+      'RegisterProofInput.revokedAt must not predate issuedAt'
+    );
   }
   const digest = assertDigest(record.digest, 'RegisterProofInput.digest');
   const verificationState: CapabilityProofVerificationState =

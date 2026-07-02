@@ -19,7 +19,11 @@ describe('createHttpBridgeInboundTransport receivedAt validation', () => {
     });
 
     await expect(
-      transport.pull({ sourceId: 'bridge:primary', streamId: 'durable-stream:inbox', scope: 'identity:alice' })
+      transport.pull({
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice'
+      })
     ).rejects.toThrow('Bridge inbound record 0 receivedAt must be a canonical ISO date string');
   });
 });

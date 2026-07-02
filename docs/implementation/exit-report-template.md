@@ -12,7 +12,7 @@ What this phase was supposed to prove or implement.
 
 ## Completed work
 
-- 
+-
 
 ## Tests and verification
 
@@ -27,13 +27,13 @@ pnpm build
 
 Additional verification:
 
-- 
+-
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| | Pending | |
+| Criterion |  Status | Evidence |
+| --------- | ------: | -------- |
+|           | Pending |          |
 
 ## Security/privacy checks
 
@@ -45,11 +45,11 @@ Additional verification:
 
 ## Deviations introduced or resolved
 
-- 
+-
 
 ## Remaining gaps
 
-- 
+-
 
 ## Decision
 
@@ -62,4 +62,4 @@ This phase is:
 
 Reason:
 
-- 
+-

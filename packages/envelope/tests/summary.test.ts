@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { generateX25519Keypair } from '@lfp2p/crypto';
-import { createEnvelopeEvent, resolveRecipients, summarizeEnvelopeEventForLog } from '../src/index.js';
+import {
+  createEnvelopeEvent,
+  resolveRecipients,
+  summarizeEnvelopeEventForLog
+} from '../src/index.js';
 
 describe('summarizeEnvelopeEventForLog', () => {
   it('returns a compact summary for envelope events', async () => {

@@ -13,28 +13,28 @@ where to look, and what each downstream consumer is expected to do.
 
 ## Phases shipped
 
-| Phase | Slice | Exit report |
-|---|---|---|
-| 1.61 | T&S protocol core (shapes + validators) | `phase-1.61-exit-report.md` |
-| 1.62 | Local user controls (12 event kinds + projection + selector) | `phase-1.62-exit-report.md` |
-| 1.63 | Reports, appeals, encrypted evidence (5 lifecycle events + projection + privacy guard) | `phase-1.63-exit-report.md` |
-| 1.64 | Bridge / relay / super-peer admission (6 events + rate limit + reputation + replay + audit + decision engine) | `phase-1.64-exit-report.md` |
-| 1.65 | Curation and reach (6 events + projection + surface gate) + hardening pass | `phase-1.65-exit-report.md` |
-| 1.66 | Labeler runtime (composable / stackable, 7 events + projection + kind taxonomy + aggregators) | `phase-1.66-exit-report.md` |
-| 1.67 | Moderation runtime (7 events + projection + queue + cross-references) | `phase-1.67-exit-report.md` |
-| 1.68 | Completion sweep (threat-model refresh + this summary) | `phase-1.68-exit-report.md` |
+| Phase | Slice                                                                                                         | Exit report                 |
+| ----- | ------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| 1.61  | T&S protocol core (shapes + validators)                                                                       | `phase-1.61-exit-report.md` |
+| 1.62  | Local user controls (12 event kinds + projection + selector)                                                  | `phase-1.62-exit-report.md` |
+| 1.63  | Reports, appeals, encrypted evidence (5 lifecycle events + projection + privacy guard)                        | `phase-1.63-exit-report.md` |
+| 1.64  | Bridge / relay / super-peer admission (6 events + rate limit + reputation + replay + audit + decision engine) | `phase-1.64-exit-report.md` |
+| 1.65  | Curation and reach (6 events + projection + surface gate) + hardening pass                                    | `phase-1.65-exit-report.md` |
+| 1.66  | Labeler runtime (composable / stackable, 7 events + projection + kind taxonomy + aggregators)                 | `phase-1.66-exit-report.md` |
+| 1.67  | Moderation runtime (7 events + projection + queue + cross-references)                                         | `phase-1.67-exit-report.md` |
+| 1.68  | Completion sweep (threat-model refresh + this summary)                                                        | `phase-1.68-exit-report.md` |
 
 ## Sub-modules
 
-| Sub-module | Public surface | Doctrine |
-|---|---|---|
-| (top level shapes) | `SafetyAuthority`, `SafetySubjectRef`, `SafetyAction`, `SafetyLabel*`, `SafetyAnnotation`, `SafetyReport`, `SafetyAppeal`, `SafetyPolicy`, `SafetyPolicyDecision`, `TransportAdmissionDecision`, `CurationRule`, `CurationExplanation` | `docs/protocol/trust-safety-event-policy.md` |
-| `local-controls/` | 12 event kinds, `LocalControlState`, `decideVisibility`, snapshot import/export | `docs/protocol/local-controls-portability.md` |
-| `reports-appeals/` | 5 lifecycle events, `ReportsAppealsState`, `classifyReportPrivacy`, `canBridgeForwardReport` | (in exit report) |
-| `transport-admission/` | 6 events, `admitEnvelope` decision engine, token-bucket rate limit, peer reputation, replay cache, audit log | `docs/protocol/bridge-admission-doctrine.md` |
-| `curation-runtime/` | 6 events, `CurationState`, `computeItemRanking`, `decideCurationSurfaceIngest`, `decideReportAsCurationSignal` | `docs/protocol/curation-doctrine.md` |
-| `labelers-runtime/` | 7 events, `LabelersState`, `effectiveLabelsForSubject`, `mostRestrictiveAction` | `docs/protocol/labeler-runtime-doctrine.md` |
-| `moderation-runtime/` | 7 events, `ModerationState`, policy + queue + decision lifecycle, `queueItemsForSource` | `docs/protocol/moderation-runtime-doctrine.md` |
+| Sub-module             | Public surface                                                                                                                                                                                                                         | Doctrine                                       |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| (top level shapes)     | `SafetyAuthority`, `SafetySubjectRef`, `SafetyAction`, `SafetyLabel*`, `SafetyAnnotation`, `SafetyReport`, `SafetyAppeal`, `SafetyPolicy`, `SafetyPolicyDecision`, `TransportAdmissionDecision`, `CurationRule`, `CurationExplanation` | `docs/protocol/trust-safety-event-policy.md`   |
+| `local-controls/`      | 12 event kinds, `LocalControlState`, `decideVisibility`, snapshot import/export                                                                                                                                                        | `docs/protocol/local-controls-portability.md`  |
+| `reports-appeals/`     | 5 lifecycle events, `ReportsAppealsState`, `classifyReportPrivacy`, `canBridgeForwardReport`                                                                                                                                           | (in exit report)                               |
+| `transport-admission/` | 6 events, `admitEnvelope` decision engine, token-bucket rate limit, peer reputation, replay cache, audit log                                                                                                                           | `docs/protocol/bridge-admission-doctrine.md`   |
+| `curation-runtime/`    | 6 events, `CurationState`, `computeItemRanking`, `decideCurationSurfaceIngest`, `decideReportAsCurationSignal`                                                                                                                         | `docs/protocol/curation-doctrine.md`           |
+| `labelers-runtime/`    | 7 events, `LabelersState`, `effectiveLabelsForSubject`, `mostRestrictiveAction`                                                                                                                                                        | `docs/protocol/labeler-runtime-doctrine.md`    |
+| `moderation-runtime/`  | 7 events, `ModerationState`, policy + queue + decision lifecycle, `queueItemsForSource`                                                                                                                                                | `docs/protocol/moderation-runtime-doctrine.md` |
 
 ## Dependency graph
 
@@ -133,22 +133,22 @@ deterministic and replayable.
 Everything still owed to downstream consumers is listed here, with
 the phase that originally identified the deferral:
 
-| Deferral | Origin phase | Belongs to |
-|---|---|---|
-| Dexie persistence for every projection | 1.62, 1.63, 1.64, 1.65, 1.66, 1.67 | `packages/local-store` |
-| PWA settings UI for local controls | 1.62 | `apps/pwa` |
-| Account-local sync envelope wiring | 1.62 | `packages/sync-client` + ADR-002 |
-| Host-side semantic embedding pipeline | 1.62 | `apps/pwa` or a future `packages/embeddings` |
-| Bridge-service HTTP wiring of `admitEnvelope` | 1.64 | `apps/bridge-service` |
-| Envelope-layer signature verification | 1.64 | `packages/protocol` + ADR-002 |
-| Policy-list resolution runtime | 1.64 | future T&S subscription runtime |
-| Media-scanner verdict ingestion | 1.64 | future T&S admission expansion |
-| Feed / search runtime consuming `computeItemRanking` | 1.65 | `@lfp2p/search` + new feed package |
-| Trust-policy engine integration | every phase | ADR-006 (future) |
-| Labeler HTTP/WS API | 1.66 | future `apps/labeler-service` |
-| Moderation tools API and UI | 1.67 | future `apps/moderation-tools` |
-| BLAKE3 runtime | 1.56 | future content-addressing slice |
-| `z` / `k` multibase parsers | 1.56 | future content-addressing slice |
+| Deferral                                             | Origin phase                       | Belongs to                                   |
+| ---------------------------------------------------- | ---------------------------------- | -------------------------------------------- |
+| Dexie persistence for every projection               | 1.62, 1.63, 1.64, 1.65, 1.66, 1.67 | `packages/local-store`                       |
+| PWA settings UI for local controls                   | 1.62                               | `apps/pwa`                                   |
+| Account-local sync envelope wiring                   | 1.62                               | `packages/sync-client` + ADR-002             |
+| Host-side semantic embedding pipeline                | 1.62                               | `apps/pwa` or a future `packages/embeddings` |
+| Bridge-service HTTP wiring of `admitEnvelope`        | 1.64                               | `apps/bridge-service`                        |
+| Envelope-layer signature verification                | 1.64                               | `packages/protocol` + ADR-002                |
+| Policy-list resolution runtime                       | 1.64                               | future T&S subscription runtime              |
+| Media-scanner verdict ingestion                      | 1.64                               | future T&S admission expansion               |
+| Feed / search runtime consuming `computeItemRanking` | 1.65                               | `@lfp2p/search` + new feed package           |
+| Trust-policy engine integration                      | every phase                        | ADR-006 (future)                             |
+| Labeler HTTP/WS API                                  | 1.66                               | future `apps/labeler-service`                |
+| Moderation tools API and UI                          | 1.67                               | future `apps/moderation-tools`               |
+| BLAKE3 runtime                                       | 1.56                               | future content-addressing slice              |
+| `z` / `k` multibase parsers                          | 1.56                               | future content-addressing slice              |
 
 ## Boundary discipline preserved across all 1.6x phases
 
@@ -170,16 +170,16 @@ Every sub-module in this package is:
 
 884 tests across the monorepo as of Phase 1.67. Roughly:
 
-| Sub-module | Test count |
-|---|---:|
-| top-level shapes (Phase 1.61) | ~120 |
-| local-controls (1.62 + 1.62.1 expansion + hardening) | ~130 |
-| reports-appeals (1.63) | ~50 |
-| transport-admission (1.64) | ~80 |
-| curation-runtime (1.65) | ~65 |
-| labelers-runtime (1.66) | ~27 |
-| moderation-runtime (1.67) | ~28 |
-| cross-cutting (hardening, fixtures, content-addressing) | ~380 |
+| Sub-module                                              | Test count |
+| ------------------------------------------------------- | ---------: |
+| top-level shapes (Phase 1.61)                           |       ~120 |
+| local-controls (1.62 + 1.62.1 expansion + hardening)    |       ~130 |
+| reports-appeals (1.63)                                  |        ~50 |
+| transport-admission (1.64)                              |        ~80 |
+| curation-runtime (1.65)                                 |        ~65 |
+| labelers-runtime (1.66)                                 |        ~27 |
+| moderation-runtime (1.67)                               |        ~28 |
+| cross-cutting (hardening, fixtures, content-addressing) |       ~380 |
 
 ## Acceptance criteria — final state
 

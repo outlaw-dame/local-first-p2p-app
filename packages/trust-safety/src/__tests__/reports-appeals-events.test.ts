@@ -143,7 +143,9 @@ describe('validateReportAppealEvent — kinds', () => {
 
   it('rejects unknown kind', () => {
     expect(() =>
-      validateReportAppealEvent({ ...base('safety.report.deleted' as unknown as ReportAppealEvent['kind']) })
+      validateReportAppealEvent({
+        ...base('safety.report.deleted' as unknown as ReportAppealEvent['kind'])
+      })
     ).toThrow(/TS_INVALID_ENUM/);
   });
 

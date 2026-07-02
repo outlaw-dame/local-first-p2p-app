@@ -66,7 +66,10 @@ export function resolvePwaBridgeConfig(env: PwaBridgeConfigEnv = importMetaEnv()
 
   const endpointValue = stringEnv(env[ENDPOINT_KEY]);
   if (endpointValue === undefined) {
-    return invalid('missing-endpoint', `${ENDPOINT_KEY} is required when bridge sync is explicitly enabled.`);
+    return invalid(
+      'missing-endpoint',
+      `${ENDPOINT_KEY} is required when bridge sync is explicitly enabled.`
+    );
   }
 
   const endpoint = parseBridgeEndpoint(endpointValue);
@@ -95,7 +98,8 @@ export function resolvePwaBridgeConfig(env: PwaBridgeConfigEnv = importMetaEnv()
 export function formatPwaBridgeConfigStatus(config: PwaBridgeConfig): string {
   if (config.status === 'configured') {
     const host = new URL(config.endpoint).host;
-    const authStatus = config.auth === undefined ? 'no auth token configured' : 'dev bearer auth token configured';
+    const authStatus =
+      config.auth === undefined ? 'no auth token configured' : 'dev bearer auth token configured';
     return `Bridge config ready for future transport: ${host} (${config.target}; ${authStatus}).`;
   }
   if (config.status === 'disabled') return config.message;
@@ -114,13 +118,22 @@ function parseBridgeEndpoint(value: string): PwaBridgeInvalidConfig | ValidEndpo
     return invalid('unsupported-protocol', `${ENDPOINT_KEY} must use http or https.`);
   }
   if (url.username.length > 0 || url.password.length > 0) {
-    return invalid('embedded-credentials', `${ENDPOINT_KEY} must not include embedded credentials.`);
+    return invalid(
+      'embedded-credentials',
+      `${ENDPOINT_KEY} must not include embedded credentials.`
+    );
   }
   if (url.search.length > 0 || url.hash.length > 0) {
-    return invalid('query-or-fragment', `${ENDPOINT_KEY} must not include query strings or fragments.`);
+    return invalid(
+      'query-or-fragment',
+      `${ENDPOINT_KEY} must not include query strings or fragments.`
+    );
   }
   if (url.protocol === 'http:' && !isLocalBridgeHost(url.hostname)) {
-    return invalid('insecure-remote-endpoint', `${ENDPOINT_KEY} must use https unless targeting localhost.`);
+    return invalid(
+      'insecure-remote-endpoint',
+      `${ENDPOINT_KEY} must use https unless targeting localhost.`
+    );
   }
 
   return { status: 'valid', endpoint: url.href };
@@ -142,7 +155,10 @@ function parseBridgeTimeoutMs(value: unknown): PwaBridgeInvalidConfig | ValidTim
   if (raw === undefined) return { status: 'valid', timeoutMs: DEFAULT_TIMEOUT_MS };
   const parsed = Number(raw);
   if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > MAX_TIMEOUT_MS) {
-    return invalid('invalid-timeout', `${TIMEOUT_KEY} must be a positive integer no greater than ${MAX_TIMEOUT_MS}.`);
+    return invalid(
+      'invalid-timeout',
+      `${TIMEOUT_KEY} must be a positive integer no greater than ${MAX_TIMEOUT_MS}.`
+    );
   }
   return { status: 'valid', timeoutMs: parsed };
 }
@@ -153,9 +169,16 @@ function parseBridgeAuth(env: PwaBridgeConfigEnv): PwaBridgeInvalidConfig | Vali
   if (typeof raw !== 'string') return { status: 'valid' };
   if (raw.length === 0) return { status: 'valid' };
   if (env.DEV !== true) {
-    return invalid('auth-token-requires-dev-mode', `${AUTH_TOKEN_KEY} is only accepted when import.meta.env.DEV is true.`);
+    return invalid(
+      'auth-token-requires-dev-mode',
+      `${AUTH_TOKEN_KEY} is only accepted when import.meta.env.DEV is true.`
+    );
   }
-  if (raw !== raw.trim() || raw.length > MAX_AUTH_TOKEN_LENGTH || hasBridgeAuthUnsafeCharacter(raw)) {
+  if (
+    raw !== raw.trim() ||
+    raw.length > MAX_AUTH_TOKEN_LENGTH ||
+    hasBridgeAuthUnsafeCharacter(raw)
+  ) {
     return invalid(
       'invalid-auth-token',
       `${AUTH_TOKEN_KEY} must be ${MAX_AUTH_TOKEN_LENGTH} characters or fewer and must not contain whitespace or control characters.`
@@ -185,10 +208,18 @@ function isExplicitlyEnabled(value: unknown): boolean {
 
 function isLocalBridgeHost(hostname: string): boolean {
   const normalized = hostname.toLowerCase();
-  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '[::1]' || normalized === '::1';
+  return (
+    normalized === 'localhost' ||
+    normalized === '127.0.0.1' ||
+    normalized === '[::1]' ||
+    normalized === '::1'
+  );
 }
 
-function invalid(reason: PwaBridgeInvalidConfig['reason'], message: string): PwaBridgeInvalidConfig {
+function invalid(
+  reason: PwaBridgeInvalidConfig['reason'],
+  message: string
+): PwaBridgeInvalidConfig {
   return { status: 'invalid', reason, message };
 }
 

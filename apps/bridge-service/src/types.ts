@@ -50,9 +50,7 @@ export type BridgeHttpAuthConfigMulti = Readonly<{
   tokens: ReadonlyArray<BridgeAuthToken>;
 }>;
 
-export type BridgeHttpAuthConfig =
-  | BridgeHttpAuthConfigLegacy
-  | BridgeHttpAuthConfigMulti;
+export type BridgeHttpAuthConfig = BridgeHttpAuthConfigLegacy | BridgeHttpAuthConfigMulti;
 
 export type BridgeHttpHandlerOptions = Readonly<{
   auth?: BridgeHttpAuthConfig;
@@ -185,8 +183,10 @@ export type BridgeRecord = Readonly<{
 }>;
 
 export type BridgeRecordDraft = Omit<BridgeRecord, 'sequence'>;
-export type StoredBridgeRecord = BridgeRecord & Readonly<{ expiresAt: string; event?: SignedEventEnvelope }>;
-export type StoredBridgeRecordDraft = BridgeRecordDraft & Readonly<{ expiresAt: string; event: SignedEventEnvelope }>;
+export type StoredBridgeRecord = BridgeRecord &
+  Readonly<{ expiresAt: string; event?: SignedEventEnvelope }>;
+export type StoredBridgeRecordDraft = BridgeRecordDraft &
+  Readonly<{ expiresAt: string; event: SignedEventEnvelope }>;
 
 export type BridgeStoreListInput = Readonly<{
   target: string;

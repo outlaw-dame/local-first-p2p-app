@@ -81,8 +81,14 @@ export class ForegroundSyncController {
     this.#run = options.run;
     this.#isOnline = options.isOnline ?? (() => true);
     this.#now = options.now ?? (() => new Date());
-    this.#baseDelayMs = requirePositiveInteger(options.baseDelayMs ?? DEFAULT_BASE_DELAY_MS, 'baseDelayMs');
-    this.#maxDelayMs = requirePositiveInteger(options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS, 'maxDelayMs');
+    this.#baseDelayMs = requirePositiveInteger(
+      options.baseDelayMs ?? DEFAULT_BASE_DELAY_MS,
+      'baseDelayMs'
+    );
+    this.#maxDelayMs = requirePositiveInteger(
+      options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS,
+      'maxDelayMs'
+    );
     this.#jitterRatio = requireOptionalJitterRatio(options.jitterRatio);
     this.#random = options.random;
   }
@@ -91,7 +97,10 @@ export class ForegroundSyncController {
     return { ...this.#state };
   }
 
-  async requestSync(trigger: ForegroundSyncTrigger, options: ForegroundSyncRequestOptions = {}): Promise<ForegroundSyncResult> {
+  async requestSync(
+    trigger: ForegroundSyncTrigger,
+    options: ForegroundSyncRequestOptions = {}
+  ): Promise<ForegroundSyncResult> {
     const requestedAt = this.#now();
     const requestedAtIso = requestedAt.toISOString();
 
@@ -131,7 +140,9 @@ export class ForegroundSyncController {
       const finishedAtDate = this.#now();
       const finishedAt = finishedAtDate.toISOString();
       const consecutiveFailures = this.#state.consecutiveFailures + 1;
-      const nextRetryAt = new Date(finishedAtDate.getTime() + this.#nextDelayMs(consecutiveFailures)).toISOString();
+      const nextRetryAt = new Date(
+        finishedAtDate.getTime() + this.#nextDelayMs(consecutiveFailures)
+      ).toISOString();
       const message = normalizeSyncError(error);
       const name = error instanceof Error && error.name.trim().length > 0 ? error.name : undefined;
       this.#state = {
@@ -192,13 +203,15 @@ function isBackoffActive(nextRetryAt: string | undefined, now: Date): boolean {
 }
 
 function requirePositiveInteger(value: number, name: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive integer`);
   return value;
 }
 
 function requireOptionalJitterRatio(value: number | undefined): number | undefined {
   if (value === undefined) return undefined;
-  if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error('jitterRatio must be between 0 and 1');
+  if (!Number.isFinite(value) || value < 0 || value > 1)
+    throw new Error('jitterRatio must be between 0 and 1');
   return value;
 }
 

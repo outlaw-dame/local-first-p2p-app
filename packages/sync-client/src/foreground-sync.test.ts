@@ -34,7 +34,13 @@ describe('ForegroundSyncController', () => {
   });
 
   it('validates jitter ratio at construction time', () => {
-    for (const jitterRatio of [1.1, -0.1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    for (const jitterRatio of [
+      1.1,
+      -0.1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY
+    ]) {
       expect(
         () =>
           new ForegroundSyncController({

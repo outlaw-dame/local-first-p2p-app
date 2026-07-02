@@ -1,4 +1,5 @@
 # Implementation Doctrine v1
+
 ## Local-First P2P Architecture Development Gospel
 
 This document serves as the build-order authority for the first implementation of the local-first P2P architecture.
