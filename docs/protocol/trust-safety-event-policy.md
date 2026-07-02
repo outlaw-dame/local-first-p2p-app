@@ -301,7 +301,14 @@ type SafetyLabelerSubscription = {
   labelerId: string;
   trustedNamespaces: readonly string[];
   trustedLabels?: readonly string[];
-  scope: 'device-local' | 'account-local' | 'community-local' | 'bridge-local' | 'relay-local' | 'super-peer-local' | 'index-local';
+  scope:
+    | 'device-local'
+    | 'account-local'
+    | 'community-local'
+    | 'bridge-local'
+    | 'relay-local'
+    | 'super-peer-local'
+    | 'index-local';
   actionOverrides?: readonly SafetyLabelActionOverride[];
   createdAt: string;
   disabledAt?: string;
@@ -331,7 +338,10 @@ type SafetyReport = {
   createdAt: string;
   encryptedBodyRef?: ObjectRef;
   evidenceRefs?: readonly ObjectRef[];
-  reporterPrivacy: 'identified-to-authority' | 'pseudonymous-to-authority' | 'anonymous-to-authority-if-supported';
+  reporterPrivacy:
+    | 'identified-to-authority'
+    | 'pseudonymous-to-authority'
+    | 'anonymous-to-authority-if-supported';
 };
 ```
 
@@ -457,7 +467,13 @@ type CurationRule = {
   version: 'lfp2p.curation-rule.v1';
   ruleId: string;
   owner: SafetyAuthority;
-  surface: 'local-feed' | 'community-feed' | 'public-feed' | 'search' | 'recommendation' | 'notification';
+  surface:
+    | 'local-feed'
+    | 'community-feed'
+    | 'public-feed'
+    | 'search'
+    | 'recommendation'
+    | 'notification';
   subjectMatcher: CurationSubjectMatcher;
   action: 'boost' | 'downrank' | 'exclude' | 'group' | 'annotate' | 'require-warning';
   reasonCode: string;

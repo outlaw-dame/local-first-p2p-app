@@ -51,10 +51,7 @@ const MAX_TITLE_LENGTH = 256;
 const MAX_BODY_LENGTH = 64 * 1024;
 const MAX_APPLICABLE_ACTIONS = SAFETY_ACTIONS.length;
 
-export function validateSafetyPolicy(
-  value: unknown,
-  label = 'SafetyPolicy'
-): SafetyPolicy {
+export function validateSafetyPolicy(value: unknown, label = 'SafetyPolicy'): SafetyPolicy {
   const record = assertPlainObject(value, label);
   assertExactVersion(record.version, SAFETY_POLICY_VERSION, `${label}.version`);
   const policyId = assertId(record.policyId, `${label}.policyId`);
@@ -64,10 +61,7 @@ export function validateSafetyPolicy(
     !Number.isSafeInteger(policyVersionNumber) ||
     policyVersionNumber < 1
   ) {
-    throw tsError(
-      'TS_INVALID_NUMBER',
-      `${label}.policyVersionNumber must be a safe integer >= 1`
-    );
+    throw tsError('TS_INVALID_NUMBER', `${label}.policyVersionNumber must be a safe integer >= 1`);
   }
   const title = assertId(record.title, `${label}.title`, MAX_TITLE_LENGTH);
   const body = assertText(record.body, `${label}.body`, MAX_BODY_LENGTH);

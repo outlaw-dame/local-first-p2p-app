@@ -34,9 +34,12 @@ export type EvaluateCapabilityInvocationInput = Readonly<{
 const MIN_SAFE_DATE_MS = -8.64e15;
 const MAX_SAFE_DATE_MS = 8.64e15;
 
-export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocationInput): CapabilityDecision {
+export function evaluateCapabilityInvocation(
+  input: EvaluateCapabilityInvocationInput
+): CapabilityDecision {
   const parsedNow = Date.parse(input.now);
-  const isSafeDate = Number.isFinite(parsedNow) && parsedNow >= MIN_SAFE_DATE_MS && parsedNow <= MAX_SAFE_DATE_MS;
+  const isSafeDate =
+    Number.isFinite(parsedNow) && parsedNow >= MIN_SAFE_DATE_MS && parsedNow <= MAX_SAFE_DATE_MS;
 
   if (!isSafeDate) {
     return deny('unknown', undefined, ['capability.malformed'], '1970-01-01T00:00:00.000Z');
@@ -52,7 +55,9 @@ export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocation
   try {
     grant = validateCapabilityGrant(input.grant);
     invocation = validateCapabilityInvocation(input.invocation);
-    revocations = Object.freeze((input.revocations ?? []).map((revocation) => validateCapabilityRevocation(revocation)));
+    revocations = Object.freeze(
+      (input.revocations ?? []).map((revocation) => validateCapabilityRevocation(revocation))
+    );
   } catch {
     return deny('unknown', undefined, ['capability.malformed'], decisionCreatedAt);
   }
@@ -61,15 +66,20 @@ export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocation
 
   if (grant.capabilityId !== invocation.capabilityId) reasons.push('capability.wrong-resource');
   if (Date.parse(grant.expiresAt) <= now) reasons.push('capability.expired');
-  if (grant.notBefore !== undefined && Date.parse(grant.notBefore) > now) reasons.push('capability.not-yet-valid');
-  if (invocation.expiresAt !== undefined && Date.parse(invocation.expiresAt) <= now) reasons.push('capability.expired');
-  if (revocations.some((revocation) => revocation.capabilityId === grant.capabilityId)) reasons.push('capability.revoked');
+  if (grant.notBefore !== undefined && Date.parse(grant.notBefore) > now)
+    reasons.push('capability.not-yet-valid');
+  if (invocation.expiresAt !== undefined && Date.parse(invocation.expiresAt) <= now)
+    reasons.push('capability.expired');
+  if (revocations.some((revocation) => revocation.capabilityId === grant.capabilityId))
+    reasons.push('capability.revoked');
   if (!sameParty(grant.audience, invocation.invoker)) reasons.push('capability.wrong-audience');
   if (!sameResource(grant.resource, invocation.resource)) reasons.push('capability.wrong-resource');
   if (!grant.actions.includes(invocation.action)) reasons.push('capability.wrong-action');
   if (!sameScope(grant.scope, invocation.scope)) reasons.push('capability.wrong-scope');
-  if (input.replayedInvocationIds?.has(invocation.invocationId) === true) reasons.push('capability.replayed-invocation');
-  if (input.trustedIssuerIds !== undefined && !input.trustedIssuerIds.has(grant.issuer.id)) reasons.push('capability.untrusted-issuer');
+  if (input.replayedInvocationIds?.has(invocation.invocationId) === true)
+    reasons.push('capability.replayed-invocation');
+  if (input.trustedIssuerIds !== undefined && !input.trustedIssuerIds.has(grant.issuer.id))
+    reasons.push('capability.untrusted-issuer');
 
   if (grant.proofRefs.length > 0 && input.verifiedProofIds !== undefined) {
     for (const proof of grant.proofRefs) {
@@ -87,7 +97,13 @@ export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocation
     }
   }
 
-  if (reasons.length > 0) return deny(grant.capabilityId, invocation.invocationId, dedupeReasons(reasons), decisionCreatedAt);
+  if (reasons.length > 0)
+    return deny(
+      grant.capabilityId,
+      invocation.invocationId,
+      dedupeReasons(reasons),
+      decisionCreatedAt
+    );
 
   return Object.freeze({
     status: 'allow' as const,
@@ -108,9 +124,17 @@ function evaluateCaveat(
 ): boolean {
   switch (caveat.kind) {
     case 'expires-before':
-      return typeof caveat.value === 'string' && Number.isFinite(Date.parse(caveat.value)) && now < Date.parse(caveat.value);
+      return (
+        typeof caveat.value === 'string' &&
+        Number.isFinite(Date.parse(caveat.value)) &&
+        now < Date.parse(caveat.value)
+      );
     case 'not-before':
-      return typeof caveat.value === 'string' && Number.isFinite(Date.parse(caveat.value)) && now >= Date.parse(caveat.value);
+      return (
+        typeof caveat.value === 'string' &&
+        Number.isFinite(Date.parse(caveat.value)) &&
+        now >= Date.parse(caveat.value)
+      );
     case 'audience-is':
       return typeof caveat.value === 'string' && invocation.invoker.id === caveat.value;
     case 'device-is':
@@ -132,27 +156,50 @@ function evaluateCaveat(
     case 'requires-encrypted-evidence':
       return invocation.argumentsDigest !== undefined;
     case 'max-uses':
-      return typeof caveat.value === 'number' && Number.isSafeInteger(caveat.value) && caveat.value > 0;
+      return (
+        typeof caveat.value === 'number' && Number.isSafeInteger(caveat.value) && caveat.value > 0
+      );
     case 'max-delegation-depth':
-      return typeof caveat.value === 'number' && Number.isSafeInteger(caveat.value) && grant.delegationDepth <= caveat.value;
+      return (
+        typeof caveat.value === 'number' &&
+        Number.isSafeInteger(caveat.value) &&
+        grant.delegationDepth <= caveat.value
+      );
     case 'network-surface-is':
       return typeof caveat.value === 'string' && authorityContext === caveat.value;
     case 'bridge-is':
-      return typeof caveat.value === 'string' && invocation.resource.kind === 'bridge' && invocation.resource.id === caveat.value;
+      return (
+        typeof caveat.value === 'string' &&
+        invocation.resource.kind === 'bridge' &&
+        invocation.resource.id === caveat.value
+      );
     case 'label-namespace-is':
-      return typeof caveat.value === 'string' && invocation.resource.kind === 'label-namespace' && invocation.resource.id === caveat.value;
+      return (
+        typeof caveat.value === 'string' &&
+        invocation.resource.kind === 'label-namespace' &&
+        invocation.resource.id === caveat.value
+      );
   }
 }
 
-function sameParty(left: CapabilityGrantV1['audience'], right: CapabilityInvocationV1['invoker']): boolean {
+function sameParty(
+  left: CapabilityGrantV1['audience'],
+  right: CapabilityInvocationV1['invoker']
+): boolean {
   return left.kind === right.kind && left.id === right.id;
 }
 
-function sameResource(left: CapabilityGrantV1['resource'], right: CapabilityInvocationV1['resource']): boolean {
+function sameResource(
+  left: CapabilityGrantV1['resource'],
+  right: CapabilityInvocationV1['resource']
+): boolean {
   return left.kind === right.kind && left.id === right.id;
 }
 
-function sameScope(left: CapabilityGrantV1['scope'], right: CapabilityInvocationV1['scope']): boolean {
+function sameScope(
+  left: CapabilityGrantV1['scope'],
+  right: CapabilityInvocationV1['scope']
+): boolean {
   return left.kind === right.kind && left.id === right.id;
 }
 

@@ -5,7 +5,8 @@ body,
   margin: 0;
   background: var(--lfp2p-color-background);
   color: var(--lfp2p-color-label);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .lfp2p-status-card {

@@ -110,16 +110,16 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| `BridgeService.acceptDelivery` runs the engine when configured | ✓ | `admission-gateway.test.ts` |
-| Admission runs AFTER signature verification | ✓ | dedicated test confirming no state advance on tampered envelope |
-| Admission runs BEFORE store mutation | ✓ | reject path test (no record persisted) |
-| Backward compatibility: existing bridge tests pass unmodified | ✓ | 1135 → 1149 only adds new tests |
-| Per-peer rate-limit and reputation buckets are independent | ✓ | dedicated test |
-| peerId fallback to deviceId is correct + documented | ✓ | three peerId tests |
-| Rejection reasons are privacy-safe (no payload contents) | ✓ | dedicated test |
-| Doctrine documents the runtime wiring | ✓ | new section in `bridge-admission-doctrine.md` |
+| Criterion                                                      | Status | Evidence                                                        |
+| -------------------------------------------------------------- | :----: | --------------------------------------------------------------- |
+| `BridgeService.acceptDelivery` runs the engine when configured |   ✓    | `admission-gateway.test.ts`                                     |
+| Admission runs AFTER signature verification                    |   ✓    | dedicated test confirming no state advance on tampered envelope |
+| Admission runs BEFORE store mutation                           |   ✓    | reject path test (no record persisted)                          |
+| Backward compatibility: existing bridge tests pass unmodified  |   ✓    | 1135 → 1149 only adds new tests                                 |
+| Per-peer rate-limit and reputation buckets are independent     |   ✓    | dedicated test                                                  |
+| peerId fallback to deviceId is correct + documented            |   ✓    | three peerId tests                                              |
+| Rejection reasons are privacy-safe (no payload contents)       |   ✓    | dedicated test                                                  |
+| Doctrine documents the runtime wiring                          |   ✓    | new section in `bridge-admission-doctrine.md`                   |
 
 ## Deferred work
 

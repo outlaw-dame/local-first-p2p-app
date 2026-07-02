@@ -164,9 +164,10 @@ export class JsonFileAuthAuditStore implements AuthAuditStore {
     const allLines = text.split('\n');
     // Take only the last maxLines non-empty lines to cap memory on load.
     const nonEmpty = allLines.filter((l) => l.trim().length > 0);
-    const relevant = nonEmpty.length > this.#maxLines
-      ? nonEmpty.slice(nonEmpty.length - this.#maxLines)
-      : nonEmpty;
+    const relevant =
+      nonEmpty.length > this.#maxLines
+        ? nonEmpty.slice(nonEmpty.length - this.#maxLines)
+        : nonEmpty;
     const results: AuthAuditRecord[] = [];
     for (const line of relevant) {
       try {

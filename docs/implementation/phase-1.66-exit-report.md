@@ -18,15 +18,15 @@ Phase 1.66 closes the first of the two doctrinal gaps identified after
 Phase 1.65:
 
 > **Gap A — Labeling / Tagger agent lifecycle events.** The Phase 1.61
-> protocol core shipped the *shapes* for labels, labelers, and
+> protocol core shipped the _shapes_ for labels, labelers, and
 > annotations, but not the lifecycle events that turn those shapes into
 > a runtime composable moderation system. The `Event family
-> reservations` section of `docs/protocol/trust-safety-event-policy.md`
+reservations` section of `docs/protocol/trust-safety-event-policy.md`
 > lists six events for this family; none had been shipped.
 
 The phase also folds in an explicit product requirement raised in this
-conversation: the labeler architecture must support *many labelers and
-many types of labelers*, emulating ATProto's composable / stackable
+conversation: the labeler architecture must support _many labelers and
+many types of labelers_, emulating ATProto's composable / stackable
 moderation while structurally improving the parts ATProto has had
 practical problems with (public subscription lists, weak per-namespace
 trust, all-or-nothing per-labeler config, no kind taxonomy, no
@@ -63,15 +63,15 @@ pass unchanged (verified: the prior 829-test suite still passes).
 
 Pinned `lfp2p.labeler-event.v1`:
 
-| Event | Payload |
-|---|---|
-| `safety.labeler.profile.published` | embeds `SafetyLabelerProfile`; re-publish supersedes prior under same `labelerId` |
-| `safety.label-definition.published` | embeds `SafetyLabelDefinition`; append-only by `(namespace, labelKey)` |
-| `safety.labeler.subscribed` | embeds `SafetyLabelerSubscription`; envelope scope must be `device-local` or `account-local` (Phase 1.62 doctrine) |
-| `safety.labeler.unsubscribed` | references `subscriptionId` + `unsubscribedAt` + optional `reasonCode`; terminal |
-| `safety.label.applied` | embeds `SafetyLabel`; rejected if `labelId` already exists |
-| `safety.label.revoked` | references `labelId` + `revokedBy` authority + `revokedAt` + `reasonCode`; **rejected if the revoker's `actorId` does not match the original label's `issuer.actorId`** |
-| `safety.annotation.created` | embeds `SafetyAnnotation`; append-only by `annotationId` (silent no-op on duplicate) |
+| Event                               | Payload                                                                                                                                                                 |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `safety.labeler.profile.published`  | embeds `SafetyLabelerProfile`; re-publish supersedes prior under same `labelerId`                                                                                       |
+| `safety.label-definition.published` | embeds `SafetyLabelDefinition`; append-only by `(namespace, labelKey)`                                                                                                  |
+| `safety.labeler.subscribed`         | embeds `SafetyLabelerSubscription`; envelope scope must be `device-local` or `account-local` (Phase 1.62 doctrine)                                                      |
+| `safety.labeler.unsubscribed`       | references `subscriptionId` + `unsubscribedAt` + optional `reasonCode`; terminal                                                                                        |
+| `safety.label.applied`              | embeds `SafetyLabel`; rejected if `labelId` already exists                                                                                                              |
+| `safety.label.revoked`              | references `labelId` + `revokedBy` authority + `revokedAt` + `reasonCode`; **rejected if the revoker's `actorId` does not match the original label's `issuer.actorId`** |
+| `safety.annotation.created`         | embeds `SafetyAnnotation`; append-only by `annotationId` (silent no-op on duplicate)                                                                                    |
 
 The policy doc listed six event kinds for this family; I added a
 seventh (`safety.label-definition.published`) because labels reference
@@ -87,6 +87,7 @@ Frozen snapshot with `labelerProfilesById`, `labelDefinitionsByKey`,
 idempotent / replay-equivalent.
 
 State machine:
+
 - Profile: re-publish supersedes (intentional, not a violation).
 - Definition: append-only by `(namespace, labelKey)`; re-registration
   under existing key rejected.
@@ -113,6 +114,7 @@ ResolvedLabel {
 ```
 
 Filtering rules:
+
 1. Revoked labels excluded.
 2. Labels from labelers the subscriber doesn't subscribe to excluded.
 3. Labels in namespaces the subscription doesn't trust excluded.
@@ -131,14 +133,14 @@ layers may compose differently.
 
 6 valid + 3 invalid under `packages/trust-safety/fixtures/labelers/`:
 
-| Valid | Invalid |
-|---|---|
-| `profile-published-automated.json` | `aggregator-without-sources.json` |
-| `profile-published-aggregator.json` | `aggregator-self-loop.json` |
-| `subscribed.json` | `non-aggregator-with-aggregatorOf.json` |
-| `label-applied.json` | |
-| `label-revoked.json` | |
-| `annotation-created.json` | |
+| Valid                               | Invalid                                 |
+| ----------------------------------- | --------------------------------------- |
+| `profile-published-automated.json`  | `aggregator-without-sources.json`       |
+| `profile-published-aggregator.json` | `aggregator-self-loop.json`             |
+| `subscribed.json`                   | `non-aggregator-with-aggregatorOf.json` |
+| `label-applied.json`                |                                         |
+| `label-revoked.json`                |                                         |
+| `annotation-created.json`           |                                         |
 
 ### Tests
 
@@ -161,6 +163,7 @@ layers may compose differently.
 ### New doctrine document
 
 `docs/protocol/labeler-runtime-doctrine.md` with:
+
 - ATProto-to-our-architecture mapping table.
 - 12 explicit improvements over ATProto.
 - State machine reference.
@@ -177,29 +180,29 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| All six Phase 1.61 reserved labeler/tagger event kinds shipped | ✓ | Plus 7th (`safety.label-definition.published`) folded in for runtime completeness |
-| Subscriptions remain `device-local` / `account-local` private | ✓ | `SafetyLabelerSubscription.scope` enum was already restricted in Phase 1.61; no new public-scope leakage |
-| Composable / stackable resolution shipped | ✓ | `effectiveLabelsForSubject` returns full stack per (labelKey × issuer) |
-| Many labelers supported | ✓ | No upper bound on the number of subscribed labelers; per-labeler state independent |
-| Many *types* of labelers supported | ✓ | 7-entry `LabelerKind` enum + `community-aggregator` first-class |
-| Cross-labeler revoke rejected | ✓ | Structural enforcement at apply time |
+| Criterion                                                      | Status | Evidence                                                                                                 |
+| -------------------------------------------------------------- | -----: | -------------------------------------------------------------------------------------------------------- |
+| All six Phase 1.61 reserved labeler/tagger event kinds shipped |      ✓ | Plus 7th (`safety.label-definition.published`) folded in for runtime completeness                        |
+| Subscriptions remain `device-local` / `account-local` private  |      ✓ | `SafetyLabelerSubscription.scope` enum was already restricted in Phase 1.61; no new public-scope leakage |
+| Composable / stackable resolution shipped                      |      ✓ | `effectiveLabelsForSubject` returns full stack per (labelKey × issuer)                                   |
+| Many labelers supported                                        |      ✓ | No upper bound on the number of subscribed labelers; per-labeler state independent                       |
+| Many _types_ of labelers supported                             |      ✓ | 7-entry `LabelerKind` enum + `community-aggregator` first-class                                          |
+| Cross-labeler revoke rejected                                  |      ✓ | Structural enforcement at apply time                                                                     |
 
 ## Security/privacy checks
 
 - [x] No private plaintext in logs — package emits no logs.
 - [x] Remote/untrusted input validation — every event has shape
-  validation; unknown kinds, unknown versions, malformed labels,
-  aggregator inconsistencies all fail closed.
+      validation; unknown kinds, unknown versions, malformed labels,
+      aggregator inconsistencies all fail closed.
 - [x] Malicious/invalid input tests exist — cross-labeler revoke,
-  re-subscribe, aggregator self-loop, aggregator-without-sources,
-  non-aggregator-with-sources.
+      re-subscribe, aggregator self-loop, aggregator-without-sources,
+      non-aggregator-with-sources.
 - [x] Revocation/permission behavior — revocation gated by
-  `actorId` match; no impersonation path.
+      `actorId` match; no impersonation path.
 - [x] Derived state rebuild/delete behavior — `seedLabelersState` is
-  the canonical rebuild; idempotent on `eventId`; annotations
-  idempotent on `annotationId`.
+      the canonical rebuild; idempotent on `eventId`; annotations
+      idempotent on `annotationId`.
 
 ## Deviations introduced or resolved
 
@@ -212,7 +215,7 @@ pnpm build       # clean
   Alternative interpretation: "treat as update". Chose rejection
   because the policy doc treats subscriptions as auditable state and
   an "update" obscures intent. New subscription = new id.
-- A *labeler authority's* `authorityId` is treated as the *labelerId*
+- A _labeler authority's_ `authorityId` is treated as the _labelerId_
   for purposes of cross-referencing subscriptions and labels. This
   matches the policy doc's convention that a labeler runs as an
   identity-controlled authority. The trust-policy engine (ADR-006) may

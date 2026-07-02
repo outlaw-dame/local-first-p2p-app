@@ -128,12 +128,8 @@ describe('applyAdmissionBand', () => {
   });
 
   it('throws TS_INVALID_NUMBER on a bad baseline (programming bug; fail-closed)', () => {
-    expect(() => applyAdmissionBand({ ...baseline, capacity: -1 }, 0.5)).toThrow(
-      TrustSafetyError
-    );
-    expect(() => applyAdmissionBand({ ...baseline, capacity: NaN }, 0.5)).toThrow(
-      TrustSafetyError
-    );
+    expect(() => applyAdmissionBand({ ...baseline, capacity: -1 }, 0.5)).toThrow(TrustSafetyError);
+    expect(() => applyAdmissionBand({ ...baseline, capacity: NaN }, 0.5)).toThrow(TrustSafetyError);
     expect(() => applyAdmissionBand({ ...baseline, refillPerSecond: 0 }, 0.5)).toThrow(
       TrustSafetyError
     );
@@ -202,8 +198,26 @@ describe('end-to-end — band assignment composes with computeReputation', () =>
     const state = computeReputation({
       observations: [
         // alice (seed) → bob → carol → dave (a chain that decays score with distance)
-        { observer: 'actor:alice', subject: 'actor:bob', observationKind: 'outbox.useful', satCount: 5, unsatCount: 0, windowStart: '2026-05-25T00:00:00Z', windowEnd: '2026-06-01T00:00:00Z', createdAt: '2026-06-01T00:00:00Z' },
-        { observer: 'actor:bob', subject: 'actor:carol', observationKind: 'outbox.useful', satCount: 5, unsatCount: 0, windowStart: '2026-05-25T00:00:00Z', windowEnd: '2026-06-01T00:00:00Z', createdAt: '2026-06-01T00:00:00Z' }
+        {
+          observer: 'actor:alice',
+          subject: 'actor:bob',
+          observationKind: 'outbox.useful',
+          satCount: 5,
+          unsatCount: 0,
+          windowStart: '2026-05-25T00:00:00Z',
+          windowEnd: '2026-06-01T00:00:00Z',
+          createdAt: '2026-06-01T00:00:00Z'
+        },
+        {
+          observer: 'actor:bob',
+          subject: 'actor:carol',
+          observationKind: 'outbox.useful',
+          satCount: 5,
+          unsatCount: 0,
+          windowStart: '2026-05-25T00:00:00Z',
+          windowEnd: '2026-06-01T00:00:00Z',
+          createdAt: '2026-06-01T00:00:00Z'
+        }
       ],
       attestations: [],
       revocations: [],

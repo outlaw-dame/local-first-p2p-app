@@ -22,19 +22,13 @@
  *    contact card is a `sha-256:<base64url>` ref, never the bytes.
  */
 import { sha256Base64Url, type SigningKeypair } from '@lfp2p/crypto';
-import {
-  applyIdentityControlEvent,
-  createEmptyIdentityControlState
-} from '@lfp2p/identity';
+import { applyIdentityControlEvent, createEmptyIdentityControlState } from '@lfp2p/identity';
 import {
   type IdentityControlProjectionUpdate,
   type StoredIdentityControlProjection,
   type createLocalFirstStore
 } from '@lfp2p/local-store';
-import {
-  createUnsignedEvent,
-  type SignedEventEnvelope
-} from '@lfp2p/protocol';
+import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
 import { signEventEnvelope } from '@lfp2p/crypto';
 
 type Store = ReturnType<typeof createLocalFirstStore>;
@@ -64,9 +58,7 @@ export const identityProjectionUpdate: IdentityControlProjectionUpdate = (
           ...(current.contactCardPublication === undefined
             ? {}
             : { contactCardPublication: current.contactCardPublication }),
-          ...(current.lastEventId === undefined
-            ? {}
-            : { lastEventId: current.lastEventId })
+          ...(current.lastEventId === undefined ? {} : { lastEventId: current.lastEventId })
         };
   const next = applyIdentityControlEvent(state, event);
   const stored: StoredIdentityControlProjection = {

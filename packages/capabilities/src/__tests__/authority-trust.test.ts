@@ -362,9 +362,9 @@ describe('composeAuthorityView — input guards', () => {
   });
 
   it('throws on a bad timestamp', () => {
-    expect(() =>
-      composeAuthorityView({ authority: AUTHORITY, now: 'not-a-time' })
-    ).toThrow(CapabilityError);
+    expect(() => composeAuthorityView({ authority: AUTHORITY, now: 'not-a-time' })).toThrow(
+      CapabilityError
+    );
   });
 });
 
@@ -416,7 +416,11 @@ describe('regression — gemini #80: prototype-pollution + array-input defense',
         authority: AUTHORITY,
         now: NOW,
         // @ts-expect-error: testing runtime guard
-        resolveIdentityPosture: () => ({ source: 'identity-control', status: 'active', constructor: 'evil' })
+        resolveIdentityPosture: () => ({
+          source: 'identity-control',
+          status: 'active',
+          constructor: 'evil'
+        })
       })
     ).toThrow(CapabilityError);
   });

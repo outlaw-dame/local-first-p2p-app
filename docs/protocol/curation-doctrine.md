@@ -40,10 +40,10 @@
 
 Curation surfaces split into two classes:
 
-| Class | Surfaces | Audience scope |
-|---|---|---|
-| Public | `public-feed`, `search`, `recommendation` | The broader network |
-| Local | `local-feed`, `community-feed`, `notification` | One user, one community, or one device |
+| Class  | Surfaces                                       | Audience scope                         |
+| ------ | ---------------------------------------------- | -------------------------------------- |
+| Public | `public-feed`, `search`, `recommendation`      | The broader network                    |
+| Local  | `local-feed`, `community-feed`, `notification` | One user, one community, or one device |
 
 **Public curation surfaces MUST NOT ingest:**
 

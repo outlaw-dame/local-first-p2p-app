@@ -70,11 +70,7 @@ describe('replay cache — pruning', () => {
 
 describe('replay cache — config validation', () => {
   it('rejects malformed config', () => {
-    expect(() =>
-      validateReplayCacheConfig({ ttlMs: 0, maxEntries: 16 })
-    ).toThrow();
-    expect(() =>
-      validateReplayCacheConfig({ ttlMs: 1_000, maxEntries: 1.5 })
-    ).toThrow();
+    expect(() => validateReplayCacheConfig({ ttlMs: 0, maxEntries: 16 })).toThrow();
+    expect(() => validateReplayCacheConfig({ ttlMs: 1_000, maxEntries: 1.5 })).toThrow();
   });
 });

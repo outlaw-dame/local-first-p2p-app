@@ -7,7 +7,9 @@ import {
   seedLocalControlState
 } from '../index.js';
 
-function ev(partial: Partial<LocalControlEvent> & { kind: LocalControlEvent['kind'] }): LocalControlEvent {
+function ev(
+  partial: Partial<LocalControlEvent> & { kind: LocalControlEvent['kind'] }
+): LocalControlEvent {
   return {
     version: 'lfp2p.local-control-event.v1' as const,
     eventId: 'evt_' + Math.random().toString(36).slice(2, 10),
@@ -80,7 +82,12 @@ describe('decideVisibility — block / mute / hide', () => {
 describe('decideVisibility — keyword matching', () => {
   it('substring matches anywhere', () => {
     const s = seedLocalControlState([
-      ev({ eventId: 'e1', kind: 'safety.keyword.muted', keyword: 'spoiler', matchKind: 'substring' })
+      ev({
+        eventId: 'e1',
+        kind: 'safety.keyword.muted',
+        keyword: 'spoiler',
+        matchKind: 'substring'
+      })
     ]);
     expect(decideVisibility(s, { text: 'a big SPOILER inside' })).toBe('collapse');
     expect(decideVisibility(s, { text: 'spoileralert today' })).toBe('collapse');
@@ -97,7 +104,12 @@ describe('decideVisibility — keyword matching', () => {
 
   it('empty text never matches', () => {
     const s = seedLocalControlState([
-      ev({ eventId: 'e1', kind: 'safety.keyword.muted', keyword: 'spoiler', matchKind: 'substring' })
+      ev({
+        eventId: 'e1',
+        kind: 'safety.keyword.muted',
+        keyword: 'spoiler',
+        matchKind: 'substring'
+      })
     ]);
     expect(decideVisibility(s, { text: '' })).toBe('show');
     expect(decideVisibility(s, {})).toBe('show');

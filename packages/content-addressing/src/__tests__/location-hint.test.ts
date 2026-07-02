@@ -41,9 +41,9 @@ describe('validateStorageLocationHint', () => {
   });
 
   it('rejects an unknown kind', () => {
-    expect(() =>
-      validateStorageLocationHint({ kind: 'unknown-kind', uri: 'https://x/' })
-    ).toThrow(/CA_INVALID_LOCATION_KIND/);
+    expect(() => validateStorageLocationHint({ kind: 'unknown-kind', uri: 'https://x/' })).toThrow(
+      /CA_INVALID_LOCATION_KIND/
+    );
   });
 
   it('rejects javascript: scheme via bridge-store', () => {

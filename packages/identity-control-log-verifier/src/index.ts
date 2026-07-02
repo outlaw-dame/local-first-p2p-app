@@ -4,8 +4,12 @@ import { seedIdentityControlProjection } from '@lfp2p/identity';
 import { canonicalizeJson, type SignedEventEnvelope } from '@lfp2p/protocol';
 
 export type CapabilityProofCryptoVerdict = 'verified' | 'invalid';
-export type CapabilityProofVerifier = (record: CapabilityProofRecord) => CapabilityProofCryptoVerdict | undefined;
-export type IdentityControlLogResolver = (proofId: string) => readonly SignedEventEnvelope[] | undefined;
+export type CapabilityProofVerifier = (
+  record: CapabilityProofRecord
+) => CapabilityProofCryptoVerdict | undefined;
+export type IdentityControlLogResolver = (
+  proofId: string
+) => readonly SignedEventEnvelope[] | undefined;
 
 type IdentityControlProjection = ReturnType<typeof seedIdentityControlProjection>;
 
@@ -30,12 +34,21 @@ export type CreateIdentityControlLogVerifierOptions = Readonly<{
 
 const SHA256_PREFIX = 'sha-256:';
 
-export function createIdentityControlLogVerifier(options: CreateIdentityControlLogVerifierOptions): CapabilityProofVerifier {
-  if (options === null || typeof options !== 'object') throw new TypeError('createIdentityControlLogVerifier: options must be an object');
-  if (typeof options.resolveIdentityControlLog !== 'function') throw new TypeError('createIdentityControlLogVerifier: resolveIdentityControlLog must be a function');
-  if (options.now !== undefined && typeof options.now !== 'function') throw new TypeError('createIdentityControlLogVerifier: now must be a function');
-  if (options.issuerMatches !== undefined && typeof options.issuerMatches !== 'function') throw new TypeError('createIdentityControlLogVerifier: issuerMatches must be a function');
-  if (options.subjectMatches !== undefined && typeof options.subjectMatches !== 'function') throw new TypeError('createIdentityControlLogVerifier: subjectMatches must be a function');
+export function createIdentityControlLogVerifier(
+  options: CreateIdentityControlLogVerifierOptions
+): CapabilityProofVerifier {
+  if (options === null || typeof options !== 'object')
+    throw new TypeError('createIdentityControlLogVerifier: options must be an object');
+  if (typeof options.resolveIdentityControlLog !== 'function')
+    throw new TypeError(
+      'createIdentityControlLogVerifier: resolveIdentityControlLog must be a function'
+    );
+  if (options.now !== undefined && typeof options.now !== 'function')
+    throw new TypeError('createIdentityControlLogVerifier: now must be a function');
+  if (options.issuerMatches !== undefined && typeof options.issuerMatches !== 'function')
+    throw new TypeError('createIdentityControlLogVerifier: issuerMatches must be a function');
+  if (options.subjectMatches !== undefined && typeof options.subjectMatches !== 'function')
+    throw new TypeError('createIdentityControlLogVerifier: subjectMatches must be a function');
 
   const clock = options.now ?? (() => Date.now());
   const issuerMatches = options.issuerMatches ?? defaultIssuerMatches;
@@ -81,23 +94,38 @@ export function createIdentityControlLogVerifier(options: CreateIdentityControlL
 }
 
 export function identityControlLogProofDigest(event: SignedEventEnvelope): string {
-  if (event === null || typeof event !== 'object') throw new TypeError('identityControlLogProofDigest: event must be a SignedEventEnvelope');
+  if (event === null || typeof event !== 'object')
+    throw new TypeError('identityControlLogProofDigest: event must be a SignedEventEnvelope');
   const bytes = new TextEncoder().encode(canonicalizeJson(event));
   return SHA256_PREFIX + toBase64Url(sha256(bytes));
 }
 
 function hasRequiredRecordFields(record: CapabilityProofRecord): boolean {
-  return typeof record.proofId === 'string' && record.proofId.length > 0 &&
-    record.issuer !== null && typeof record.issuer === 'object' && typeof record.issuer.id === 'string' && record.issuer.id.length > 0 &&
-    record.subject !== null && typeof record.subject === 'object' && typeof record.subject.id === 'string' && record.subject.id.length > 0 &&
-    typeof record.digest === 'string' && record.digest.length > 0;
+  return (
+    typeof record.proofId === 'string' &&
+    record.proofId.length > 0 &&
+    record.issuer !== null &&
+    typeof record.issuer === 'object' &&
+    typeof record.issuer.id === 'string' &&
+    record.issuer.id.length > 0 &&
+    record.subject !== null &&
+    typeof record.subject === 'object' &&
+    typeof record.subject.id === 'string' &&
+    record.subject.id.length > 0 &&
+    typeof record.digest === 'string' &&
+    record.digest.length > 0
+  );
 }
 
-function findProofEvent(events: readonly SignedEventEnvelope[], proofId: string): SignedEventEnvelope | undefined {
+function findProofEvent(
+  events: readonly SignedEventEnvelope[],
+  proofId: string
+): SignedEventEnvelope | undefined {
   let found: SignedEventEnvelope | undefined;
   for (const event of events) {
     if (event.eventId !== proofId) continue;
-    if (found !== undefined && canonicalizeJson(found) !== canonicalizeJson(event)) return undefined;
+    if (found !== undefined && canonicalizeJson(found) !== canonicalizeJson(event))
+      return undefined;
     found = event;
   }
   return found;
@@ -107,16 +135,23 @@ function digestMatches(digest: string, event: SignedEventEnvelope): boolean {
   return digest.startsWith(SHA256_PREFIX) && digest === identityControlLogProofDigest(event);
 }
 
-function projectionStillGrants(projection: IdentityControlProjection, proofEvent: SignedEventEnvelope, nowMs: number): boolean {
+function projectionStillGrants(
+  projection: IdentityControlProjection,
+  proofEvent: SignedEventEnvelope,
+  nowMs: number
+): boolean {
   const payload = proofEvent.payload as Record<string, unknown>;
   const capabilityId = typeof payload.capabilityId === 'string' ? payload.capabilityId : undefined;
-  const delegateDeviceId = typeof payload.delegateDeviceId === 'string' ? payload.delegateDeviceId : undefined;
+  const delegateDeviceId =
+    typeof payload.delegateDeviceId === 'string' ? payload.delegateDeviceId : undefined;
   const expiresAt = typeof payload.expiresAt === 'string' ? payload.expiresAt : undefined;
-  if (capabilityId === undefined || delegateDeviceId === undefined || expiresAt === undefined) return false;
+  if (capabilityId === undefined || delegateDeviceId === undefined || expiresAt === undefined)
+    return false;
 
   const capability = projection.capabilities[capabilityId];
   if (capability === undefined || capability.status !== 'granted') return false;
-  if (capability.delegateDeviceId !== delegateDeviceId || capability.expiresAt !== expiresAt) return false;
+  if (capability.delegateDeviceId !== delegateDeviceId || capability.expiresAt !== expiresAt)
+    return false;
 
   const expiresAtMs = Date.parse(expiresAt);
   if (!Number.isFinite(expiresAtMs) || nowMs >= expiresAtMs) return false;
@@ -125,15 +160,29 @@ function projectionStillGrants(projection: IdentityControlProjection, proofEvent
   return device !== undefined && device.status === 'active';
 }
 
-function defaultIssuerMatches(issuer: CapabilityPartyRef, projection: IdentityControlProjection): boolean {
+function defaultIssuerMatches(
+  issuer: CapabilityPartyRef,
+  projection: IdentityControlProjection
+): boolean {
   if (issuer.kind !== 'controller') return false;
   if (projection.controllerPublicKey === undefined) return false;
-  return issuer.id === projection.controllerPublicKey || issuer.publicKeyRef === projection.controllerPublicKey;
+  return (
+    issuer.id === projection.controllerPublicKey ||
+    issuer.publicKeyRef === projection.controllerPublicKey
+  );
 }
 
-function defaultSubjectMatches(subject: CapabilityPartyRef, _projection: IdentityControlProjection, proofEvent: SignedEventEnvelope): boolean {
+function defaultSubjectMatches(
+  subject: CapabilityPartyRef,
+  _projection: IdentityControlProjection,
+  proofEvent: SignedEventEnvelope
+): boolean {
   const delegateDeviceId = (proofEvent.payload as Record<string, unknown>).delegateDeviceId;
-  return subject.kind === 'device' && typeof delegateDeviceId === 'string' && subject.id === delegateDeviceId;
+  return (
+    subject.kind === 'device' &&
+    typeof delegateDeviceId === 'string' &&
+    subject.id === delegateDeviceId
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -198,9 +247,12 @@ export function deriveProofFromIdentityCapabilityGranted(
   const delegateDeviceId = p.delegateDeviceId;
   const expiresAt = p.expiresAt;
   if (
-    typeof p.capabilityId !== 'string' || p.capabilityId.length === 0 ||
-    typeof delegateDeviceId !== 'string' || delegateDeviceId.length === 0 ||
-    typeof expiresAt !== 'string' || expiresAt.length === 0
+    typeof p.capabilityId !== 'string' ||
+    p.capabilityId.length === 0 ||
+    typeof delegateDeviceId !== 'string' ||
+    delegateDeviceId.length === 0 ||
+    typeof expiresAt !== 'string' ||
+    expiresAt.length === 0
   ) {
     return undefined;
   }
@@ -250,8 +302,14 @@ export async function registerIdentityCapabilityProof(
   store: CapabilityProofRecordStore,
   event: SignedEventEnvelope
 ): Promise<boolean> {
-  if (store === null || typeof store !== 'object' || typeof store.putCapabilityProofRecord !== 'function') {
-    throw new TypeError('registerIdentityCapabilityProof: store must expose putCapabilityProofRecord');
+  if (
+    store === null ||
+    typeof store !== 'object' ||
+    typeof store.putCapabilityProofRecord !== 'function'
+  ) {
+    throw new TypeError(
+      'registerIdentityCapabilityProof: store must expose putCapabilityProofRecord'
+    );
   }
   const record = deriveProofFromIdentityCapabilityGranted(event);
   if (record === undefined) return false;

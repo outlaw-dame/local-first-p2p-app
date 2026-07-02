@@ -178,29 +178,29 @@ List boundaries crossed by data or control:
 
 ## Threats
 
-| Threat | Impact | Existing mitigation | Missing mitigation | Test required |
-|---|---|---|---|---|
-| Forged label/report/decision | False moderation or curation state | Signed event foundation exists | Authority/capability validation, fixtures | Reject invalid signature/authority |
-| Revoked moderator/bot continues acting | Unauthorized enforcement | Identity-control ADR exists | Projection checks for revocation before decisions | Revoked authority rejected |
-| Label spam | Feed/search suppression or warning fatigue | None specific | Labeler trust policy, rate limits, local subscriptions | Unknown labeler labels ignored/downweighted |
-| Report brigading | False enforcement and queue floods | None specific | Report rate limits, trust weighting, duplicate detection, triage queues | Report flood does not auto-enforce |
-| Malicious Tagger agent | Targeted suppression or false tags | None specific | Advisory-by-default labels, capability checks for enforcement | Tagger output alone does not hide content |
-| Bot over-enforcement | Automated false positives cause harm | None specific | Capability-bound automation, human review for high-impact decisions | Bot cannot issue high-impact action without capability |
-| Admin ambient authority | Owner/admin can do too much or leak private data | None specific | Role-to-capability mapping, least-authority grants | Admin missing capability cannot access evidence |
-| Bridge confused deputy | Bridge treats local policy as global deletion | Bridge-safe scopes exist | Admission decision scope rules | Bridge rejection not global deletion |
-| Private report body leakage | Abuse evidence exposed to bridges/public | Private payload ADR exists | Encrypted report/evidence refs and log redaction | Report plaintext cannot enter public event |
-| Private mute/block graph leakage | User safety preferences exposed | None specific | Local/self scope default, redacted sync | Mutes/blocks not sent to public/bridge analytics |
-| Public index ingests private content | Severe privacy breach | None specific | Public-safe ingestion gates, scope validation | `dm`/`group` content rejected by public index fixtures |
-| Curation masquerades as moderation | Hidden suppression without transparency | None specific | Curation explanation records, action separation | Downrank != hide/remove |
-| Moderation masquerades as global deletion | Users misled about decentralized state | None specific | Scope labels, UI text, policy docs | Community removal not global deletion |
-| Policy-list poisoning | Bridges/communities subscribe to malicious lists | None specific | Signed policy lists, issuer trust, versioning, revocation | Untrusted list ignored |
-| Malicious media label | Safe media quarantined or unsafe media allowed | None specific | Trusted scanner/labeler policy, evidence refs | Scanner scope enforced |
-| Resource exhaustion through reports | Queue/storage overload | Some bridge hardening | Rate limits, quotas, idempotency, duplicate collapse | Report flood bounded |
-| Resource exhaustion through labels | Local DB/index bloat | None specific | label limits, trusted namespaces, pruning | Label flood bounded |
-| Metadata leakage through object refs | Private content correlated by digest/CID | Content ADR planned | Privacy-aware dedupe and encrypted block rules | Private/public dedupe isolation |
-| Appeal suppression | Users cannot challenge decisions | None specific | appealable flag, appeal routing, audit state | Appealable decision can be appealed |
-| Malformed safety object | Parser crash or unsafe fallback | Protocol validation helpers exist | T&S validators and fixtures | Malformed object rejected predictably |
-| Unsafe logging | Private evidence/preferences in logs | Some stated quality bar | redacted audit/log policy | Log tests assert no private plaintext |
+| Threat                                    | Impact                                           | Existing mitigation               | Missing mitigation                                                      | Test required                                          |
+| ----------------------------------------- | ------------------------------------------------ | --------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------ |
+| Forged label/report/decision              | False moderation or curation state               | Signed event foundation exists    | Authority/capability validation, fixtures                               | Reject invalid signature/authority                     |
+| Revoked moderator/bot continues acting    | Unauthorized enforcement                         | Identity-control ADR exists       | Projection checks for revocation before decisions                       | Revoked authority rejected                             |
+| Label spam                                | Feed/search suppression or warning fatigue       | None specific                     | Labeler trust policy, rate limits, local subscriptions                  | Unknown labeler labels ignored/downweighted            |
+| Report brigading                          | False enforcement and queue floods               | None specific                     | Report rate limits, trust weighting, duplicate detection, triage queues | Report flood does not auto-enforce                     |
+| Malicious Tagger agent                    | Targeted suppression or false tags               | None specific                     | Advisory-by-default labels, capability checks for enforcement           | Tagger output alone does not hide content              |
+| Bot over-enforcement                      | Automated false positives cause harm             | None specific                     | Capability-bound automation, human review for high-impact decisions     | Bot cannot issue high-impact action without capability |
+| Admin ambient authority                   | Owner/admin can do too much or leak private data | None specific                     | Role-to-capability mapping, least-authority grants                      | Admin missing capability cannot access evidence        |
+| Bridge confused deputy                    | Bridge treats local policy as global deletion    | Bridge-safe scopes exist          | Admission decision scope rules                                          | Bridge rejection not global deletion                   |
+| Private report body leakage               | Abuse evidence exposed to bridges/public         | Private payload ADR exists        | Encrypted report/evidence refs and log redaction                        | Report plaintext cannot enter public event             |
+| Private mute/block graph leakage          | User safety preferences exposed                  | None specific                     | Local/self scope default, redacted sync                                 | Mutes/blocks not sent to public/bridge analytics       |
+| Public index ingests private content      | Severe privacy breach                            | None specific                     | Public-safe ingestion gates, scope validation                           | `dm`/`group` content rejected by public index fixtures |
+| Curation masquerades as moderation        | Hidden suppression without transparency          | None specific                     | Curation explanation records, action separation                         | Downrank != hide/remove                                |
+| Moderation masquerades as global deletion | Users misled about decentralized state           | None specific                     | Scope labels, UI text, policy docs                                      | Community removal not global deletion                  |
+| Policy-list poisoning                     | Bridges/communities subscribe to malicious lists | None specific                     | Signed policy lists, issuer trust, versioning, revocation               | Untrusted list ignored                                 |
+| Malicious media label                     | Safe media quarantined or unsafe media allowed   | None specific                     | Trusted scanner/labeler policy, evidence refs                           | Scanner scope enforced                                 |
+| Resource exhaustion through reports       | Queue/storage overload                           | Some bridge hardening             | Rate limits, quotas, idempotency, duplicate collapse                    | Report flood bounded                                   |
+| Resource exhaustion through labels        | Local DB/index bloat                             | None specific                     | label limits, trusted namespaces, pruning                               | Label flood bounded                                    |
+| Metadata leakage through object refs      | Private content correlated by digest/CID         | Content ADR planned               | Privacy-aware dedupe and encrypted block rules                          | Private/public dedupe isolation                        |
+| Appeal suppression                        | Users cannot challenge decisions                 | None specific                     | appealable flag, appeal routing, audit state                            | Appealable decision can be appealed                    |
+| Malformed safety object                   | Parser crash or unsafe fallback                  | Protocol validation helpers exist | T&S validators and fixtures                                             | Malformed object rejected predictably                  |
+| Unsafe logging                            | Private evidence/preferences in logs             | Some stated quality bar           | redacted audit/log policy                                               | Log tests assert no private plaintext                  |
 
 ## Logging and telemetry rules
 
@@ -344,7 +344,7 @@ Phase 1.66 labeler runtime, and the Phase 1.67 moderation runtime.
   Mitigation: `safety.label.revoked` rejects revocations whose
   `revokedBy.actorId` does not match the original label's
   `issuer.actorId`. Cross-labeler disagreement is expressed by
-  *issuing an opposing label*, never by revocation.
+  _issuing an opposing label_, never by revocation.
 - **Aggregator trust-loop**: an aggregator declares itself as a
   source.
   Mitigation: validator rejects `aggregatorOf` containing the
@@ -407,7 +407,7 @@ the mitigation surfaces immediately in the suite.
   (Phase 1.8.2). Sybils disconnected from the user's contact
   graph score ≈ zero regardless of internal endorsement volume.
   Pinned by `disconnected sybil cluster scores ~zero regardless of
-  internal endorsements`
+internal endorsements`
   (`reputation-graph-computer.test.ts`).
 
 - **Weakly-connected sybil with foothold**: an attacker manages a
@@ -418,7 +418,7 @@ the mitigation surfaces immediately in the suite.
   only) and gets multiplied by `pathQualityDamping`; the cluster's
   internal endorsements are also non-attested and dampened.
   Pinned by `sybil cluster connected via a single weak observation
-  gets a much lower score than the connected real subject`
+gets a much lower score than the connected real subject`
   (`reputation-graph-computer.test.ts`).
 
 - **Feedback clique (closed mutual-endorsement ring)**: N accounts
@@ -438,7 +438,7 @@ the mitigation surfaces immediately in the suite.
   by `pathQualityDamping` (default 0.7) BEFORE row normalization;
   multi-edge rows favor attested edges over observation-only ones.
   Pinned by `within an observer row with both attested + observation-only
-  edges, attested gets more weight`
+edges, attested gets more weight`
   (`reputation-graph-sybil-hardening.test.ts`).
 
 - **Negative-valence shield**: an attacker tries to mask a path
@@ -448,7 +448,7 @@ the mitigation surfaces immediately in the suite.
   damping shield. Negative + dispute attestations do NOT shield
   an edge from path damping.
   Pinned by `negative-valence attestations do NOT shield
-  non-attestation damping`
+non-attestation damping`
   (`reputation-graph-sybil-hardening.test.ts`).
 
 - **Trust laundering via short-lived hot accounts**: an attacker
@@ -481,7 +481,7 @@ the mitigation surfaces immediately in the suite.
   real out-of-band human relationship, not the protocol-level
   flag.
   Pinned by `contact.verified-in-person attestation outweighs
-  community.contributor of same strength` +
+community.contributor of same strength` +
   `FINGERPRINT_VERIFIED_CONTEXT_TAGS includes the documented set + is frozen`
   (`reputation-graph-sybil-hardening.test.ts`).
 
@@ -494,7 +494,7 @@ the mitigation surfaces immediately in the suite.
   aggregator's opinion. Aggregator scores are also clamped to
   `[0, 1]` at the runtime boundary as defense-in-depth.
   Pinned by `a subject scored by the local computer takes the
-  local score regardless of aggregator opinion` +
+local score regardless of aggregator opinion` +
   `aggregator-published score outside [0, 1] is clamped`
   (`reputation-graph-aggregator-runtime.test.ts`).
 
@@ -505,7 +505,7 @@ the mitigation surfaces immediately in the suite.
   silently dropped at the runtime boundary; the user has not
   opted in.
   Pinned by `aggregator events from non-subscribed labelers are
-  silently dropped`
+silently dropped`
   (`reputation-graph-aggregator-runtime.test.ts`).
 
 - **Reserved-sentinel impersonation**: a labeler publishes under
@@ -516,7 +516,7 @@ the mitigation surfaces immediately in the suite.
   subscription as silently dropped (only the local computer owns
   that slot).
   Pinned by `LOCAL ALWAYS WINS: reserved sentinel labeler id is
-  rejected outright` (`pwa-reputation-state.test.ts`) +
+rejected outright` (`pwa-reputation-state.test.ts`) +
   `subscriptions with priority 0 are silently dropped`
   (`reputation-graph-aggregator-runtime.test.ts`).
 
@@ -526,7 +526,7 @@ the mitigation surfaces immediately in the suite.
   Mitigation: stale removals (no matching candidate at apply
   time) are no-ops. The runtime fails open rather than throwing.
   Pinned by `a removal arriving BEFORE its publish is a stale no-op
-  (fail open)` (`reputation-graph-aggregator-runtime.test.ts`).
+(fail open)` (`reputation-graph-aggregator-runtime.test.ts`).
 
 - **Score-shape forgery**: a labeler publishes an aggregator
   event whose per-subject `score` or `confidence` is outside the
@@ -547,14 +547,14 @@ the mitigation surfaces immediately in the suite.
   events live in the local Dexie log only. A future cross-device
   sync flow is gated behind explicit user opt-in.
   Pinned by `DEVICE_LOCAL_PRIVACY_NOTICE — frozen content the UI
-  MUST surface` (`pwa-reputation-state.test.ts`).
+MUST surface` (`pwa-reputation-state.test.ts`).
 
 - **Replay equivalence regression (correctness, not malicious)**:
   any change to the reputation pipeline that causes two replays
   of the same event log to produce different scores would silently
   poison every consumer.
   Mitigation: pinned by `same input thrice produces three
-  byte-identical states` +
+byte-identical states` +
   `hardening pipeline preserves byte-identical output across
-  replays` (`reputation-graph-computer.test.ts` +
+replays` (`reputation-graph-computer.test.ts` +
   `reputation-graph-sybil-hardening.test.ts`).

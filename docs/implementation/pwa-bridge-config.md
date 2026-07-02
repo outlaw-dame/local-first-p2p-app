@@ -35,7 +35,9 @@ Bridge-service HTTP handlers accept an optional `BridgeHttpHandlerOptions` argum
 ```ts
 const bridgeAuthToken = process.env.LFP2P_BRIDGE_AUTH_BEARER_TOKEN;
 const bridgeHandlerOptions =
-  bridgeAuthToken === undefined ? {} : { auth: { scheme: 'bearer' as const, token: bridgeAuthToken } };
+  bridgeAuthToken === undefined
+    ? {}
+    : { auth: { scheme: 'bearer' as const, token: bridgeAuthToken } };
 
 await handleBridgeDeliveryRequest(service, request, now, bridgeHandlerOptions);
 await handleBridgeInboundReadRequest(service, request, now, bridgeHandlerOptions);

@@ -381,7 +381,10 @@ function requireString(raw: JsonValue, field: string, eventId: string): string {
   }
   const value = (raw as Record<string, unknown>)[field];
   if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new ChatProjectionError('CHAT_INVALID_PAYLOAD', `${eventId}: ${field} must be non-empty string`);
+    throw new ChatProjectionError(
+      'CHAT_INVALID_PAYLOAD',
+      `${eventId}: ${field} must be non-empty string`
+    );
   }
   return value;
 }
@@ -392,11 +395,17 @@ function requireStringArray(raw: JsonValue, field: string, eventId: string): Rea
   }
   const value = (raw as Record<string, unknown>)[field];
   if (!Array.isArray(value) || value.length === 0) {
-    throw new ChatProjectionError('CHAT_INVALID_PAYLOAD', `${eventId}: ${field} must be non-empty array`);
+    throw new ChatProjectionError(
+      'CHAT_INVALID_PAYLOAD',
+      `${eventId}: ${field} must be non-empty array`
+    );
   }
   return value.map((item, i) => {
     if (typeof item !== 'string' || item.trim().length === 0) {
-      throw new ChatProjectionError('CHAT_INVALID_PAYLOAD', `${eventId}: ${field}[${i}] must be non-empty string`);
+      throw new ChatProjectionError(
+        'CHAT_INVALID_PAYLOAD',
+        `${eventId}: ${field}[${i}] must be non-empty string`
+      );
     }
     return item;
   });
@@ -467,7 +476,11 @@ function requireThreadInitialized(state: ChatThreadState, eventId: string): void
  * this, an event misrouted (or maliciously crafted) to carry a different
  * thread's id would silently mutate the wrong thread's projection.
  */
-function requireThreadIdMatch(state: ChatThreadState, payloadThreadId: string, eventId: string): void {
+function requireThreadIdMatch(
+  state: ChatThreadState,
+  payloadThreadId: string,
+  eventId: string
+): void {
   if (state.threadId !== payloadThreadId) {
     throw new ChatProjectionError(
       'CHAT_INVALID_PAYLOAD',

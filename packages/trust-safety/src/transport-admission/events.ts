@@ -41,39 +41,51 @@ type CommonFields = Readonly<{
 }>;
 
 export type TransportEvent =
-  | Readonly<CommonFields & {
-      kind: 'transport.event.accepted';
-      decision: TransportAdmissionDecision;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'transport.event.rejected';
-      decision: TransportAdmissionDecision;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'transport.event.quarantined';
-      decision: TransportAdmissionDecision;
-      quarantineExpiresAt?: string;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'transport.peer.rate_limited';
-      peerId: string;
-      operatorAuthority: SafetyAuthority;
-      reasonCode: SafetyReasonCode;
-      retryAfter: string;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'transport.peer.quarantined';
-      peerId: string;
-      operatorAuthority: SafetyAuthority;
-      reasonCode: SafetyReasonCode;
-      quarantineExpiresAt?: string;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'transport.media.rejected';
-      blockRef: BlockRef;
-      operatorAuthority: SafetyAuthority;
-      reasonCode: SafetyReasonCode;
-    }>;
+  | Readonly<
+      CommonFields & {
+        kind: 'transport.event.accepted';
+        decision: TransportAdmissionDecision;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'transport.event.rejected';
+        decision: TransportAdmissionDecision;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'transport.event.quarantined';
+        decision: TransportAdmissionDecision;
+        quarantineExpiresAt?: string;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'transport.peer.rate_limited';
+        peerId: string;
+        operatorAuthority: SafetyAuthority;
+        reasonCode: SafetyReasonCode;
+        retryAfter: string;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'transport.peer.quarantined';
+        peerId: string;
+        operatorAuthority: SafetyAuthority;
+        reasonCode: SafetyReasonCode;
+        quarantineExpiresAt?: string;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'transport.media.rejected';
+        blockRef: BlockRef;
+        operatorAuthority: SafetyAuthority;
+        reasonCode: SafetyReasonCode;
+      }
+    >;
 
 function commonFields(record: Record<string, unknown>, label: string): CommonFields {
   assertExactVersion(record.version, TRANSPORT_EVENT_VERSION, `${label}.version`);
@@ -85,10 +97,7 @@ function commonFields(record: Record<string, unknown>, label: string): CommonFie
 export function validateTransportEvent(value: unknown, label = 'TransportEvent'): TransportEvent {
   const record = assertPlainObject(value, label);
   const kind = record.kind;
-  if (
-    typeof kind !== 'string' ||
-    !(TRANSPORT_EVENT_KINDS as readonly string[]).includes(kind)
-  ) {
+  if (typeof kind !== 'string' || !(TRANSPORT_EVENT_KINDS as readonly string[]).includes(kind)) {
     throw tsError(
       'TS_INVALID_ENUM',
       `${label}.kind must be one of ${TRANSPORT_EVENT_KINDS.join(', ')} (got: ${String(kind)})`
@@ -109,8 +118,10 @@ export function validateTransportEvent(value: unknown, label = 'TransportEvent')
     case 'transport.event.quarantined': {
       const decision = validateTransportAdmissionDecision(record.decision, `${label}.decision`);
       const out: {
-        -readonly [K in keyof Extract<TransportEvent, { kind: 'transport.event.quarantined' }>]:
-          Extract<TransportEvent, { kind: 'transport.event.quarantined' }>[K];
+        -readonly [K in keyof Extract<
+          TransportEvent,
+          { kind: 'transport.event.quarantined' }
+        >]: Extract<TransportEvent, { kind: 'transport.event.quarantined' }>[K];
       } = {
         ...common,
         kind: 'transport.event.quarantined',
@@ -136,11 +147,7 @@ export function validateTransportEvent(value: unknown, label = 'TransportEvent')
         record.operatorAuthority,
         `${label}.operatorAuthority`
       );
-      const reasonCode = assertOneOf(
-        record.reasonCode,
-        SAFETY_REASON_CODES,
-        `${label}.reasonCode`
-      );
+      const reasonCode = assertOneOf(record.reasonCode, SAFETY_REASON_CODES, `${label}.reasonCode`);
       const retryAfter = assertIso8601(record.retryAfter, `${label}.retryAfter`);
       assertNotBefore(common.createdAt, retryAfter, `${label}.createdAt`, `${label}.retryAfter`);
       return Object.freeze({
@@ -158,14 +165,12 @@ export function validateTransportEvent(value: unknown, label = 'TransportEvent')
         record.operatorAuthority,
         `${label}.operatorAuthority`
       );
-      const reasonCode = assertOneOf(
-        record.reasonCode,
-        SAFETY_REASON_CODES,
-        `${label}.reasonCode`
-      );
+      const reasonCode = assertOneOf(record.reasonCode, SAFETY_REASON_CODES, `${label}.reasonCode`);
       const out: {
-        -readonly [K in keyof Extract<TransportEvent, { kind: 'transport.peer.quarantined' }>]:
-          Extract<TransportEvent, { kind: 'transport.peer.quarantined' }>[K];
+        -readonly [K in keyof Extract<
+          TransportEvent,
+          { kind: 'transport.peer.quarantined' }
+        >]: Extract<TransportEvent, { kind: 'transport.peer.quarantined' }>[K];
       } = {
         ...common,
         kind: 'transport.peer.quarantined',
@@ -193,11 +198,7 @@ export function validateTransportEvent(value: unknown, label = 'TransportEvent')
         record.operatorAuthority,
         `${label}.operatorAuthority`
       );
-      const reasonCode = assertOneOf(
-        record.reasonCode,
-        SAFETY_REASON_CODES,
-        `${label}.reasonCode`
-      );
+      const reasonCode = assertOneOf(record.reasonCode, SAFETY_REASON_CODES, `${label}.reasonCode`);
       return Object.freeze({
         ...common,
         kind: 'transport.media.rejected',

@@ -42,10 +42,7 @@
  *      since the user's intent (this event is now persisted) is
  *      satisfied.
  */
-import {
-  validateReputationEvent,
-  type ReputationEvent
-} from '@lfp2p/trust-safety';
+import { validateReputationEvent, type ReputationEvent } from '@lfp2p/trust-safety';
 import type { createLocalFirstStore } from '@lfp2p/local-store';
 
 type Store = ReturnType<typeof createLocalFirstStore>;
@@ -136,9 +133,7 @@ export async function processInboundReputationBatch(
     throw new TypeError('processInboundReputationBatch: input.records must be an array');
   }
   if (!(input.subscribedLabelers instanceof Set)) {
-    throw new TypeError(
-      'processInboundReputationBatch: input.subscribedLabelers must be a Set'
-    );
+    throw new TypeError('processInboundReputationBatch: input.subscribedLabelers must be a Set');
   }
   let received = 0;
   let applied = 0;

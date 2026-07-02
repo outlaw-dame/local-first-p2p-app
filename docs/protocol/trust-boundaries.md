@@ -3,21 +3,21 @@
 ## Purpose
 
 The proposed "Identity Trust Registry" (a `trust-registry.ts` in
-`@lfp2p/capabilities` that answers *"can I trust this authority?"*)
+`@lfp2p/capabilities` that answers _"can I trust this authority?"_)
 is **blocked on this document.** The reason: the system already
 contains three distinct, deliberately-separated trust models, and a
 new registry that blurs them would create a competing/duplicate trust
 system — the exact drift the project forbids.
 
 This doc draws the boundary so any future trust-registry slice has a
-foundation: it states what each existing model *is*, what a trust
+foundation: it states what each existing model _is_, what a trust
 registry **may** do, and what it **must not** do.
 
 ## The three kinds of trust
 
 These are not three implementations of one idea. They answer three
-*different questions*, derive from *different inputs*, and have
-*different failure semantics*. Conflating them is a security bug, not
+_different questions_, derive from _different inputs_, and have
+_different failure semantics_. Conflating them is a security bug, not
 a refactor opportunity.
 
 ### 1. Capability-authority trust — "Is this action authorized?"
@@ -28,9 +28,9 @@ a refactor opportunity.
 - **Source of truth**: `@lfp2p/capabilities` — `CapabilityGrantV1`,
   the delegation graph, the proof registry (`verificationState`), and
   `evaluateCapabilityReliance`.
-- **Shape**: a binary-ish *decision* (`allow` / `warn` /
-  `require-confirmation` / `quarantine` / `deny`) about a *specific
-  action*, not a standing score about a party.
+- **Shape**: a binary-ish _decision_ (`allow` / `warn` /
+  `require-confirmation` / `quarantine` / `deny`) about a _specific
+  action_, not a standing score about a party.
 - **Derives from**: cryptographic proof verification + delegation
   lineage + caveats. **Authority comes from a grant, never from
   identity alone** — this is the object-capability invariant.
@@ -44,7 +44,7 @@ a refactor opportunity.
 - **Source of truth**: `@lfp2p/trust-safety` Phase 1.8 — the local
   personalized-EigenTrust reputation graph, the aggregator runtime,
   the spam gate, and the default labeler registry (local-only).
-- **Shape**: a *continuous, per-user, subjective* score / band
+- **Shape**: a _continuous, per-user, subjective_ score / band
   (`high` / `mid` / `low` / `untrusted`) — never a global verdict.
 - **Derives from**: observations, attestations, the seed contact
   graph, sybil-hardening. **Per-user, never global; never leaves the
@@ -60,7 +60,7 @@ a refactor opportunity.
 - **Source of truth**: `@lfp2p/identity` Phase 2 — the identity
   control log (`controller.created`, `device.authorized`,
   `device.revoked`, `device.rotated`) and its projection.
-- **Shape**: a *membership/epoch* fact — a device is `active` or
+- **Shape**: a _membership/epoch_ fact — a device is `active` or
   `revoked` at a given epoch. Deterministic, replayable, not a score.
 - **Derives from**: the signed identity-control event log.
 - **Failure mode**: fail-closed. A revoked device key authorizes
@@ -83,7 +83,7 @@ control           (signed control log; deterministic)
 ```
 
 1. **Authority is never derived from reputation.** A high reputation
-   score MUST NOT grant a capability. Reputation may *inform* a
+   score MUST NOT grant a capability. Reputation may _inform_ a
    `warn` / `require-confirmation` UX, or throttle admission, but it
    can never substitute for a verified capability proof.
 
@@ -105,17 +105,17 @@ control           (signed control log; deterministic)
 
 ## What a future trust registry MAY do
 
-A trust registry, *if* built, is allowed to be a **read-only
-composition / projection layer** that *references* the three sources
+A trust registry, _if_ built, is allowed to be a **read-only
+composition / projection layer** that _references_ the three sources
 without re-deriving them:
 
 - Present a unified, audit-friendly view: "for authority X, here is
   its capability-authority decision basis, its reputation band, and
   its identity-control status" — each clearly labelled by source.
-- Cache the *worst-case* posture across the three for a fast
+- Cache the _worst-case_ posture across the three for a fast
   fail-closed pre-check (e.g. "device revoked ⇒ stop, don't even
   evaluate the capability").
-- Hold trust-*policy* the user configures (e.g. "require `verified`
+- Hold trust-_policy_ the user configures (e.g. "require `verified`
   proofs for `label.*` actions", "treat `untrusted` reputation as
   `require-confirmation` for first contact") — policy, not new trust
   facts.
@@ -127,9 +127,9 @@ without re-deriving them:
   UX or admission, never grant permission.
 - **MUST NOT re-implement reputation.** No scoring, no graph, no
   decay — those belong to `@lfp2p/trust-safety`. The registry
-  *references* a reputation band; it never computes one.
+  _references_ a reputation band; it never computes one.
 - **MUST NOT re-implement identity control.** Device active/revoked
-  state is owned by `@lfp2p/identity`. The registry *reads* it.
+  state is owned by `@lfp2p/identity`. The registry _reads_ it.
 - **MUST NOT become a global trust authority.** Like the labeler
   registry, any default trust posture ships local-only / fail-closed;
   no shipped entry privileges an external party.
@@ -144,9 +144,9 @@ without re-deriving them:
 - **Trust registry**: implemented as a **read-only composition
   layer** in `packages/capabilities/src/trust-registry.ts`. The
   module exposes a single function `composeAuthorityView({ authority,
-  now, resolveCapabilityPosture?, resolveReputationPosture?,
-  resolveIdentityPosture? }) → AuthorityTrustView`. Each posture is
-  *labelled by source*; the layer mints no trust facts of its own;
+now, resolveCapabilityPosture?, resolveReputationPosture?,
+resolveIdentityPosture? }) → AuthorityTrustView`. Each posture is
+  _labelled by source_; the layer mints no trust facts of its own;
   there is no `setAuthorityTrust`, no `trustState` field, and no
   boolean trust predicate (the doctrine-forbidden ACL-style surface).
   A `worstCasePrecheck: 'block' | 'continue'` field caches the

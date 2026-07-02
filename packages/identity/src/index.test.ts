@@ -42,7 +42,9 @@ describe('DeviceIdentityManager', () => {
     const manager = new DeviceIdentityManager(store);
 
     const sessions = await Promise.all(
-      Array.from({ length: 8 }, () => manager.getOrCreatePrimaryDeviceSession('2026-05-22T00:00:00.000Z'))
+      Array.from({ length: 8 }, () =>
+        manager.getOrCreatePrimaryDeviceSession('2026-05-22T00:00:00.000Z')
+      )
     );
 
     const identityIds = new Set(sessions.map((session) => session.identity.identityId));
@@ -50,7 +52,9 @@ describe('DeviceIdentityManager', () => {
 
     expect(identityIds.size).toBe(1);
     expect(publicKeys.size).toBe(1);
-    expect((await store.getActiveDeviceIdentity())?.identityId).toBe(sessions[0]?.identity.identityId);
+    expect((await store.getActiveDeviceIdentity())?.identityId).toBe(
+      sessions[0]?.identity.identityId
+    );
     await store.delete();
   });
 
@@ -72,9 +76,9 @@ describe('DeviceIdentityManager', () => {
       updatedAt: '2026-05-22T00:00:00.000Z'
     });
 
-    await expect(new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession()).rejects.toBeInstanceOf(
-      DeviceIdentityBootstrapError
-    );
+    await expect(
+      new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession()
+    ).rejects.toBeInstanceOf(DeviceIdentityBootstrapError);
     expect((await store.getActiveDeviceIdentity())?.identityId).toBe('identity:missing-key');
     await store.delete();
   });
@@ -122,7 +126,10 @@ describe('identity trust snapshot helpers', () => {
 
     expect(resolveIdentityVerificationStatus({ projection })).toBe('revoked-device-seen');
     expect(
-      resolveIdentityVerificationStatus({ projection, expectedControllerPublicKey: 'different-controller-key' })
+      resolveIdentityVerificationStatus({
+        projection,
+        expectedControllerPublicKey: 'different-controller-key'
+      })
     ).toBe('mismatch-detected');
   });
 
@@ -155,7 +162,9 @@ describe('identity trust snapshot helpers', () => {
       primaryDeviceId: 'device:alice-phone',
       controllerPublicKey: 'controller-public-key'
     });
-    expect(snapshot.shortFingerprint).toMatch(/^[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}$/);
+    expect(snapshot.shortFingerprint).toMatch(
+      /^[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}-[a-zA-Z0-9_-]{4}$/
+    );
   });
 
   it('authorizes bootstrap path and blocks mismatch before capability checks', () => {
@@ -234,7 +243,11 @@ describe('identity trust snapshot helpers', () => {
       authorizeIdentityOperation({ projection, deviceId: 'device:missing', scope: 'sync:outbox' })
     ).toMatchObject({ authorized: false, status: 'blocked-device-missing' });
     expect(
-      authorizeIdentityOperation({ projection, deviceId: 'device:alice-laptop', scope: 'sync:outbox' })
+      authorizeIdentityOperation({
+        projection,
+        deviceId: 'device:alice-laptop',
+        scope: 'sync:outbox'
+      })
     ).toMatchObject({ authorized: false, status: 'blocked-device-revoked' });
     expect(
       authorizeIdentityOperation({
@@ -263,7 +276,11 @@ describe('identity trust snapshot helpers', () => {
       updatedAt: '2026-05-22T00:00:00.000Z'
     };
     expect(
-      authorizeIdentityOperation({ projection: noCapabilityProjection, deviceId: 'device:alice-phone', scope: 'sync:outbox' })
+      authorizeIdentityOperation({
+        projection: noCapabilityProjection,
+        deviceId: 'device:alice-phone',
+        scope: 'sync:outbox'
+      })
     ).toMatchObject({ authorized: true, status: 'authorized-controller-device' });
 
     const delegatedProjection = {
@@ -279,7 +296,11 @@ describe('identity trust snapshot helpers', () => {
       }
     };
     expect(
-      authorizeIdentityOperation({ projection: delegatedProjection, deviceId: 'device:alice-phone', scope: 'sync:outbox' })
+      authorizeIdentityOperation({
+        projection: delegatedProjection,
+        deviceId: 'device:alice-phone',
+        scope: 'sync:outbox'
+      })
     ).toMatchObject({ authorized: true, status: 'authorized-controller-device' });
 
     const capabilityProjection = {

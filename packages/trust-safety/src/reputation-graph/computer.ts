@@ -474,15 +474,11 @@ function computeConfidence(
   // Reachability factor: scores for subjects far from the seed set
   // are inherently less trustworthy. Decays geometrically with hop
   // count and caps at 1.0 (seed itself).
-  const reachabilityFactor = Number.isFinite(seedDistance)
-    ? Math.pow(0.7, seedDistance)
-    : 0;
+  const reachabilityFactor = Number.isFinite(seedDistance) ? Math.pow(0.7, seedDistance) : 0;
   return clampUnitInterval(densityFactor * convergenceFactor * reachabilityFactor);
 }
 
-function freezeState(
-  state: Omit<LocalReputationState, never>
-): LocalReputationState {
+function freezeState(state: Omit<LocalReputationState, never>): LocalReputationState {
   // Freeze the scores Map's value records (already frozen on
   // insert) and the outer state itself. JS Maps' internal structure
   // is not freezable but our consumer surface treats the Map as

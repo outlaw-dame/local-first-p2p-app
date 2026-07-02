@@ -113,11 +113,18 @@ export function projectMlsGroupControlEvent(
 
   // Validate payload base shape
   if (payload.version !== MLS_GROUP_CONTROL_VERSION) {
-    const emptyState = input.state ?? createEmptyMlsGroupProjectionState(
-      typeof payload.groupId === 'string' ? payload.groupId : 'unknown',
+    const emptyState =
+      input.state ??
+      createEmptyMlsGroupProjectionState(
+        typeof payload.groupId === 'string' ? payload.groupId : 'unknown',
+        event.createdAt
+      );
+    return reject(
+      emptyState,
+      typeof payload.controlId === 'string' ? payload.controlId : event.eventId,
+      'wrong group-control version',
       event.createdAt
     );
-    return reject(emptyState, typeof payload.controlId === 'string' ? payload.controlId : event.eventId, 'wrong group-control version', event.createdAt);
   }
 
   const groupId = requireString(payload.groupId);
@@ -129,7 +136,12 @@ export function projectMlsGroupControlEvent(
 
   // Guard: wrong group
   if (currentState.groupId !== groupId) {
-    return reject(currentState, controlId, `groupId mismatch: expected ${currentState.groupId} got ${groupId}`, event.createdAt);
+    return reject(
+      currentState,
+      controlId,
+      `groupId mismatch: expected ${currentState.groupId} got ${groupId}`,
+      event.createdAt
+    );
   }
 
   // Guard: duplicate control record (idempotency)
@@ -144,40 +156,99 @@ export function projectMlsGroupControlEvent(
 
   switch (kind) {
     case 'mls.group.created':
-      return applyGroupCreated(currentState, event, payload, groupId, controlId, issuerDeviceId, epoch, localDeviceId);
+      return applyGroupCreated(
+        currentState,
+        event,
+        payload,
+        groupId,
+        controlId,
+        issuerDeviceId,
+        epoch,
+        localDeviceId
+      );
 
     case 'mls.member.proposed':
       return applyMemberProposed(currentState, payload, controlId, issuerDeviceId, event.createdAt);
 
     case 'mls.member.added':
-      return applyMemberAdded(currentState, payload, controlId, issuerDeviceId, epoch, event.createdAt, localDeviceId);
+      return applyMemberAdded(
+        currentState,
+        payload,
+        controlId,
+        issuerDeviceId,
+        epoch,
+        event.createdAt,
+        localDeviceId
+      );
 
     case 'mls.member.removed':
-      return applyMemberRemoved(currentState, payload, controlId, issuerDeviceId, epoch, event.createdAt, localDeviceId);
+      return applyMemberRemoved(
+        currentState,
+        payload,
+        controlId,
+        issuerDeviceId,
+        epoch,
+        event.createdAt,
+        localDeviceId
+      );
 
     case 'mls.device.updated':
       return applyDeviceUpdated(currentState, payload, controlId, issuerDeviceId, event.createdAt);
 
     case 'mls.commit.published':
-      return applyCommitPublished(currentState, payload, controlId, issuerDeviceId, epoch, event.createdAt, allowAutomatedForkRecovery);
+      return applyCommitPublished(
+        currentState,
+        payload,
+        controlId,
+        issuerDeviceId,
+        epoch,
+        event.createdAt,
+        allowAutomatedForkRecovery
+      );
 
     case 'mls.welcome.issued':
       return applyWelcomeIssued(currentState, payload, controlId, event.createdAt, localDeviceId);
 
     case 'mls.epoch.advanced':
-      return applyEpochAdvanced(currentState, payload, controlId, issuerDeviceId, epoch, event.createdAt);
+      return applyEpochAdvanced(
+        currentState,
+        payload,
+        controlId,
+        issuerDeviceId,
+        epoch,
+        event.createdAt
+      );
 
     case 'mls.fork.detected':
-      return applyForkDetected(currentState, payload, controlId, issuerDeviceId, epoch, event.createdAt);
+      return applyForkDetected(
+        currentState,
+        payload,
+        controlId,
+        issuerDeviceId,
+        epoch,
+        event.createdAt
+      );
 
     case 'mls.fork.recovery.published':
-      return applyForkRecovery(currentState, payload, controlId, issuerDeviceId, event.createdAt, allowAutomatedForkRecovery);
+      return applyForkRecovery(
+        currentState,
+        payload,
+        controlId,
+        issuerDeviceId,
+        event.createdAt,
+        allowAutomatedForkRecovery
+      );
 
     case 'mls.stale-epoch.rejected':
       return applyStaleEpochRejected(currentState, payload, controlId, event.createdAt);
 
     default:
-      return reject(currentState, controlId, `unhandled MLS kind: ${String(kind)}`, event.createdAt);
+      return reject(
+        currentState,
+        controlId,
+        `unhandled MLS kind: ${String(kind)}`,
+        event.createdAt
+      );
   }
 }
 
@@ -196,13 +267,26 @@ function applyGroupCreated(
   localDeviceId: string | undefined
 ): ProjectMlsGroupEventResult {
   if (state.acceptedControlIds.length > 0) {
-    return reject(state, controlId, 'mls.group.created received but group already initialised', event.createdAt);
+    return reject(
+      state,
+      controlId,
+      'mls.group.created received but group already initialised',
+      event.createdAt
+    );
   }
   if (epoch !== 0) {
-    return reject(state, controlId, `mls.group.created must have epoch 0 (got ${epoch})`, event.createdAt);
+    return reject(
+      state,
+      controlId,
+      `mls.group.created must have epoch 0 (got ${epoch})`,
+      event.createdAt
+    );
   }
-  const creatorDeviceId = typeof payload.creatorDeviceId === 'string' ? payload.creatorDeviceId : issuerDeviceId;
-  const initialMemberRefs = Array.isArray(payload.initialMemberRefs) ? payload.initialMemberRefs as string[] : [];
+  const creatorDeviceId =
+    typeof payload.creatorDeviceId === 'string' ? payload.creatorDeviceId : issuerDeviceId;
+  const initialMemberRefs = Array.isArray(payload.initialMemberRefs)
+    ? (payload.initialMemberRefs as string[])
+    : [];
   const creatorIdentityId = event.author;
   const members: Record<string, MlsGroupMember> = {
     [creatorIdentityId]: Object.freeze({
@@ -271,15 +355,20 @@ function applyMemberAdded(
   if (!isMemberDevice(state, issuerDeviceId)) {
     return reject(state, controlId, `issuer device ${issuerDeviceId} is not a member`, updatedAt);
   }
-  const addedIdentityId = typeof payload.addedIdentityId === 'string' ? payload.addedIdentityId : undefined;
-  const addedDeviceId = typeof payload.addedDeviceId === 'string' ? payload.addedDeviceId : undefined;
+  const addedIdentityId =
+    typeof payload.addedIdentityId === 'string' ? payload.addedIdentityId : undefined;
+  const addedDeviceId =
+    typeof payload.addedDeviceId === 'string' ? payload.addedDeviceId : undefined;
   if (addedIdentityId === undefined) {
     return reject(state, controlId, 'mls.member.added missing addedIdentityId', updatedAt);
   }
   const existing = state.members[addedIdentityId];
-  const deviceIds = existing !== undefined
-    ? [...existing.deviceIds, ...(addedDeviceId !== undefined ? [addedDeviceId] : [])]
-    : (addedDeviceId !== undefined ? [addedDeviceId] : []);
+  const deviceIds =
+    existing !== undefined
+      ? [...existing.deviceIds, ...(addedDeviceId !== undefined ? [addedDeviceId] : [])]
+      : addedDeviceId !== undefined
+        ? [addedDeviceId]
+        : [];
   const member: MlsGroupMember = Object.freeze({
     identityId: addedIdentityId,
     deviceIds,
@@ -315,8 +404,10 @@ function applyMemberRemoved(
   if (!isMemberDevice(state, issuerDeviceId)) {
     return reject(state, controlId, `issuer device ${issuerDeviceId} is not a member`, updatedAt);
   }
-  const removedIdentityId = typeof payload.removedIdentityId === 'string' ? payload.removedIdentityId : undefined;
-  const removedDeviceId = typeof payload.removedDeviceId === 'string' ? payload.removedDeviceId : undefined;
+  const removedIdentityId =
+    typeof payload.removedIdentityId === 'string' ? payload.removedIdentityId : undefined;
+  const removedDeviceId =
+    typeof payload.removedDeviceId === 'string' ? payload.removedDeviceId : undefined;
   if (removedIdentityId === undefined) {
     return reject(state, controlId, 'mls.member.removed missing removedIdentityId', updatedAt);
   }
@@ -376,7 +467,8 @@ function applyCommitPublished(
   updatedAt: string,
   allowAutomatedForkRecovery: boolean
 ): ProjectMlsGroupEventResult {
-  const membershipDigest = typeof payload.membershipDigest === 'string' ? payload.membershipDigest : undefined;
+  const membershipDigest =
+    typeof payload.membershipDigest === 'string' ? payload.membershipDigest : undefined;
   if (membershipDigest === undefined) {
     return reject(state, controlId, 'mls.commit.published missing membershipDigest', updatedAt);
   }
@@ -384,7 +476,8 @@ function applyCommitPublished(
   if (commitRef === undefined) {
     return reject(state, controlId, 'mls.commit.published missing commitRef', updatedAt);
   }
-  const previousControlId = typeof payload.previousControlId === 'string' ? payload.previousControlId : undefined;
+  const previousControlId =
+    typeof payload.previousControlId === 'string' ? payload.previousControlId : undefined;
   if (previousControlId === undefined) {
     return reject(state, controlId, 'mls.commit.published missing previousControlId', updatedAt);
   }
@@ -394,7 +487,12 @@ function applyCommitPublished(
   // A commit whose parent is NOT in the accepted chain is invalid.
   const parentIsAccepted = state.acceptedControlIds.includes(previousControlId);
   if (!parentIsAccepted) {
-    return reject(state, controlId, `previousControlId ${previousControlId} is not in accepted chain`, updatedAt);
+    return reject(
+      state,
+      controlId,
+      `previousControlId ${previousControlId} is not in accepted chain`,
+      updatedAt
+    );
   }
 
   // A commit branching off the same parent as the already-accepted head is a fork.
@@ -413,7 +511,10 @@ function applyCommitPublished(
       return forkQueued({
         ...state,
         forkCandidates: Object.freeze([...state.forkCandidates, staleCandidate]),
-        diagnostics: [...state.diagnostics, `stale commit ${controlId} for epoch ${targetEpoch}, current epoch is ${state.currentEpoch}`],
+        diagnostics: [
+          ...state.diagnostics,
+          `stale commit ${controlId} for epoch ${targetEpoch}, current epoch is ${state.currentEpoch}`
+        ],
         updatedAt
       });
     }
@@ -432,7 +533,9 @@ function applyCommitPublished(
     // If this is the first competing commit for this epoch, also seed the already-accepted
     // head commit so the deterministic resolver has both branches to compare.
     const headCandidate: MlsGroupForkCandidate | undefined =
-      existingCandidatesForEpoch.length === 0 && state.lastControlId !== undefined && state.lastCommitRef !== undefined
+      existingCandidatesForEpoch.length === 0 &&
+      state.lastControlId !== undefined &&
+      state.lastCommitRef !== undefined
         ? Object.freeze({
             controlId: state.lastControlId,
             commitRef: state.lastCommitRef,
@@ -441,9 +544,10 @@ function applyCommitPublished(
             detectedAt: updatedAt
           })
         : undefined;
-    const seededCandidates = headCandidate !== undefined
-      ? [headCandidate, ...existingCandidatesForEpoch]
-      : existingCandidatesForEpoch;
+    const seededCandidates =
+      headCandidate !== undefined
+        ? [headCandidate, ...existingCandidatesForEpoch]
+        : existingCandidatesForEpoch;
     const allCandidatesForEpoch = [...seededCandidates, newCandidate];
     const otherCandidates = state.forkCandidates.filter((c) => c.epoch !== targetEpoch);
     const allCandidates = [...otherCandidates, ...allCandidatesForEpoch];
@@ -453,7 +557,10 @@ function applyCommitPublished(
     return forkQueued({
       ...state,
       forkCandidates: Object.freeze(allCandidates),
-      diagnostics: [...state.diagnostics, `fork detected: commit ${controlId} competes at same branch point as current head for epoch ${targetEpoch}`],
+      diagnostics: [
+        ...state.diagnostics,
+        `fork detected: commit ${controlId} competes at same branch point as current head for epoch ${targetEpoch}`
+      ],
       updatedAt
     });
   }
@@ -486,11 +593,18 @@ function applyWelcomeIssued(
   if (!validatePreviousControlId(state, payload, controlId)) {
     return reject(state, controlId, 'previousControlId does not match lastControlId', updatedAt);
   }
-  const recipientDeviceId = typeof payload.recipientDeviceId === 'string' ? payload.recipientDeviceId : undefined;
+  const recipientDeviceId =
+    typeof payload.recipientDeviceId === 'string' ? payload.recipientDeviceId : undefined;
   // Wrong-recipient welcome: if we know our device id and this welcome is for a different device, note it in diagnostics but still record as accepted (the welcome exists in the log).
   const diag = [...state.diagnostics];
-  if (localDeviceId !== undefined && recipientDeviceId !== undefined && recipientDeviceId !== localDeviceId) {
-    diag.push(`welcome ${controlId} is for device ${recipientDeviceId}, not local device ${localDeviceId} — ignoring`);
+  if (
+    localDeviceId !== undefined &&
+    recipientDeviceId !== undefined &&
+    recipientDeviceId !== localDeviceId
+  ) {
+    diag.push(
+      `welcome ${controlId} is for device ${recipientDeviceId}, not local device ${localDeviceId} — ignoring`
+    );
   }
   return accept({
     ...state,
@@ -515,11 +629,13 @@ function applyEpochAdvanced(
   if (!isMemberDevice(state, issuerDeviceId)) {
     return reject(state, controlId, `issuer device ${issuerDeviceId} is not a member`, updatedAt);
   }
-  const membershipDigest = typeof payload.membershipDigest === 'string' ? payload.membershipDigest : undefined;
+  const membershipDigest =
+    typeof payload.membershipDigest === 'string' ? payload.membershipDigest : undefined;
   if (membershipDigest === undefined) {
     return reject(state, controlId, 'mls.epoch.advanced missing membershipDigest', updatedAt);
   }
-  const checkpoint = typeof payload.checkpoint === 'string' ? payload.checkpoint : state.acceptedCheckpoint;
+  const checkpoint =
+    typeof payload.checkpoint === 'string' ? payload.checkpoint : state.acceptedCheckpoint;
   return accept({
     ...state,
     currentEpoch: epoch,
@@ -573,11 +689,22 @@ function applyForkRecovery(
     return reject(state, controlId, 'previousControlId does not match lastControlId', updatedAt);
   }
   if (!isMemberDevice(state, issuerDeviceId)) {
-    return reject(state, controlId, `issuer device ${issuerDeviceId} is not a member and cannot issue fork recovery`, updatedAt);
+    return reject(
+      state,
+      controlId,
+      `issuer device ${issuerDeviceId} is not a member and cannot issue fork recovery`,
+      updatedAt
+    );
   }
-  const selectedCommitRef = typeof payload.selectedCommitRef === 'string' ? payload.selectedCommitRef : undefined;
+  const selectedCommitRef =
+    typeof payload.selectedCommitRef === 'string' ? payload.selectedCommitRef : undefined;
   if (selectedCommitRef === undefined) {
-    return reject(state, controlId, 'mls.fork.recovery.published missing selectedCommitRef', updatedAt);
+    return reject(
+      state,
+      controlId,
+      'mls.fork.recovery.published missing selectedCommitRef',
+      updatedAt
+    );
   }
   const rejectedCandidateIds = Array.isArray(payload.rejectedCandidates)
     ? (payload.rejectedCandidates as unknown[]).filter((r): r is string => typeof r === 'string')
@@ -624,7 +751,10 @@ function applyStaleEpochRejected(
   const rejectedRef = typeof payload.rejectedRef === 'string' ? payload.rejectedRef : controlId;
   return accept({
     ...state,
-    rejectedControls: [...state.rejectedControls, Object.freeze({ controlId: rejectedRef, reason: 'stale epoch', rejectedAt: updatedAt })],
+    rejectedControls: [
+      ...state.rejectedControls,
+      Object.freeze({ controlId: rejectedRef, reason: 'stale epoch', rejectedAt: updatedAt })
+    ],
     acceptedControlIds: [...state.acceptedControlIds, controlId],
     lastControlId: controlId,
     diagnostics: [...state.diagnostics, `stale epoch record ${rejectedRef} logged`],
@@ -650,11 +780,14 @@ function resolveForkDeterministically(
     return forkQueued({
       ...state,
       forkCandidates: Object.freeze(candidates),
-      diagnostics: [...state.diagnostics, 'fork: no safe candidates after revoked-device filter — awaiting policy authority'],
+      diagnostics: [
+        ...state.diagnostics,
+        'fork: no safe candidates after revoked-device filter — awaiting policy authority'
+      ],
       updatedAt
     });
   }
-  safe.sort((a, b) => a.commitRef < b.commitRef ? -1 : a.commitRef > b.commitRef ? 1 : 0);
+  safe.sort((a, b) => (a.commitRef < b.commitRef ? -1 : a.commitRef > b.commitRef ? 1 : 0));
   const selected = safe[0]!;
   const rejected = safe.slice(1);
   const recoveryRecord: MlsGroupForkRecoveryRecord = Object.freeze({
@@ -675,7 +808,10 @@ function resolveForkDeterministically(
     lastControlId: selected.controlId,
     lastCommitRef: selected.commitRef,
     lastCommitIssuerDeviceId: selected.issuerDeviceId,
-    diagnostics: [...state.diagnostics, `fork resolved deterministically: selected ${selected.commitRef}`],
+    diagnostics: [
+      ...state.diagnostics,
+      `fork resolved deterministically: selected ${selected.commitRef}`
+    ],
     updatedAt
   });
 }
@@ -691,7 +827,8 @@ function validatePreviousControlId(
 ): boolean {
   // Creation records have no previousControlId requirement
   void controlId;
-  const previousControlId = typeof payload.previousControlId === 'string' ? payload.previousControlId : undefined;
+  const previousControlId =
+    typeof payload.previousControlId === 'string' ? payload.previousControlId : undefined;
   if (previousControlId === undefined) return false;
   return state.lastControlId === undefined || previousControlId === state.lastControlId;
 }

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createPwaOutboxDeliveryPlan, formatPwaOutboxDeliveryPlan } from './pwa-outbox-delivery-plan.js';
+import {
+  createPwaOutboxDeliveryPlan,
+  formatPwaOutboxDeliveryPlan
+} from './pwa-outbox-delivery-plan.js';
 
 const ENABLED_CONFIG_ENV = {
   VITE_LFP2P_BRIDGE_SYNC_ENABLED: 'true',
@@ -24,7 +27,9 @@ describe('createPwaOutboxDeliveryPlan', () => {
       pendingOutboxCount: 2,
       bridgeTransportStatus: 'disabled'
     });
-    expect(plan.message).toBe('2 pending outbox entries; bridge transport is disabled; delivery remains disabled.');
+    expect(plan.message).toBe(
+      '2 pending outbox entries; bridge transport is disabled; delivery remains disabled.'
+    );
     expect(createTransportCalls).toBe(0);
   });
 
@@ -40,7 +45,9 @@ describe('createPwaOutboxDeliveryPlan', () => {
     });
 
     expect(plan.bridgeTransportStatus).toBe('invalid');
-    expect(plan.message).toBe('1 pending outbox entry; bridge transport config is invalid; delivery remains disabled.');
+    expect(plan.message).toBe(
+      '1 pending outbox entry; bridge transport config is invalid; delivery remains disabled.'
+    );
     expect(createTransportCalls).toBe(0);
   });
 
@@ -86,8 +93,8 @@ describe('createPwaOutboxDeliveryPlan', () => {
     expect(() => createPwaOutboxDeliveryPlan({ pendingOutboxCount: 0.5, env: {} })).toThrow(
       'pendingOutboxCount must be a non-negative safe integer.'
     );
-    expect(() => createPwaOutboxDeliveryPlan({ pendingOutboxCount: Number.MAX_SAFE_INTEGER + 1, env: {} })).toThrow(
-      'pendingOutboxCount must be a non-negative safe integer.'
-    );
+    expect(() =>
+      createPwaOutboxDeliveryPlan({ pendingOutboxCount: Number.MAX_SAFE_INTEGER + 1, env: {} })
+    ).toThrow('pendingOutboxCount must be a non-negative safe integer.');
   });
 });

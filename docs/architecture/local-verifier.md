@@ -44,28 +44,28 @@ The canonical inbound entry point is
 `@lfp2p/sync-client/processInboundSyncBatch`. It traverses the
 following checks in this order, per-record:
 
-| # | Check                                                | Owner package                                                                                     | Failure mode                       |
-|---|------------------------------------------------------|---------------------------------------------------------------------------------------------------|------------------------------------|
-| 1 | Checkpoint-key preflight (when `expectedCheckpointKey` is set) | `@lfp2p/sync-client`                                                                              | `Error("…checkpoint key mismatch…")` |
-| 2 | Ed25519 signature verification                        | `@lfp2p/crypto` (via `verifySignedEventEnvelope`)                                                  | `Error("…signature verification failed")` |
-| 3 | Envelope shape validation: version, kind allowlist, author/deviceId/createdAt, lamport, privacy scope, schemaVersion, payload JSON shape, refs | `@lfp2p/protocol` (via `validateSignedEvent` → `validateUnsignedEvent`)                            | plain `Error(...)`                  |
-| 4 | Per-kind payload shape (`validatePayloadForKind`)     | `@lfp2p/protocol`                                                                                 | `Error("<kind>.<field> must …")`    |
-| 5 | Privacy-scope-for-kind (`requirePrivacyForIdentityEvent`, etc.) | `@lfp2p/protocol`                                                                                 | `Error("…privacy must be …")`       |
-| 6 | Sync-checkpoint monotonicity: stale-sequence skipped, cursor-mismatch at same sequence rejected | `@lfp2p/local-store` (via `putSignedEventWithSyncCheckpoint` → `checkpointAdvanceDecision`)        | `SyncCheckpointRejectedError`       |
-| 7 | Identity-event defense-in-depth: re-run `validateIdentityEvent` on identity kinds | `@lfp2p/identity` (called from `applyIdentityControlEvent`) — Phase 2.1                            | `IdentityError("[IDENTITY_*] …")`   |
-| 8 | Identity-control lifecycle: controller-signed, monotonic epoch, device-exists, authority-match, lifecycle-transition | `@lfp2p/identity` (via `applyIdentityControlEvent`)                                                | `IdentityError` / plain `Error`     |
-| 9 | Transactional persistence of `signedEvents` + `syncCheckpoints` + (when identity) `identityControlProjections` in a single Dexie transaction | `@lfp2p/local-store`                                                                              | rolls back on any `throw` in 7 or 8 |
+| #   | Check                                                                                                                                          | Owner package                                                                               | Failure mode                              |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| 1   | Checkpoint-key preflight (when `expectedCheckpointKey` is set)                                                                                 | `@lfp2p/sync-client`                                                                        | `Error("…checkpoint key mismatch…")`      |
+| 2   | Ed25519 signature verification                                                                                                                 | `@lfp2p/crypto` (via `verifySignedEventEnvelope`)                                           | `Error("…signature verification failed")` |
+| 3   | Envelope shape validation: version, kind allowlist, author/deviceId/createdAt, lamport, privacy scope, schemaVersion, payload JSON shape, refs | `@lfp2p/protocol` (via `validateSignedEvent` → `validateUnsignedEvent`)                     | plain `Error(...)`                        |
+| 4   | Per-kind payload shape (`validatePayloadForKind`)                                                                                              | `@lfp2p/protocol`                                                                           | `Error("<kind>.<field> must …")`          |
+| 5   | Privacy-scope-for-kind (`requirePrivacyForIdentityEvent`, etc.)                                                                                | `@lfp2p/protocol`                                                                           | `Error("…privacy must be …")`             |
+| 6   | Sync-checkpoint monotonicity: stale-sequence skipped, cursor-mismatch at same sequence rejected                                                | `@lfp2p/local-store` (via `putSignedEventWithSyncCheckpoint` → `checkpointAdvanceDecision`) | `SyncCheckpointRejectedError`             |
+| 7   | Identity-event defense-in-depth: re-run `validateIdentityEvent` on identity kinds                                                              | `@lfp2p/identity` (called from `applyIdentityControlEvent`) — Phase 2.1                     | `IdentityError("[IDENTITY_*] …")`         |
+| 8   | Identity-control lifecycle: controller-signed, monotonic epoch, device-exists, authority-match, lifecycle-transition                           | `@lfp2p/identity` (via `applyIdentityControlEvent`)                                         | `IdentityError` / plain `Error`           |
+| 9   | Transactional persistence of `signedEvents` + `syncCheckpoints` + (when identity) `identityControlProjections` in a single Dexie transaction   | `@lfp2p/local-store`                                                                        | rolls back on any `throw` in 7 or 8       |
 
 For trust-safety control / labeler events the entry point is
 `DexieLocalFirstStore.appendTrustSafetyControlEvent` /
 `appendTrustSafetyLabelerEvent` (Phase 1.70.B), which:
 
-| # | Check                                                | Owner package                                                                                     |
-|---|------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| 1 | Re-run `validateLocalControlEvent` / `validateLabelerEvent` at append time | `@lfp2p/trust-safety` |
-| 2 | Idempotency on `eventId` (silent no-op on duplicate) | `@lfp2p/local-store` |
-| 3 | Transactional insert into the event-log table        | `@lfp2p/local-store` |
-| 4 | Re-validate every row on `loadLocalControlState` / `loadLabelersState`; skip-and-continue on corruption | `@lfp2p/local-store` |
+| #   | Check                                                                                                   | Owner package         |
+| --- | ------------------------------------------------------------------------------------------------------- | --------------------- |
+| 1   | Re-run `validateLocalControlEvent` / `validateLabelerEvent` at append time                              | `@lfp2p/trust-safety` |
+| 2   | Idempotency on `eventId` (silent no-op on duplicate)                                                    | `@lfp2p/local-store`  |
+| 3   | Transactional insert into the event-log table                                                           | `@lfp2p/local-store`  |
+| 4   | Re-validate every row on `loadLocalControlState` / `loadLabelersState`; skip-and-continue on corruption | `@lfp2p/local-store`  |
 
 ## What the verifier does NOT do today
 
@@ -73,12 +73,12 @@ Each of these is a documented deferral with a target phase. Naming
 them here keeps the gap-list honest and gives reviewers a single
 place to check before adding a new event kind.
 
-| Missing check                                                 | Target slice                                                                                       | Note |
-|---------------------------------------------------------------|----------------------------------------------------------------------------------------------------|------|
-| Trust-safety transport-admission (`admitEnvelope`) on inbound bridge deliveries | Phase 4.1 wiring of the existing engine into `apps/bridge-service`                                  | Engine, fixtures, and tests already exist (Phase 1.64). Bridge just doesn't call them yet. |
-| Capability-proof verification on the event author             | Future capability-on-the-wire ADR                                                                  | Capabilities exist in the identity-control log; capability *proofs* on regular events are not yet specified. |
-| Content-ref retrieval verification (`fetch → cap → verify-digest → decode`) | Phase 7.0 `packages/block-store` runtime                                                            | Validators exist (`@lfp2p/content-addressing`); a runtime that *uses* them at fetch time does not. |
-| Private payload decryption + key-epoch check                  | Phase 5.0 ADR-002 private-payload envelope implementation                                          | Required before chat (Phase 5) and MLS (Phase 6). |
+| Missing check                                                                   | Target slice                                                       | Note                                                                                                         |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Trust-safety transport-admission (`admitEnvelope`) on inbound bridge deliveries | Phase 4.1 wiring of the existing engine into `apps/bridge-service` | Engine, fixtures, and tests already exist (Phase 1.64). Bridge just doesn't call them yet.                   |
+| Capability-proof verification on the event author                               | Future capability-on-the-wire ADR                                  | Capabilities exist in the identity-control log; capability _proofs_ on regular events are not yet specified. |
+| Content-ref retrieval verification (`fetch → cap → verify-digest → decode`)     | Phase 7.0 `packages/block-store` runtime                           | Validators exist (`@lfp2p/content-addressing`); a runtime that _uses_ them at fetch time does not.           |
+| Private payload decryption + key-epoch check                                    | Phase 5.0 ADR-002 private-payload envelope implementation          | Required before chat (Phase 5) and MLS (Phase 6).                                                            |
 
 ## What the bridge MUST NOT do
 

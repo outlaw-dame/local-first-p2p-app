@@ -72,9 +72,7 @@ describe('Phase 2.2 — contactCardDigestRef', () => {
   });
 
   it('differs for different inputs', async () => {
-    expect(await contactCardDigestRef('a')).not.toEqual(
-      await contactCardDigestRef('b')
-    );
+    expect(await contactCardDigestRef('a')).not.toEqual(await contactCardDigestRef('b'));
   });
 });
 
@@ -94,9 +92,7 @@ describe('Phase 2.2 — emitContactCardPublishedEvent', () => {
       });
       const expectedDigest = await contactCardDigestRef(serialized);
       expect(result.contactCardPublication?.contactCardDigest).toBe(expectedDigest);
-      expect(result.contactCardPublication?.capturedAt).toBe(
-        '2026-06-03T00:01:00.000Z'
-      );
+      expect(result.contactCardPublication?.capturedAt).toBe('2026-06-03T00:01:00.000Z');
       // Confirm the signed event landed.
       await expect(store.getSignedEvent('evt_emit_cc_1')).resolves.toBeDefined();
     } finally {

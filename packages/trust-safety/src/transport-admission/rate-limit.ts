@@ -60,7 +60,10 @@ export type RateLimitDecision = Readonly<{
   reason: 'allowed' | 'no-tokens' | 'in-cooldown';
 }>;
 
-export function validateRateLimitConfig(config: RateLimitConfig, label = 'RateLimitConfig'): RateLimitConfig {
+export function validateRateLimitConfig(
+  config: RateLimitConfig,
+  label = 'RateLimitConfig'
+): RateLimitConfig {
   assertFiniteNumberInRange(config.capacity, `${label}.capacity`, 1, 1_000_000);
   if (!Number.isSafeInteger(config.capacity)) {
     throw tsError('TS_INVALID_NUMBER', `${label}.capacity must be a safe integer`);
@@ -81,7 +84,10 @@ export function validateRateLimitConfig(config: RateLimitConfig, label = 'RateLi
   return config;
 }
 
-export function createRateLimitBucket(now: number, config: RateLimitConfig = DEFAULT_RATE_LIMIT): RateLimitBucket {
+export function createRateLimitBucket(
+  now: number,
+  config: RateLimitConfig = DEFAULT_RATE_LIMIT
+): RateLimitBucket {
   validateRateLimitConfig(config);
   return Object.freeze({
     tokens: config.capacity,

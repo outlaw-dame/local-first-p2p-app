@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  type CapabilityProofRecord,
-  seedProofRegistry
-} from '@lfp2p/capabilities';
+import { type CapabilityProofRecord, seedProofRegistry } from '@lfp2p/capabilities';
 import type { StoredIdentityControlProjection } from '@lfp2p/local-store';
 import {
   buildIdentityAuditViewModel,
@@ -68,8 +65,7 @@ function makeProjection(): StoredIdentityControlProjection {
       }
     },
     contactCardPublication: {
-      contactCardDigest:
-        'sha-256:AAAA1111BBBB2222CCCC3333DDDD4444EEEE5555FFFF6666GGGG7777HHHH8888',
+      contactCardDigest: 'sha-256:AAAA1111BBBB2222CCCC3333DDDD4444EEEE5555FFFF6666GGGG7777HHHH8888',
       capturedAt: '2026-06-02T00:00:00Z',
       publishedAt: '2026-06-02T00:00:00Z'
     },
@@ -202,7 +198,11 @@ describe('step 3c — buildIdentityAuditViewModel proof-registry enrichment', ()
   });
 
   it('adds proofState to rows whose delegate device has identity-control-log proofs registered', () => {
-    const proof = makeIdentityControlLogProof('evt_grant_laptop', 'device:alice-laptop', 'verified');
+    const proof = makeIdentityControlLogProof(
+      'evt_grant_laptop',
+      'device:alice-laptop',
+      'verified'
+    );
     const registry = seedProofRegistry([proof]);
     const vm = buildIdentityAuditViewModel(makeProjection(), { proofRegistry: registry });
 
@@ -362,22 +362,22 @@ describe('Phase 2.3b — prepareRotationIntent', () => {
 
   it('refuses rotation of a revoked device', () => {
     const vm = buildIdentityAuditViewModel(makeProjection());
-    expect(() =>
-      prepareRotationIntent(vm, 'device:alice-old-tablet', DEVICE_2_NEW_KEY)
-    ).toThrow(/not rotatable/);
+    expect(() => prepareRotationIntent(vm, 'device:alice-old-tablet', DEVICE_2_NEW_KEY)).toThrow(
+      /not rotatable/
+    );
   });
 
   it('refuses rotation when newPublicKey equals the current key', () => {
     const vm = buildIdentityAuditViewModel(makeProjection());
-    expect(() =>
-      prepareRotationIntent(vm, 'device:alice-laptop', DEVICE_2_KEY)
-    ).toThrow(/must differ/);
+    expect(() => prepareRotationIntent(vm, 'device:alice-laptop', DEVICE_2_KEY)).toThrow(
+      /must differ/
+    );
   });
 
   it('refuses rotation of an unknown device', () => {
     const vm = buildIdentityAuditViewModel(makeProjection());
-    expect(() =>
-      prepareRotationIntent(vm, 'device:unknown', DEVICE_2_NEW_KEY)
-    ).toThrow(/not found/);
+    expect(() => prepareRotationIntent(vm, 'device:unknown', DEVICE_2_NEW_KEY)).toThrow(
+      /not found/
+    );
   });
 });

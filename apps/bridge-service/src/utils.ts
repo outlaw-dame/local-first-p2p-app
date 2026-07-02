@@ -63,7 +63,10 @@ export function withoutExpiry(record: StoredBridgeRecord | undefined): BridgeRec
   };
 }
 
-export function withAllocatedSequence(record: StoredBridgeRecordDraft, sequence: number): StoredBridgeRecord {
+export function withAllocatedSequence(
+  record: StoredBridgeRecordDraft,
+  sequence: number
+): StoredBridgeRecord {
   return { ...record, sequence };
 }
 
@@ -82,10 +85,17 @@ export function pruneExpiredRecords(state: MutableJsonBridgeStoreState, nowMs: n
   return state.records.length !== previousLength;
 }
 
-export function validateJsonBridgeStoreState(value: unknown, initialSequence: number): JsonBridgeStoreState {
+export function validateJsonBridgeStoreState(
+  value: unknown,
+  initialSequence: number
+): JsonBridgeStoreState {
   if (!isRecord(value)) throw new Error('Bridge store state must be a JSON object');
-  if (value.recordType !== 'lfp2p.bridge.store.v1') throw new Error('Unsupported bridge store record type');
-  const latestSequence = requireSafeNonNegativeInteger(Number(value.latestSequence), 'latestSequence');
+  if (value.recordType !== 'lfp2p.bridge.store.v1')
+    throw new Error('Unsupported bridge store record type');
+  const latestSequence = requireSafeNonNegativeInteger(
+    Number(value.latestSequence),
+    'latestSequence'
+  );
   if (!Array.isArray(value.records)) throw new Error('Bridge store records must be an array');
   const records = value.records.map((record) => {
     if (!isRecord(record)) throw new Error('Bridge store record must be a JSON object');
@@ -94,12 +104,18 @@ export function validateJsonBridgeStoreState(value: unknown, initialSequence: nu
 
   return {
     recordType: 'lfp2p.bridge.store.v1',
-    latestSequence: Math.max(initialSequence, latestSequence, ...records.map((record) => record.sequence)),
+    latestSequence: Math.max(
+      initialSequence,
+      latestSequence,
+      ...records.map((record) => record.sequence)
+    ),
     records
   };
 }
 
-export function validateStoredBridgeRecord(record: Partial<StoredBridgeRecord>): StoredBridgeRecord {
+export function validateStoredBridgeRecord(
+  record: Partial<StoredBridgeRecord>
+): StoredBridgeRecord {
   const metadata = validateStoredBridgeRecordMetadata(record);
   return {
     ...metadata,
@@ -108,7 +124,9 @@ export function validateStoredBridgeRecord(record: Partial<StoredBridgeRecord>):
   };
 }
 
-export function validateStoredBridgeRecordDraft(record: Partial<StoredBridgeRecordDraft>): StoredBridgeRecordDraft {
+export function validateStoredBridgeRecordDraft(
+  record: Partial<StoredBridgeRecordDraft>
+): StoredBridgeRecordDraft {
   return {
     ...validateStoredBridgeRecordMetadata(record),
     event: validateStoredEvent(record.event)
@@ -124,7 +142,8 @@ export function mutableState(state: JsonBridgeStoreState): MutableJsonBridgeStor
 }
 
 export function requireNonEmpty(value: string, label: string): string {
-  if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`${label} is required`);
+  if (typeof value !== 'string' || value.trim().length === 0)
+    throw new Error(`${label} is required`);
   return value;
 }
 
@@ -141,7 +160,8 @@ export function requirePositiveInteger(value: number, label: string): number {
 }
 
 export function requireSafeNonNegativeInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be a safe non-negative integer`);
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new Error(`${label} must be a safe non-negative integer`);
   return value;
 }
 
@@ -158,8 +178,13 @@ export function isNotFoundError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
-function validateStoredBridgeRecordMetadata(record: Partial<StoredBridgeRecord>): Omit<StoredBridgeRecord, 'sequence' | 'event'> {
-  const idempotencyKey = requireNonEmpty(String(record.idempotencyKey ?? ''), 'record.idempotencyKey');
+function validateStoredBridgeRecordMetadata(
+  record: Partial<StoredBridgeRecord>
+): Omit<StoredBridgeRecord, 'sequence' | 'event'> {
+  const idempotencyKey = requireNonEmpty(
+    String(record.idempotencyKey ?? ''),
+    'record.idempotencyKey'
+  );
   const target = requireNonEmpty(String(record.target ?? ''), 'record.target');
   const eventId = requireNonEmpty(String(record.eventId ?? ''), 'record.eventId');
   const author = requireNonEmpty(String(record.author ?? ''), 'record.author');

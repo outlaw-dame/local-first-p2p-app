@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  validateSafetyLabelerProfile,
-  validateSafetyLabelerSubscription
-} from '../index.js';
+import { validateSafetyLabelerProfile, validateSafetyLabelerSubscription } from '../index.js';
 
 const PROFILE_BASE = {
   version: 'lfp2p.safety-labeler-profile.v1' as const,

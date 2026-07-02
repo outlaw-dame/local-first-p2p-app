@@ -17,8 +17,8 @@ v1), mirroring how Phase 1.61 was the protocol-core slice of the T&S
 3. Two new event kinds:
    - `identity.device.rotated` — swap a device's public key in
      place while preserving the deviceId. Fixes the "rotate ≠ revoke
-     + re-add" gap that v1 needed before Phase 5 (chat vertical
-     slice) and Phase 6 (MLS) can begin.
+     - re-add" gap that v1 needed before Phase 5 (chat vertical
+       slice) and Phase 6 (MLS) can begin.
    - `identity.contact-card.published` — formalize the audit trail
      for contact-card publications. The PWA already emits contact
      cards; the projection now retains the most recent digest.
@@ -89,6 +89,7 @@ v1), mirroring how Phase 1.61 was the protocol-core slice of the T&S
 ### Public surface (`@lfp2p/identity/index.ts`)
 
 Newly exported:
+
 - `IDENTITY_ERROR_CODES`, `IdentityError`, `identityError`, `IdentityErrorCode`.
 - `IDENTITY_EVENT_KINDS`, `IDENTITY_EVENT_VERSION`,
   `validateIdentityEvent`, `IdentityEventKind`, `ValidatedIdentityEvent`,
@@ -98,12 +99,14 @@ Newly exported:
 ### Fixtures
 
 `packages/identity/fixtures/valid/` (7):
+
 - `controller-created.json`, `device-authorized.json`,
   `device-revoked.json`, `device-rotated.json`,
   `capability-granted.json`, `capability-revoked.json`,
   `contact-card-published.json`.
 
 `packages/identity/fixtures/invalid/` (6):
+
 - `forbidden-key-in-payload.json` (prototype-pollution defense).
 - `invalid-public-key.json`.
 - `unknown-kind.json`.
@@ -141,16 +144,16 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Stable `IDENTITY_*` error namespace exists | ✓ | `errors.ts`; 22 codes |
-| Pure shape validator separate from projection | ✓ | `validation.ts`; 39 tests |
-| Prototype-pollution defense on every payload-object boundary | ✓ | `assertPlainObject`; `forbidden-key-in-payload.json` |
-| `identity.device.rotated` lands with full state-aware enforcement | ✓ | projection + 4 rejection tests |
-| `identity.contact-card.published` lands with the latest-publication semantic | ✓ | projection + 3 tests |
-| Doctrine doc documents kinds, validator rules, and lifecycle | ✓ | `docs/protocol/identity-control-log.md` |
-| Fixtures cover every kind + adversarial inputs | ✓ | 7 valid + 6 invalid |
-| No regressions: existing identity tests still pass | ✓ | sweep clean |
+| Criterion                                                                    | Status | Evidence                                             |
+| ---------------------------------------------------------------------------- | :----: | ---------------------------------------------------- |
+| Stable `IDENTITY_*` error namespace exists                                   |   ✓    | `errors.ts`; 22 codes                                |
+| Pure shape validator separate from projection                                |   ✓    | `validation.ts`; 39 tests                            |
+| Prototype-pollution defense on every payload-object boundary                 |   ✓    | `assertPlainObject`; `forbidden-key-in-payload.json` |
+| `identity.device.rotated` lands with full state-aware enforcement            |   ✓    | projection + 4 rejection tests                       |
+| `identity.contact-card.published` lands with the latest-publication semantic |   ✓    | projection + 3 tests                                 |
+| Doctrine doc documents kinds, validator rules, and lifecycle                 |   ✓    | `docs/protocol/identity-control-log.md`              |
+| Fixtures cover every kind + adversarial inputs                               |   ✓    | 7 valid + 6 invalid                                  |
+| No regressions: existing identity tests still pass                           |   ✓    | sweep clean                                          |
 
 ## Deferred work
 

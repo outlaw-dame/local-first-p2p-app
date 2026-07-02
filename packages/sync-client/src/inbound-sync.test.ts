@@ -48,7 +48,9 @@ describe('processInboundSyncBatch', () => {
     const stale = makeRecord('evt_inbound_stale', 'cursor-9', 9);
 
     try {
-      await expect(processInboundSyncBatch({ store, records: [current] })).resolves.toMatchObject({ applied: 1 });
+      await expect(processInboundSyncBatch({ store, records: [current] })).resolves.toMatchObject({
+        applied: 1
+      });
       const result = await processInboundSyncBatch({ store, records: [stale] });
 
       expect(result).toEqual({ received: 1, applied: 0, skipped: 1, rejected: 0, errors: [] });
@@ -104,7 +106,9 @@ describe('processInboundSyncBatch', () => {
   });
 
   it('uses an inbound-specific fallback for non-error failures', async () => {
-    const store = createLocalFirstStore(`inbound-sync-unknown-failure-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `inbound-sync-unknown-failure-${globalThis.crypto.randomUUID()}`
+    );
     const record = makeRecord('evt_inbound_unknown_failure', 'cursor-1', 1);
     const failingStore = {
       putSignedEventWithSyncCheckpoint: async () => {
@@ -119,7 +123,13 @@ describe('processInboundSyncBatch', () => {
         applied: 0,
         skipped: 0,
         rejected: 1,
-        errors: [{ index: 0, eventId: 'evt_inbound_unknown_failure', reason: 'Unknown inbound sync failure' }]
+        errors: [
+          {
+            index: 0,
+            eventId: 'evt_inbound_unknown_failure',
+            reason: 'Unknown inbound sync failure'
+          }
+        ]
       });
     } finally {
       await store.delete();
@@ -133,7 +143,10 @@ describe('processInboundSyncBatch', () => {
     const afterConflict = makeRecord('evt_inbound_after_conflict', 'cursor-11', 11);
 
     try {
-      const result = await processInboundSyncBatch({ store, records: [first, conflict, afterConflict] });
+      const result = await processInboundSyncBatch({
+        store,
+        records: [first, conflict, afterConflict]
+      });
 
       expect(result.received).toBe(2);
       expect(result.applied).toBe(1);
@@ -153,15 +166,21 @@ describe('processInboundSyncBatch', () => {
     const rewind = makeRecord('evt_inbound_rewind_target', 'cursor-15', 15);
 
     try {
-      await expect(processInboundSyncBatch({ store, records: [current] })).resolves.toMatchObject({ applied: 1 });
-      await expect(processInboundSyncBatch({ store, records: [rewind], allowRewind: true })).resolves.toEqual({
+      await expect(processInboundSyncBatch({ store, records: [current] })).resolves.toMatchObject({
+        applied: 1
+      });
+      await expect(
+        processInboundSyncBatch({ store, records: [rewind], allowRewind: true })
+      ).resolves.toEqual({
         received: 1,
         applied: 1,
         skipped: 0,
         rejected: 0,
         errors: []
       });
-      await expect(store.getSignedEvent('evt_inbound_rewind_target')).resolves.toEqual(rewind.event);
+      await expect(store.getSignedEvent('evt_inbound_rewind_target')).resolves.toEqual(
+        rewind.event
+      );
       await expect(
         store.getSyncCheckpoint({
           sourceId: 'bridge:primary',
@@ -175,7 +194,9 @@ describe('processInboundSyncBatch', () => {
   });
 
   it('persists identity control projection while applying identity control events', async () => {
-    const store = createLocalFirstStore(`inbound-sync-identity-projection-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `inbound-sync-identity-projection-${globalThis.crypto.randomUUID()}`
+    );
     const controller = signingKeypairFromSeed(new Uint8Array(32).fill(21));
     const created = makeIdentityControlRecord({
       eventId: 'evt_identity_controller_created',
@@ -209,8 +230,12 @@ describe('processInboundSyncBatch', () => {
       });
 
       expect(result).toEqual({ received: 2, applied: 2, skipped: 0, rejected: 0, errors: [] });
-      await expect(store.getSignedEvent('evt_identity_controller_created')).resolves.toEqual(created.event);
-      await expect(store.getSignedEvent('evt_identity_device_authorized')).resolves.toEqual(authorized.event);
+      await expect(store.getSignedEvent('evt_identity_controller_created')).resolves.toEqual(
+        created.event
+      );
+      await expect(store.getSignedEvent('evt_identity_device_authorized')).resolves.toEqual(
+        authorized.event
+      );
       await expect(store.getIdentityControlProjection('identity:alice')).resolves.toMatchObject({
         identityId: 'identity:alice',
         controllerPublicKey: controller.publicKey,
@@ -229,7 +254,9 @@ describe('processInboundSyncBatch', () => {
   });
 
   it('rejects controller-mismatch identity events without storing event or advancing checkpoint', async () => {
-    const store = createLocalFirstStore(`inbound-sync-identity-reject-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `inbound-sync-identity-reject-${globalThis.crypto.randomUUID()}`
+    );
     const controller = signingKeypairFromSeed(new Uint8Array(32).fill(31));
     const attacker = signingKeypairFromSeed(new Uint8Array(32).fill(32));
     const created = makeIdentityControlRecord({
@@ -257,15 +284,22 @@ describe('processInboundSyncBatch', () => {
     });
 
     try {
-      await expect(processInboundSyncBatch({ store, records: [created] })).resolves.toMatchObject({ applied: 1 });
+      await expect(processInboundSyncBatch({ store, records: [created] })).resolves.toMatchObject({
+        applied: 1
+      });
       const result = await processInboundSyncBatch({ store, records: [unauthorized] });
 
       expect(result.received).toBe(1);
       expect(result.applied).toBe(0);
       expect(result.rejected).toBe(1);
-      expect(result.errors[0]).toMatchObject({ index: 0, eventId: 'evt_identity_authorized_rejected' });
+      expect(result.errors[0]).toMatchObject({
+        index: 0,
+        eventId: 'evt_identity_authorized_rejected'
+      });
       expect(result.errors[0]?.reason).toMatch(/must be signed by the controller public key/);
-      await expect(store.getSignedEvent('evt_identity_authorized_rejected')).resolves.toBeUndefined();
+      await expect(
+        store.getSignedEvent('evt_identity_authorized_rejected')
+      ).resolves.toBeUndefined();
       await expect(
         store.getSyncCheckpoint({
           sourceId: 'bridge:primary',
@@ -283,7 +317,9 @@ describe('processInboundSyncBatch', () => {
   });
 
   it('rejects inbound events with invalid cryptographic signatures', async () => {
-    const store = createLocalFirstStore(`inbound-sync-bad-signature-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `inbound-sync-bad-signature-${globalThis.crypto.randomUUID()}`
+    );
     const valid = makeRecord('evt_inbound_signature_valid', 'cursor-1', 1);
     const tampered = {
       ...makeRecord('evt_inbound_signature_tampered', 'cursor-2', 2),
@@ -298,13 +334,18 @@ describe('processInboundSyncBatch', () => {
     } as InboundSyncRecord;
 
     try {
-      await expect(processInboundSyncBatch({ store, records: [valid] })).resolves.toMatchObject({ applied: 1 });
+      await expect(processInboundSyncBatch({ store, records: [valid] })).resolves.toMatchObject({
+        applied: 1
+      });
       const result = await processInboundSyncBatch({ store, records: [tampered] });
 
       expect(result.received).toBe(1);
       expect(result.applied).toBe(0);
       expect(result.rejected).toBe(1);
-      expect(result.errors[0]).toMatchObject({ index: 0, eventId: 'evt_inbound_signature_tampered' });
+      expect(result.errors[0]).toMatchObject({
+        index: 0,
+        eventId: 'evt_inbound_signature_tampered'
+      });
       expect(result.errors[0]?.reason).toMatch(/signature verification failed/i);
       await expect(store.getSignedEvent('evt_inbound_signature_tampered')).resolves.toBeUndefined();
       await expect(

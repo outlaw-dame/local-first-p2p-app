@@ -169,10 +169,7 @@ export function validateIdentityEvent(value: unknown): ValidatedIdentityEvent {
         version: IDENTITY_EVENT_VERSION,
         kind,
         payload: Object.freeze({
-          authorizedDeviceId: assertId(
-            payload.authorizedDeviceId,
-            'payload.authorizedDeviceId'
-          ),
+          authorizedDeviceId: assertId(payload.authorizedDeviceId, 'payload.authorizedDeviceId'),
           authorizedPublicKey: assertPublicKey(
             payload.authorizedPublicKey,
             'payload.authorizedPublicKey'
@@ -220,10 +217,7 @@ export function validateIdentityEvent(value: unknown): ValidatedIdentityEvent {
         kind,
         payload: Object.freeze({
           capabilityId: assertId(payload.capabilityId, 'payload.capabilityId'),
-          delegateDeviceId: assertId(
-            payload.delegateDeviceId,
-            'payload.delegateDeviceId'
-          ),
+          delegateDeviceId: assertId(payload.delegateDeviceId, 'payload.delegateDeviceId'),
           scope: assertScope(payload.scope, 'payload.scope'),
           expiresAt
         })
@@ -235,10 +229,7 @@ export function validateIdentityEvent(value: unknown): ValidatedIdentityEvent {
         kind,
         payload: Object.freeze({
           capabilityId: assertId(payload.capabilityId, 'payload.capabilityId'),
-          delegateDeviceId: assertId(
-            payload.delegateDeviceId,
-            'payload.delegateDeviceId'
-          )
+          delegateDeviceId: assertId(payload.delegateDeviceId, 'payload.delegateDeviceId')
         })
       }) as ValidatedIdentityEvent;
     case 'identity.contact-card.published':
@@ -260,10 +251,7 @@ export function validateIdentityEvent(value: unknown): ValidatedIdentityEvent {
 // Field-level asserts
 // ---------------------------------------------------------------------------
 
-export function assertPlainObject(
-  value: unknown,
-  label: string
-): Record<string, unknown> {
+export function assertPlainObject(value: unknown, label: string): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw identityError('IDENTITY_INVALID_INPUT', `${label} must be a plain object`);
   }
@@ -342,10 +330,7 @@ function assertPublicKey(value: unknown, label: string): string {
 
 function assertPositiveInteger(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
-    throw identityError(
-      'IDENTITY_INVALID_NUMBER',
-      `${label} must be a safe positive integer`
-    );
+    throw identityError('IDENTITY_INVALID_NUMBER', `${label} must be a safe positive integer`);
   }
   return value;
 }
@@ -368,10 +353,7 @@ function assertIso8601(value: unknown, label: string): string {
     throw identityError('IDENTITY_INVALID_TIMESTAMP', `${label} must be a string`);
   }
   if (!Number.isFinite(Date.parse(value))) {
-    throw identityError(
-      'IDENTITY_INVALID_TIMESTAMP',
-      `${label} must be an ISO-8601 timestamp`
-    );
+    throw identityError('IDENTITY_INVALID_TIMESTAMP', `${label} must be an ISO-8601 timestamp`);
   }
   return value;
 }

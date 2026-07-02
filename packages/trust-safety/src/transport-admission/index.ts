@@ -68,16 +68,16 @@ export {
   createEmptyTransportAdmissionState,
   seedTransportAdmissionState
 } from './projection.js';
-export type {
-  QuarantineRecord,
-  TransportAdmissionState
-} from './projection.js';
+export type { QuarantineRecord, TransportAdmissionState } from './projection.js';
 
 export { decideReportForwarding } from './report-forwarding.js';
 export type { ReportForwardingDecision } from './report-forwarding.js';
 
 export { decideUserBlockTransport } from './user-block-enforcement.js';
-export type { EnvelopeProducerContext, UserBlockTransportDecision } from './user-block-enforcement.js';
+export type {
+  EnvelopeProducerContext,
+  UserBlockTransportDecision
+} from './user-block-enforcement.js';
 
 // Phase 1.8.6 — bridge between the Phase 1.8.3 doctrine band table
 // and the Phase 1.64 rate-limit config. Pure helper.

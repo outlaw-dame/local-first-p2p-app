@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  TRANSPORT_EVENT_KINDS,
-  type TransportEvent,
-  validateTransportEvent
-} from '../index.js';
+import { TRANSPORT_EVENT_KINDS, type TransportEvent, validateTransportEvent } from '../index.js';
 
 const OPERATOR = {
   version: 'lfp2p.safety-authority.v1' as const,

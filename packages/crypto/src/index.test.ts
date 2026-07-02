@@ -200,7 +200,9 @@ describe('X25519 key wrapping', () => {
     const recipientKeypair = generateX25519Keypair();
     const corruptedWrappedKey = toBase64Url(globalThis.crypto.getRandomValues(new Uint8Array(100)));
 
-    expect(() => unwrapPayloadKeyWithX25519(corruptedWrappedKey, recipientKeypair.privateKey)).toThrow();
+    expect(() =>
+      unwrapPayloadKeyWithX25519(corruptedWrappedKey, recipientKeypair.privateKey)
+    ).toThrow();
   });
 
   it('rejects wrapping with invalid recipient public key', () => {

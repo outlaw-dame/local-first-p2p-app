@@ -89,7 +89,7 @@ Added under `packages/trust-safety/src/curation-runtime/`:
     `[0, MAX_SCORE_DELTA = 100]` non-negative safe integer), and
     `reasonCode`.
   - `curation.item.excluded` carries `excludeFrom: 'feed' | 'search' |
-    'recommendation'` so the same exclusion event cannot accidentally
+'recommendation'` so the same exclusion event cannot accidentally
     exclude from all surfaces at once.
   - `curation.explanation.recorded` embeds a `CurationExplanation`
     (Phase 1.61).
@@ -110,9 +110,9 @@ Added under `packages/trust-safety/src/curation-runtime/`:
   rules** — disabling a rule immediately removes its effect from the
   ranking view without rewriting history.
 - **`surface-gate.ts`** — `decideCurationSurfaceIngest(surface,
-  envelopeScope, subject)` returns one of:
+envelopeScope, subject)` returns one of:
   `allowed | private-envelope-scope | private-by-nature-subject |
-  private-only-report-signal | unknown-surface`. Public surfaces
+private-only-report-signal | unknown-surface`. Public surfaces
   (`public-feed`, `search`, `recommendation`) reject envelopes whose
   privacy scope is not `public` and reject private-by-nature subject
   types even when the envelope is public. Local surfaces
@@ -164,7 +164,7 @@ pnpm build       # clean
 
 Additional verification:
 
-- Distinction tests are *direct*: each distinction has at least one
+- Distinction tests are _direct_: each distinction has at least one
   test that flips one excludeFrom and asserts the others stay false.
 - The disabled-rule retraction semantic is verified by applying a
   downrank, observing the score delta, disabling the source rule, and
@@ -179,29 +179,29 @@ Additional verification:
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| Curation actions are separate from moderation actions | ✓ | `TS_CURATION_MASQUERADE` (Phase 1.61) + event-kind disjoint from `SafetyAction` |
-| Explanation records avoid private signal leakage | ✓ | `reasonCodes` constrained to `SAFETY_REASON_CODES`; no free-form text |
-| User-local curation preferences remain private by default | ✓ | `safety.label.preference.set` and `safety.notification-preference.set` (Phase 1.62) are `device-local`/`account-local` only |
-| Public search/recommendation surfaces reject private scope objects | ✓ | `decideCurationSurfaceIngest` rejects every non-public envelope scope on every public surface; tests enumerate the matrix |
-| Tests cover downrank vs hide, search exclusion vs deletion, and private curation signal leakage | ✓ | 3 explicit distinction tests + private-only report refusal tests |
+| Criterion                                                                                       | Status | Evidence                                                                                                                    |
+| ----------------------------------------------------------------------------------------------- | -----: | --------------------------------------------------------------------------------------------------------------------------- |
+| Curation actions are separate from moderation actions                                           |      ✓ | `TS_CURATION_MASQUERADE` (Phase 1.61) + event-kind disjoint from `SafetyAction`                                             |
+| Explanation records avoid private signal leakage                                                |      ✓ | `reasonCodes` constrained to `SAFETY_REASON_CODES`; no free-form text                                                       |
+| User-local curation preferences remain private by default                                       |      ✓ | `safety.label.preference.set` and `safety.notification-preference.set` (Phase 1.62) are `device-local`/`account-local` only |
+| Public search/recommendation surfaces reject private scope objects                              |      ✓ | `decideCurationSurfaceIngest` rejects every non-public envelope scope on every public surface; tests enumerate the matrix   |
+| Tests cover downrank vs hide, search exclusion vs deletion, and private curation signal leakage |      ✓ | 3 explicit distinction tests + private-only report refusal tests                                                            |
 
 ## Security/privacy checks
 
 - [x] No private plaintext in logs — package emits no logs.
 - [x] Remote/untrusted input validation exists — every event kind has
-  shape validation; unknown kinds, surfaces, excludeFrom values,
-  versions all fail closed.
+      shape validation; unknown kinds, surfaces, excludeFrom values,
+      versions all fail closed.
 - [x] Malicious/invalid input tests exist — score-delta bounds,
-  forbidden-id-key rejection, lifecycle transitions, surface gate
-  enumeration.
+      forbidden-id-key rejection, lifecycle transitions, surface gate
+      enumeration.
 - [x] Revocation/permission behavior — `curation.rule.disabled`
-  immediately retracts the rule's effect from `computeItemRanking`
-  without rewriting history.
+      immediately retracts the rule's effect from `computeItemRanking`
+      without rewriting history.
 - [x] Derived state rebuild/delete behavior — `seedCurationState`
-  is the canonical rebuild path; idempotent on `eventId` and on
-  `explanationId`.
+      is the canonical rebuild path; idempotent on `eventId` and on
+      `explanationId`.
 
 ## Deviations introduced or resolved
 
@@ -216,7 +216,7 @@ Additional verification:
   actions. This implementation keeps the audit trail (every action
   remains in `itemsBySubjectKey`) but filters at read time
   (`computeItemRanking`). Disabling is therefore reversible at the
-  *audit* layer and irreversible at the *effect* layer, which is
+  _audit_ layer and irreversible at the _effect_ layer, which is
   what the doctrine wants.
 - `subjectKey` for blob subjects uses the source-digest body (or the
   CID for content-link sources) — never the encryption-key digest.

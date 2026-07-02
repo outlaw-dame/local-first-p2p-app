@@ -403,12 +403,7 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
       // malformed payload here must NOT crash the bridge admission
       // engine — `validateReputationEnvelopeConsistency` re-asserts
       // the cross-field pinning after this.
-      requireObjectExactString(
-        payload,
-        'version',
-        REPUTATION_EVENT_PAYLOAD_VERSION,
-        kind
-      );
+      requireObjectExactString(payload, 'version', REPUTATION_EVENT_PAYLOAD_VERSION, kind);
       requireObjectString(payload, 'eventId', kind);
       requireObjectString(payload, 'kind', kind);
       requireObjectIsoDate(payload, 'createdAt', kind);
@@ -440,7 +435,9 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
       // MLS-shaped payload here — fail fast at admission instead of
       // producing an event that is unprojectable downstream.
       if (!looksLikePrivatePayloadEnvelope(payload)) {
-        throw new Error(`${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for chat events)`);
+        throw new Error(
+          `${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for chat events)`
+        );
       }
       // Structural validation of the decrypted content lives in
       // @lfp2p/chat-projection. The protocol layer only enforces the
@@ -479,13 +476,21 @@ function validateReputationEnvelopeConsistency(event: UnsignedEventEnvelope): vo
   }
 }
 
-function validatePayloadPrivacyScope(privacy: PrivacyScope, kind: EventKind, payload: JsonObject): void {
+function validatePayloadPrivacyScope(
+  privacy: PrivacyScope,
+  kind: EventKind,
+  payload: JsonObject
+): void {
   if (privacy === 'device-local' || privacy === 'public') {
     if (looksLikePrivatePayloadEnvelope(payload)) {
-      throw new Error(`${kind} with privacy ${privacy} must not contain a private payload envelope`);
+      throw new Error(
+        `${kind} with privacy ${privacy} must not contain a private payload envelope`
+      );
     }
     if (looksLikeMlsApplicationMessageEnvelope(payload)) {
-      throw new Error(`${kind} with privacy ${privacy} must not contain an MLS application-message envelope`);
+      throw new Error(
+        `${kind} with privacy ${privacy} must not contain an MLS application-message envelope`
+      );
     }
     return;
   }
@@ -528,7 +533,14 @@ function validatePayloadPrivacyScope(privacy: PrivacyScope, kind: EventKind, pay
 
 function validatePrivatePayloadEnvelope(value: JsonObject): PrivatePayloadEnvelopeV1 {
   const envelope = assertJsonObject(value, 'payload');
-  const allowedKeys = new Set(['version', 'algorithm', 'ciphertext', 'nonce', 'keyId', 'recipientWraps']);
+  const allowedKeys = new Set([
+    'version',
+    'algorithm',
+    'ciphertext',
+    'nonce',
+    'keyId',
+    'recipientWraps'
+  ]);
   Object.keys(envelope).forEach((key) => {
     if (!allowedKeys.has(key)) {
       throw new Error(`payload contains unsupported private payload envelope field: ${key}`);
@@ -581,7 +593,9 @@ function validatePrivatePayloadEnvelope(value: JsonObject): PrivatePayloadEnvelo
       );
 
       if (seenDeviceIds.has(recipientDeviceId)) {
-        throw new Error(`payload.recipientWraps contains duplicate recipientDeviceId: ${recipientDeviceId}`);
+        throw new Error(
+          `payload.recipientWraps contains duplicate recipientDeviceId: ${recipientDeviceId}`
+        );
       }
       seenDeviceIds.add(recipientDeviceId);
 
@@ -615,9 +629,7 @@ function validatePrivatePayloadEnvelope(value: JsonObject): PrivatePayloadEnvelo
           'wrappingKeyRef'
         ]);
         if (!allowedWrapKeys.has(key)) {
-          throw new Error(
-            `payload.recipientWraps[${index}] contains unsupported field: ${key}`
-          );
+          throw new Error(`payload.recipientWraps[${index}] contains unsupported field: ${key}`);
         }
       });
 
@@ -669,7 +681,9 @@ const MLS_APP_MESSAGE_ALLOWED_KEYS = new Set([
 function validateMlsApplicationMessageEnvelope(payload: JsonObject, kind: EventKind): void {
   for (const key of Object.keys(payload)) {
     if (!MLS_APP_MESSAGE_ALLOWED_KEYS.has(key)) {
-      throw new Error(`${kind} MLS application-message envelope contains unsupported field: ${key}`);
+      throw new Error(
+        `${kind} MLS application-message envelope contains unsupported field: ${key}`
+      );
     }
   }
   requireNonEmptyString(payload.groupId, `${kind} MLS envelope groupId`);
@@ -788,8 +802,9 @@ function decodeBase64Url(value: string, label: string): Uint8Array {
     // fall through to Buffer fallback
   }
 
-  const globalBuffer = (globalThis as unknown as { Buffer?: { from(input: string, encoding: string): Uint8Array } })
-    .Buffer;
+  const globalBuffer = (
+    globalThis as unknown as { Buffer?: { from(input: string, encoding: string): Uint8Array } }
+  ).Buffer;
   if (typeof globalBuffer === 'object' || typeof globalBuffer === 'function') {
     return Uint8Array.from(globalBuffer!.from(padded, 'base64'));
   }
@@ -824,9 +839,7 @@ function requirePrivacyForReputationEvent(privacy: PrivacyScope, kind: EventKind
     throw new Error(`${kind} has no privacy policy registered`);
   }
   if (!allowed.includes(privacy)) {
-    throw new Error(
-      `${kind} must use privacy scope ${allowed.join(' or ')} (got: ${privacy})`
-    );
+    throw new Error(`${kind} must use privacy scope ${allowed.join(' or ')} (got: ${privacy})`);
   }
 }
 
@@ -851,7 +864,11 @@ function requireObjectString(payload: JsonObject, field: string, kind: EventKind
   return value;
 }
 
-function requireObjectSafePositiveInteger(payload: JsonObject, field: string, kind: EventKind): number {
+function requireObjectSafePositiveInteger(
+  payload: JsonObject,
+  field: string,
+  kind: EventKind
+): number {
   const value = payload[field];
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${kind} payload.${field} must be a safe positive integer`);
@@ -861,7 +878,11 @@ function requireObjectSafePositiveInteger(payload: JsonObject, field: string, ki
 
 function requireObjectIsoDate(payload: JsonObject, field: string, kind: EventKind): string {
   const value = payload[field];
-  if (typeof value !== 'string' || value.trim().length === 0 || !Number.isFinite(Date.parse(value))) {
+  if (
+    typeof value !== 'string' ||
+    value.trim().length === 0 ||
+    !Number.isFinite(Date.parse(value))
+  ) {
     throw new Error(`${kind} payload.${field} must be an ISO date string`);
   }
   return value;

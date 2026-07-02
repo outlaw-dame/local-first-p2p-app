@@ -82,12 +82,7 @@ export type CapabilityPosture = Readonly<{
  * graph. The composition layer never re-derives a band — it only
  * forwards what the reputation runtime already computed.
  */
-export const REPUTATION_POSTURE_BANDS = [
-  'high',
-  'mid',
-  'low',
-  'untrusted'
-] as const;
+export const REPUTATION_POSTURE_BANDS = ['high', 'mid', 'low', 'untrusted'] as const;
 export type ReputationPostureBand = (typeof REPUTATION_POSTURE_BANDS)[number];
 
 export type ReputationPosture = Readonly<{
@@ -101,12 +96,7 @@ export type ReputationPosture = Readonly<{
  * a revoked device key authorizes nothing regardless of any other
  * source's opinion.
  */
-export const IDENTITY_POSTURE_STATES = [
-  'active',
-  'revoked',
-  'rotated',
-  'unknown'
-] as const;
+export const IDENTITY_POSTURE_STATES = ['active', 'revoked', 'rotated', 'unknown'] as const;
 export type IdentityPostureState = (typeof IDENTITY_POSTURE_STATES)[number];
 
 export type IdentityPosture = Readonly<{
@@ -214,9 +204,7 @@ export type AuthorityPrecheckReason = (typeof AUTHORITY_PRECHECK_REASONS)[number
  *     hard-fail surfaced here; the caller must still run the normal
  *     capability gate".
  */
-export function composeAuthorityView(
-  input: ComposeAuthorityViewOptions
-): AuthorityTrustView {
+export function composeAuthorityView(input: ComposeAuthorityViewOptions): AuthorityTrustView {
   assertOptions(input);
   const authority = validatePartyRef(input.authority, 'composeAuthorityView.authority');
   const composedAt = assertTimestamp(input.now, 'composeAuthorityView.now');
@@ -294,16 +282,10 @@ function validateCapabilityPosture(value: unknown): CapabilityPosture | undefine
   // against prototype pollution per gemini review on PR #80.
   const record = assertPlainObject(value, 'CapabilityPosture');
   if (record.source !== 'capability') {
-    throw capabilityError(
-      'CAP_INVALID_ENUM',
-      'CapabilityPosture.source must equal "capability"'
-    );
+    throw capabilityError('CAP_INVALID_ENUM', 'CapabilityPosture.source must equal "capability"');
   }
   if (typeof record.decision !== 'string' || !isCapabilityDecision(record.decision)) {
-    throw capabilityError(
-      'CAP_INVALID_ENUM',
-      'CapabilityPosture.decision is not supported'
-    );
+    throw capabilityError('CAP_INVALID_ENUM', 'CapabilityPosture.decision is not supported');
   }
   const capabilityIds =
     record.capabilityIds === undefined
@@ -322,19 +304,13 @@ function validateReputationPosture(value: unknown): ReputationPosture | undefine
   // prototypes + forbidden keys per gemini review on PR #80.
   const record = assertPlainObject(value, 'ReputationPosture');
   if (record.source !== 'reputation') {
-    throw capabilityError(
-      'CAP_INVALID_ENUM',
-      'ReputationPosture.source must equal "reputation"'
-    );
+    throw capabilityError('CAP_INVALID_ENUM', 'ReputationPosture.source must equal "reputation"');
   }
   if (
     typeof record.band !== 'string' ||
     !(REPUTATION_POSTURE_BANDS as readonly string[]).includes(record.band)
   ) {
-    throw capabilityError(
-      'CAP_INVALID_ENUM',
-      'ReputationPosture.band is not supported'
-    );
+    throw capabilityError('CAP_INVALID_ENUM', 'ReputationPosture.band is not supported');
   }
   return Object.freeze({
     source: 'reputation',
@@ -357,10 +333,7 @@ function validateIdentityPosture(value: unknown): IdentityPosture | undefined {
     typeof record.status !== 'string' ||
     !(IDENTITY_POSTURE_STATES as readonly string[]).includes(record.status)
   ) {
-    throw capabilityError(
-      'CAP_INVALID_ENUM',
-      'IdentityPosture.status is not supported'
-    );
+    throw capabilityError('CAP_INVALID_ENUM', 'IdentityPosture.status is not supported');
   }
   return Object.freeze({
     source: 'identity-control',
@@ -373,10 +346,7 @@ function isCapabilityDecision(value: string): value is CapabilityPostureDecision
   // addition to `CAPABILITY_DECISION_STATUSES` is automatically
   // supported here, with no drift surface. Per gemini review on
   // PR #80.
-  return (
-    value === 'unknown' ||
-    (CAPABILITY_DECISION_STATUSES as readonly string[]).includes(value)
-  );
+  return value === 'unknown' || (CAPABILITY_DECISION_STATUSES as readonly string[]).includes(value);
 }
 
 function assertStringList(value: unknown, label: string): readonly string[] {

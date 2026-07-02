@@ -40,15 +40,15 @@ The existing stack includes:
 
 ## Specification mapping
 
-| Existing area | Specification owner | Promotion rule |
-|---|---|---|
-| Local controls | `06-social/local-controls.md` | User controls are user-owned social preference state, not provider policy. |
-| Reports and appeals | `06-social/reports-and-appeals.md` | Report lifecycle is social/safety state with privacy and evidence boundaries. |
-| Labels / labelers | `06-social/moderation-labels.md` | Labels are composable signals; they do not override local controls unless policy says so. |
-| Curation / reach | `06-social/curation-and-reach.md` | Ranking, reach, and exclusion are separate from transport admission and deletion. |
-| Transport admission | `07-availability/transport-admission.md` | Bridge/relay/super-peer admission is provider-local unless explicit capability grants more. |
-| Reputation graph | `07-availability/advisory-reputation.md` and `09-profiles/trust-safety-profile.md` | Reputation can inform local/provider decisions but must not become global protocol authority. |
-| Moderation runtime | `06-social/moderation-runtime.md` and `09-profiles/trust-safety-profile.md` | Queue and decision lifecycles need profile-level conformance rules. |
+| Existing area       | Specification owner                                                                | Promotion rule                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Local controls      | `06-social/local-controls.md`                                                      | User controls are user-owned social preference state, not provider policy.                    |
+| Reports and appeals | `06-social/reports-and-appeals.md`                                                 | Report lifecycle is social/safety state with privacy and evidence boundaries.                 |
+| Labels / labelers   | `06-social/moderation-labels.md`                                                   | Labels are composable signals; they do not override local controls unless policy says so.     |
+| Curation / reach    | `06-social/curation-and-reach.md`                                                  | Ranking, reach, and exclusion are separate from transport admission and deletion.             |
+| Transport admission | `07-availability/transport-admission.md`                                           | Bridge/relay/super-peer admission is provider-local unless explicit capability grants more.   |
+| Reputation graph    | `07-availability/advisory-reputation.md` and `09-profiles/trust-safety-profile.md` | Reputation can inform local/provider decisions but must not become global protocol authority. |
+| Moderation runtime  | `06-social/moderation-runtime.md` and `09-profiles/trust-safety-profile.md`        | Queue and decision lifecycles need profile-level conformance rules.                           |
 
 ## Required doctrine boundaries
 

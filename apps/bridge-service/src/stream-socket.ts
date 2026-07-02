@@ -490,7 +490,10 @@ function parseSubscribeFrame(value: Record<string, unknown>): SubscribeFrame | u
   if (typeof value.sourceId !== 'string' || value.sourceId.length === 0) return undefined;
   if (typeof value.streamId !== 'string' || value.streamId.length === 0) return undefined;
   if (typeof value.scope !== 'string' || value.scope.length === 0) return undefined;
-  if (value.cursor !== undefined && (typeof value.cursor !== 'string' || value.cursor.length === 0)) {
+  if (
+    value.cursor !== undefined &&
+    (typeof value.cursor !== 'string' || value.cursor.length === 0)
+  ) {
     return undefined;
   }
   if (

@@ -78,18 +78,18 @@ These are not abandoned. They become the next promotion stages below.
 
 ## Layer mapping
 
-| Existing chat concept | New protocol owner | Promotion rule |
-|---|---|---|
-| `chat.thread.created` | Social Thread, optional Channel/Space context | Keep as encrypted private Thread creation for DM/small-group chat; add parent context fields later for Channel/Space threads. |
-| `chat.thread.accepted` | Mailbox/Thread invitation acceptance boundary | Keep as encrypted acceptance state for DM threads; later distinguish recipient acceptance from provider delivery receipt. |
-| `chat.message.sent` | Social message Entity + encrypted payload Component | Keep as encrypted Class D message event; later map payload body to encrypted Component/Object Reference where payloads grow. |
-| `chat.message.edited` | Message lifecycle state machine | Keep as Class D until a richer message lifecycle spec splits content mutation from tombstone/lifecycle events. |
-| `chat.message.deleted` | Message lifecycle / tombstone | Keep deletion behavior but document that local plaintext purge is projection-local; protocol deletion/tombstone semantics need mailbox/social lifecycle rules. |
-| `PrivatePayloadEnvelopeV1` | Data/security payload envelope | Keep as required encrypted payload carrier for `dm`/`group` chat events. |
-| Bridge delivery request | Availability/bridge transport | Keep bridge ciphertext-opaque; do not treat bridge acceptance as recipient delivery or durable apply. |
-| `ChatThreadState` | Local application projection | Keep as local decrypted projection, not canonical protocol state. |
-| `appliedEventIds` | Projection idempotency | Keep; later align with selective sync checkpoints and event-log replay. |
-| `replyToMessageId` | Thread parent/reference | Keep; later promote to Thread parent reference / Snapshot reference where evidence or quote semantics matter. |
+| Existing chat concept      | New protocol owner                                  | Promotion rule                                                                                                                                                 |
+| -------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chat.thread.created`      | Social Thread, optional Channel/Space context       | Keep as encrypted private Thread creation for DM/small-group chat; add parent context fields later for Channel/Space threads.                                  |
+| `chat.thread.accepted`     | Mailbox/Thread invitation acceptance boundary       | Keep as encrypted acceptance state for DM threads; later distinguish recipient acceptance from provider delivery receipt.                                      |
+| `chat.message.sent`        | Social message Entity + encrypted payload Component | Keep as encrypted Class D message event; later map payload body to encrypted Component/Object Reference where payloads grow.                                   |
+| `chat.message.edited`      | Message lifecycle state machine                     | Keep as Class D until a richer message lifecycle spec splits content mutation from tombstone/lifecycle events.                                                 |
+| `chat.message.deleted`     | Message lifecycle / tombstone                       | Keep deletion behavior but document that local plaintext purge is projection-local; protocol deletion/tombstone semantics need mailbox/social lifecycle rules. |
+| `PrivatePayloadEnvelopeV1` | Data/security payload envelope                      | Keep as required encrypted payload carrier for `dm`/`group` chat events.                                                                                       |
+| Bridge delivery request    | Availability/bridge transport                       | Keep bridge ciphertext-opaque; do not treat bridge acceptance as recipient delivery or durable apply.                                                          |
+| `ChatThreadState`          | Local application projection                        | Keep as local decrypted projection, not canonical protocol state.                                                                                              |
+| `appliedEventIds`          | Projection idempotency                              | Keep; later align with selective sync checkpoints and event-log replay.                                                                                        |
+| `replyToMessageId`         | Thread parent/reference                             | Keep; later promote to Thread parent reference / Snapshot reference where evidence or quote semantics matter.                                                  |
 
 ## Required doctrine boundaries
 

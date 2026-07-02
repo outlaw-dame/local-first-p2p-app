@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  CA_ERROR_CODES,
-  ContentAddressingError,
-  caError
-} from '../errors.js';
+import { CA_ERROR_CODES, ContentAddressingError, caError } from '../errors.js';
 
 describe('errors', () => {
   it('exports a stable, sorted-free list of error codes that are unique', () => {

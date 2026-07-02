@@ -134,9 +134,7 @@ function asInboundRecord(
 }
 
 function freshStore(label: string) {
-  return createLocalFirstStore(
-    `inbound-sync-cap-${label}-${globalThis.crypto.randomUUID()}`
-  );
+  return createLocalFirstStore(`inbound-sync-cap-${label}-${globalThis.crypto.randomUUID()}`);
 }
 
 /**
@@ -357,9 +355,7 @@ describe('processInboundSyncBatch — end-to-end with the identity-control-log v
       const authorized = deviceAuthorized();
       const granted = capabilityGranted();
       const events = [created, authorized, granted];
-      const records = events.map((e, i) =>
-        asInboundRecord(e, `cursor-${i + 1}`, i + 1)
-      );
+      const records = events.map((e, i) => asInboundRecord(e, `cursor-${i + 1}`, i + 1));
 
       const result = await processInboundSyncBatch({
         store,

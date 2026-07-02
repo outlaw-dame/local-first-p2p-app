@@ -46,18 +46,16 @@ describe('assertSafeNonNegativeInteger', () => {
   it('accepts 0 and positive safe integers', () => {
     expect(assertSafeNonNegativeInteger(0, 'X')).toBe(0);
     expect(assertSafeNonNegativeInteger(42, 'X')).toBe(42);
-    expect(
-      assertSafeNonNegativeInteger(Number.MAX_SAFE_INTEGER, 'X')
-    ).toBe(Number.MAX_SAFE_INTEGER);
+    expect(assertSafeNonNegativeInteger(Number.MAX_SAFE_INTEGER, 'X')).toBe(
+      Number.MAX_SAFE_INTEGER
+    );
   });
   it('rejects negative, fractional, non-finite, non-numbers', () => {
     expect(() => assertSafeNonNegativeInteger(-1, 'X')).toThrow();
     expect(() => assertSafeNonNegativeInteger(1.5, 'X')).toThrow();
     expect(() => assertSafeNonNegativeInteger(Infinity, 'X')).toThrow(/CA_NON_FINITE_NUMBER/);
     expect(() => assertSafeNonNegativeInteger(NaN, 'X')).toThrow(/CA_NON_FINITE_NUMBER/);
-    expect(() =>
-      assertSafeNonNegativeInteger(Number.MAX_SAFE_INTEGER + 2, 'X')
-    ).toThrow();
+    expect(() => assertSafeNonNegativeInteger(Number.MAX_SAFE_INTEGER + 2, 'X')).toThrow();
     expect(() => assertSafeNonNegativeInteger('1', 'X')).toThrow();
   });
 });
@@ -82,19 +80,17 @@ describe('parseSafeUrl', () => {
   });
 
   it('rejects URLs with embedded user/password', () => {
-    expect(() =>
-      parseSafeUrl('https://user:pass@example.com/x', ['https'], 'X')
-    ).toThrow(/CA_URL_CREDENTIALS_FORBIDDEN/);
-    expect(() =>
-      parseSafeUrl('https://user@example.com/x', ['https'], 'X')
-    ).toThrow(/CA_URL_CREDENTIALS_FORBIDDEN/);
+    expect(() => parseSafeUrl('https://user:pass@example.com/x', ['https'], 'X')).toThrow(
+      /CA_URL_CREDENTIALS_FORBIDDEN/
+    );
+    expect(() => parseSafeUrl('https://user@example.com/x', ['https'], 'X')).toThrow(
+      /CA_URL_CREDENTIALS_FORBIDDEN/
+    );
   });
 
   it('rejects schemes outside the allowlist', () => {
     expect(() => parseSafeUrl('http://example.com/', ['https'], 'X')).toThrow(/CA_INVALID_URL/);
-    expect(() =>
-      parseSafeUrl('javascript:alert(1)', ['https'], 'X')
-    ).toThrow(/CA_INVALID_URL/);
+    expect(() => parseSafeUrl('javascript:alert(1)', ['https'], 'X')).toThrow(/CA_INVALID_URL/);
     expect(() => parseSafeUrl('ftp://example.com/', ['https'], 'X')).toThrow(/CA_INVALID_URL/);
   });
 

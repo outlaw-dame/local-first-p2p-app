@@ -40,11 +40,12 @@ describe('preparePwaBridgeTransport', () => {
   });
 
   it('prepares transport without network calls until send is invoked', async () => {
-    const fetchSpy = vi.fn(async () =>
-      new Response(JSON.stringify({ status: 'confirmed' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' }
-      })
+    const fetchSpy = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ status: 'confirmed' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
     );
 
     const result = preparePwaBridgeTransport({ env: ENABLED_CONFIG_ENV, fetch: fetchSpy });

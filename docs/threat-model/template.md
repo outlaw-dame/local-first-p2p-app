@@ -46,23 +46,23 @@ List boundaries crossed by data or control:
 
 ## Data flow
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ## Threats
 
-| Threat | Impact | Existing mitigation | Missing mitigation | Test required |
-|---|---|---|---|---|
-| Forged input | | | | |
-| Replay/stale input | | | | |
-| Duplicate input | | | | |
-| Reordered input | | | | |
-| Metadata leakage | | | | |
-| Private plaintext leakage | | | | |
-| Resource exhaustion | | | | |
-| Confused-deputy behavior | | | | |
-| Revocation bypass | | | | |
+| Threat                    | Impact | Existing mitigation | Missing mitigation | Test required |
+| ------------------------- | ------ | ------------------- | ------------------ | ------------- |
+| Forged input              |        |                     |                    |               |
+| Replay/stale input        |        |                     |                    |               |
+| Duplicate input           |        |                     |                    |               |
+| Reordered input           |        |                     |                    |               |
+| Metadata leakage          |        |                     |                    |               |
+| Private plaintext leakage |        |                     |                    |               |
+| Resource exhaustion       |        |                     |                    |               |
+| Confused-deputy behavior  |        |                     |                    |               |
+| Revocation bypass         |        |                     |                    |               |
 
 ## Logging and telemetry rules
 
@@ -89,4 +89,4 @@ Document what remains risky even after mitigations.
 
 ## Review notes
 
-- 
+-

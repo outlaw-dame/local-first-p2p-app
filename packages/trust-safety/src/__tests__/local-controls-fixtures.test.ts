@@ -14,7 +14,9 @@ function readJson(path: string): unknown {
 function listFixtures(subdir: 'valid' | 'invalid'): string[] {
   const dir = join(FIXTURES_ROOT, subdir);
   if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter((n) => n.endsWith('.json')).sort();
+  return readdirSync(dir)
+    .filter((n) => n.endsWith('.json'))
+    .sort();
 }
 
 describe('local-control fixtures — valid', () => {

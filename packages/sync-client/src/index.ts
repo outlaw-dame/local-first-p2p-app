@@ -36,7 +36,9 @@ export type OutboxTransportResult =
   | Readonly<{ status: 'conflicted'; reason: string; sequence?: number }>;
 
 export type OutboxTransport = Readonly<{
-  send(input: Readonly<{ entry: MutationOutboxEntry; event: SignedEventEnvelope }>): Promise<OutboxTransportResult>;
+  send(
+    input: Readonly<{ entry: MutationOutboxEntry; event: SignedEventEnvelope }>
+  ): Promise<OutboxTransportResult>;
 }>;
 
 export type HttpBridgeTransportOptions = Readonly<{
@@ -79,7 +81,12 @@ export class InboundSyncIdentityMismatchError extends Error {
   readonly recordIndex: number;
   readonly mismatchFields: readonly InboundSyncIdentityMismatchField[];
 
-  constructor(input: Readonly<{ recordIndex: number; mismatchFields: readonly InboundSyncIdentityMismatchField[] }>) {
+  constructor(
+    input: Readonly<{
+      recordIndex: number;
+      mismatchFields: readonly InboundSyncIdentityMismatchField[];
+    }>
+  ) {
     super(`Inbound sync record ${input.recordIndex} checkpoint identity mismatch`);
     this.name = 'InboundSyncIdentityMismatchError';
     this.recordIndex = input.recordIndex;
@@ -93,7 +100,9 @@ export class InboundSyncLimitExceededError extends Error {
   readonly returned: number;
 
   constructor(input: Readonly<{ limit: number; returned: number }>) {
-    super(`Inbound sync transport returned ${input.returned} records, exceeding limit ${input.limit}`);
+    super(
+      `Inbound sync transport returned ${input.returned} records, exceeding limit ${input.limit}`
+    );
     this.name = 'InboundSyncLimitExceededError';
     this.limit = input.limit;
     this.returned = input.returned;
@@ -138,10 +147,12 @@ export type ProcessInboundSyncInput = Readonly<{
    * single hostile event. Default `undefined` so existing callers
    * see no change in the result shape.
    */
-  mlsGroupControlOptions?: Readonly<{
-    localDeviceId?: string | undefined;
-    allowAutomatedForkRecovery?: boolean | undefined;
-  }> | undefined;
+  mlsGroupControlOptions?:
+    | Readonly<{
+        localDeviceId?: string | undefined;
+        allowAutomatedForkRecovery?: boolean | undefined;
+      }>
+    | undefined;
   /**
    * Step 3b of the post-#84 follow-up — opt-in capability-proof
    * auto-registration. When `true`, every `identity.capability.granted`
@@ -356,11 +367,15 @@ export async function acceptSyncCheckpoint(input: AcceptSyncCheckpointInput): Pr
   }
 }
 
-export async function processInboundSyncBatch(input: ProcessInboundSyncInput): Promise<ProcessInboundSyncResult> {
+export async function processInboundSyncBatch(
+  input: ProcessInboundSyncInput
+): Promise<ProcessInboundSyncResult> {
   const nowIso = (input.now ?? new Date()).toISOString();
   const result = mutableInboundProcessResult();
   const expectedCheckpointKey =
-    input.expectedCheckpointKey === undefined ? undefined : normalizeSyncCheckpointKey(input.expectedCheckpointKey);
+    input.expectedCheckpointKey === undefined
+      ? undefined
+      : normalizeSyncCheckpointKey(input.expectedCheckpointKey);
   let checkpointAfter: StoredSyncCheckpoint | undefined;
 
   // Phase 1.8.14 — reputation routing is optional. We materialise
@@ -499,9 +514,7 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
       ? { checkpointAfter }
       : {}),
     ...(reputationField === undefined ? {} : { reputation: reputationField }),
-    ...(capabilityProofField === undefined
-      ? {}
-      : { capabilityProofs: capabilityProofField }),
+    ...(capabilityProofField === undefined ? {} : { capabilityProofs: capabilityProofField }),
     ...(mlsGroupControlField === undefined ? {} : { mlsGroupControl: mlsGroupControlField })
   };
 }
@@ -510,7 +523,8 @@ export async function pullAndProcessInboundSyncBatch(
   input: PullAndProcessInboundSyncInput
 ): Promise<PullAndProcessInboundSyncResult> {
   const checkpointKey = normalizeSyncCheckpointKey(input);
-  const limit = input.limit === undefined ? undefined : requirePositiveInteger(input.limit, 'limit');
+  const limit =
+    input.limit === undefined ? undefined : requirePositiveInteger(input.limit, 'limit');
   const checkpointBefore = await input.store.getSyncCheckpoint(checkpointKey);
   const records = await input.transport.pull({
     ...checkpointKey,
@@ -581,7 +595,10 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
   const nowIso = now.toISOString();
   const batchSize = requirePositiveInteger(input.batchSize ?? 10, 'batchSize');
   const maxAttempts = requirePositiveInteger(input.maxAttempts ?? 5, 'maxAttempts');
-  const claimTimeoutMs = requireNonNegativeInteger(input.claimTimeoutMs ?? 30_000, 'claimTimeoutMs');
+  const claimTimeoutMs = requireNonNegativeInteger(
+    input.claimTimeoutMs ?? 30_000,
+    'claimTimeoutMs'
+  );
   const result = mutableProcessResult();
   await input.store.recoverStaleOutboxClaims({
     staleBefore: new Date(now.getTime() - claimTimeoutMs).toISOString(),
@@ -600,7 +617,11 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
 
     if (claimed.retryCount >= maxAttempts) {
       result.failed += 1;
-      await input.store.markOutboxFailed(claimed.idempotencyKey, 'Outbox retry budget exhausted', nowIso);
+      await input.store.markOutboxFailed(
+        claimed.idempotencyKey,
+        'Outbox retry budget exhausted',
+        nowIso
+      );
       continue;
     }
 
@@ -653,7 +674,11 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
       await input.store.markOutboxConfirmed(claimed.idempotencyKey, nowIso);
       result.confirmed += 1;
     } else {
-      await input.store.markOutboxConflicted(claimed.idempotencyKey, transportResult.reason, nowIso);
+      await input.store.markOutboxConflicted(
+        claimed.idempotencyKey,
+        transportResult.reason,
+        nowIso
+      );
       result.conflicted += 1;
     }
   }
@@ -691,9 +716,12 @@ async function mapBridgeHttpResponse(response: Response): Promise<OutboxTranspor
   const validBody = parsed.parseStatus === 'valid' ? parsed.body : undefined;
   if (!response.ok) {
     const bodyReason =
-      validBody && (validBody.status === 'conflicted' || validBody.status === 'rejected') ? validBody.reason : undefined;
+      validBody && (validBody.status === 'conflicted' || validBody.status === 'rejected')
+        ? validBody.reason
+        : undefined;
     const statusReason = response.statusText.trim();
-    const reason = bodyReason ?? (statusReason.length > 0 ? statusReason : `Bridge HTTP ${response.status}`);
+    const reason =
+      bodyReason ?? (statusReason.length > 0 ? statusReason : `Bridge HTTP ${response.status}`);
     if (response.status === 409) return { status: 'conflicted', reason };
     if (isNonRetryableHttpStatus(response.status)) throw new NonRetryableOutboxError(reason);
     throw new Error(reason);
@@ -771,7 +799,10 @@ function parseReasonedBridgeResponse(
 function parseOptionalBridgeSequence(value: unknown): ParsedBridgeSequence {
   if (value === undefined) return { parseStatus: 'valid' };
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    return { parseStatus: 'invalid', reason: 'Bridge response sequence must be a non-negative integer' };
+    return {
+      parseStatus: 'invalid',
+      reason: 'Bridge response sequence must be a non-negative integer'
+    };
   }
   return { parseStatus: 'valid', value };
 }
@@ -1046,7 +1077,10 @@ function safeInboundEventId(record: unknown): { eventId: string } | Record<strin
   return typeof event.eventId === 'string' ? { eventId: event.eventId } : {};
 }
 
-function preflightInboundRecordsMatchCheckpointKey(records: readonly InboundSyncRecord[], key: SyncCheckpointKey): void {
+function preflightInboundRecordsMatchCheckpointKey(
+  records: readonly InboundSyncRecord[],
+  key: SyncCheckpointKey
+): void {
   for (const [index, record] of records.entries()) {
     const mismatchFields = checkpointKeyMismatchFields(record, key);
     if (mismatchFields.length > 0) {
@@ -1055,7 +1089,10 @@ function preflightInboundRecordsMatchCheckpointKey(records: readonly InboundSync
   }
 }
 
-function checkpointKeyMismatchFields(record: SyncCheckpointKey, key: SyncCheckpointKey): InboundSyncIdentityMismatchField[] {
+function checkpointKeyMismatchFields(
+  record: SyncCheckpointKey,
+  key: SyncCheckpointKey
+): InboundSyncIdentityMismatchField[] {
   const mismatchFields: InboundSyncIdentityMismatchField[] = [];
   if (record.sourceId !== key.sourceId) mismatchFields.push('sourceId');
   if (record.streamId !== key.streamId) mismatchFields.push('streamId');
@@ -1106,14 +1143,17 @@ function applyIdentityControlProjectionUpdate(
   event: SignedEventEnvelope,
   updatedAt: string
 ): StoredIdentityControlProjection {
-  const state = current === undefined ? createEmptyIdentityControlState() : toIdentityControlState(current);
+  const state =
+    current === undefined ? createEmptyIdentityControlState() : toIdentityControlState(current);
   const nextState = applyIdentityControlEvent(state, event);
   return {
     identityId: event.author,
     epoch: nextState.epoch,
     devices: nextState.devices,
     capabilities: nextState.capabilities,
-    ...(nextState.controllerPublicKey === undefined ? {} : { controllerPublicKey: nextState.controllerPublicKey }),
+    ...(nextState.controllerPublicKey === undefined
+      ? {}
+      : { controllerPublicKey: nextState.controllerPublicKey }),
     ...(nextState.contactCardPublication === undefined
       ? {}
       : { contactCardPublication: nextState.contactCardPublication }),
@@ -1127,7 +1167,9 @@ function toIdentityControlState(current: StoredIdentityControlProjection) {
     epoch: current.epoch,
     devices: current.devices,
     capabilities: current.capabilities,
-    ...(current.controllerPublicKey === undefined ? {} : { controllerPublicKey: current.controllerPublicKey }),
+    ...(current.controllerPublicKey === undefined
+      ? {}
+      : { controllerPublicKey: current.controllerPublicKey }),
     ...(current.contactCardPublication === undefined
       ? {}
       : { contactCardPublication: current.contactCardPublication }),
@@ -1137,10 +1179,7 @@ function toIdentityControlState(current: StoredIdentityControlProjection) {
 
 // Phase 1.8.12 — re-export the reputation inbound pipeline so
 // callers receive the full sync-client surface from a single import.
-export {
-  REPUTATION_DROP_REASONS,
-  processInboundReputationBatch
-} from './inbound-reputation.js';
+export { REPUTATION_DROP_REASONS, processInboundReputationBatch } from './inbound-reputation.js';
 export type {
   InboundReputationRecord,
   ProcessInboundReputationInput,

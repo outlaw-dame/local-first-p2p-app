@@ -40,7 +40,14 @@ describe('pullAndProcessInboundSyncBatch', () => {
       expect(capturedPulls).toEqual([
         { sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', limit: 25 }
       ]);
-      expect(result).toMatchObject({ pulled: 1, received: 1, applied: 1, skipped: 0, rejected: 0, errors: [] });
+      expect(result).toMatchObject({
+        pulled: 1,
+        received: 1,
+        applied: 1,
+        skipped: 0,
+        rejected: 0,
+        errors: []
+      });
       expect(result.checkpointBefore).toBeUndefined();
       expect(result.checkpointAfter).toMatchObject({ cursor: '1', sequence: 1 });
       await expect(store.getSignedEvent('evt_inbound_runner_001')).resolves.toEqual(first.event);
@@ -50,7 +57,9 @@ describe('pullAndProcessInboundSyncBatch', () => {
   });
 
   it('uses the stored checkpoint cursor for incremental pulls', async () => {
-    const store = createLocalFirstStore(`inbound-runner-checkpoint-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `inbound-runner-checkpoint-${globalThis.crypto.randomUUID()}`
+    );
     const first = makeRecord('evt_inbound_runner_checkpoint_001', '10', 10);
     const second = makeRecord('evt_inbound_runner_checkpoint_002', '11', 11);
     const capturedPulls: InboundSyncPullInput[] = [];
@@ -82,19 +91,36 @@ describe('pullAndProcessInboundSyncBatch', () => {
       });
 
       expect(capturedPulls).toEqual([
-        { sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', cursor: '10', limit: 5 }
+        {
+          sourceId: 'bridge:primary',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice',
+          cursor: '10',
+          limit: 5
+        }
       ]);
-      expect(result).toMatchObject({ pulled: 1, received: 1, applied: 1, skipped: 0, rejected: 0, errors: [] });
+      expect(result).toMatchObject({
+        pulled: 1,
+        received: 1,
+        applied: 1,
+        skipped: 0,
+        rejected: 0,
+        errors: []
+      });
       expect(result.checkpointBefore).toMatchObject({ cursor: '10', sequence: 10 });
       expect(result.checkpointAfter).toMatchObject({ cursor: '11', sequence: 11 });
-      await expect(store.getSignedEvent('evt_inbound_runner_checkpoint_002')).resolves.toEqual(second.event);
+      await expect(store.getSignedEvent('evt_inbound_runner_checkpoint_002')).resolves.toEqual(
+        second.event
+      );
     } finally {
       await store.delete();
     }
   });
 
   it('does not mutate local state when the transport fails before records are returned', async () => {
-    const store = createLocalFirstStore(`inbound-runner-transport-fail-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `inbound-runner-transport-fail-${globalThis.crypto.randomUUID()}`
+    );
     const current = makeRecord('evt_inbound_runner_existing', '20', 20);
     const transport = transportFrom(async () => {
       throw new Error('bridge unavailable');
@@ -124,7 +150,11 @@ describe('pullAndProcessInboundSyncBatch', () => {
       ).rejects.toThrow('bridge unavailable');
 
       await expect(
-        store.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' })
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice'
+        })
       ).resolves.toMatchObject({ cursor: '20', sequence: 20 });
     } finally {
       await store.delete();
@@ -132,9 +162,14 @@ describe('pullAndProcessInboundSyncBatch', () => {
   });
 
   it('rejects checkpoint identity mismatches before applying any returned records', async () => {
-    const store = createLocalFirstStore(`inbound-runner-identity-mismatch-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `inbound-runner-identity-mismatch-${globalThis.crypto.randomUUID()}`
+    );
     const valid = makeRecord('evt_inbound_runner_valid_before_mismatch', '1', 1);
-    const mismatched = { ...makeRecord('evt_inbound_runner_mismatch', '2', 2), scope: 'identity:mallory' };
+    const mismatched = {
+      ...makeRecord('evt_inbound_runner_mismatch', '2', 2),
+      scope: 'identity:mallory'
+    };
     const transport = transportFrom(async () => [valid, mismatched]);
 
     try {
@@ -154,9 +189,15 @@ describe('pullAndProcessInboundSyncBatch', () => {
       });
       await expect(promise).rejects.not.toThrow('identity:mallory');
 
-      await expect(store.getSignedEvent('evt_inbound_runner_valid_before_mismatch')).resolves.toBeUndefined();
       await expect(
-        store.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' })
+        store.getSignedEvent('evt_inbound_runner_valid_before_mismatch')
+      ).resolves.toBeUndefined();
+      await expect(
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice'
+        })
       ).resolves.toBeUndefined();
     } finally {
       await store.delete();
@@ -164,7 +205,9 @@ describe('pullAndProcessInboundSyncBatch', () => {
   });
 
   it('rejects over-limit transport responses before applying records', async () => {
-    const store = createLocalFirstStore(`inbound-runner-limit-exceeded-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `inbound-runner-limit-exceeded-${globalThis.crypto.randomUUID()}`
+    );
     const first = makeRecord('evt_inbound_runner_limit_001', '1', 1);
     const second = makeRecord('evt_inbound_runner_limit_002', '2', 2);
     const transport = transportFrom(async () => [first, second]);
@@ -187,7 +230,11 @@ describe('pullAndProcessInboundSyncBatch', () => {
       });
       await expect(store.getSignedEvent('evt_inbound_runner_limit_001')).resolves.toBeUndefined();
       await expect(
-        store.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' })
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice'
+        })
       ).resolves.toBeUndefined();
     } finally {
       await store.delete();

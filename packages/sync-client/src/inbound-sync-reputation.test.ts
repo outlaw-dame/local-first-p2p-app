@@ -102,9 +102,7 @@ function asInboundRecord(
 }
 
 function freshStore(label: string) {
-  return createLocalFirstStore(
-    `inbound-sync-rep-${label}-${globalThis.crypto.randomUUID()}`
-  );
+  return createLocalFirstStore(`inbound-sync-rep-${label}-${globalThis.crypto.randomUUID()}`);
 }
 
 /* -------------------------------------------------------------------------- */

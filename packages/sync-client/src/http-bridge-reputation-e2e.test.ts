@@ -40,7 +40,10 @@ import { createHttpBridgeTransport, processInboundSyncBatch, processOutboxBatch 
 const FIXED_NOW = '2026-06-01T00:00:00.000Z';
 const LABELER_SEED = new Uint8Array(32).fill(77);
 
-function buildAggregatorEnvelope(eventId: string, actorId: string): {
+function buildAggregatorEnvelope(
+  eventId: string,
+  actorId: string
+): {
   envelope: SignedEventEnvelope;
   labelerAuthor: string;
 } {

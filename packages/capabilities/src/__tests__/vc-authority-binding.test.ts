@@ -114,22 +114,25 @@ describe('createVcBindingRegistry + registerVcBinding + getBinding', () => {
   });
 
   it('rejects malformed input (bad digest, bad timestamp, prototype pollution)', () => {
-    expect(() => registerVcBinding(createVcBindingRegistry(), bindingInput({ claimDigest: 'not-a-digest' }))).toThrow(
-      CapabilityError
-    );
-    expect(() => registerVcBinding(createVcBindingRegistry(), bindingInput({ recordedAt: 'not-a-time' }))).toThrow(
-      CapabilityError
-    );
+    expect(() =>
+      registerVcBinding(createVcBindingRegistry(), bindingInput({ claimDigest: 'not-a-digest' }))
+    ).toThrow(CapabilityError);
+    expect(() =>
+      registerVcBinding(createVcBindingRegistry(), bindingInput({ recordedAt: 'not-a-time' }))
+    ).toThrow(CapabilityError);
     expect(() =>
       // @ts-expect-error: testing prototype-pollution guard
-      registerVcBinding(createVcBindingRegistry(), { ...bindingInput(), __proto__: { polluted: true } })
+      registerVcBinding(createVcBindingRegistry(), {
+        ...bindingInput(),
+        __proto__: { polluted: true }
+      })
     ).toThrow(CapabilityError);
   });
 
   it('rejects empty / overlong claimType', () => {
-    expect(() => registerVcBinding(createVcBindingRegistry(), bindingInput({ claimType: '' }))).toThrow(
-      /claimType must be a non-empty string/
-    );
+    expect(() =>
+      registerVcBinding(createVcBindingRegistry(), bindingInput({ claimType: '' }))
+    ).toThrow(/claimType must be a non-empty string/);
     expect(() =>
       registerVcBinding(createVcBindingRegistry(), bindingInput({ claimType: 'x'.repeat(257) }))
     ).toThrow(/exceeds 256 characters/);
@@ -141,18 +144,36 @@ describe('createVcBindingRegistry + registerVcBinding + getBinding', () => {
 describe('getBindingsForCapability / getBindingsForVc', () => {
   it('returns all bindings for a capability, sorted by bindingId for determinism', () => {
     let reg = createVcBindingRegistry();
-    reg = registerVcBinding(reg, bindingInput({ bindingId: 'binding:z', capabilityId: 'cap:x' })).registry;
-    reg = registerVcBinding(reg, bindingInput({ bindingId: 'binding:a', capabilityId: 'cap:x' })).registry;
-    reg = registerVcBinding(reg, bindingInput({ bindingId: 'binding:other', capabilityId: 'cap:y' })).registry;
+    reg = registerVcBinding(
+      reg,
+      bindingInput({ bindingId: 'binding:z', capabilityId: 'cap:x' })
+    ).registry;
+    reg = registerVcBinding(
+      reg,
+      bindingInput({ bindingId: 'binding:a', capabilityId: 'cap:x' })
+    ).registry;
+    reg = registerVcBinding(
+      reg,
+      bindingInput({ bindingId: 'binding:other', capabilityId: 'cap:y' })
+    ).registry;
     const got = getBindingsForCapability(reg, 'cap:x');
     expect(got.map((b) => b.bindingId)).toEqual(['binding:a', 'binding:z']);
   });
 
   it('returns all bindings for a VC proof', () => {
     let reg = createVcBindingRegistry();
-    reg = registerVcBinding(reg, bindingInput({ bindingId: 'b1', vcProofId: 'vc:1', capabilityId: 'cap:a' })).registry;
-    reg = registerVcBinding(reg, bindingInput({ bindingId: 'b2', vcProofId: 'vc:1', capabilityId: 'cap:b' })).registry;
-    reg = registerVcBinding(reg, bindingInput({ bindingId: 'b3', vcProofId: 'vc:2', capabilityId: 'cap:c' })).registry;
+    reg = registerVcBinding(
+      reg,
+      bindingInput({ bindingId: 'b1', vcProofId: 'vc:1', capabilityId: 'cap:a' })
+    ).registry;
+    reg = registerVcBinding(
+      reg,
+      bindingInput({ bindingId: 'b2', vcProofId: 'vc:1', capabilityId: 'cap:b' })
+    ).registry;
+    reg = registerVcBinding(
+      reg,
+      bindingInput({ bindingId: 'b3', vcProofId: 'vc:2', capabilityId: 'cap:c' })
+    ).registry;
     expect(getBindingsForVc(reg, 'vc:1').map((b) => b.capabilityId)).toEqual(['cap:a', 'cap:b']);
     expect(getBindingsForVc(reg, 'vc:2').map((b) => b.capabilityId)).toEqual(['cap:c']);
   });

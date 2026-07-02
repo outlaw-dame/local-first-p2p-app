@@ -5,7 +5,11 @@ import {
 } from './pwa-bridge-transport.js';
 import type { OutboxTransport } from '@lfp2p/sync-client';
 
-export type PwaOutboxBridgeTransportStatus = 'disabled' | 'invalid' | 'fetch-unavailable' | 'prepared';
+export type PwaOutboxBridgeTransportStatus =
+  | 'disabled'
+  | 'invalid'
+  | 'fetch-unavailable'
+  | 'prepared';
 
 export type CreatePwaOutboxDeliveryPlanInput = PreparePwaBridgeTransportInput &
   Readonly<{
@@ -26,7 +30,9 @@ const DRY_RUN_TRANSPORT: OutboxTransport = {
   }
 };
 
-export function createPwaOutboxDeliveryPlan(input: CreatePwaOutboxDeliveryPlanInput): PwaOutboxDeliveryPlan {
+export function createPwaOutboxDeliveryPlan(
+  input: CreatePwaOutboxDeliveryPlanInput
+): PwaOutboxDeliveryPlan {
   const pendingOutboxCount = normalizePendingOutboxCount(input.pendingOutboxCount);
   const bridgeTransport = preparePwaBridgeTransport({
     ...input,

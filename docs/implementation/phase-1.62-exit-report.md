@@ -15,7 +15,7 @@
 
 ## Phase scope
 
-Phase 1.62 was meant to ship the seven local user-control event types plus deterministic projection state and a visibility selector — all *private by default*, all replayable from the event log on store reopen, none of them allowed to leak into bridge or public flows.
+Phase 1.62 was meant to ship the seven local user-control event types plus deterministic projection state and a visibility selector — all _private by default_, all replayable from the event log on store reopen, none of them allowed to leak into bridge or public flows.
 
 Per the plan, the deliverables were:
 
@@ -61,12 +61,12 @@ Additional verification:
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| Local controls apply deterministically in local views | ✓ | `applyLocalControlEvent` is pure, frozen, idempotent; `decideVisibility` is deterministic |
-| Local controls survive store reopen and projection rebuild | ✓ | `seedLocalControlState` replay produces equal state on every call; tested explicitly |
-| Private preference state is not sent to public sync / search / curation flows | ✓ | `assertLocalControlEnvelopeScope` rejects every networked scope; `PRIVATE_LOCAL_CONTROL_SCOPES = {device-local, account-local}` |
-| Tests cover malformed local-safety events and private/public leakage | ✓ | 6 invalid fixtures + 14 explicit malformed-payload tests + 7-scope private-leak rejection test |
+| Criterion                                                                     | Status | Evidence                                                                                                                        |
+| ----------------------------------------------------------------------------- | -----: | ------------------------------------------------------------------------------------------------------------------------------- |
+| Local controls apply deterministically in local views                         |      ✓ | `applyLocalControlEvent` is pure, frozen, idempotent; `decideVisibility` is deterministic                                       |
+| Local controls survive store reopen and projection rebuild                    |      ✓ | `seedLocalControlState` replay produces equal state on every call; tested explicitly                                            |
+| Private preference state is not sent to public sync / search / curation flows |      ✓ | `assertLocalControlEnvelopeScope` rejects every networked scope; `PRIVATE_LOCAL_CONTROL_SCOPES = {device-local, account-local}` |
+| Tests cover malformed local-safety events and private/public leakage          |      ✓ | 6 invalid fixtures + 14 explicit malformed-payload tests + 7-scope private-leak rejection test                                  |
 
 ## Security/privacy checks
 

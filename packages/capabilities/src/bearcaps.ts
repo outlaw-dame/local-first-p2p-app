@@ -39,16 +39,20 @@ export function validateBearcapRef(value: unknown): BearcapRefV1 {
   const createdAt = assertTimestamp(record.createdAt, 'BearcapRefV1.createdAt');
   const expiresAt = assertTimestamp(record.expiresAt, 'BearcapRefV1.expiresAt');
   if (Date.parse(createdAt) >= Date.parse(expiresAt)) {
-    throw capabilityError('CAP_INVALID_TIMESTAMP', 'BearcapRefV1.createdAt must be before expiresAt');
+    throw capabilityError(
+      'CAP_INVALID_TIMESTAMP',
+      'BearcapRefV1.createdAt must be before expiresAt'
+    );
   }
   if (typeof record.singleUse !== 'boolean') {
     throw capabilityError('CAP_INVALID_INPUT', 'BearcapRefV1.singleUse must be a boolean');
   }
   const maxUses = record.maxUses === undefined ? undefined : assertMaxUses(record.maxUses);
   const redactionDigest = assertDigest(record.redactionDigest, 'BearcapRefV1.redactionDigest');
-  const audienceHint = record.audienceHint === undefined
-    ? undefined
-    : assertAudienceHint(record.audienceHint, 'BearcapRefV1.audienceHint');
+  const audienceHint =
+    record.audienceHint === undefined
+      ? undefined
+      : assertAudienceHint(record.audienceHint, 'BearcapRefV1.audienceHint');
 
   return Object.freeze({
     version: BEARCAP_REF_VERSION,
@@ -69,7 +73,11 @@ export function isBearcapExpired(ref: BearcapRefV1, now: string): boolean {
   return Date.parse(ref.expiresAt) <= parsedNow;
 }
 
-export function assertBearcapUsable(ref: BearcapRefV1, now: string, observedUses: number): BearcapRefV1 {
+export function assertBearcapUsable(
+  ref: BearcapRefV1,
+  now: string,
+  observedUses: number
+): BearcapRefV1 {
   const validated = validateBearcapRef(ref);
   if (isBearcapExpired(validated, now)) {
     throw capabilityError('CAP_INVALID_TIMESTAMP', 'BearcapRefV1 is expired');
@@ -106,7 +114,10 @@ function assertMetadataId(value: unknown, label: string): string {
     throw capabilityError('CAP_INVALID_ID', `${label} is too long`);
   }
   if (FORBIDDEN_SECRET_MARKERS.some((marker) => trimmed.includes(marker))) {
-    throw capabilityError('CAP_PRIVATE_LEAK_RISK', `${label} appears to contain a secret-bearing URL or token`);
+    throw capabilityError(
+      'CAP_PRIVATE_LEAK_RISK',
+      `${label} appears to contain a secret-bearing URL or token`
+    );
   }
   return trimmed;
 }
@@ -145,7 +156,10 @@ function assertPurpose(value: unknown): BearcapPurpose {
 
 function assertMaxUses(value: unknown): number {
   if (!Number.isSafeInteger(value) || (value as number) <= 0) {
-    throw capabilityError('CAP_INVALID_NUMBER', 'BearcapRefV1.maxUses must be a positive safe integer');
+    throw capabilityError(
+      'CAP_INVALID_NUMBER',
+      'BearcapRefV1.maxUses must be a positive safe integer'
+    );
   }
   return value as number;
 }

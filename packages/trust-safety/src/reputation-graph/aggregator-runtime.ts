@@ -27,15 +27,11 @@
  */
 
 import { tsError } from '../errors.js';
-import type {
-  ReputationEvent,
-  AggregatorSubjectScore
-} from './events.js';
+import type { ReputationEvent, AggregatorSubjectScore } from './events.js';
 import type { LocalReputationScore, LocalReputationState } from './computer.js';
 import { subjectRefToKey, type SubjectKey } from './inputs.js';
 
-export const AGGREGATED_REPUTATION_VIEW_VERSION =
-  'lfp2p.reputation-aggregated-view.v1' as const;
+export const AGGREGATED_REPUTATION_VIEW_VERSION = 'lfp2p.reputation-aggregated-view.v1' as const;
 
 /**
  * Identifier of the source labeler that produced a per-subject

@@ -66,7 +66,10 @@ export class BridgeService {
     this.#streamBroker = options.streamBroker;
   }
 
-  async acceptDelivery(request: BridgeDeliveryRequest, now = new Date().toISOString()): Promise<BridgeDeliveryResponse> {
+  async acceptDelivery(
+    request: BridgeDeliveryRequest,
+    now = new Date().toISOString()
+  ): Promise<BridgeDeliveryResponse> {
     const idempotencyKey = requireNonEmpty(request.idempotencyKey, 'idempotencyKey');
     const target = requireNonEmpty(request.target, 'target');
     const nowMs = requireIsoDate(now, 'now');
@@ -74,11 +77,17 @@ export class BridgeService {
     try {
       validateSignedEvent(request.event);
     } catch (error) {
-      return rejected(idempotencyKey, `Invalid signed event envelope: ${normalizeErrorMessage(error)}`);
+      return rejected(
+        idempotencyKey,
+        `Invalid signed event envelope: ${normalizeErrorMessage(error)}`
+      );
     }
 
     if (!BRIDGE_ALLOWED_PRIVACY_SCOPES.has(request.event.privacy)) {
-      return rejected(idempotencyKey, `Bridge cannot accept ${request.event.privacy} scoped events`);
+      return rejected(
+        idempotencyKey,
+        `Bridge cannot accept ${request.event.privacy} scoped events`
+      );
     }
 
     if (!verifySignedEventEnvelope(request.event)) {
@@ -112,10 +121,7 @@ export class BridgeService {
         // rejection. The reason carries only the stable error
         // class name + a static label, never payload contents,
         // per the Phase 3.1 privacy-safe-logging doctrine.
-        return rejected(
-          idempotencyKey,
-          `admission-persist-failed:${(error as Error).name}`
-        );
+        return rejected(idempotencyKey, `admission-persist-failed:${(error as Error).name}`);
       }
       if (!admission.result.admitted) {
         // `drop-duplicate` collapses into a rejection with the
@@ -145,7 +151,8 @@ export class BridgeService {
       },
       nowMs
     );
-    if (result.status === 'existing') return responseForExistingRecord(result.record, idempotencyKey, target, request.event);
+    if (result.status === 'existing')
+      return responseForExistingRecord(result.record, idempotencyKey, target, request.event);
 
     // Phase 4.4 — publish to the broker AFTER a fresh insert.
     // Duplicates and rejections are deliberately NOT published; the
@@ -187,7 +194,10 @@ export class BridgeService {
 
     return {
       records: records
-        .filter((record): record is StoredBridgeRecord & { event: SignedEventEnvelope } => record.event !== undefined)
+        .filter(
+          (record): record is StoredBridgeRecord & { event: SignedEventEnvelope } =>
+            record.event !== undefined
+        )
         .map((record) => ({
           cursor: String(record.sequence),
           sequence: record.sequence,
@@ -197,7 +207,10 @@ export class BridgeService {
     };
   }
 
-  async getRecord(idempotencyKey: string, now = new Date().toISOString()): Promise<BridgeRecord | undefined> {
+  async getRecord(
+    idempotencyKey: string,
+    now = new Date().toISOString()
+  ): Promise<BridgeRecord | undefined> {
     requireNonEmpty(idempotencyKey, 'idempotencyKey');
     const record = await this.store.get(idempotencyKey, requireIsoDate(now, 'now'));
     return withoutExpiry(record);
@@ -219,7 +232,9 @@ export class InMemoryBridgeService extends BridgeService {
       store: new InMemoryBridgeStore({
         ...(normalized.maxRecords === undefined ? {} : { maxRecords: normalized.maxRecords }),
         ...(normalized.ttlMs === undefined ? {} : { ttlMs: normalized.ttlMs }),
-        ...(normalized.initialSequence === undefined ? {} : { initialSequence: normalized.initialSequence })
+        ...(normalized.initialSequence === undefined
+          ? {}
+          : { initialSequence: normalized.initialSequence })
       }),
       ...(normalized.role === undefined ? {} : { role: normalized.role }),
       ...(normalized.admission === undefined ? {} : { admission: normalized.admission }),
@@ -235,7 +250,10 @@ export async function handleBridgeDeliveryRequest(
   options: BridgeHttpHandlerOptions = {}
 ): Promise<Response> {
   if (request.method !== 'POST') {
-    return jsonResponse({ status: 'rejected', idempotencyKey: 'unknown', reason: 'Method not allowed' }, 405);
+    return jsonResponse(
+      { status: 'rejected', idempotencyKey: 'unknown', reason: 'Method not allowed' },
+      405
+    );
   }
 
   // Backward-compat: pre-Phase-4.3 tests pass `null` as the options
@@ -266,7 +284,10 @@ export async function handleBridgeDeliveryRequest(
 
   const parsed = parseDeliveryRequestJsonFromText(request, body.text);
   if (parsed.status === 'invalid') {
-    return jsonResponse({ status: 'rejected', idempotencyKey: parsed.idempotencyKey, reason: parsed.reason }, 400);
+    return jsonResponse(
+      { status: 'rejected', idempotencyKey: parsed.idempotencyKey, reason: parsed.reason },
+      400
+    );
   }
 
   const response = await service.acceptDelivery(parsed.request, now);
@@ -404,7 +425,10 @@ function parseDeliveryRequestJsonFromText(
     if (headerKey !== null && headerKey !== idempotencyKey) {
       return invalid(idempotencyKey, 'Idempotency header does not match request body');
     }
-    return { status: 'valid', request: { idempotencyKey, target, event: parsed.event as SignedEventEnvelope } };
+    return {
+      status: 'valid',
+      request: { idempotencyKey, target, event: parsed.event as SignedEventEnvelope }
+    };
   } catch (error) {
     return invalid('unknown', `Invalid request body: ${normalizeErrorMessage(error)}`);
   }
@@ -423,7 +447,8 @@ function parseInboundReadRequestJsonFromText(
     const scope = coerceString(parsed.scope, 'scope');
     const cursor = parsed.cursor === undefined ? undefined : coerceString(parsed.cursor, 'cursor');
     if (cursor !== undefined) parseReadCursor(cursor);
-    const limit = parsed.limit === undefined ? undefined : coercePositiveInteger(parsed.limit, 'limit');
+    const limit =
+      parsed.limit === undefined ? undefined : coercePositiveInteger(parsed.limit, 'limit');
     if (limit !== undefined) normalizeReadLimit(limit);
     return {
       status: 'valid',
@@ -449,7 +474,8 @@ function parseReadCursor(cursor: string): number {
 function normalizeReadLimit(limit: number | undefined): number {
   if (limit === undefined) return DEFAULT_BRIDGE_INBOUND_READ_LIMIT;
   const normalized = requirePositiveInteger(limit, 'limit');
-  if (normalized > MAX_BRIDGE_INBOUND_READ_LIMIT) throw new Error(`limit must be at most ${MAX_BRIDGE_INBOUND_READ_LIMIT}`);
+  if (normalized > MAX_BRIDGE_INBOUND_READ_LIMIT)
+    throw new Error(`limit must be at most ${MAX_BRIDGE_INBOUND_READ_LIMIT}`);
   return normalized;
 }
 
@@ -468,7 +494,10 @@ function bridgeAuthMisconfiguredResponse(): Response {
   return jsonResponse({ reason: 'Bridge auth misconfigured' }, 503);
 }
 
-function invalid(idempotencyKey: string, reason: string): Readonly<{ status: 'invalid'; idempotencyKey: string; reason: string }> {
+function invalid(
+  idempotencyKey: string,
+  reason: string
+): Readonly<{ status: 'invalid'; idempotencyKey: string; reason: string }> {
   return { status: 'invalid', idempotencyKey, reason };
 }
 
@@ -481,12 +510,14 @@ function rejected(idempotencyKey: string, reason: string): BridgeDeliveryRespons
 }
 
 function coerceString(value: unknown, label: string): string {
-  if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`${label} is required`);
+  if (typeof value !== 'string' || value.trim().length === 0)
+    throw new Error(`${label} is required`);
   return value;
 }
 
 function coercePositiveInteger(value: unknown, label: string): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be positive`);
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${label} must be positive`);
   return value;
 }
 

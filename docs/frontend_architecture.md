@@ -1,4 +1,5 @@
 # Frontend Architecture for the First PWA
+
 ## Local-First Light Peer Strategy
 
 This document outlines the frontend architecture for the initial PWA target.

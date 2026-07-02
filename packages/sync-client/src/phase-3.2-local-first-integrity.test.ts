@@ -70,11 +70,7 @@ import {
   IDENTITY_EVENT_KINDS
 } from '@lfp2p/identity';
 import { signEventEnvelope, signingKeypairFromSeed } from '@lfp2p/crypto';
-import {
-  createUnsignedEvent,
-  type EventKind,
-  type SignedEventEnvelope
-} from '@lfp2p/protocol';
+import { createUnsignedEvent, type EventKind, type SignedEventEnvelope } from '@lfp2p/protocol';
 import {
   applyCurationEvent,
   applyLabelerEvent,
@@ -157,13 +153,7 @@ function findUnfrozenNodes(
     return out;
   }
   for (const key of Object.keys(value as Record<string, unknown>)) {
-    out.push(
-      ...findUnfrozenNodes(
-        (value as Record<string, unknown>)[key],
-        `${path}.${key}`,
-        seen
-      )
-    );
+    out.push(...findUnfrozenNodes((value as Record<string, unknown>)[key], `${path}.${key}`, seen));
   }
   return out;
 }
@@ -217,11 +207,7 @@ function localControlEvents(): LocalControlEvent[] {
  * canonical lifecycle slice.
  */
 function labelerEvents(): LabelerEvent[] {
-  return [
-    'profile-published-automated.json',
-    'subscribed.json',
-    'label-applied.json'
-  ]
+  return ['profile-published-automated.json', 'subscribed.json', 'label-applied.json']
     .map((name) => loadJson(`${FX_LABELERS}/${name}`))
     .map((v) => validateLabelerEvent(v) as LabelerEvent);
 }
@@ -345,10 +331,7 @@ describe('Phase 3.2 — Invariant 1: replay equivalence', () => {
   it('LabelersState: seed equals reduce', () => {
     const events = labelerEvents();
     const seeded = seedLabelersState(events);
-    const reduced = events.reduce(
-      (s, e) => applyLabelerEvent(s, e),
-      createEmptyLabelersState()
-    );
+    const reduced = events.reduce((s, e) => applyLabelerEvent(s, e), createEmptyLabelersState());
     expect(seeded).toEqual(reduced);
   });
 
@@ -375,10 +358,7 @@ describe('Phase 3.2 — Invariant 1: replay equivalence', () => {
   it('CurationState: seed equals reduce', () => {
     const events = curationEvents();
     const seeded = seedCurationState(events);
-    const reduced = events.reduce(
-      (s, e) => applyCurationEvent(s, e),
-      createEmptyCurationState()
-    );
+    const reduced = events.reduce((s, e) => applyCurationEvent(s, e), createEmptyCurationState());
     expect(seeded).toEqual(reduced);
   });
 
@@ -531,10 +511,7 @@ function isIdentityKind(kind: string): boolean {
  * The picker uses the same LCG as `shuffled` so the test stays
  * deterministic.
  */
-function interleaveDeterministic<T>(
-  streams: ReadonlyArray<ReadonlyArray<T>>,
-  seed = 1
-): T[] {
+function interleaveDeterministic<T>(streams: ReadonlyArray<ReadonlyArray<T>>, seed = 1): T[] {
   const heads = streams.map(() => 0);
   const lengths = streams.map((s) => s.length);
   const out: T[] = [];
@@ -584,9 +561,7 @@ describe('Phase 3.2 — Invariant 5: end-to-end interleaved replay', () => {
       switch (item.sort) {
         case 'identity':
           if (!isIdentityKind(item.event.kind)) {
-            throw new Error(
-              `dispatcher mis-routed an event with kind ${item.event.kind}`
-            );
+            throw new Error(`dispatcher mis-routed an event with kind ${item.event.kind}`);
           }
           identityState = applyIdentityControlEvent(identityState, item.event);
           break;

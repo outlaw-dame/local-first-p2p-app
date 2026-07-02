@@ -2,8 +2,15 @@ import type { CapabilityDecision, CapabilityProofRef, ProofRegistry } from '@lfp
 import type { DexieLocalFirstStore } from '@lfp2p/local-store';
 import { processOutboxBatch, type ProcessOutboxResult } from '@lfp2p/sync-client';
 import { evaluateTrustSafetyCap } from '@lfp2p/trust-safety';
-import { preparePwaBridgeTransport, type PreparePwaBridgeTransportInput } from './pwa-bridge-transport.js';
-import { createPwaSendBudget, formatPwaSendBudgetDecision, type PwaSendBudget } from './pwa-send-budget.js';
+import {
+  preparePwaBridgeTransport,
+  type PreparePwaBridgeTransportInput
+} from './pwa-bridge-transport.js';
+import {
+  createPwaSendBudget,
+  formatPwaSendBudgetDecision,
+  type PwaSendBudget
+} from './pwa-send-budget.js';
 
 const MANUAL_DELIVERY_ENABLED_KEY = 'VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED';
 const DEFAULT_BATCH_SIZE = 1;
@@ -92,10 +99,16 @@ export type ManualOutboxDeliveryResult =
       message: string;
     }>;
 
-export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInput): Promise<ManualOutboxDeliveryResult> {
+export async function runManualOutboxDelivery(
+  input: RunManualOutboxDeliveryInput
+): Promise<ManualOutboxDeliveryResult> {
   const env = input.env ?? importMetaEnv();
   if (!isDevMode(env)) {
-    return { status: 'disabled', reason: 'not-dev-mode', message: 'Manual outbox delivery is unavailable outside dev mode.' };
+    return {
+      status: 'disabled',
+      reason: 'not-dev-mode',
+      message: 'Manual outbox delivery is unavailable outside dev mode.'
+    };
   }
   if (!manualDeliveryEnabled(env)) {
     return {
@@ -128,7 +141,11 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
     ...(input.createTransport === undefined ? {} : { createTransport: input.createTransport })
   });
   if (bridgeTransport.status !== 'prepared') {
-    return { status: 'blocked', reason: bridgeTransport.reason, message: `Manual outbox delivery blocked: ${bridgeTransport.message}` };
+    return {
+      status: 'blocked',
+      reason: bridgeTransport.reason,
+      message: `Manual outbox delivery blocked: ${bridgeTransport.message}`
+    };
   }
 
   const budgetDecision = (input.sendBudget ?? defaultSendBudget).reserve({
@@ -136,7 +153,11 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
     ...(input.now === undefined ? {} : { now: input.now })
   });
   if (budgetDecision.status !== 'accepted') {
-    return { status: 'blocked', reason: 'send-budget-paused', message: formatPwaSendBudgetDecision(budgetDecision) };
+    return {
+      status: 'blocked',
+      reason: 'send-budget-paused',
+      message: formatPwaSendBudgetDecision(budgetDecision)
+    };
   }
 
   if (input.capabilityGate !== undefined) {
@@ -172,10 +193,17 @@ export async function runManualOutboxDelivery(input: RunManualOutboxDeliveryInpu
     (input.sendBudget ?? defaultSendBudget).refund({ entries: refundedEntries });
   }
 
-  return { status: 'delivered', batchSize, result, message: formatManualOutboxDeliveryResult(result) };
+  return {
+    status: 'delivered',
+    batchSize,
+    result,
+    message: formatManualOutboxDeliveryResult(result)
+  };
 }
 
-export function manualOutboxDeliveryActionEnabled(env: ManualOutboxDeliveryEnv = importMetaEnv()): boolean {
+export function manualOutboxDeliveryActionEnabled(
+  env: ManualOutboxDeliveryEnv = importMetaEnv()
+): boolean {
   return isDevMode(env) && manualDeliveryEnabled(env);
 }
 
@@ -199,7 +227,9 @@ function manualDeliveryEnabled(env: ManualOutboxDeliveryEnv): boolean {
 function normalizeBatchSize(value: number | undefined): number {
   const batchSize = value ?? DEFAULT_BATCH_SIZE;
   if (!Number.isSafeInteger(batchSize) || batchSize <= 0 || batchSize > MAX_BATCH_SIZE) {
-    throw new TypeError(`manual outbox delivery batchSize must be a positive safe integer no greater than ${MAX_BATCH_SIZE}.`);
+    throw new TypeError(
+      `manual outbox delivery batchSize must be a positive safe integer no greater than ${MAX_BATCH_SIZE}.`
+    );
   }
   return batchSize;
 }
@@ -215,7 +245,9 @@ function importMetaEnv(): ManualOutboxDeliveryEnv {
   return (import.meta as ImportMeta & { env?: ManualOutboxDeliveryEnv }).env ?? {};
 }
 
-function browserReportsOnline(source: Readonly<{ navigator?: Readonly<{ onLine?: boolean }> }> = globalThis): boolean {
+function browserReportsOnline(
+  source: Readonly<{ navigator?: Readonly<{ onLine?: boolean }> }> = globalThis
+): boolean {
   return source.navigator?.onLine !== false;
 }
 
@@ -265,11 +297,7 @@ async function evaluateOutboxCapabilityGate(input: {
   // here fails CLOSED to a deny rather than propagating a
   // TypeError out to the caller as an unhandled rejection. Gemini
   // review on PR #101.
-  if (
-    registry === null ||
-    typeof registry !== 'object' ||
-    !(registry.proofs instanceof Map)
-  ) {
+  if (registry === null || typeof registry !== 'object' || !(registry.proofs instanceof Map)) {
     return {
       status: 'deny',
       message: 'proof registry load returned an invalid shape — fail closed'
@@ -291,8 +319,7 @@ async function evaluateOutboxCapabilityGate(input: {
     if (record.subject.kind !== 'device') continue;
     if (record.subject.id !== input.localDeviceId) continue;
     const expMs = Date.parse(record.expiresAt);
-    const isExpired =
-      Number.isFinite(expMs) && Number.isFinite(nowMs) && nowMs >= expMs;
+    const isExpired = Number.isFinite(expMs) && Number.isFinite(nowMs) && nowMs >= expMs;
     candidateRecords.push({ proofId: record.proofId, expired: isExpired });
   }
 

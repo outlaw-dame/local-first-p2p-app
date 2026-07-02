@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  PRODUCT_ROLES,
-  SAFETY_AUTHORITY_SCOPES,
-  validateSafetyAuthority
-} from '../index.js';
+import { PRODUCT_ROLES, SAFETY_AUTHORITY_SCOPES, validateSafetyAuthority } from '../index.js';
 
 const BASE = {
   version: 'lfp2p.safety-authority.v1' as const,
@@ -44,9 +40,9 @@ describe('validateSafetyAuthority', () => {
 
   it('rejects oversized capabilityProofs', () => {
     const tooMany = new Array(33).fill({ proofId: 'p', scheme: 's' });
-    expect(() =>
-      validateSafetyAuthority({ ...BASE, capabilityProofs: tooMany })
-    ).toThrow(/exceeds 32/);
+    expect(() => validateSafetyAuthority({ ...BASE, capabilityProofs: tooMany })).toThrow(
+      /exceeds 32/
+    );
   });
 
   it('freezes the result', () => {

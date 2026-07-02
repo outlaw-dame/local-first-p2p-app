@@ -138,7 +138,10 @@ export function registerVcBinding(
   assertRegistry(registry);
   const binding = validateRegisterVcBindingInput(input);
   if (registry.bindings.has(binding.bindingId)) {
-    throw capabilityError('CAP_DUPLICATE_VALUE', `bindingId ${binding.bindingId} is already registered`);
+    throw capabilityError(
+      'CAP_DUPLICATE_VALUE',
+      `bindingId ${binding.bindingId} is already registered`
+    );
   }
   const next = new Map(registry.bindings);
   next.set(binding.bindingId, binding);
@@ -222,7 +225,9 @@ export function resolveVcBindings(
   for (const binding of matches) {
     const proof = proofsRegistry.proofs.get(binding.vcProofId);
     if (proof === undefined) {
-      out.push(Object.freeze({ binding, proofState: 'unverified' as CapabilityProofVerificationState }));
+      out.push(
+        Object.freeze({ binding, proofState: 'unverified' as CapabilityProofVerificationState })
+      );
       continue;
     }
     if (proof.scheme !== 'vc') {
@@ -335,9 +340,7 @@ function filterFrozenSorted(
   for (const b of registry.bindings.values()) {
     if (predicate(b)) out.push(b);
   }
-  out.sort((a, b) =>
-    a.bindingId < b.bindingId ? -1 : a.bindingId > b.bindingId ? 1 : 0
-  );
+  out.sort((a, b) => (a.bindingId < b.bindingId ? -1 : a.bindingId > b.bindingId ? 1 : 0));
   return Object.freeze(out);
 }
 
@@ -356,10 +359,7 @@ function filterFrozenSorted(
  */
 function partyRefsEqual(a: CapabilityPartyRef, b: CapabilityPartyRef): boolean {
   return (
-    a.kind === b.kind &&
-    a.id === b.id &&
-    a.digest === b.digest &&
-    a.publicKeyRef === b.publicKeyRef
+    a.kind === b.kind && a.id === b.id && a.digest === b.digest && a.publicKeyRef === b.publicKeyRef
   );
 }
 

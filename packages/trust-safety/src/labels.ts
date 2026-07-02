@@ -32,10 +32,7 @@ const LABEL_KEY_PATTERN = /^[a-z][a-z0-9._-]{0,126}$/;
 function assertNamespace(value: unknown, label: string): string {
   const raw = assertId(value, label, MAX_NAMESPACE_LENGTH);
   if (!NAMESPACE_PATTERN.test(raw)) {
-    throw tsError(
-      'TS_INVALID_LABEL',
-      `${label} must match /^[a-z][a-z0-9._-]{0,254}$/`
-    );
+    throw tsError('TS_INVALID_LABEL', `${label} must match /^[a-z][a-z0-9._-]{0,254}$/`);
   }
   return raw;
 }
@@ -43,10 +40,7 @@ function assertNamespace(value: unknown, label: string): string {
 function assertLabelKey(value: unknown, label: string): string {
   const raw = assertId(value, label, MAX_LABEL_KEY_LENGTH);
   if (!LABEL_KEY_PATTERN.test(raw)) {
-    throw tsError(
-      'TS_INVALID_LABEL',
-      `${label} must match /^[a-z][a-z0-9._-]{0,126}$/`
-    );
+    throw tsError('TS_INVALID_LABEL', `${label} must match /^[a-z][a-z0-9._-]{0,126}$/`);
   }
   return raw;
 }

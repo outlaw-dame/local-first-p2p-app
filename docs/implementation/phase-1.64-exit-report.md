@@ -40,6 +40,7 @@ The plan called for:
   delivery, stale confirmations, and unsafe scope acceptance.
 
 I also folded in the deferrals from earlier phases:
+
 - Phase 1.62: bridge-side transport enforcement of
   `safety.account.blocked`.
 - Phase 1.63: bridge `canBridgeForwardReport` integration,
@@ -92,18 +93,18 @@ Added under `packages/trust-safety/src/transport-admission/`:
   8. Rate limit.
   9. User-block transport (Phase 1.62 deferral).
   10. Report-forwarding privacy guard (Phase 1.63 deferral).
-  Each failure produces a `TransportAdmissionDecision` with the
-  appropriate `action` and `reasonCode`. Successful admits credit
-  +1 to peer reputation; failures penalize per-rule (-5 to -100).
+      Each failure produces a `TransportAdmissionDecision` with the
+      appropriate `action` and `reasonCode`. Successful admits credit
+      +1 to peer reputation; failures penalize per-rule (-5 to -100).
 - **`projection.ts`** — `TransportAdmissionState` frozen snapshot
   with `peerReputation`, `rateLimitState`, `replayCache`,
   `quarantinedPeers`, `quarantinedEvents`, `quarantinedMedia`,
   `auditLog`, `appliedEventIds`. `admitEnvelope` is the canonical
   entry point: takes state + envelope + config + optional context
-  + `now`, returns `{nextState, result}`. `applyTransportEvent`
-  records an emitted decision (or peer/media quarantine) into the
-  appropriate index, idempotent on `eventId`.
-  `seedTransportAdmissionState` is the store-reopen rebuild path.
+  - `now`, returns `{nextState, result}`. `applyTransportEvent`
+    records an emitted decision (or peer/media quarantine) into the
+    appropriate index, idempotent on `eventId`.
+    `seedTransportAdmissionState` is the store-reopen rebuild path.
 - **`user-block-enforcement.ts`** (Phase 1.62 deferral) —
   `decideUserBlockTransport(state, context, now)` returns
   `producer-blocked | producer-allowed`. TTL-aware: expired blocks
@@ -170,33 +171,33 @@ Additional verification:
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| Bridge-local rejection is not treated as global deletion | ✓ | Doctrine doc + decision shape carries operator authority + surface; no broadcast semantics |
-| Rate limits and quarantine are scoped to the infrastructure operator | ✓ | All state lives in `TransportAdmissionState` per operator; no cross-surface propagation in this package |
-| Admission decisions can cite exact `ObjectRef` / `BlockRef` values | ✓ | `transport.media.rejected` carries a full `BlockRef`; per Phase 1.61 the decision's `subject` may be any `SafetySubjectRef` |
-| Private payloads are not logged | ✓ | `redactDigestRef`/`redactBlockRefForAudit` enforce; audit entry tests verify no key digest, no full source digest, whole-second timestamps |
-| Tests cover malformed requests, replay, duplicate delivery, stale confirmations, and unsafe scope acceptance | ✓ | Admission test file + replay-cache tests + transport-events tests cover all four explicitly |
+| Criterion                                                                                                    | Status | Evidence                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------ | -----: | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Bridge-local rejection is not treated as global deletion                                                     |      ✓ | Doctrine doc + decision shape carries operator authority + surface; no broadcast semantics                                                 |
+| Rate limits and quarantine are scoped to the infrastructure operator                                         |      ✓ | All state lives in `TransportAdmissionState` per operator; no cross-surface propagation in this package                                    |
+| Admission decisions can cite exact `ObjectRef` / `BlockRef` values                                           |      ✓ | `transport.media.rejected` carries a full `BlockRef`; per Phase 1.61 the decision's `subject` may be any `SafetySubjectRef`                |
+| Private payloads are not logged                                                                              |      ✓ | `redactDigestRef`/`redactBlockRefForAudit` enforce; audit entry tests verify no key digest, no full source digest, whole-second timestamps |
+| Tests cover malformed requests, replay, duplicate delivery, stale confirmations, and unsafe scope acceptance |      ✓ | Admission test file + replay-cache tests + transport-events tests cover all four explicitly                                                |
 
 ## Security/privacy checks
 
 - [x] No private plaintext in logs — package emits no logs; the
-  audit log structurally redacts and never sees encrypted bytes.
+      audit log structurally redacts and never sees encrypted bytes.
 - [x] Remote/untrusted input validation exists — every transport
-  event kind has shape validation; the admission engine sanity-
-  checks byte sizes; signature verification is delegated to the
-  envelope layer.
+      event kind has shape validation; the admission engine sanity-
+      checks byte sizes; signature verification is delegated to the
+      envelope layer.
 - [x] Malicious/invalid input tests exist — flood attack on the
-  replay cache, compression bomb via `decodedByteSize`,
-  oversized envelope, disallowed scope at the bridge surface,
-  unknown event kinds, future-dated `retryAfter`, etc.
+      replay cache, compression bomb via `decodedByteSize`,
+      oversized envelope, disallowed scope at the bridge surface,
+      unknown event kinds, future-dated `retryAfter`, etc.
 - [x] Revocation/permission behavior — peer quarantines auto-lift
-  on reputation recovery or TTL; the engine does NOT permanently
-  ban a peer.
+      on reputation recovery or TTL; the engine does NOT permanently
+      ban a peer.
 - [x] Derived state rebuild/delete behavior —
-  `seedTransportAdmissionState` rebuilds from the event log
-  deterministically; `applyTransportEvent` is idempotent on
-  `eventId`.
+      `seedTransportAdmissionState` rebuilds from the event log
+      deterministically; `applyTransportEvent` is idempotent on
+      `eventId`.
 
 ## Deviations introduced or resolved
 

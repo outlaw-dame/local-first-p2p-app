@@ -28,12 +28,12 @@ LABEL SUGGESTION, not an immediate hide.
 - `ADMISSION_BAND_TABLE` — frozen multiplier set per band exactly
   per the doctrine:
 
-  | Band | capacity × | refill × | cooldown-exp × |
-  |---|---|---|---|
-  | high | 2 | 2 | 0.5 |
-  | mid | 1 | 1 | 1 |
-  | low | 0.5 | 0.5 | 1.5 |
-  | untrusted | 0.25 | 0.25 | 2 |
+  | Band      | capacity × | refill × | cooldown-exp × |
+  | --------- | ---------- | -------- | -------------- |
+  | high      | 2          | 2        | 0.5            |
+  | mid       | 1          | 1        | 1              |
+  | low       | 0.5        | 0.5      | 1.5            |
+  | untrusted | 0.25       | 0.25     | 2              |
 
 - `getAdmissionBandMultipliers(score)` — convenience lookup.
 - `applyAdmissionBand(baseline, score)` — applies the multipliers
@@ -55,13 +55,13 @@ BAND name (privacy-safe stable string) so consumers log
 - `SpamGateConfig` — `spamScoreThreshold` (default 0.05) +
   `spamSeedDistanceMax` (default 3).
 - `SpamGateDecision = { version, flagSpam, reasonCode,
-  bandSnapshot: { atOrAboveThreshold } }` — frozen.
+bandSnapshot: { atOrAboveThreshold } }` — frozen.
 - `SPAM_GATE_REASON_CODES` — 5 stable codes (`'score-above-threshold'`,
   `'within-seed-distance'`, `'positive-attestation-present'`,
   `'unknown-input'`, `'flagged'`).
 - `computeSpamGateDecision(input, config?)` — three-condition AND:
   flags ONLY when `low score AND far from seed AND no positive
-  attestation`. Each guard short-circuits with its own reason code
+attestation`. Each guard short-circuits with its own reason code
   so consumers can audit WHY a subject was / wasn't flagged.
 - **Fail-open on unknown input**: NaN / non-numeric / non-boolean
   returns `'unknown-input'` with `flagSpam: false` — a missing data
@@ -128,12 +128,12 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Admission band table modulates per-peer params per doctrine | ✓ | dedicated multiplier-table test + composition test |
-| Curation surface input — downranks, never hides | ✓ | doctrine non-negotiable #7 floor test |
-| Spam gate emits `spam.likely` candidate via three-condition AND | ✓ | dedicated guard tests; emit wiring deferred to 1.8.4 / PWA |
-| Audit log records the band, NOT raw score (privacy-safe per 3.1) | ✓ | every output carries the band as a stable string |
+| Criterion                                                          |      Status       | Evidence                                                                                                                                 |
+| ------------------------------------------------------------------ | :---------------: | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Admission band table modulates per-peer params per doctrine        |         ✓         | dedicated multiplier-table test + composition test                                                                                       |
+| Curation surface input — downranks, never hides                    |         ✓         | doctrine non-negotiable #7 floor test                                                                                                    |
+| Spam gate emits `spam.likely` candidate via three-condition AND    |         ✓         | dedicated guard tests; emit wiring deferred to 1.8.4 / PWA                                                                               |
+| Audit log records the band, NOT raw score (privacy-safe per 3.1)   |         ✓         | every output carries the band as a stable string                                                                                         |
 | User-overrides (explicit subscribe / mute) beat algorithmic signal | n/a at this layer | local-controls override happens at the Phase 1.62 surface that consumes these outputs; the integration layer just supplies the parameter |
 
 ## Deferred work

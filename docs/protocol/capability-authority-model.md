@@ -219,15 +219,15 @@ export type CapabilityPartyKind =
 A party ref must include:
 
 ```ts
-kind
-id
+kind;
+id;
 ```
 
 Optional fields:
 
 ```ts
-digest
-publicKeyRef
+digest;
+publicKeyRef;
 ```
 
 Rules:
@@ -262,15 +262,15 @@ export type CapabilityResourceKind =
 A resource ref must include:
 
 ```ts
-kind
-id
+kind;
+id;
 ```
 
 Optional fields:
 
 ```ts
-digest
-scopeHint
+digest;
+scopeHint;
 ```
 
 Rules:
@@ -326,8 +326,8 @@ Rules:
 A scope ref must include:
 
 ```ts
-kind
-id
+kind;
+id;
 ```
 
 Initial scope kinds:
@@ -379,8 +379,8 @@ label-namespace-is
 A caveat must include:
 
 ```ts
-kind
-value
+kind;
+value;
 ```
 
 Rules:
@@ -416,8 +416,8 @@ Rules:
 ## Proof registry
 
 A `CapabilityProofRef` is only a pointer. The **proof registry**
-(`proof-registry.ts`) is the canonical place that records *what a
-proof actually is* and *whether it can be relied upon*. It turns the
+(`proof-registry.ts`) is the canonical place that records _what a
+proof actually is_ and _whether it can be relied upon_. It turns the
 blanket `capability.unverified-proof` deny into a real verification
 outcome.
 
@@ -460,7 +460,7 @@ summarizeProofStates(registry, refs)   worst-case fold for the reliance gate
 Non-negotiable rules:
 
 - **The registry performs no cryptography itself.** `@lfp2p/capabilities`
-  has zero dependencies; `verifyProof` takes an *injected*
+  has zero dependencies; `verifyProof` takes an _injected_
   `CapabilityProofVerifier` supplied by a caller that holds the crypto
   (e.g. `@lfp2p/crypto` for `native-signed-event`). A verifier that
   cannot assess a scheme returns `undefined` → `unverified`. The
@@ -474,7 +474,7 @@ Non-negotiable rules:
   `verified`) → `unverified`. A revoked or expired proof can never be
   reported `verified`.
 - **Fail-closed aggregation.** `summarizeProofStates` folds a
-  capability's `proofRefs` to the *worst* (least trustworthy) state —
+  capability's `proofRefs` to the _worst_ (least trustworthy) state —
   severity `revoked > invalid > expired > unverified > verified`. An
   empty ref list, or a ref pointing at a proof not in the registry,
   is `unverified`.
@@ -491,7 +491,7 @@ provenance gate is opt-in, never a silent behaviour change.
 
 ### Proof record vs grant
 
-A grant *carries* `proofRefs`; the registry *resolves* them. The grant
+A grant _carries_ `proofRefs`; the registry _resolves_ them. The grant
 is the authority claim; the proof record is the evidence ledger that
 says whether the claim's evidence holds. They are deliberately
 separate: a grant is immutable once issued, but a proof's
@@ -500,7 +500,7 @@ mutable-by-replay registry, not baked into the grant.
 
 ### Plug-in verifiers
 
-The registry's `verifyProof` takes an *injected*
+The registry's `verifyProof` takes an _injected_
 `CapabilityProofVerifier` and never performs cryptography itself. A
 verifier is a pure function `(record) → 'verified' | 'invalid' | undefined`:
 
@@ -582,12 +582,12 @@ project ships:
 
   Honest v1 scope: `eddsa-jcs-2022` only (deliberately avoids
   JSON-LD URDNA2015 canonicalization), `did:key` only, single-proof
-  + single-subject only. Other proof types
-  (`Ed25519Signature2020`, `JsonWebSignature2020`,
-  `eddsa-rdfc-2022`, `ecdsa-rdfc-2019`, BBS variants) are explicit
-  non-goals and resolve to `'invalid'`. Status-list / revocation
-  lookup is also out of scope — the proof registry's deterministic
-  `revokedAt` gate is the authoritative revocation surface.
+  - single-subject only. Other proof types
+    (`Ed25519Signature2020`, `JsonWebSignature2020`,
+    `eddsa-rdfc-2022`, `ecdsa-rdfc-2019`, BBS variants) are explicit
+    non-goals and resolve to `'invalid'`. Status-list / revocation
+    lookup is also out of scope — the proof registry's deterministic
+    `revokedAt` gate is the authoritative revocation surface.
 
 - **`@lfp2p/zcap-ld-verifier`** — fills the slot for the
   `zcap-ld` scheme (Authorization Capabilities for Linked Data).
@@ -598,9 +598,9 @@ project ships:
     16),
   - enforces zcap-ld v1 `@context`, required fields (`id`,
     `controller`, `invocationTarget`), and `proofPurpose ===
-    'capabilityDelegation'`,
+'capabilityDelegation'`,
   - accepts ONLY `DataIntegrityProof` + `cryptosuite ===
-    'eddsa-jcs-2022'` — the same JCS (RFC 8785) pipeline shared
+'eddsa-jcs-2022'` — the same JCS (RFC 8785) pipeline shared
     with `@lfp2p/vc-verifier`. URDNA2015-based variants
     (`Ed25519Signature2020`, `eddsa-rdfc-2022`, etc.) resolve to
     `'invalid'` because shipping URDNA2015 + a JSON-LD context
@@ -664,15 +664,15 @@ project ships:
   ```
 
   Semantic:
-  - `'verified'`            — cryptographic identity binding
-                             confirmed (UCAN/VC/zcap-ld/native).
+  - `'verified'` — cryptographic identity binding
+    confirmed (UCAN/VC/zcap-ld/native).
   - `'possession-confirmed'` — the caller demonstrated possession
-                             of bytes whose digest matches the
-                             registry's `digest` field. No
-                             identity binding (anyone who knows
-                             the token bytes produces this
-                             verdict).
-  - `'unverified'`          — we never checked.
+    of bytes whose digest matches the
+    registry's `digest` field. No
+    identity binding (anyone who knows
+    the token bytes produces this
+    verdict).
+  - `'unverified'` — we never checked.
 
   The reliance gate's existing `proofsState !== 'verified'`
   check treats `'possession-confirmed'` as fail-closed for
@@ -682,16 +682,16 @@ project ships:
   `capability.unverified-proof` (no separate code; an authority
   decision based on a bearcap is still unverifiable as
   AUTHORITY). The distinction lives in the registry's audit
-  state so consumers can tell *we checked the only thing this
-  scheme admits and it matched* from *we never checked*.
+  state so consumers can tell _we checked the only thing this
+  scheme admits and it matched_ from _we never checked_.
 
   Combined with the pre-existing `BEARCAP_FORBIDDEN_ACTION_PREFIXES`
   guard in the reliance gate (bearcaps are denied for
   `identity.*`, `community.role.*`, `label.*`, `relay.*`,
   `super-peer.*` actions regardless of state), the model is:
-  *bearcap can witness a bytes-match, but cannot establish
+  _bearcap can witness a bytes-match, but cannot establish
   authority on its own, and is forbidden outright for
-  high-privilege scopes.*
+  high-privilege scopes._
 
 - **`@lfp2p/identity-control-log-verifier`** — fills the slot for
   the `identity-control-log` scheme (capabilities granted by an
@@ -765,7 +765,7 @@ project ships:
   await processInboundSyncBatch({
     store,
     records,
-    registerIdentityCapabilityProofs: true   // opt-in
+    registerIdentityCapabilityProofs: true // opt-in
   });
   ```
 
@@ -921,7 +921,7 @@ project ships:
      `pwa-identity-audit-state.test.ts`). When all matched proofs
      are scope-mismatched the deny message explicitly names
      `scope outbox.send` so the user knows the controller granted
-     *something* but not the right thing.
+     _something_ but not the right thing.
   2. **Inline expiry refresh.** `summarizeProofStates` reads
      `record.verificationState` directly without comparing
      `expiresAt` to `now`. A stale cached `'verified'` row whose
@@ -931,9 +931,9 @@ project ships:
      names `expired` so the user knows to re-grant rather than
      re-scope.
 
-  These match the doctrine: the cap-adapter answers *"are these
-  proofs in good standing?"* but it cannot answer *"do they grant
-  THIS action?"* — that's the relying caller's responsibility,
+  These match the doctrine: the cap-adapter answers _"are these
+  proofs in good standing?"_ but it cannot answer _"do they grant
+  THIS action?"_ — that's the relying caller's responsibility,
   which is what the scope filter discharges.
 
   ### Trust-boundary discipline
@@ -952,7 +952,6 @@ project ships:
   `ucan` / `zcap-ld` schemes, not this one.
 
   ### Honest v1 scope
-
   - Single-identity control log only. The verifier walks one
     controller's events; cross-identity attestations are out of
     scope.
@@ -978,20 +977,20 @@ project ships:
 
 A Verifiable Credential is one possible proof scheme
 (`scheme: 'vc'`). The VC authority binding (`vc-authority-binding.ts`)
-records that a *specific* VC, already in the proof registry, was the
-claimed evidence behind a *specific* capability.
+records that a _specific_ VC, already in the proof registry, was the
+claimed evidence behind a _specific_ capability.
 
 `VcAuthorityBindingV1`:
 
 ```ts
-version            // lfp2p.capability.vc-authority-binding.v1
-bindingId
-vcProofId          // points at a proof registry record with scheme: 'vc'
-capabilityId       // the grant this VC supports as evidence
-claimSubject
-claimType          // free-form bounded string (VC vocabularies differ)
-claimDigest        // pins the exact claim payload bytes
-recordedAt
+version; // lfp2p.capability.vc-authority-binding.v1
+bindingId;
+vcProofId; // points at a proof registry record with scheme: 'vc'
+capabilityId; // the grant this VC supports as evidence
+claimSubject;
+claimType; // free-form bounded string (VC vocabularies differ)
+claimDigest; // pins the exact claim payload bytes
+recordedAt;
 ```
 
 Registry operations (pure, immutable, frozen):
@@ -1026,8 +1025,8 @@ Non-negotiable rules:
     from the binding's `claimSubject` is dropped — a verified
     credential about one party MUST NOT be reported as verified
     evidence about another (confused-deputy defense).
-  Mismatches drop quietly so a single bad row cannot poison the audit
-  surface for the others.
+    Mismatches drop quietly so a single bad row cannot poison the audit
+    surface for the others.
 
 ## Bearcap profile
 
@@ -1036,15 +1035,15 @@ Bearcaps are possession URLs or tokens. They are explicitly weaker than signed c
 A bearcap ref may include:
 
 ```ts
-version
-bearcapId
-audienceHint
-purpose
-expiresAt
-singleUse
-maxUses
-createdAt
-redactionDigest
+version;
+bearcapId;
+audienceHint;
+purpose;
+expiresAt;
+singleUse;
+maxUses;
+createdAt;
+redactionDigest;
 ```
 
 Rules:
@@ -1139,15 +1138,8 @@ end-to-end recipe — composing all six scheme verifiers, running
 decision through the trust-safety adapter — looks like this:
 
 ```ts
-import {
-  createProofRegistry,
-  registerProof,
-  verifyProof
-} from '@lfp2p/capabilities';
-import {
-  composeVerifiers,
-  createNativeProofVerifier
-} from '@lfp2p/native-proof-verifier';
+import { createProofRegistry, registerProof, verifyProof } from '@lfp2p/capabilities';
+import { composeVerifiers, createNativeProofVerifier } from '@lfp2p/native-proof-verifier';
 import { createUcanVerifier } from '@lfp2p/ucan-verifier';
 import { createVcVerifier } from '@lfp2p/vc-verifier';
 import { createZcapLdVerifier } from '@lfp2p/zcap-ld-verifier';
@@ -1202,14 +1194,14 @@ over a re-fold of the current registry.
 `TrustSafetyCapInput` is fail-closed on partial proof-state input
 shapes:
 
-| Input shape | Resolved `proofsState` |
-|---|---|
-| `proofsState` supplied | the supplied value (wins over fold) |
-| `proofRegistry` + `capabilityProofs` supplied | `summarizeProofStates(registry, refs)` |
+| Input shape                                      | Resolved `proofsState`                                            |
+| ------------------------------------------------ | ----------------------------------------------------------------- |
+| `proofsState` supplied                           | the supplied value (wins over fold)                               |
+| `proofRegistry` + `capabilityProofs` supplied    | `summarizeProofStates(registry, refs)`                            |
 | `capabilityProofs` non-empty, no `proofRegistry` | `'unverified'` (gate intent signaled without means to satisfy it) |
-| `capabilityProofs` empty array | `undefined` (positive assertion of nothing-to-check) |
-| `proofRegistry` alone | `undefined` (registry held in scope, no refs to look up) |
-| Neither pathway supplied | `undefined` (pre-registry behaviour preserved) |
+| `capabilityProofs` empty array                   | `undefined` (positive assertion of nothing-to-check)              |
+| `proofRegistry` alone                            | `undefined` (registry held in scope, no refs to look up)          |
+| Neither pathway supplied                         | `undefined` (pre-registry behaviour preserved)                    |
 
 The "refs without registry" case is the one a relying app is most
 likely to get wrong by accident — a caller who has named specific
@@ -1220,21 +1212,21 @@ reliance gate denies with `capability.unverified-proof`.
 
 The reliance gate denies on any `proofsState !== 'verified'`:
 
-| `proofsState`            | Reason code at the gate          |
-|--------------------------|----------------------------------|
-| `verified`               | (allow passes through)           |
-| `possession-confirmed`   | `capability.unverified-proof`    |
-| `unverified`             | `capability.unverified-proof`    |
-| `invalid`                | `capability.unverified-proof`    |
-| `expired`                | `capability.expired`             |
-| `revoked`                | `capability.revoked`             |
+| `proofsState`          | Reason code at the gate       |
+| ---------------------- | ----------------------------- |
+| `verified`             | (allow passes through)        |
+| `possession-confirmed` | `capability.unverified-proof` |
+| `unverified`           | `capability.unverified-proof` |
+| `invalid`              | `capability.unverified-proof` |
+| `expired`              | `capability.expired`          |
+| `revoked`              | `capability.revoked`          |
 
 `possession-confirmed` is intentionally folded into
 `capability.unverified-proof` at this gate — bearer schemes
 witness possession but cannot establish cryptographic authority.
 The distinct state lives in the registry's audit surface so
-consumers can tell *"we checked the only thing this scheme
-admits and it matched"* from *"we never checked."*
+consumers can tell _"we checked the only thing this scheme
+admits and it matched"_ from _"we never checked."_
 
 ## Current implementation boundary
 

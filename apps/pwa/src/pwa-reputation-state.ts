@@ -210,9 +210,7 @@ export function buildAggregatorSubscriptionList(
       typeof raw.algorithm !== 'string' ||
       !(REPUTATION_ALGORITHMS as readonly string[]).includes(raw.algorithm)
     ) {
-      warnings.push(
-        `Skipped subscription with unknown algorithm "${String(raw.algorithm)}".`
-      );
+      warnings.push(`Skipped subscription with unknown algorithm "${String(raw.algorithm)}".`);
       continue;
     }
     let priority = raw.priority;

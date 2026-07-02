@@ -1,15 +1,7 @@
 import type { BlockRef, DigestRef, ObjectRef } from '@lfp2p/content-addressing';
-import {
-  validateBlockRef,
-  validateDigestRef,
-  validateObjectRef
-} from '@lfp2p/content-addressing';
+import { validateBlockRef, validateDigestRef, validateObjectRef } from '@lfp2p/content-addressing';
 import { tsError } from './errors.js';
-import {
-  assertId,
-  assertNonEmptyString,
-  assertPlainObject
-} from './validation.js';
+import { assertId, assertNonEmptyString, assertPlainObject } from './validation.js';
 
 /**
  * SafetySubjectRef variants. Each variant carries enough information to
@@ -88,7 +80,12 @@ export function validateSafetySubjectRef(
 
   switch (t) {
     case 'event': {
-      const out: { -readonly [K in keyof Extract<SafetySubjectRef, { type: 'event' }>]: Extract<SafetySubjectRef, { type: 'event' }>[K] } = {
+      const out: {
+        -readonly [K in keyof Extract<SafetySubjectRef, { type: 'event' }>]: Extract<
+          SafetySubjectRef,
+          { type: 'event' }
+        >[K];
+      } = {
         type: 'event',
         eventId: assertId(record.eventId, `${label}.eventId`)
       };
@@ -101,7 +98,12 @@ export function validateSafetySubjectRef(
         actorId: assertId(record.actorId, `${label}.actorId`)
       });
     case 'device': {
-      const out: { -readonly [K in keyof Extract<SafetySubjectRef, { type: 'device' }>]: Extract<SafetySubjectRef, { type: 'device' }>[K] } = {
+      const out: {
+        -readonly [K in keyof Extract<SafetySubjectRef, { type: 'device' }>]: Extract<
+          SafetySubjectRef,
+          { type: 'device' }
+        >[K];
+      } = {
         type: 'device',
         deviceId: assertId(record.deviceId, `${label}.deviceId`)
       };
@@ -114,7 +116,12 @@ export function validateSafetySubjectRef(
         communityId: assertId(record.communityId, `${label}.communityId`)
       });
     case 'thread': {
-      const out: { -readonly [K in keyof Extract<SafetySubjectRef, { type: 'thread' }>]: Extract<SafetySubjectRef, { type: 'thread' }>[K] } = {
+      const out: {
+        -readonly [K in keyof Extract<SafetySubjectRef, { type: 'thread' }>]: Extract<
+          SafetySubjectRef,
+          { type: 'thread' }
+        >[K];
+      } = {
         type: 'thread',
         threadId: assertId(record.threadId, `${label}.threadId`)
       };
@@ -151,15 +158,17 @@ export function validateSafetySubjectRef(
         throw tsError('TS_INVALID_SUBJECT', `${label}.normalizedUrl must be a valid URL`);
       }
       if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        throw tsError(
-          'TS_INVALID_SUBJECT',
-          `${label}.normalizedUrl must use http: or https:`
-        );
+        throw tsError('TS_INVALID_SUBJECT', `${label}.normalizedUrl must use http: or https:`);
       }
       if (url.username !== '' || url.password !== '') {
         throw tsError('TS_PRIVATE_LEAK', `${label}.normalizedUrl must not embed userinfo`);
       }
-      const out: { -readonly [K in keyof Extract<SafetySubjectRef, { type: 'url' }>]: Extract<SafetySubjectRef, { type: 'url' }>[K] } = {
+      const out: {
+        -readonly [K in keyof Extract<SafetySubjectRef, { type: 'url' }>]: Extract<
+          SafetySubjectRef,
+          { type: 'url' }
+        >[K];
+      } = {
         type: 'url',
         normalizedUrl
       };
@@ -169,10 +178,7 @@ export function validateSafetySubjectRef(
     case 'domain': {
       const domain = assertNonEmptyString(record.domain, `${label}.domain`);
       if (domain.length > MAX_DOMAIN_LENGTH || isLikelyUrl(domain) || domain.includes('/')) {
-        throw tsError(
-          'TS_INVALID_SUBJECT',
-          `${label}.domain must be a bare domain, not a URL`
-        );
+        throw tsError('TS_INVALID_SUBJECT', `${label}.domain must be a bare domain, not a URL`);
       }
       return Object.freeze({ type: 'domain', domain: domain.toLowerCase() });
     }

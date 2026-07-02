@@ -73,7 +73,7 @@ describe('delegation graph runtime', () => {
 
     const paths = buildCapabilityProofGraph(graph, 'cap:C');
     expect(paths).toHaveLength(1);
-    expect(paths[0]?.grants.map(g => g.capabilityId)).toEqual(['cap:A', 'cap:B', 'cap:C']);
+    expect(paths[0]?.grants.map((g) => g.capabilityId)).toEqual(['cap:A', 'cap:B', 'cap:C']);
 
     expect(paths[0]).toBeDefined();
     expect(isDelegationPathValid(graph, paths[0]!, NOW)).toBe(true);

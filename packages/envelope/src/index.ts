@@ -80,7 +80,9 @@ export type EnvelopeEventBuildResult = Readonly<{
 export type SignedEnvelopeEventBuildResult = Omit<EnvelopeEventBuildResult, 'event'> &
   Readonly<{ event: SignedEventEnvelope }>;
 
-export function resolveRecipients(identities: readonly RecipientIdentity[]): readonly ResolvedRecipient[] {
+export function resolveRecipients(
+  identities: readonly RecipientIdentity[]
+): readonly ResolvedRecipient[] {
   const out: ResolvedRecipient[] = [];
   const seen = new Set<string>();
   for (const identity of identities) {
@@ -91,20 +93,24 @@ export function resolveRecipients(identities: readonly RecipientIdentity[]): rea
       const deviceId = requireText(device.deviceId, 'deviceId');
       if (seen.has(deviceId)) throw new Error(`Duplicate recipient device id: ${deviceId}`);
       seen.add(deviceId);
-      out.push(Object.freeze({
-        recipientIdentityId: identityId,
-        recipientDeviceId: deviceId,
-        wrapPublicKey: requireWrapPublicKey(device.wrapPublicKey, 'wrapPublicKey'),
-        wrapKeyRef: requireText(device.wrapKeyRef, 'wrapKeyRef')
-      }));
+      out.push(
+        Object.freeze({
+          recipientIdentityId: identityId,
+          recipientDeviceId: deviceId,
+          wrapPublicKey: requireWrapPublicKey(device.wrapPublicKey, 'wrapPublicKey'),
+          wrapKeyRef: requireText(device.wrapKeyRef, 'wrapKeyRef')
+        })
+      );
     }
   }
   if (out.length === 0) throw new Error('No active recipient devices resolved');
-  return Object.freeze(out.sort((left, right) => {
-    const identityOrder = left.recipientIdentityId.localeCompare(right.recipientIdentityId);
-    if (identityOrder !== 0) return identityOrder;
-    return left.recipientDeviceId.localeCompare(right.recipientDeviceId);
-  }));
+  return Object.freeze(
+    out.sort((left, right) => {
+      const identityOrder = left.recipientIdentityId.localeCompare(right.recipientIdentityId);
+      if (identityOrder !== 0) return identityOrder;
+      return left.recipientDeviceId.localeCompare(right.recipientDeviceId);
+    })
+  );
 }
 
 export function buildPrivatePayloadAad(input: PrivatePayloadAadInput): string {
@@ -129,7 +135,9 @@ export function buildPrivatePayloadAad(input: PrivatePayloadAadInput): string {
   });
 }
 
-export async function createEnvelopeEvent(input: CreateEnvelopeEventInput): Promise<EnvelopeEventBuildResult> {
+export async function createEnvelopeEvent(
+  input: CreateEnvelopeEventInput
+): Promise<EnvelopeEventBuildResult> {
   const privacy = requireEnvelopeScope(input.privacy);
   const recipients = normalizeRecipients(input.recipients);
   const lamport = input.lamport ?? 0;
@@ -191,7 +199,9 @@ export async function createSignedEnvelopeEvent(
   });
 }
 
-export function summarizeEnvelopeEventForLog(event: UnsignedEventEnvelope | SignedEventEnvelope): JsonObject {
+export function summarizeEnvelopeEventForLog(
+  event: UnsignedEventEnvelope | SignedEventEnvelope
+): JsonObject {
   const payload = event.payload as Record<string, unknown>;
   const summary: Record<string, JsonValue> = {
     version: event.version,
@@ -221,7 +231,9 @@ type ContentKey = Readonly<{
   cryptoKey: CryptoKey;
 }>;
 
-async function generateContentKey(keyId = `payload-key:${globalThis.crypto.randomUUID()}`): Promise<ContentKey> {
+async function generateContentKey(
+  keyId = `payload-key:${globalThis.crypto.randomUUID()}`
+): Promise<ContentKey> {
   const rawKeyBytes = globalThis.crypto.getRandomValues(new Uint8Array(AES_256_KEY_BYTES));
   const rawKey = toBase64Url(rawKeyBytes);
   const cryptoKey = await requireSubtleCrypto().importKey(
@@ -238,28 +250,44 @@ async function generateContentKey(keyId = `payload-key:${globalThis.crypto.rando
   });
 }
 
-function normalizeRecipients(recipients: readonly ResolvedRecipient[]): readonly ResolvedRecipient[] {
+function normalizeRecipients(
+  recipients: readonly ResolvedRecipient[]
+): readonly ResolvedRecipient[] {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw new Error('Envelope recipients must not be empty');
   }
   const seen = new Set<string>();
-  return Object.freeze(recipients.map((recipient, index) => {
-    const recipientIdentityId = requireText(recipient.recipientIdentityId, `recipients[${index}].recipientIdentityId`);
-    const recipientDeviceId = requireText(recipient.recipientDeviceId, `recipients[${index}].recipientDeviceId`);
-    if (seen.has(recipientDeviceId)) throw new Error(`Duplicate recipient device id: ${recipientDeviceId}`);
-    seen.add(recipientDeviceId);
-    return Object.freeze({
-      recipientIdentityId,
-      recipientDeviceId,
-      wrapPublicKey: requireWrapPublicKey(recipient.wrapPublicKey, `recipients[${index}].wrapPublicKey`),
-      wrapKeyRef: requireText(recipient.wrapKeyRef, `recipients[${index}].wrapKeyRef`)
-    });
-  }));
+  return Object.freeze(
+    recipients.map((recipient, index) => {
+      const recipientIdentityId = requireText(
+        recipient.recipientIdentityId,
+        `recipients[${index}].recipientIdentityId`
+      );
+      const recipientDeviceId = requireText(
+        recipient.recipientDeviceId,
+        `recipients[${index}].recipientDeviceId`
+      );
+      if (seen.has(recipientDeviceId))
+        throw new Error(`Duplicate recipient device id: ${recipientDeviceId}`);
+      seen.add(recipientDeviceId);
+      return Object.freeze({
+        recipientIdentityId,
+        recipientDeviceId,
+        wrapPublicKey: requireWrapPublicKey(
+          recipient.wrapPublicKey,
+          `recipients[${index}].wrapPublicKey`
+        ),
+        wrapKeyRef: requireText(recipient.wrapKeyRef, `recipients[${index}].wrapKeyRef`)
+      });
+    })
+  );
 }
 
 function requireEnvelopeScope(value: PrivacyScope): EnvelopeScope {
   if (value !== 'self' && value !== 'dm' && value !== 'group') {
-    throw new Error(`Envelope payload builder requires self, dm, or group privacy; got ${String(value)}`);
+    throw new Error(
+      `Envelope payload builder requires self, dm, or group privacy; got ${String(value)}`
+    );
   }
   return value;
 }
@@ -311,12 +339,14 @@ function requireIsoDate(value: string, label: string): string {
 }
 
 function requireSafeNonNegativeInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be a safe non-negative integer`);
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new Error(`${label} must be a safe non-negative integer`);
   return value;
 }
 
 function requireSafePositiveInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a safe positive integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${label} must be a safe positive integer`);
   return value;
 }
 

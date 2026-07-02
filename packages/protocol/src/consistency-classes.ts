@@ -25,16 +25,14 @@ export const OPERATION_CONSISTENCY_CLASS_METADATA = Object.freeze({
     name: 'eventually-consistent-projection',
     crdtAllowed: true,
     lwwAllowed: true,
-    summary:
-      'Pure projection events where idempotent replay and commutative apply are acceptable.'
+    summary: 'Pure projection events where idempotent replay and commutative apply are acceptable.'
   }),
   B: Object.freeze({
     class: 'B',
     name: 'append-only-lifecycle-state-machine',
     crdtAllowed: false,
     lwwAllowed: false,
-    summary:
-      'Lifecycle events with explicit legal transitions and terminal states.'
+    summary: 'Lifecycle events with explicit legal transitions and terminal states.'
   }),
   C: Object.freeze({
     class: 'C',
@@ -106,22 +104,16 @@ const EVENT_KIND_CONSISTENCY_CLASS_VALUES = {
  * typecheck failure. This intentionally converts the draft taxonomy from a
  * read-only audit lens into an enforceable protocol package guardrail.
  */
-export const EVENT_KIND_CONSISTENCY_CLASS = Object.freeze(
-  EVENT_KIND_CONSISTENCY_CLASS_VALUES
-);
+export const EVENT_KIND_CONSISTENCY_CLASS = Object.freeze(EVENT_KIND_CONSISTENCY_CLASS_VALUES);
 
-export function isOperationConsistencyClass(
-  value: unknown
-): value is OperationConsistencyClass {
+export function isOperationConsistencyClass(value: unknown): value is OperationConsistencyClass {
   return (
     typeof value === 'string' &&
     OPERATION_CONSISTENCY_CLASSES.includes(value as OperationConsistencyClass)
   );
 }
 
-export function consistencyClassForEventKind(
-  kind: EventKind
-): OperationConsistencyClass {
+export function consistencyClassForEventKind(kind: EventKind): OperationConsistencyClass {
   const consistencyClass = EVENT_KIND_CONSISTENCY_CLASS[kind];
   if (consistencyClass === undefined) {
     throw new Error('Unknown event kind: ' + kind);
@@ -153,10 +145,7 @@ export function assertCrdtPayloadAllowedForEventKind(
   }
 }
 
-export function assertLwwAllowedForEventKind(
-  kind: EventKind,
-  label = 'LWW boundary'
-): void {
+export function assertLwwAllowedForEventKind(kind: EventKind, label = 'LWW boundary'): void {
   const consistencyClass = consistencyClassForEventKind(kind);
   const metadata = OPERATION_CONSISTENCY_CLASS_METADATA[consistencyClass];
   if (!metadata.lwwAllowed) {

@@ -16,11 +16,7 @@ export type HashAlgorithm = 'sha-256' | 'sha-512' | 'blake3';
  * (`createDigest`/`verifyDigest`) is fail-closed until a vetted runtime
  * dependency is added by ADR.
  */
-export const SUPPORTED_HASH_ALGORITHMS: readonly HashAlgorithm[] = [
-  'sha-256',
-  'sha-512',
-  'blake3'
-];
+export const SUPPORTED_HASH_ALGORITHMS: readonly HashAlgorithm[] = ['sha-256', 'sha-512', 'blake3'];
 
 /**
  * Algorithms we can currently compute locally. `createDigest` is
@@ -58,10 +54,7 @@ export type DigestRef = Readonly<{
 }>;
 
 export function isHashAlgorithm(value: unknown): value is HashAlgorithm {
-  return (
-    typeof value === 'string' &&
-    SUPPORTED_HASH_ALGORITHMS.includes(value as HashAlgorithm)
-  );
+  return typeof value === 'string' && SUPPORTED_HASH_ALGORITHMS.includes(value as HashAlgorithm);
 }
 
 export function assertHashAlgorithm(value: unknown, label: string): HashAlgorithm {
@@ -153,10 +146,7 @@ export function canonicalizeJson(value: JsonValue): string {
 
 function toCanonical(value: JsonValue, depth: number): JsonValue {
   if (depth > MAX_CANONICAL_DEPTH) {
-    throw caError(
-      'CA_RECURSION_LIMIT',
-      `JSON nesting depth exceeded ${MAX_CANONICAL_DEPTH}`
-    );
+    throw caError('CA_RECURSION_LIMIT', `JSON nesting depth exceeded ${MAX_CANONICAL_DEPTH}`);
   }
   if (value === null) return null;
   if (typeof value === 'number') {
@@ -173,10 +163,7 @@ function toCanonical(value: JsonValue, depth: number): JsonValue {
     for (let i = 0; i < value.length; i += 1) {
       const element = value[i];
       if (element === undefined) {
-        throw caError(
-          'CA_UNDEFINED_VALUE',
-          'Arrays must not contain undefined values'
-        );
+        throw caError('CA_UNDEFINED_VALUE', 'Arrays must not contain undefined values');
       }
       out[i] = toCanonical(element, depth + 1);
     }
@@ -191,10 +178,7 @@ function toCanonical(value: JsonValue, depth: number): JsonValue {
       assertForbiddenKey(key, 'JSON object key');
       const raw = record[key];
       if (raw === undefined) {
-        throw caError(
-          'CA_UNDEFINED_VALUE',
-          'JSON objects must not contain undefined values'
-        );
+        throw caError('CA_UNDEFINED_VALUE', 'JSON objects must not contain undefined values');
       }
       pairs.push([key, toCanonical(raw, depth + 1)]);
     }

@@ -29,9 +29,9 @@ describe('validateReporterRef', () => {
     expect(r.kind).toBe('pseudonym');
   });
   it('rejects unknown kind', () => {
-    expect(() =>
-      validateReporterRef({ kind: 'alien', actor: { actorId: 'a1' } })
-    ).toThrow(/TS_INVALID_ENUM/);
+    expect(() => validateReporterRef({ kind: 'alien', actor: { actorId: 'a1' } })).toThrow(
+      /TS_INVALID_ENUM/
+    );
   });
 });
 

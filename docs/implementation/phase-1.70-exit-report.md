@@ -122,15 +122,15 @@ pnpm build       # clean; PWA bundle 1,131 KB → 1,196 KB (≈ +65 KB)
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Hashtag + phrase added as first-class match kinds; regex still rejected | ✓ | `events.ts`, `phase-1.70-keyword-kinds.test.ts` |
-| All matchers stay on the linear-time path; no regex compiled against attacker text | ✓ | constant patterns + adversarial timing tests |
-| Local-control + labeler events persist via Dexie and rebuild deterministically | ✓ | `trust-safety-persistence.test.ts` |
-| Append is idempotent on eventId; malformed events rejected at the boundary | ✓ | same |
-| PWA exposes the adult-content gate, content-category preferences, keyword filters, and labeler subscriptions in one settings surface | ✓ | `pwa-trust-safety-settings.tsx` |
-| Pre-subscribe redundancy warning surfaced in the UI | ✓ | `assessSubscribeIntent` + overlap callout |
-| No new lint, typecheck, test, or build failures | ✓ | full sweep clean |
+| Criterion                                                                                                                            | Status | Evidence                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------ | :----: | ----------------------------------------------- |
+| Hashtag + phrase added as first-class match kinds; regex still rejected                                                              |   ✓    | `events.ts`, `phase-1.70-keyword-kinds.test.ts` |
+| All matchers stay on the linear-time path; no regex compiled against attacker text                                                   |   ✓    | constant patterns + adversarial timing tests    |
+| Local-control + labeler events persist via Dexie and rebuild deterministically                                                       |   ✓    | `trust-safety-persistence.test.ts`              |
+| Append is idempotent on eventId; malformed events rejected at the boundary                                                           |   ✓    | same                                            |
+| PWA exposes the adult-content gate, content-category preferences, keyword filters, and labeler subscriptions in one settings surface |   ✓    | `pwa-trust-safety-settings.tsx`                 |
+| Pre-subscribe redundancy warning surfaced in the UI                                                                                  |   ✓    | `assessSubscribeIntent` + overlap callout       |
+| No new lint, typecheck, test, or build failures                                                                                      |   ✓    | full sweep clean                                |
 
 ## Deferred work
 

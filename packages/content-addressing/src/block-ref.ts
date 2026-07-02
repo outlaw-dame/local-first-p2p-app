@@ -84,10 +84,7 @@ function validateBlockSource(value: unknown): BlockSource {
     const link = validateContentLink(record.link);
     return Object.freeze({ kind: 'content-link' as const, link });
   }
-  throw caError(
-    'CA_INVALID_INPUT',
-    'BlockRef.source.kind must be "digest" or "content-link"'
-  );
+  throw caError('CA_INVALID_INPUT', 'BlockRef.source.kind must be "digest" or "content-link"');
 }
 
 function sourceDigestForComparison(source: BlockSource): string | undefined {
@@ -206,9 +203,10 @@ export function validateBlockRef(value: unknown): BlockRef {
       `BlockRef.byteLength ${byteLength} exceeds MAX_BLOCK_BYTE_LENGTH ${MAX_BLOCK_BYTE_LENGTH}`
     );
   }
-  const offset = record.offset === undefined
-    ? 0
-    : assertSafeNonNegativeInteger(record.offset, 'BlockRef.offset');
+  const offset =
+    record.offset === undefined
+      ? 0
+      : assertSafeNonNegativeInteger(record.offset, 'BlockRef.offset');
   const privacy = validatePrivacy(record.privacy);
 
   let encryption: EncryptionDescriptor | undefined;

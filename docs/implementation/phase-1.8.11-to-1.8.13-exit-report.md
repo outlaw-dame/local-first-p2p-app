@@ -150,20 +150,20 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| OpenRank adapter is a SEPARATE workspace package, not in protocol core | ✓ | new `packages/openrank-adapter` package |
-| Adapter never touches the network itself (caller-supplied fetcher) | ✓ | `OpenRankFetcher` interface; tests use deterministic mocks |
-| Adapter clamps score / confidence / observationCount and drops malformed rows | ✓ | dedicated tests |
-| Adapter splits over-cap batches deterministically | ✓ | dedicated test at cap+5 boundary |
-| Sync-client inbound: opt-in discipline preserved (subscribed-labelers only) | ✓ | 4 dedicated tests |
-| Sync-client inbound: observation/attestation/revocation dropped (deferred to 1.8.13 elevation) | ✓ | 3 dedicated tests |
-| Sync-client inbound: idempotent on eventId | ✓ | dedicated test |
-| Cross-device sync policy: default = device-local (doctrine non-negotiable #2) | ✓ | dedicated test |
-| `public` is not a valid per-user scope choice | ✓ | dedicated test + structural enum exclusion |
-| localStorage persistence with corrupt-blob fail-closed-on-read | ✓ | dedicated test |
-| Save normalises before writing — corrupt blob cannot land on disk | ✓ | dedicated test |
-| UI surfaces the doctrine default + the "account-local pending Phase 5.0" notice | ✓ | new section in `PwaReputationSettings` |
+| Criterion                                                                                      | Status | Evidence                                                   |
+| ---------------------------------------------------------------------------------------------- | :----: | ---------------------------------------------------------- |
+| OpenRank adapter is a SEPARATE workspace package, not in protocol core                         |   ✓    | new `packages/openrank-adapter` package                    |
+| Adapter never touches the network itself (caller-supplied fetcher)                             |   ✓    | `OpenRankFetcher` interface; tests use deterministic mocks |
+| Adapter clamps score / confidence / observationCount and drops malformed rows                  |   ✓    | dedicated tests                                            |
+| Adapter splits over-cap batches deterministically                                              |   ✓    | dedicated test at cap+5 boundary                           |
+| Sync-client inbound: opt-in discipline preserved (subscribed-labelers only)                    |   ✓    | 4 dedicated tests                                          |
+| Sync-client inbound: observation/attestation/revocation dropped (deferred to 1.8.13 elevation) |   ✓    | 3 dedicated tests                                          |
+| Sync-client inbound: idempotent on eventId                                                     |   ✓    | dedicated test                                             |
+| Cross-device sync policy: default = device-local (doctrine non-negotiable #2)                  |   ✓    | dedicated test                                             |
+| `public` is not a valid per-user scope choice                                                  |   ✓    | dedicated test + structural enum exclusion                 |
+| localStorage persistence with corrupt-blob fail-closed-on-read                                 |   ✓    | dedicated test                                             |
+| Save normalises before writing — corrupt blob cannot land on disk                              |   ✓    | dedicated test                                             |
+| UI surfaces the doctrine default + the "account-local pending Phase 5.0" notice                |   ✓    | new section in `PwaReputationSettings`                     |
 
 ## What remains conditionally deferred
 

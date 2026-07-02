@@ -111,10 +111,7 @@ function deserializeTokenRegistry(raw: unknown): ReadonlyArray<AuthToken> {
       if (typeof t.tokenId !== 'string' || t.tokenId.length === 0) {
         throw new TokenRegistryCorruptError(`tokens[${i}].tokenId is missing`);
       }
-      if (
-        typeof t.hashedValue !== 'string' ||
-        !/^[0-9a-f]{64}$/.test(t.hashedValue)
-      ) {
+      if (typeof t.hashedValue !== 'string' || !/^[0-9a-f]{64}$/.test(t.hashedValue)) {
         throw new TokenRegistryCorruptError(
           `tokens[${i}].hashedValue must be a 64-char hex sha-256 digest`
         );
@@ -125,9 +122,7 @@ function deserializeTokenRegistry(raw: unknown): ReadonlyArray<AuthToken> {
       };
       if (t.expiresAt !== undefined) {
         if (!Number.isFinite(Date.parse(t.expiresAt))) {
-          throw new TokenRegistryCorruptError(
-            `tokens[${i}].expiresAt is not ISO-8601`
-          );
+          throw new TokenRegistryCorruptError(`tokens[${i}].expiresAt is not ISO-8601`);
         }
         out.expiresAt = t.expiresAt;
       }
@@ -174,8 +169,7 @@ export class JsonFileTokenRegistryStore implements TokenRegistryStore {
       throw new TypeError('JsonFileTokenRegistryStore: filePath is required');
     }
     this.#filePath = options.filePath;
-    this.#tempSuffix =
-      options.tempSuffix ?? Math.random().toString(16).slice(2, 10);
+    this.#tempSuffix = options.tempSuffix ?? Math.random().toString(16).slice(2, 10);
   }
 
   async load(): Promise<ReadonlyArray<AuthToken>> {
@@ -190,9 +184,7 @@ export class JsonFileTokenRegistryStore implements TokenRegistryStore {
     try {
       parsed = JSON.parse(text);
     } catch (err) {
-      throw new TokenRegistryCorruptError(
-        `invalid JSON (${(err as Error).message})`
-      );
+      throw new TokenRegistryCorruptError(`invalid JSON (${(err as Error).message})`);
     }
     return deserializeTokenRegistry(parsed);
   }
@@ -235,14 +227,10 @@ export class BridgeTokenRegistry {
 
   constructor(options: BridgeTokenRegistryOptions = {}) {
     this.#store = options.store;
-    this.#tokens = new Map(
-      (options.initialTokens ?? []).map((t) => [t.tokenId, t])
-    );
+    this.#tokens = new Map((options.initialTokens ?? []).map((t) => [t.tokenId, t]));
   }
 
-  static async create(
-    options: BridgeTokenRegistryOptions = {}
-  ): Promise<BridgeTokenRegistry> {
+  static async create(options: BridgeTokenRegistryOptions = {}): Promise<BridgeTokenRegistry> {
     if (options.store !== undefined) {
       const loaded = await options.store.load();
       if (loaded.length > 0) {
@@ -261,9 +249,7 @@ export class BridgeTokenRegistry {
       throw new Error(`tokenId "${token.tokenId}" already exists — revoke it first`);
     }
     if (!/^[0-9a-f]{64}$/.test(token.hashedValue)) {
-      throw new TypeError(
-        `AuthToken.hashedValue must be a 64-char hex sha-256 digest`
-      );
+      throw new TypeError(`AuthToken.hashedValue must be a 64-char hex sha-256 digest`);
     }
     if (token.expiresAt !== undefined && !Number.isFinite(Date.parse(token.expiresAt))) {
       throw new TypeError(`AuthToken.expiresAt must be ISO-8601`);
@@ -293,8 +279,7 @@ export class BridgeTokenRegistry {
     let matchedTokenId: string | undefined;
     for (const t of this.#tokens.values()) {
       const isHashMatch = constantTimeEqualHex(presentedHash, t.hashedValue);
-      const notExpired =
-        t.expiresAt === undefined || Date.parse(t.expiresAt) > nowMs;
+      const notExpired = t.expiresAt === undefined || Date.parse(t.expiresAt) > nowMs;
       if (isHashMatch && notExpired && matchedTokenId === undefined) {
         matchedTokenId = t.tokenId;
       }

@@ -19,6 +19,7 @@ super-peer and lets each surface enforce its own subscribed labeler rules,
 operator quarantines, and infrastructure reputation.
 
 Without this phase:
+
 - All bridge deployments run with identical policy regardless of operator intent.
 - The per-surface privacy scope enforcement in the admission doctrine exists
   in code but there is no runtime way to configure a bridge to behave as a
@@ -58,9 +59,9 @@ type OperatorSurface = 'bridge' | 'relay' | 'super-peer' | 'public-index';
 type OperatorSurfaceConfig = Readonly<{
   surface: OperatorSurface;
   allowedPrivacyScopes: ReadonlyArray<PrivacyScope>; // validated against surface defaults
-  allowedKinds?: ReadonlyArray<string>;               // optional kind allowlist
-  maxBytesPerEnvelope?: number;                       // surface-specific cap
-  description?: string;                               // operator-provided label
+  allowedKinds?: ReadonlyArray<string>; // optional kind allowlist
+  maxBytesPerEnvelope?: number; // surface-specific cap
+  description?: string; // operator-provided label
 }>;
 ```
 
@@ -91,6 +92,7 @@ explicitly promotes them to enforcement via the policy subscription. An
 unlisted labeler CANNOT produce a bridge-level rejection.
 
 Required work:
+
 - `PolicySubscriptionRuntime` class: holds the active subscription list,
   resolves effective label set for a `SafetySubjectRef` against the
   Phase 1.66 `LabelersState` snapshot. Uses `effectiveLabelsForSubject`
@@ -116,13 +118,14 @@ Phase 4.2 deferred: "an operator may consume advisory reputation feeds
 from other bridges".
 
 Required work:
+
 - `AdvisoryReputationFeed` interface:
   ```typescript
   type AdvisoryReputationEntry = Readonly<{
     peerId: string;
-    score: number;     // clamped to [-1, 1] on receive
+    score: number; // clamped to [-1, 1] on receive
     updatedAt: string;
-    sourceId: string;  // bridge operator identity (not an actorId)
+    sourceId: string; // bridge operator identity (not an actorId)
   }>;
   ```
 - `BridgeAdmissionGateway.ingestAdvisoryFeed(entries)`: validates each
@@ -153,6 +156,7 @@ reputation tracker, but there is no explicit operator-facing quarantine
 API — it only happens via score decay crossing the `quarantineThreshold`.
 
 Required work:
+
 - `BridgeAdmissionGateway.quarantinePeer(peerId, reason, durationMs)`:
   directly sets the peer's reputation to a score floor that triggers
   quarantine regardless of the configured `quarantineThreshold`. Writes
@@ -169,6 +173,7 @@ Required work:
 Phase 1.67 shipped a moderation queue projection but no bridge integration.
 
 Required work:
+
 - `BridgeAdmissionGateway.registerAppealHook(hook: AppealHook)`:
   ```typescript
   type AppealHook = (decision: TransportAdmissionDecision) => Promise<void>;

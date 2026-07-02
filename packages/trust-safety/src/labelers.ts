@@ -223,7 +223,8 @@ export const STANDARD_LABELER_CAPABILITIES: ReadonlyArray<string> = Object.freez
   'aggregate.reputation-scoring'
 ]);
 
-const CAPABILITY_ID_PATTERN = /^(detect|classify|scan|attest|aggregate|x)\.[a-z0-9][a-z0-9-]{0,63}(?:\.[a-z0-9][a-z0-9-]{0,63})*$/;
+const CAPABILITY_ID_PATTERN =
+  /^(detect|classify|scan|attest|aggregate|x)\.[a-z0-9][a-z0-9-]{0,63}(?:\.[a-z0-9][a-z0-9-]{0,63})*$/;
 
 export function validateSafetyLabelerProfile(
   value: unknown,
@@ -280,10 +281,7 @@ export function validateSafetyLabelerProfile(
       throw tsError('TS_INVALID_LABELER', `${label}.serviceEndpoint must use https:`);
     }
     if (url.username !== '' || url.password !== '') {
-      throw tsError(
-        'TS_PRIVATE_LEAK',
-        `${label}.serviceEndpoint must not embed userinfo`
-      );
+      throw tsError('TS_PRIVATE_LEAK', `${label}.serviceEndpoint must not embed userinfo`);
     }
     out.serviceEndpoint = ep;
   }

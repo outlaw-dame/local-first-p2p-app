@@ -25,10 +25,7 @@ export function decodeBase32Lower(input: string): Uint8Array {
       // '2'..'7' -> 26..31
       value = ch - 50 + 26;
     } else {
-      throw caError(
-        'CA_INVALID_CID',
-        `base32 input contains non-alphabet character at index ${i}`
-      );
+      throw caError('CA_INVALID_CID', `base32 input contains non-alphabet character at index ${i}`);
     }
     accumulator = (accumulator << 5) | value;
     accBits += 5;
@@ -43,10 +40,7 @@ export function decodeBase32Lower(input: string): Uint8Array {
   if (accBits > 0) {
     const leftover = accumulator & ((1 << accBits) - 1);
     if (leftover !== 0) {
-      throw caError(
-        'CA_INVALID_CID',
-        'base32 input has non-zero leftover bits (not canonical)'
-      );
+      throw caError('CA_INVALID_CID', 'base32 input has non-zero leftover bits (not canonical)');
     }
   }
   return out.subarray(0, outIndex);
@@ -72,8 +66,5 @@ function hexNibble(charCode: number, index: number): number {
   if (charCode >= 48 && charCode <= 57) return charCode - 48; // 0..9
   if (charCode >= 97 && charCode <= 102) return charCode - 97 + 10; // a..f
   if (charCode >= 65 && charCode <= 70) return charCode - 65 + 10; // A..F
-  throw caError(
-    'CA_INVALID_CID',
-    `base16 input contains non-hex character at index ${index}`
-  );
+  throw caError('CA_INVALID_CID', `base16 input contains non-hex character at index ${index}`);
 }

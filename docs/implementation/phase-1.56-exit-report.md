@@ -63,19 +63,19 @@ Additional verification:
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| ADR-005 exists | ✓ | `docs/adr/005-content-addressing-and-object-references-v1.md` |
-| `docs/protocol/content-addressing.md` exists | ✓ | committed in earlier phase work |
-| `docs/threat-model/content-addressing-abuse.md` exists | ✓ | committed in earlier phase work |
-| `packages/content-addressing` exists | ✓ | this package |
-| Validators for all core object families | ✓ | `validateDigestRef`, `validateContentLink`, `validateBlockRef`, `validateObjectRef`, `validateBundleRef`, `validateStorageLocationHint` |
-| Valid and invalid fixtures | ✓ | 11 valid + 12 invalid under `fixtures/` |
-| Tests cover malformed input and unsafe coercion | ✓ | 179 tests including 70+ adversarial cases |
-| Package does not fetch, decode, store, or route content | ✓ | grep confirms no network/storage APIs |
-| Package independence | ✓ | no UI/bridge/local-store/sync-client/media/T&S deps |
-| T&S docs reference `ObjectRef` / `BlockRef` for content-backed subjects/evidence | ✓ | `docs/protocol/trust-safety-event-policy.md` (`SafetySubjectRef.media`, `.blob`, `evidenceRefs`) |
-| Phase map and next-development-path list Phase 1.56 before T&S/media/search | ✓ | `docs/implementation/phase-map.md`, `docs/implementation/next-development-path.md` |
+| Criterion                                                                        | Status | Evidence                                                                                                                                |
+| -------------------------------------------------------------------------------- | -----: | --------------------------------------------------------------------------------------------------------------------------------------- |
+| ADR-005 exists                                                                   |      ✓ | `docs/adr/005-content-addressing-and-object-references-v1.md`                                                                           |
+| `docs/protocol/content-addressing.md` exists                                     |      ✓ | committed in earlier phase work                                                                                                         |
+| `docs/threat-model/content-addressing-abuse.md` exists                           |      ✓ | committed in earlier phase work                                                                                                         |
+| `packages/content-addressing` exists                                             |      ✓ | this package                                                                                                                            |
+| Validators for all core object families                                          |      ✓ | `validateDigestRef`, `validateContentLink`, `validateBlockRef`, `validateObjectRef`, `validateBundleRef`, `validateStorageLocationHint` |
+| Valid and invalid fixtures                                                       |      ✓ | 11 valid + 12 invalid under `fixtures/`                                                                                                 |
+| Tests cover malformed input and unsafe coercion                                  |      ✓ | 179 tests including 70+ adversarial cases                                                                                               |
+| Package does not fetch, decode, store, or route content                          |      ✓ | grep confirms no network/storage APIs                                                                                                   |
+| Package independence                                                             |      ✓ | no UI/bridge/local-store/sync-client/media/T&S deps                                                                                     |
+| T&S docs reference `ObjectRef` / `BlockRef` for content-backed subjects/evidence |      ✓ | `docs/protocol/trust-safety-event-policy.md` (`SafetySubjectRef.media`, `.blob`, `evidenceRefs`)                                        |
+| Phase map and next-development-path list Phase 1.56 before T&S/media/search      |      ✓ | `docs/implementation/phase-map.md`, `docs/implementation/next-development-path.md`                                                      |
 
 ## Security/privacy checks
 

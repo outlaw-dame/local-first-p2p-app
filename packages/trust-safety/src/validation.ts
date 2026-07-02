@@ -136,10 +136,7 @@ export function assertFiniteNumberInRange(
     throw tsError('TS_INVALID_NUMBER', `${label} must be a finite number`);
   }
   if (value < min || value > max) {
-    throw tsError(
-      'TS_INVALID_NUMBER',
-      `${label} value ${value} is outside [${min}, ${max}]`
-    );
+    throw tsError('TS_INVALID_NUMBER', `${label} value ${value} is outside [${min}, ${max}]`);
   }
   return value;
 }
@@ -161,11 +158,7 @@ const MAX_FUTURE_MS = 100 * 365 * 24 * 60 * 60 * 1000; // 100 years
  *  - string must include a `T` and a timezone designator (`Z`, `+HH:MM`,
  *    or `-HH:MM`) — bare local times are ambiguous and rejected
  */
-export function assertIso8601(
-  value: unknown,
-  label: string,
-  now: number = Date.now()
-): string {
+export function assertIso8601(value: unknown, label: string, now: number = Date.now()): string {
   const raw = assertNonEmptyString(value, label);
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) {
     throw tsError(
@@ -178,10 +171,7 @@ export function assertIso8601(
     throw tsError('TS_INVALID_TIMESTAMP', `${label} did not parse as a valid date`);
   }
   if (parsed < MIN_EPOCH_MS) {
-    throw tsError(
-      'TS_INVALID_TIMESTAMP',
-      `${label}: timestamp before 2020 is rejected as garbage`
-    );
+    throw tsError('TS_INVALID_TIMESTAMP', `${label}: timestamp before 2020 is rejected as garbage`);
   }
   if (parsed > now + MAX_FUTURE_MS) {
     throw tsError(
@@ -222,10 +212,7 @@ export function assertReadonlyArray<T>(
     throw tsError('TS_INVALID_INPUT', `${label} must be an array`);
   }
   if (value.length > maxLength) {
-    throw tsError(
-      'TS_INVALID_INPUT',
-      `${label} length ${value.length} exceeds ${maxLength}`
-    );
+    throw tsError('TS_INVALID_INPUT', `${label} length ${value.length} exceeds ${maxLength}`);
   }
   const out: T[] = [];
   for (let i = 0; i < value.length; i += 1) {

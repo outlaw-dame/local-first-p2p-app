@@ -165,10 +165,7 @@ export function resolveSpamGateConfig(override: Partial<SpamGateConfig> = {}): S
     merged.spamSeedDistanceMax < 0 ||
     !Number.isInteger(merged.spamSeedDistanceMax)
   ) {
-    throw tsError(
-      'TS_INVALID_NUMBER',
-      'spamSeedDistanceMax must be a non-negative integer'
-    );
+    throw tsError('TS_INVALID_NUMBER', 'spamSeedDistanceMax must be a non-negative integer');
   }
   return Object.freeze({ ...merged });
 }

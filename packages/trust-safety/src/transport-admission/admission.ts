@@ -54,13 +54,7 @@ import { DEFAULT_REPLAY_CACHE, recordSeen } from './replay-cache.js';
  * Privacy scopes the protocol envelope can carry. Mirrors the
  * `Phase 1.61` `privacy` field on a signed envelope.
  */
-export const ENVELOPE_PRIVACY_SCOPES = [
-  'device-local',
-  'self',
-  'dm',
-  'group',
-  'public'
-] as const;
+export const ENVELOPE_PRIVACY_SCOPES = ['device-local', 'self', 'dm', 'group', 'public'] as const;
 export type EnvelopePrivacyScope = (typeof ENVELOPE_PRIVACY_SCOPES)[number];
 
 /**
@@ -69,30 +63,20 @@ export type EnvelopePrivacyScope = (typeof ENVELOPE_PRIVACY_SCOPES)[number];
  * `public` for bridges) — `device-local` and `self` never traverse a
  * bridge.
  */
-export const BRIDGE_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> = new Set<EnvelopePrivacyScope>([
-  'dm',
-  'group',
-  'public'
-]);
-export const RELAY_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> = new Set<EnvelopePrivacyScope>([
-  'dm',
-  'group',
-  'public'
-]);
-export const SUPER_PEER_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> = new Set<EnvelopePrivacyScope>([
-  'group',
-  'public'
-]);
-export const PUBLIC_INDEX_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> = new Set<EnvelopePrivacyScope>([
-  'public'
-]);
-export const MEDIA_STORE_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> = new Set<EnvelopePrivacyScope>([
-  'dm',
-  'group',
-  'public'
-]);
+export const BRIDGE_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> =
+  new Set<EnvelopePrivacyScope>(['dm', 'group', 'public']);
+export const RELAY_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> =
+  new Set<EnvelopePrivacyScope>(['dm', 'group', 'public']);
+export const SUPER_PEER_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> =
+  new Set<EnvelopePrivacyScope>(['group', 'public']);
+export const PUBLIC_INDEX_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> =
+  new Set<EnvelopePrivacyScope>(['public']);
+export const MEDIA_STORE_SAFE_PRIVACY_SCOPES: ReadonlySet<EnvelopePrivacyScope> =
+  new Set<EnvelopePrivacyScope>(['dm', 'group', 'public']);
 
-const SAFE_SCOPES_BY_SURFACE: Readonly<Record<TransportSurface, ReadonlySet<EnvelopePrivacyScope>>> = {
+const SAFE_SCOPES_BY_SURFACE: Readonly<
+  Record<TransportSurface, ReadonlySet<EnvelopePrivacyScope>>
+> = {
   bridge: BRIDGE_SAFE_PRIVACY_SCOPES,
   relay: RELAY_SAFE_PRIVACY_SCOPES,
   'super-peer': SUPER_PEER_SAFE_PRIVACY_SCOPES,
@@ -363,17 +347,8 @@ function runAdmissionChecksInner(
 
   // 6. Decoded-size guard (compression bomb) — opportunistic; caller
   //    provides the decoded size if known.
-  if (
-    envelope.decodedByteSize !== undefined &&
-    envelope.decodedByteSize > maxBytes * 1024
-  ) {
-    const out = applyReputationDelta(
-      inputs.reputation,
-      -100,
-      now,
-      'compression-bomb',
-      repConfig
-    );
+  if (envelope.decodedByteSize !== undefined && envelope.decodedByteSize > maxBytes * 1024) {
+    const out = applyReputationDelta(inputs.reputation, -100, now, 'compression-bomb', repConfig);
     return makeOutputs(
       buildDecision(config, envelope, 'reject', 'system.malformed-object', now),
       false,

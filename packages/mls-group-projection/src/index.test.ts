@@ -373,7 +373,11 @@ describe('fork detection', () => {
       commitRef: 'commit:aaa',
       membershipDigest: 'digest:A'
     });
-    const r1 = projectMlsGroupControlEvent({ state, event: commit1, allowAutomatedForkRecovery: false });
+    const r1 = projectMlsGroupControlEvent({
+      state,
+      event: commit1,
+      allowAutomatedForkRecovery: false
+    });
     expect(r1.outcome).toBe('accepted');
     if (r1.outcome !== 'accepted') return;
 
@@ -386,7 +390,11 @@ describe('fork detection', () => {
       commitRef: 'commit:bbb',
       membershipDigest: 'digest:B'
     });
-    const r2 = projectMlsGroupControlEvent({ state: r1.state, event: commit2, allowAutomatedForkRecovery: false });
+    const r2 = projectMlsGroupControlEvent({
+      state: r1.state,
+      event: commit2,
+      allowAutomatedForkRecovery: false
+    });
     expect(r2.outcome).toBe('fork-queued');
     if (r2.outcome !== 'fork-queued') return;
     expect(r2.state.forkCandidates.length).toBeGreaterThan(0);
@@ -507,8 +515,20 @@ describe('deterministic fork recovery', () => {
       ...baseState,
       lastControlId: 'ctrl-fake-head',
       forkCandidates: Object.freeze([
-        Object.freeze({ controlId: 'c1', commitRef: 'commit:zzz', epoch: 1, issuerDeviceId: 'device:outsider-1', detectedAt: '2026-06-27T00:00:00.000Z' }),
-        Object.freeze({ controlId: 'c2', commitRef: 'commit:yyy', epoch: 1, issuerDeviceId: 'device:outsider-2', detectedAt: '2026-06-27T00:00:00.000Z' })
+        Object.freeze({
+          controlId: 'c1',
+          commitRef: 'commit:zzz',
+          epoch: 1,
+          issuerDeviceId: 'device:outsider-1',
+          detectedAt: '2026-06-27T00:00:00.000Z'
+        }),
+        Object.freeze({
+          controlId: 'c2',
+          commitRef: 'commit:yyy',
+          epoch: 1,
+          issuerDeviceId: 'device:outsider-2',
+          detectedAt: '2026-06-27T00:00:00.000Z'
+        })
       ])
     });
     // A third outsider commit arrives; all candidates (including head placeholder) are
@@ -692,18 +712,35 @@ describe('offline catch-up', () => {
     let state: MlsGroupProjectionState | undefined;
 
     const events = [
-      makeEvent('mls.group.created', { ...BASE_CONTROL, controlId: 'ctrl-000', creatorDeviceId: CREATOR_DEVICE }),
-      makeEvent('mls.member.added', {
-        ...BASE_CONTROL, controlId: 'ctrl-001', previousControlId: 'ctrl-000',
-        addedIdentityId: BOB_IDENTITY, addedDeviceId: BOB_DEVICE, welcomeRef: 'ref:w1'
+      makeEvent('mls.group.created', {
+        ...BASE_CONTROL,
+        controlId: 'ctrl-000',
+        creatorDeviceId: CREATOR_DEVICE
       }),
       makeEvent('mls.member.added', {
-        ...BASE_CONTROL, controlId: 'ctrl-002', previousControlId: 'ctrl-001',
-        addedIdentityId: CHARLIE_IDENTITY, addedDeviceId: CHARLIE_DEVICE, welcomeRef: 'ref:w2'
+        ...BASE_CONTROL,
+        controlId: 'ctrl-001',
+        previousControlId: 'ctrl-000',
+        addedIdentityId: BOB_IDENTITY,
+        addedDeviceId: BOB_DEVICE,
+        welcomeRef: 'ref:w1'
+      }),
+      makeEvent('mls.member.added', {
+        ...BASE_CONTROL,
+        controlId: 'ctrl-002',
+        previousControlId: 'ctrl-001',
+        addedIdentityId: CHARLIE_IDENTITY,
+        addedDeviceId: CHARLIE_DEVICE,
+        welcomeRef: 'ref:w2'
       }),
       makeEvent('mls.epoch.advanced', {
-        ...BASE_CONTROL, controlId: 'ctrl-003', previousControlId: 'ctrl-002',
-        epoch: 1, priorEpoch: 0, nextEpoch: 1, checkpoint: 'ckpt-1',
+        ...BASE_CONTROL,
+        controlId: 'ctrl-003',
+        previousControlId: 'ctrl-002',
+        epoch: 1,
+        priorEpoch: 0,
+        nextEpoch: 1,
+        checkpoint: 'ckpt-1',
         membershipDigest: 'sha256:catch-up'
       })
     ];

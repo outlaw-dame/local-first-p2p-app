@@ -1,10 +1,7 @@
 import type { EnforcementScope, SafetyAuthority } from './authorities.js';
 import { ENFORCEMENT_SCOPES, validateSafetyAuthority } from './authorities.js';
 import type { CapabilityProofRef, CredentialRef } from './refs.js';
-import {
-  validateCapabilityProofRef,
-  validateCredentialRef
-} from './refs.js';
+import { validateCapabilityProofRef, validateCredentialRef } from './refs.js';
 import type { SafetySubjectRef } from './subjects.js';
 import { PRIVATE_BY_NATURE_SUBJECTS, validateSafetySubjectRef } from './subjects.js';
 import { tsError } from './errors.js';
@@ -72,11 +69,7 @@ export function validateSafetyAnnotation(
   const annotationId = assertId(record.annotationId, `${label}.annotationId`);
   const issuer = validateSafetyAuthority(record.issuer, `${label}.issuer`);
   const subject = validateSafetySubjectRef(record.subject, `${label}.subject`);
-  const motivation = assertOneOf(
-    record.motivation,
-    ANNOTATION_MOTIVATIONS,
-    `${label}.motivation`
-  );
+  const motivation = assertOneOf(record.motivation, ANNOTATION_MOTIVATIONS, `${label}.motivation`);
   const body = validateBody(record.body, `${label}.body`);
   const scope = assertOneOf(record.scope, ENFORCEMENT_SCOPES, `${label}.scope`);
   const createdAt = assertIso8601(record.createdAt, `${label}.createdAt`);

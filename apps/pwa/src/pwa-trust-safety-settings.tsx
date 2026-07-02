@@ -43,11 +43,7 @@ export type TrustSafetySettingsProps = Readonly<{
   subscriberActorId: string;
 }>;
 
-const CATEGORY_ACTION_CHOICES: ReadonlyArray<LabelPreferenceAction> = [
-  'allow',
-  'warn',
-  'hide'
-];
+const CATEGORY_ACTION_CHOICES: ReadonlyArray<LabelPreferenceAction> = ['allow', 'warn', 'hide'];
 
 export function TrustSafetySettings({
   store,
@@ -65,10 +61,7 @@ export function TrustSafetySettings({
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      const [c, l] = await Promise.all([
-        store.loadLocalControlState(),
-        store.loadLabelersState()
-      ]);
+      const [c, l] = await Promise.all([store.loadLocalControlState(), store.loadLabelersState()]);
       setControlState(c);
       setLabelersState(l);
     } catch (err) {
@@ -99,9 +92,7 @@ export function TrustSafetySettings({
         );
         if (!confirmed) return;
       }
-      await store.appendTrustSafetyControlEvent(
-        buildAdultContentGateEvent(!gateOn)
-      );
+      await store.appendTrustSafetyControlEvent(buildAdultContentGateEvent(!gateOn));
       await refresh();
       setStatusLine(`Adult-content gate ${gateOn ? 'disabled' : 'enabled'}.`);
     } catch (err) {
@@ -159,14 +150,8 @@ export function TrustSafetySettings({
     [refresh, store]
   );
 
-  const categoryRows = useMemo(
-    () => buildContentCategoryRows(controlState),
-    [controlState]
-  );
-  const keywordRows = useMemo(
-    () => buildKeywordFilterRows(controlState),
-    [controlState]
-  );
+  const categoryRows = useMemo(() => buildContentCategoryRows(controlState), [controlState]);
+  const keywordRows = useMemo(() => buildKeywordFilterRows(controlState), [controlState]);
   const subscriptionRows = useMemo(
     () => buildLabelerSubscriptionRows(labelersState, subscriberActorId),
     [labelersState, subscriberActorId]
@@ -179,9 +164,7 @@ export function TrustSafetySettings({
   const unsubscribe = useCallback(
     async (subscriptionId: string): Promise<void> => {
       try {
-        await store.appendTrustSafetyLabelerEvent(
-          buildLabelerUnsubscribeEvent(subscriptionId)
-        );
+        await store.appendTrustSafetyLabelerEvent(buildLabelerUnsubscribeEvent(subscriptionId));
         await refresh();
         setStatusLine(`Unsubscribed from ${subscriptionId}.`);
       } catch (err) {
@@ -196,8 +179,8 @@ export function TrustSafetySettings({
       <BlockTitle>Trust &amp; Safety — Adult-content gate</BlockTitle>
       <Block inset strong>
         <p>
-          When the gate is off, every adult content category is forced to{' '}
-          <strong>hide</strong>, regardless of any per-category preference.
+          When the gate is off, every adult content category is forced to <strong>hide</strong>,
+          regardless of any per-category preference.
         </p>
         <Button outline onClick={() => void toggleGate()}>
           {gateOn ? 'Disable adult content' : 'Enable adult content'}
@@ -224,9 +207,7 @@ export function TrustSafetySettings({
                       small
                       outline={row.currentPreference !== choice}
                       fill={row.currentPreference === choice}
-                      onClick={() =>
-                        void setCategoryPreference(row.category.key, choice)
-                      }
+                      onClick={() => void setCategoryPreference(row.category.key, choice)}
                     >
                       {choice}
                     </Button>
@@ -269,9 +250,9 @@ export function TrustSafetySettings({
           ))}
         </select>
         <p className="lfp2p-muted-detail">
-          Regex is intentionally not offered — patterns like <code>(?:a+)+$</code>{' '}
-          can ReDoS the host. Use <code>phrase</code> for multi-word filtering or{' '}
-          <code>hashtag</code> for tag tokens.
+          Regex is intentionally not offered — patterns like <code>(?:a+)+$</code> can ReDoS the
+          host. Use <code>phrase</code> for multi-word filtering or <code>hashtag</code> for tag
+          tokens.
         </p>
         <Button outline onClick={() => void addKeywordFilter()}>
           Add filter
@@ -308,8 +289,8 @@ export function TrustSafetySettings({
         <Block inset strong>
           <p className="lfp2p-muted-detail">
             <strong>{overlaps.length}</strong> subscribed labeler{' '}
-            {overlaps.length === 1 ? 'pair' : 'pairs'} overlap. Consider removing the
-            redundant subscription.
+            {overlaps.length === 1 ? 'pair' : 'pairs'} overlap. Consider removing the redundant
+            subscription.
           </p>
           <List>
             {overlaps.map((pair) => (

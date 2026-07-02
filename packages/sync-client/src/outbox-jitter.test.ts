@@ -2,10 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore } from '@lfp2p/local-store';
-import {
-  createUnsignedEvent,
-  placeholderPrivatePayloadEnvelope
-} from '@lfp2p/protocol';
+import { createUnsignedEvent, placeholderPrivatePayloadEnvelope } from '@lfp2p/protocol';
 import { processOutboxBatch, type OutboxTransport } from './index.js';
 
 describe('processOutboxBatch retry jitter configuration', () => {
@@ -55,7 +52,14 @@ describe('processOutboxBatch retry jitter configuration', () => {
       });
 
       const updated = await store.getOutboxEntry('idem_custom_jitter');
-      expect(result).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 1, failed: 0, skipped: 0 });
+      expect(result).toEqual({
+        attempted: 1,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 1,
+        failed: 0,
+        skipped: 0
+      });
       expect(updated?.nextRetryAt).toBe('2026-05-22T00:00:03.000Z');
       expect(updated?.lastError).toBe('temporary relay unavailable');
     } finally {

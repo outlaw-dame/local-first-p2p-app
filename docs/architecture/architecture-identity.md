@@ -22,17 +22,17 @@ Everything in the architecture is built on top of these five primitives. Feature
 
 The following external systems may be used as reference or inspiration. They are **not** protocol authority for this repository. Do not import their semantics, naming conventions, actor models, or federation contracts unless a specific ADR explicitly adopts a piece of them.
 
-| System | Status |
-|---|---|
-| ActivityPub / ActivityStreams | Reference only — no actors, inboxes, outboxes, sharedInbox, or federation semantics |
-| ActivityPods / Solid Pods | Reference only — no WebIDs, RDF, Jena, or Pod storage model |
-| ATProto / Bluesky | Reference only — no AT repositories, DID plc semantics as protocol requirement, or Bluesky moderation contracts |
-| Mastodon | Reference only — no Mastodon compatibility requirements |
-| IPFS / Filecoin | CID is used as an integrity primitive only — not as a storage network, routing mechanism, or trust mechanism |
-| Hypercore / Pear / Hyperbee | Future replication adapter — Hypercore keys are NOT universal account identities |
-| Nostr | Reference only — no Nostr relay or event-kind contracts |
-| Blockchain / tokens / gas | Not required — deterministic local policy replaces smart contracts |
-| Memory (Damon's other AI project) | Separate project — do not import Memory architecture into this repo |
+| System                            | Status                                                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| ActivityPub / ActivityStreams     | Reference only — no actors, inboxes, outboxes, sharedInbox, or federation semantics                             |
+| ActivityPods / Solid Pods         | Reference only — no WebIDs, RDF, Jena, or Pod storage model                                                     |
+| ATProto / Bluesky                 | Reference only — no AT repositories, DID plc semantics as protocol requirement, or Bluesky moderation contracts |
+| Mastodon                          | Reference only — no Mastodon compatibility requirements                                                         |
+| IPFS / Filecoin                   | CID is used as an integrity primitive only — not as a storage network, routing mechanism, or trust mechanism    |
+| Hypercore / Pear / Hyperbee       | Future replication adapter — Hypercore keys are NOT universal account identities                                |
+| Nostr                             | Reference only — no Nostr relay or event-kind contracts                                                         |
+| Blockchain / tokens / gas         | Not required — deterministic local policy replaces smart contracts                                              |
+| Memory (Damon's other AI project) | Separate project — do not import Memory architecture into this repo                                             |
 
 ## Three-layer integrity model
 
@@ -89,6 +89,7 @@ A Hypercore key is not an account identity. A Hypercore feed is not a protocol-l
 The canonical approach is an IPLD-style content-addressed object graph that is CID-compatible but not IPFS-dependent.
 
 CID is used as an **integrity primitive**: a stable, verifiable identifier for a specific byte sequence. It is not:
+
 - a storage network address
 - a routing mechanism
 - a trust mechanism

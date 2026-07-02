@@ -92,9 +92,7 @@ export type CreateVcVerifierOptions = Readonly<{
   now?: () => number;
 }>;
 
-export function createVcVerifier(
-  options: CreateVcVerifierOptions
-): CapabilityProofVerifier {
+export function createVcVerifier(options: CreateVcVerifierOptions): CapabilityProofVerifier {
   if (options === null || typeof options !== 'object') {
     throw new TypeError('createVcVerifier: options must be an object');
   }
@@ -145,12 +143,7 @@ export function createVcVerifier(
     }
     if (credential === undefined) return 'invalid';
 
-    return verifyVcCredential(
-      credential,
-      record.issuer.id,
-      record.subject.id,
-      clock()
-    );
+    return verifyVcCredential(credential, record.issuer.id, record.subject.id, clock());
   };
 }
 
@@ -280,10 +273,7 @@ function extractSingleProof(proof: unknown): Record<string, unknown> | undefined
   return proof as Record<string, unknown>;
 }
 
-function checkValidityWindow(
-  cred: Record<string, unknown>,
-  nowMs: number
-): boolean {
+function checkValidityWindow(cred: Record<string, unknown>, nowMs: number): boolean {
   // VC-DM 2.0: validFrom / validUntil
   // VC-DM 1.1: issuanceDate / expirationDate
   // Accept either set; if a field is present it MUST be parseable
@@ -313,10 +303,7 @@ function stripFragment(uri: string): string {
   return hashIdx === -1 ? uri : uri.slice(0, hashIdx);
 }
 
-function stripField(
-  obj: Record<string, unknown>,
-  field: string
-): Record<string, unknown> {
+function stripField(obj: Record<string, unknown>, field: string): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const k of Object.keys(obj)) {
     if (k === field) continue;

@@ -56,14 +56,14 @@ Added under `packages/trust-safety/src/reports-appeals/`:
     `ackReasonCode`.
   - `safety.report.resolved` carries `reportId`, `resolvedBy`,
     `resolvedAt`, `resolution: 'upheld' | 'dismissed' | 'duplicate' |
-    'invalid' | 'escalated'`, `resolutionReasonCode`, optional
+'invalid' | 'escalated'`, `resolutionReasonCode`, optional
     `resolutionDecisionId` (linking to a `SafetyPolicyDecision`), and
     optional `escalatedTo` authority. The validator enforces:
     `escalatedTo` REQUIRED iff `resolution === 'escalated'`.
   - `safety.appeal.created` embeds a `SafetyAppeal` (Phase 1.61).
   - `safety.appeal.resolved` carries `appealId`, `resolvedBy`,
     `resolvedAt`, `resolution: 'overturned' | 'upheld' | 'dismissed' |
-    'invalid'`, `resolutionReasonCode`. `newDecisionId` REQUIRED iff
+'invalid'`, `resolutionReasonCode`. `newDecisionId` REQUIRED iff
     `resolution === 'overturned'`.
   - Pinned version: `lfp2p.report-appeal-event.v1`. Unknown versions
     fail closed (TS_UNKNOWN_VERSION).
@@ -79,15 +79,12 @@ Added under `packages/trust-safety/src/reports-appeals/`:
     moderator-inbox surfaces downstream.
   - `byAppealedDecisionId`: appealIds grouped by the decisionId they
     target, for surfacing all appeals against a decision.
-  - State machine enforced at apply time:
-    - Report: `submitted → acknowledged → resolved`. `submitted →
-      resolved` (skip ack) is permitted per the doctrine that an
-      authority may resolve immediately for clear cases.
-    - Appeal: `submitted → resolved`.
-    - Every illegal transition (ack of unknown report, ack of
-      already-acked report, resolve of already-resolved report or
-      appeal, resolve of unknown id) throws
-      `TS_LIFECYCLE_TRANSITION` without mutating state.
+  - State machine enforced at apply time: - Report: `submitted → acknowledged → resolved`. `submitted →
+resolved` (skip ack) is permitted per the doctrine that an
+    authority may resolve immediately for clear cases. - Appeal: `submitted → resolved`. - Every illegal transition (ack of unknown report, ack of
+    already-acked report, resolve of already-resolved report or
+    appeal, resolve of unknown id) throws
+    `TS_LIFECYCLE_TRANSITION` without mutating state.
   - `applyReportAppealEvent` is pure, deterministic, validates before
     mutating, freezes the result, and is idempotent on `eventId`.
   - `seedReportsAppealsState` replays an event log producing equal
@@ -161,32 +158,32 @@ Additional verification:
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| Reports require subject, reason, authority, idempotency, and scope | ✓ | Phase 1.61 `validateSafetyReport`; reused unchanged inside `safety.report.created` validator |
-| Appeals target policy decisions | ✓ | `SafetyAppeal.decisionId` is required; `safety.appeal.created` embeds the validated appeal and the projection indexes by `byAppealedDecisionId` |
-| Public labels cannot expose private evidence refs | ✓ | `assertPrivateEvidenceOnPrivateSubject` rejects public media / unencrypted bundle / identity-ref body when the subject is private-by-nature; projection enforces at apply time |
-| Tests cover duplicate reports, private evidence routing, and malformed encrypted refs | ✓ | idempotency-key dedup test + `safety.report.created`-with-unsafe-evidence rejection test + appeal-resolved-without-decision tests + the encrypted-evidence test matrix |
+| Criterion                                                                             | Status | Evidence                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------- | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Reports require subject, reason, authority, idempotency, and scope                    |      ✓ | Phase 1.61 `validateSafetyReport`; reused unchanged inside `safety.report.created` validator                                                                                   |
+| Appeals target policy decisions                                                       |      ✓ | `SafetyAppeal.decisionId` is required; `safety.appeal.created` embeds the validated appeal and the projection indexes by `byAppealedDecisionId`                                |
+| Public labels cannot expose private evidence refs                                     |      ✓ | `assertPrivateEvidenceOnPrivateSubject` rejects public media / unencrypted bundle / identity-ref body when the subject is private-by-nature; projection enforces at apply time |
+| Tests cover duplicate reports, private evidence routing, and malformed encrypted refs |      ✓ | idempotency-key dedup test + `safety.report.created`-with-unsafe-evidence rejection test + appeal-resolved-without-decision tests + the encrypted-evidence test matrix         |
 
 ## Security/privacy checks
 
 - [x] No private plaintext in logs — package emits no logs.
 - [x] Remote/untrusted input validation exists — every public entry
-  uses `assertPlainObject` first; unknown kinds, unknown actions,
-  unknown versions, and unknown enums all fail closed.
+      uses `assertPlainObject` first; unknown kinds, unknown actions,
+      unknown versions, and unknown enums all fail closed.
 - [x] Malicious/invalid input tests exist — illegal lifecycle
-  transitions, escalated-without-target, overturned-without-newDecisionId,
-  public-evidence-on-private-subject, identity-ref-as-body, unknown
-  resolutions, unknown version.
+      transitions, escalated-without-target, overturned-without-newDecisionId,
+      public-evidence-on-private-subject, identity-ref-as-body, unknown
+      resolutions, unknown version.
 - [x] Revocation/permission behavior — the lifecycle accepts whatever
-  `SafetyAuthority` is on the event. Signature verification belongs
-  to the envelope layer; this projection assumes authenticated
-  delivery. Future authority-resolution will plug in here without
-  state-shape changes.
+      `SafetyAuthority` is on the event. Signature verification belongs
+      to the envelope layer; this projection assumes authenticated
+      delivery. Future authority-resolution will plug in here without
+      state-shape changes.
 - [x] Derived state rebuild/delete behavior —
-  `seedReportsAppealsState` is the rebuild path; revert is intentionally
-  not supported for reports/appeals because the lifecycle's terminal
-  states are doctrine-required.
+      `seedReportsAppealsState` is the rebuild path; revert is intentionally
+      not supported for reports/appeals because the lifecycle's terminal
+      states are doctrine-required.
 
 ## Deviations introduced or resolved
 
@@ -205,7 +202,7 @@ Additional verification:
 - The encrypted-evidence guard is enforced structurally on the
   ObjectRef shape only. Verifying that an underlying envelope ACTUALLY
   encrypts content belongs to ADR-002 and the envelope-layer code; this
-  package can only enforce that the *declared* privacy and encryption
+  package can only enforce that the _declared_ privacy and encryption
   descriptors are present.
 
 ## Remaining gaps

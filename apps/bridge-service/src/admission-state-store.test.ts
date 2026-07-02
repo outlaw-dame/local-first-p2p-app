@@ -110,18 +110,14 @@ describe('Phase 4.2 — serialize/deserialize round-trip', () => {
     expect(rehydrated.quarantinedEvents).toEqual(state.quarantinedEvents);
     expect(rehydrated.quarantinedMedia).toEqual(state.quarantinedMedia);
     expect(rehydrated.auditLog).toEqual(state.auditLog);
-    expect([...rehydrated.appliedEventIds].sort()).toEqual(
-      [...state.appliedEventIds].sort()
-    );
+    expect([...rehydrated.appliedEventIds].sort()).toEqual([...state.appliedEventIds].sort());
   });
 
   it('rehydrated appliedEventIds is a Set (not an array)', async () => {
     const gateway = new BridgeAdmissionGateway({ config: CONFIG });
     await gateway.admitAndPersist(request('evt_p42_set_1'), 1000);
     const serialized = serializeAdmissionState(gateway.state);
-    const rehydrated = deserializeAdmissionState(
-      JSON.parse(JSON.stringify(serialized))
-    );
+    const rehydrated = deserializeAdmissionState(JSON.parse(JSON.stringify(serialized)));
     expect(rehydrated.appliedEventIds).toBeInstanceOf(Set);
   });
 
@@ -148,9 +144,7 @@ describe('Phase 4.2 — serialize/deserialize round-trip', () => {
 
 describe('Phase 4.2 — corruption is rejected, never silently discarded', () => {
   it('rejects a non-object snapshot', () => {
-    expect(() => deserializeAdmissionState('not an object')).toThrow(
-      AdmissionStateCorruptError
-    );
+    expect(() => deserializeAdmissionState('not an object')).toThrow(AdmissionStateCorruptError);
     expect(() => deserializeAdmissionState(null)).toThrow(AdmissionStateCorruptError);
     expect(() => deserializeAdmissionState([])).toThrow(AdmissionStateCorruptError);
   });
@@ -331,7 +325,7 @@ describe('Phase 4.2 — JsonFileAdmissionStateStore', () => {
 // ---------------------------------------------------------------------------
 
 describe('Phase 4.2 — BridgeAdmissionGateway.create() cold-loads persisted state', () => {
-  it('a fresh process picks up a prior process\'s rate-limit budget', async () => {
+  it("a fresh process picks up a prior process's rate-limit budget", async () => {
     const store = new InMemoryAdmissionStateStore();
     const first = await BridgeAdmissionGateway.create({
       config: CONFIG,
@@ -393,9 +387,9 @@ describe('Phase 4.2 — admitAndPersist fail-closes on save failure', () => {
 
     // Second admit's save throws.
     store.failNextSaveWith = new Error('disk full');
-    await expect(
-      gateway.admitAndPersist(request('evt_p42_fc_2'), 2000)
-    ).rejects.toThrow(/disk full/);
+    await expect(gateway.admitAndPersist(request('evt_p42_fc_2'), 2000)).rejects.toThrow(
+      /disk full/
+    );
 
     // In-memory state MUST NOT have advanced — that's the
     // fail-closed contract. Reference equality is the primary

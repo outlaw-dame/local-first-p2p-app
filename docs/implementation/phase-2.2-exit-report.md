@@ -100,7 +100,7 @@ Pinned by `packages/sync-client/src/phase-2.2.test.ts` (the
 
 `docs/protocol/revocation-realism.md` (new):
 
-- Pins what revocation *does* and *does not* guarantee
+- Pins what revocation _does_ and _does not_ guarantee
   (per-primitive table covering device.revoked, capability.revoked,
   device.rotated, key-epoch rotation, local block/mute/hide,
   label.revoked).
@@ -133,17 +133,17 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Inbound dispatch updates the projection for `device.rotated` | ✓ | `phase-2.2.test.ts` |
-| Inbound dispatch updates the projection for `contact-card.published` | ✓ | `phase-2.2.test.ts` |
-| `contactCardPublication` propagates onto the stored snapshot | ✓ | `phase-2.2.test.ts` |
-| Locally-emitted identity events go through a single atomic, idempotent entry point | ✓ | `appendLocalIdentityEvent` + tests |
-| `listLocalIdentityEvents` is a viable replay-from-log path | ✓ | test asserts replayed projection equals stored snapshot |
-| PWA contact-card export emits the publication audit event | ✓ | `root-app.tsx` `exportContactCard` + `pwa-identity-emit.test.ts` |
-| Rotation emit helper exists and is testable | ✓ | `emitDeviceRotatedEvent` + 2 tests including stale-epoch rejection |
-| Revocation realism doctrine pinned | ✓ | `docs/protocol/revocation-realism.md` |
-| No regressions: every prior test still passes | ✓ | 1034 total |
+| Criterion                                                                          | Status | Evidence                                                           |
+| ---------------------------------------------------------------------------------- | :----: | ------------------------------------------------------------------ |
+| Inbound dispatch updates the projection for `device.rotated`                       |   ✓    | `phase-2.2.test.ts`                                                |
+| Inbound dispatch updates the projection for `contact-card.published`               |   ✓    | `phase-2.2.test.ts`                                                |
+| `contactCardPublication` propagates onto the stored snapshot                       |   ✓    | `phase-2.2.test.ts`                                                |
+| Locally-emitted identity events go through a single atomic, idempotent entry point |   ✓    | `appendLocalIdentityEvent` + tests                                 |
+| `listLocalIdentityEvents` is a viable replay-from-log path                         |   ✓    | test asserts replayed projection equals stored snapshot            |
+| PWA contact-card export emits the publication audit event                          |   ✓    | `root-app.tsx` `exportContactCard` + `pwa-identity-emit.test.ts`   |
+| Rotation emit helper exists and is testable                                        |   ✓    | `emitDeviceRotatedEvent` + 2 tests including stale-epoch rejection |
+| Revocation realism doctrine pinned                                                 |   ✓    | `docs/protocol/revocation-realism.md`                              |
+| No regressions: every prior test still passes                                      |   ✓    | 1034 total                                                         |
 
 ## Deferred work
 

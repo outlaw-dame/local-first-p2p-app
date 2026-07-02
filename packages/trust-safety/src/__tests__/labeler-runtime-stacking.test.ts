@@ -103,7 +103,12 @@ function applied(
   } as unknown as LabelerEvent;
 }
 
-function revoked(labelId: string, revokerLabelerId: string, revokerActorId: string, evId: string): LabelerEvent {
+function revoked(
+  labelId: string,
+  revokerLabelerId: string,
+  revokerActorId: string,
+  evId: string
+): LabelerEvent {
   return {
     version: 'lfp2p.labeler-event.v1',
     eventId: evId,
@@ -122,12 +127,39 @@ const SUBJ_KEY = subjectKey(SUBJ);
 describe('labeler runtime — composable stacking (ATProto + improvements)', () => {
   it('stacks labels from two different labelers on the same subject', () => {
     let s = createEmptyLabelersState();
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA'));
+    s = applyLabelerEvent(
+      s,
+      profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA')
+    );
     s = applyLabelerEvent(s, profilePublished('labeler_B', 'actor_B', 'human-curated', 'e_pB'));
     s = applyLabelerEvent(s, subscribed('sub_A', 'labeler_A', 'e_sA'));
     s = applyLabelerEvent(s, subscribed('sub_B', 'labeler_B', 'e_sB'));
-    s = applyLabelerEvent(s, applied('lbl_A_spam', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA', '2026-05-31T00:00:00Z', 'medium'));
-    s = applyLabelerEvent(s, applied('lbl_B_spam', 'labeler_B', 'actor_B', 'evt_target', 'security.spam', 'e_lB', '2026-05-31T00:01:00Z', 'high'));
+    s = applyLabelerEvent(
+      s,
+      applied(
+        'lbl_A_spam',
+        'labeler_A',
+        'actor_A',
+        'evt_target',
+        'security.spam',
+        'e_lA',
+        '2026-05-31T00:00:00Z',
+        'medium'
+      )
+    );
+    s = applyLabelerEvent(
+      s,
+      applied(
+        'lbl_B_spam',
+        'labeler_B',
+        'actor_B',
+        'evt_target',
+        'security.spam',
+        'e_lB',
+        '2026-05-31T00:01:00Z',
+        'high'
+      )
+    );
 
     const stack = effectiveLabelsForSubject(s, SUBJ_KEY, SUBSCRIBER);
     expect(stack.length).toBe(2);
@@ -140,18 +172,33 @@ describe('labeler runtime — composable stacking (ATProto + improvements)', () 
 
   it('subscriber-specific action override stacks correctly per labeler', () => {
     let s = createEmptyLabelersState();
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA'));
+    s = applyLabelerEvent(
+      s,
+      profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA')
+    );
     s = applyLabelerEvent(s, profilePublished('labeler_B', 'actor_B', 'human-curated', 'e_pB'));
     // Subscriber wants labeler A's "spam" labels to merely warn, but
     // labeler B's "spam" labels to hide.
-    s = applyLabelerEvent(s, subscribed('sub_A', 'labeler_A', 'e_sA', [
-      { labelKey: 'security.spam', namespace: 'lfp2p.safety', action: 'warn' }
-    ]));
-    s = applyLabelerEvent(s, subscribed('sub_B', 'labeler_B', 'e_sB', [
-      { labelKey: 'security.spam', namespace: 'lfp2p.safety', action: 'hide' }
-    ]));
-    s = applyLabelerEvent(s, applied('lbl_A_spam', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA'));
-    s = applyLabelerEvent(s, applied('lbl_B_spam', 'labeler_B', 'actor_B', 'evt_target', 'security.spam', 'e_lB'));
+    s = applyLabelerEvent(
+      s,
+      subscribed('sub_A', 'labeler_A', 'e_sA', [
+        { labelKey: 'security.spam', namespace: 'lfp2p.safety', action: 'warn' }
+      ])
+    );
+    s = applyLabelerEvent(
+      s,
+      subscribed('sub_B', 'labeler_B', 'e_sB', [
+        { labelKey: 'security.spam', namespace: 'lfp2p.safety', action: 'hide' }
+      ])
+    );
+    s = applyLabelerEvent(
+      s,
+      applied('lbl_A_spam', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA')
+    );
+    s = applyLabelerEvent(
+      s,
+      applied('lbl_B_spam', 'labeler_B', 'actor_B', 'evt_target', 'security.spam', 'e_lB')
+    );
 
     const stack = effectiveLabelsForSubject(s, SUBJ_KEY, SUBSCRIBER);
     const byLabeler = new Map(stack.map((r) => [r.issuerLabelerId, r.effectiveAction]));
@@ -162,8 +209,14 @@ describe('labeler runtime — composable stacking (ATProto + improvements)', () 
 
   it('cross-labeler revoke is rejected (labelers can only revoke their own labels)', () => {
     let s = createEmptyLabelersState();
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA'));
-    s = applyLabelerEvent(s, applied('lbl_A_spam', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA'));
+    s = applyLabelerEvent(
+      s,
+      profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA')
+    );
+    s = applyLabelerEvent(
+      s,
+      applied('lbl_A_spam', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA')
+    );
     expect(() =>
       applyLabelerEvent(s, revoked('lbl_A_spam', 'labeler_B', 'actor_B', 'e_revoke'))
     ).toThrow(/cross-labeler|labelers can only revoke their own/);
@@ -173,7 +226,10 @@ describe('labeler runtime — composable stacking (ATProto + improvements)', () 
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'human-curated', 'e_pA'));
     s = applyLabelerEvent(s, subscribed('sub_A', 'labeler_A', 'e_sA'));
-    s = applyLabelerEvent(s, applied('lbl_A_spam', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA'));
+    s = applyLabelerEvent(
+      s,
+      applied('lbl_A_spam', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA')
+    );
     expect(effectiveLabelsForSubject(s, SUBJ_KEY, SUBSCRIBER).length).toBe(1);
     s = applyLabelerEvent(s, revoked('lbl_A_spam', 'labeler_A', 'actor_A', 'e_revoke'));
     expect(effectiveLabelsForSubject(s, SUBJ_KEY, SUBSCRIBER).length).toBe(0);
@@ -181,12 +237,21 @@ describe('labeler runtime — composable stacking (ATProto + improvements)', () 
 
   it('a subscription unsubscribed mid-stack filters out that labeler', () => {
     let s = createEmptyLabelersState();
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA'));
+    s = applyLabelerEvent(
+      s,
+      profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA')
+    );
     s = applyLabelerEvent(s, profilePublished('labeler_B', 'actor_B', 'human-curated', 'e_pB'));
     s = applyLabelerEvent(s, subscribed('sub_A', 'labeler_A', 'e_sA'));
     s = applyLabelerEvent(s, subscribed('sub_B', 'labeler_B', 'e_sB'));
-    s = applyLabelerEvent(s, applied('lbl_A', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA'));
-    s = applyLabelerEvent(s, applied('lbl_B', 'labeler_B', 'actor_B', 'evt_target', 'security.spam', 'e_lB'));
+    s = applyLabelerEvent(
+      s,
+      applied('lbl_A', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA')
+    );
+    s = applyLabelerEvent(
+      s,
+      applied('lbl_B', 'labeler_B', 'actor_B', 'evt_target', 'security.spam', 'e_lB')
+    );
     expect(effectiveLabelsForSubject(s, SUBJ_KEY, SUBSCRIBER).length).toBe(2);
     s = applyLabelerEvent(s, {
       version: 'lfp2p.labeler-event.v1',
@@ -203,7 +268,10 @@ describe('labeler runtime — composable stacking (ATProto + improvements)', () 
 
   it('per-namespace trust filters labels from labelers the subscriber does not trust for that namespace', () => {
     let s = createEmptyLabelersState();
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA'));
+    s = applyLabelerEvent(
+      s,
+      profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA')
+    );
     s = applyLabelerEvent(s, {
       version: 'lfp2p.labeler-event.v1',
       eventId: 'e_subA',
@@ -221,16 +289,34 @@ describe('labeler runtime — composable stacking (ATProto + improvements)', () 
       }
     } as unknown as LabelerEvent);
     // labeler A applies a label outside the subscriber's trustedLabels filter.
-    s = applyLabelerEvent(s, applied('lbl_A_spam', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA'));
-    s = applyLabelerEvent(s, applied('lbl_A_lowq', 'labeler_A', 'actor_A', 'evt_target', 'quality.low-effort', 'e_lA2'));
+    s = applyLabelerEvent(
+      s,
+      applied('lbl_A_spam', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA')
+    );
+    s = applyLabelerEvent(
+      s,
+      applied('lbl_A_lowq', 'labeler_A', 'actor_A', 'evt_target', 'quality.low-effort', 'e_lA2')
+    );
     const stack = effectiveLabelsForSubject(s, SUBJ_KEY, SUBSCRIBER);
     expect(stack.map((r) => r.labelKey)).toEqual(['quality.low-effort']);
   });
 
   it('profile re-publish supersedes prior profile under same labelerId', () => {
     let s = createEmptyLabelersState();
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_p1', '2026-05-01T00:00:00Z'));
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'hybrid', 'e_p2', '2026-06-01T00:00:00Z'));
+    s = applyLabelerEvent(
+      s,
+      profilePublished(
+        'labeler_A',
+        'actor_A',
+        'automated-classifier',
+        'e_p1',
+        '2026-05-01T00:00:00Z'
+      )
+    );
+    s = applyLabelerEvent(
+      s,
+      profilePublished('labeler_A', 'actor_A', 'hybrid', 'e_p2', '2026-06-01T00:00:00Z')
+    );
     expect(s.labelerProfilesById['labeler_A']?.kind).toBe('hybrid');
   });
 
@@ -316,7 +402,10 @@ describe('labeler kind taxonomy', () => {
 describe('labeler runtime — lifecycle illegal transitions', () => {
   it('rejects subscribing under an existing subscriptionId', () => {
     let s = createEmptyLabelersState();
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA'));
+    s = applyLabelerEvent(
+      s,
+      profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA')
+    );
     s = applyLabelerEvent(s, subscribed('sub_A', 'labeler_A', 'e_sA'));
     expect(() => applyLabelerEvent(s, subscribed('sub_A', 'labeler_A', 'e_sA_dup'))).toThrow(
       /already exists/
@@ -325,7 +414,10 @@ describe('labeler runtime — lifecycle illegal transitions', () => {
 
   it('rejects double-unsubscribe', () => {
     let s = createEmptyLabelersState();
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA'));
+    s = applyLabelerEvent(
+      s,
+      profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA')
+    );
     s = applyLabelerEvent(s, subscribed('sub_A', 'labeler_A', 'e_sA'));
     s = applyLabelerEvent(s, {
       version: 'lfp2p.labeler-event.v1',
@@ -349,10 +441,19 @@ describe('labeler runtime — lifecycle illegal transitions', () => {
 
   it('rejects re-applying the same labelId', () => {
     let s = createEmptyLabelersState();
-    s = applyLabelerEvent(s, profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA'));
-    s = applyLabelerEvent(s, applied('lbl_A', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA'));
+    s = applyLabelerEvent(
+      s,
+      profilePublished('labeler_A', 'actor_A', 'automated-classifier', 'e_pA')
+    );
+    s = applyLabelerEvent(
+      s,
+      applied('lbl_A', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA')
+    );
     expect(() =>
-      applyLabelerEvent(s, applied('lbl_A', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA2'))
+      applyLabelerEvent(
+        s,
+        applied('lbl_A', 'labeler_A', 'actor_A', 'evt_target', 'security.spam', 'e_lA2')
+      )
     ).toThrow(/already applied/);
   });
 });

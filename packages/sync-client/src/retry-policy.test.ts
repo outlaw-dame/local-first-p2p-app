@@ -7,12 +7,20 @@ import {
   resolveJitterRatio
 } from './retry-policy.js';
 
-const INVALID_JITTER_RATIOS = [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -0.1, 1.1] as const;
+const INVALID_JITTER_RATIOS = [
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
+  -0.1,
+  1.1
+] as const;
 
 describe('retry policy jitter validation', () => {
   it('rejects non-finite and out-of-range jitter ratios before computing backoff', () => {
     for (const jitterRatio of INVALID_JITTER_RATIOS) {
-      expect(() => computeBackoffDelayMs({ attempt: 1, jitterRatio })).toThrow('jitterRatio must be between 0 and 1');
+      expect(() => computeBackoffDelayMs({ attempt: 1, jitterRatio })).toThrow(
+        'jitterRatio must be between 0 and 1'
+      );
     }
   });
 
@@ -21,7 +29,9 @@ describe('retry policy jitter validation', () => {
     expect(requireOptionalJitterRatio(null)).toBeUndefined();
     expect(resolveJitterRatio(undefined)).toBe(DEFAULT_JITTER_RATIO);
     expect(resolveJitterRatio(null)).toBe(DEFAULT_JITTER_RATIO);
-    expect(computeBackoffDelayMs({ attempt: 1, jitterRatio: undefined, random: () => 0.5 })).toBe(1_000);
+    expect(computeBackoffDelayMs({ attempt: 1, jitterRatio: undefined, random: () => 0.5 })).toBe(
+      1_000
+    );
     expect(computeBackoffDelayMs({ attempt: 1, jitterRatio: null, random: () => 0.5 })).toBe(1_000);
   });
 
@@ -33,7 +43,9 @@ describe('retry policy jitter validation', () => {
 
     for (const jitterRatio of INVALID_JITTER_RATIOS) {
       expect(() => requireJitterRatio(jitterRatio)).toThrow('jitterRatio must be between 0 and 1');
-      expect(() => requireOptionalJitterRatio(jitterRatio)).toThrow('jitterRatio must be between 0 and 1');
+      expect(() => requireOptionalJitterRatio(jitterRatio)).toThrow(
+        'jitterRatio must be between 0 and 1'
+      );
       expect(() => resolveJitterRatio(jitterRatio)).toThrow('jitterRatio must be between 0 and 1');
     }
   });

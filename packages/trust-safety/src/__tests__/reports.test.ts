@@ -40,15 +40,13 @@ describe('validateSafetyReport', () => {
   });
 
   it('rejects empty idempotencyKey', () => {
-    expect(() =>
-      validateSafetyReport({ ...REPORT_BASE, idempotencyKey: '' })
-    ).toThrow();
+    expect(() => validateSafetyReport({ ...REPORT_BASE, idempotencyKey: '' })).toThrow();
   });
 
   it('rejects unknown reasonCode', () => {
-    expect(() =>
-      validateSafetyReport({ ...REPORT_BASE, reasonCode: 'abuse.unknown' })
-    ).toThrow(/TS_INVALID_ENUM/);
+    expect(() => validateSafetyReport({ ...REPORT_BASE, reasonCode: 'abuse.unknown' })).toThrow(
+      /TS_INVALID_ENUM/
+    );
   });
 
   it('rejects unknown reporterPrivacy', () => {
@@ -87,8 +85,6 @@ describe('validateSafetyReport', () => {
 
   it('rejects oversized idempotencyKey', () => {
     const big = 'a'.repeat(257);
-    expect(() =>
-      validateSafetyReport({ ...REPORT_BASE, idempotencyKey: big })
-    ).toThrow();
+    expect(() => validateSafetyReport({ ...REPORT_BASE, idempotencyKey: big })).toThrow();
   });
 });

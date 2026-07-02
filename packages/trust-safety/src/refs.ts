@@ -7,12 +7,7 @@
 // are required but unavailable" boundary specified by the phase plan.
 
 import { tsError } from './errors.js';
-import {
-  assertId,
-  assertNonEmptyString,
-  assertOneOf,
-  assertPlainObject
-} from './validation.js';
+import { assertId, assertNonEmptyString, assertOneOf, assertPlainObject } from './validation.js';
 
 /** Lightweight reference to an actor identity. */
 export type ActorRef = Readonly<{
@@ -42,9 +37,16 @@ export type ReporterRef =
 
 export function validateReporterRef(value: unknown, label = 'ReporterRef'): ReporterRef {
   const record = assertPlainObject(value, label);
-  const kind = assertOneOf(record.kind, ['actor', 'community', 'pseudonym'] as const, `${label}.kind`);
+  const kind = assertOneOf(
+    record.kind,
+    ['actor', 'community', 'pseudonym'] as const,
+    `${label}.kind`
+  );
   if (kind === 'actor') {
-    return Object.freeze({ kind: 'actor', actor: validateActorRef(record.actor, `${label}.actor`) });
+    return Object.freeze({
+      kind: 'actor',
+      actor: validateActorRef(record.actor, `${label}.actor`)
+    });
   }
   if (kind === 'community') {
     return Object.freeze({
@@ -95,10 +97,7 @@ export type CredentialRef = Readonly<{
   claimType: string;
 }>;
 
-export function validateCredentialRef(
-  value: unknown,
-  label = 'CredentialRef'
-): CredentialRef {
+export function validateCredentialRef(value: unknown, label = 'CredentialRef'): CredentialRef {
   const record = assertPlainObject(value, label);
   return Object.freeze({
     credentialId: assertId(record.credentialId, `${label}.credentialId`),

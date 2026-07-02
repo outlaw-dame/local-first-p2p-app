@@ -309,15 +309,19 @@ describe('Phase 1.69 — findOverlappingSubscriptions', () => {
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(
       s,
-      profile('labeler_screenshot', ['screenshot.x-twitter'], [
-        { capabilityId: 'detect.twitter-screenshot', producesLabels: ['screenshot.x-twitter'] }
-      ])
+      profile(
+        'labeler_screenshot',
+        ['screenshot.x-twitter'],
+        [{ capabilityId: 'detect.twitter-screenshot', producesLabels: ['screenshot.x-twitter'] }]
+      )
     );
     s = applyLabelerEvent(
       s,
-      profile('labeler_profanity', ['quality.profanity-en'], [
-        { capabilityId: 'detect.profanity-en', producesLabels: ['quality.profanity-en'] }
-      ])
+      profile(
+        'labeler_profanity',
+        ['quality.profanity-en'],
+        [{ capabilityId: 'detect.profanity-en', producesLabels: ['quality.profanity-en'] }]
+      )
     );
     s = applyLabelerEvent(s, subscribe('sub_1', 'labeler_screenshot'));
     s = applyLabelerEvent(s, subscribe('sub_2', 'labeler_profanity'));
@@ -328,15 +332,19 @@ describe('Phase 1.69 — findOverlappingSubscriptions', () => {
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(
       s,
-      profile('labeler_spam_A', ['security.spam'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] }
-      ])
+      profile(
+        'labeler_spam_A',
+        ['security.spam'],
+        [{ capabilityId: 'classify.spam', producesLabels: ['security.spam'] }]
+      )
     );
     s = applyLabelerEvent(
       s,
-      profile('labeler_spam_B', ['security.spam'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] }
-      ])
+      profile(
+        'labeler_spam_B',
+        ['security.spam'],
+        [{ capabilityId: 'classify.spam', producesLabels: ['security.spam'] }]
+      )
     );
     s = applyLabelerEvent(s, subscribe('sub_A', 'labeler_spam_A'));
     s = applyLabelerEvent(s, subscribe('sub_B', 'labeler_spam_B'));
@@ -362,17 +370,25 @@ describe('Phase 1.69 — findOverlappingSubscriptions', () => {
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(
       s,
-      profile('labeler_A', ['security.spam', 'quality.duplicate'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] },
-        { capabilityId: 'detect.duplicate', producesLabels: ['quality.duplicate'] }
-      ])
+      profile(
+        'labeler_A',
+        ['security.spam', 'quality.duplicate'],
+        [
+          { capabilityId: 'classify.spam', producesLabels: ['security.spam'] },
+          { capabilityId: 'detect.duplicate', producesLabels: ['quality.duplicate'] }
+        ]
+      )
     );
     s = applyLabelerEvent(
       s,
-      profile('labeler_B', ['security.spam', 'quality.low-effort'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] },
-        { capabilityId: 'classify.toxicity', producesLabels: ['quality.low-effort'] }
-      ])
+      profile(
+        'labeler_B',
+        ['security.spam', 'quality.low-effort'],
+        [
+          { capabilityId: 'classify.spam', producesLabels: ['security.spam'] },
+          { capabilityId: 'classify.toxicity', producesLabels: ['quality.low-effort'] }
+        ]
+      )
     );
     s = applyLabelerEvent(s, subscribe('sub_A', 'labeler_A'));
     s = applyLabelerEvent(s, subscribe('sub_B', 'labeler_B'));
@@ -386,15 +402,19 @@ describe('Phase 1.69 — findOverlappingSubscriptions', () => {
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(
       s,
-      profile('labeler_A', ['security.spam'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] }
-      ])
+      profile(
+        'labeler_A',
+        ['security.spam'],
+        [{ capabilityId: 'classify.spam', producesLabels: ['security.spam'] }]
+      )
     );
     s = applyLabelerEvent(
       s,
-      profile('labeler_B', ['security.spam'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] }
-      ])
+      profile(
+        'labeler_B',
+        ['security.spam'],
+        [{ capabilityId: 'classify.spam', producesLabels: ['security.spam'] }]
+      )
     );
     s = applyLabelerEvent(s, subscribe('sub_A', 'labeler_A'));
     s = applyLabelerEvent(s, subscribe('sub_B', 'labeler_B'));
@@ -415,15 +435,19 @@ describe('Phase 1.69 — detectRedundantSubscription', () => {
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(
       s,
-      profile('labeler_existing', ['security.spam'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] }
-      ])
+      profile(
+        'labeler_existing',
+        ['security.spam'],
+        [{ capabilityId: 'classify.spam', producesLabels: ['security.spam'] }]
+      )
     );
     s = applyLabelerEvent(
       s,
-      profile('labeler_candidate', ['security.spam'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] }
-      ])
+      profile(
+        'labeler_candidate',
+        ['security.spam'],
+        [{ capabilityId: 'classify.spam', producesLabels: ['security.spam'] }]
+      )
     );
     s = applyLabelerEvent(s, subscribe('sub_existing', 'labeler_existing'));
     const r = detectRedundantSubscription(s, SUBSCRIBER, 'labeler_candidate');
@@ -435,15 +459,19 @@ describe('Phase 1.69 — detectRedundantSubscription', () => {
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(
       s,
-      profile('labeler_screenshot', ['screenshot.x'], [
-        { capabilityId: 'detect.twitter-screenshot', producesLabels: ['screenshot.x'] }
-      ])
+      profile(
+        'labeler_screenshot',
+        ['screenshot.x'],
+        [{ capabilityId: 'detect.twitter-screenshot', producesLabels: ['screenshot.x'] }]
+      )
     );
     s = applyLabelerEvent(
       s,
-      profile('labeler_profanity', ['quality.profanity'], [
-        { capabilityId: 'detect.profanity-en', producesLabels: ['quality.profanity'] }
-      ])
+      profile(
+        'labeler_profanity',
+        ['quality.profanity'],
+        [{ capabilityId: 'detect.profanity-en', producesLabels: ['quality.profanity'] }]
+      )
     );
     s = applyLabelerEvent(s, subscribe('sub_screenshot', 'labeler_screenshot'));
     const r = detectRedundantSubscription(s, SUBSCRIBER, 'labeler_profanity');
@@ -456,17 +484,25 @@ describe('Phase 1.69 — detectRedundantSubscription', () => {
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(
       s,
-      profile('labeler_existing', ['security.spam', 'quality.duplicate'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] },
-        { capabilityId: 'detect.duplicate', producesLabels: ['quality.duplicate'] }
-      ])
+      profile(
+        'labeler_existing',
+        ['security.spam', 'quality.duplicate'],
+        [
+          { capabilityId: 'classify.spam', producesLabels: ['security.spam'] },
+          { capabilityId: 'detect.duplicate', producesLabels: ['quality.duplicate'] }
+        ]
+      )
     );
     s = applyLabelerEvent(
       s,
-      profile('labeler_candidate', ['security.spam', 'quality.low-effort'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] },
-        { capabilityId: 'classify.toxicity', producesLabels: ['quality.low-effort'] }
-      ])
+      profile(
+        'labeler_candidate',
+        ['security.spam', 'quality.low-effort'],
+        [
+          { capabilityId: 'classify.spam', producesLabels: ['security.spam'] },
+          { capabilityId: 'classify.toxicity', producesLabels: ['quality.low-effort'] }
+        ]
+      )
     );
     s = applyLabelerEvent(s, subscribe('sub_existing', 'labeler_existing'));
     const r = detectRedundantSubscription(s, SUBSCRIBER, 'labeler_candidate');
@@ -485,15 +521,19 @@ describe('Phase 1.69 — Bluesky-style scenarios', () => {
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(
       s,
-      profile('labeler_x_screenshots', ['screenshot.x'], [
-        { capabilityId: 'detect.twitter-screenshot', producesLabels: ['screenshot.x'] }
-      ])
+      profile(
+        'labeler_x_screenshots',
+        ['screenshot.x'],
+        [{ capabilityId: 'detect.twitter-screenshot', producesLabels: ['screenshot.x'] }]
+      )
     );
     s = applyLabelerEvent(
       s,
-      profile('labeler_profanity_en', ['quality.profanity-en'], [
-        { capabilityId: 'detect.profanity-en', producesLabels: ['quality.profanity-en'] }
-      ])
+      profile(
+        'labeler_profanity_en',
+        ['quality.profanity-en'],
+        [{ capabilityId: 'detect.profanity-en', producesLabels: ['quality.profanity-en'] }]
+      )
     );
     s = applyLabelerEvent(s, subscribe('sub_screenshots', 'labeler_x_screenshots'));
     const r = detectRedundantSubscription(s, SUBSCRIBER, 'labeler_profanity_en');
@@ -504,15 +544,19 @@ describe('Phase 1.69 — Bluesky-style scenarios', () => {
     let s = createEmptyLabelersState();
     s = applyLabelerEvent(
       s,
-      profile('labeler_spam_1', ['security.spam'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] }
-      ])
+      profile(
+        'labeler_spam_1',
+        ['security.spam'],
+        [{ capabilityId: 'classify.spam', producesLabels: ['security.spam'] }]
+      )
     );
     s = applyLabelerEvent(
       s,
-      profile('labeler_spam_2', ['security.spam'], [
-        { capabilityId: 'classify.spam', producesLabels: ['security.spam'] }
-      ])
+      profile(
+        'labeler_spam_2',
+        ['security.spam'],
+        [{ capabilityId: 'classify.spam', producesLabels: ['security.spam'] }]
+      )
     );
     s = applyLabelerEvent(s, subscribe('sub_1', 'labeler_spam_1'));
     const r = detectRedundantSubscription(s, SUBSCRIBER, 'labeler_spam_2');
@@ -520,4 +564,3 @@ describe('Phase 1.69 — Bluesky-style scenarios', () => {
     expect(r.overlappingCapabilityIds).toEqual(['classify.spam']);
   });
 });
-

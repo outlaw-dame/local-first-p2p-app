@@ -75,10 +75,7 @@
 import type { CapabilityProofRecord } from '@lfp2p/capabilities';
 import { sha256, toBase64Url } from '@lfp2p/crypto';
 
-export type CapabilityProofCryptoVerdict =
-  | 'verified'
-  | 'possession-confirmed'
-  | 'invalid';
+export type CapabilityProofCryptoVerdict = 'verified' | 'possession-confirmed' | 'invalid';
 export type CapabilityProofVerifier = (
   record: CapabilityProofRecord
 ) => CapabilityProofCryptoVerdict | undefined;
@@ -90,9 +87,7 @@ export type CapabilityProofVerifier = (
  * `scheme === 'bearcap'` — once the registry has accepted the
  * scheme, "no bytes" must not silently downgrade to "unverified".
  */
-export type BearcapBytesResolver = (
-  proofId: string
-) => Uint8Array | undefined;
+export type BearcapBytesResolver = (proofId: string) => Uint8Array | undefined;
 
 export type CreateBearcapVerifierOptions = Readonly<{
   resolveBearcap: BearcapBytesResolver;

@@ -24,12 +24,7 @@
  */
 
 import type { ReputationGraphConfig } from './config.js';
-import type {
-  AttestationRecord,
-  ObservationRecord,
-  ObserverKey,
-  SubjectKey
-} from './inputs.js';
+import type { AttestationRecord, ObservationRecord, ObserverKey, SubjectKey } from './inputs.js';
 
 /* -------------------------------------------------------------------------- */
 /*                1. time-bucket burst compression                            */
@@ -169,9 +164,7 @@ export function applyEdgeMultipliers(
     if (a.valence !== 'positive') continue;
     const key = `${a.observer}|${a.subject}`;
     attestedEdges.add(key);
-    if (
-      (FINGERPRINT_VERIFIED_CONTEXT_TAGS as readonly string[]).includes(a.contextTag)
-    ) {
+    if ((FINGERPRINT_VERIFIED_CONTEXT_TAGS as readonly string[]).includes(a.contextTag)) {
       fingerprintEdges.add(key);
     }
   }

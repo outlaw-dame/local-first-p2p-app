@@ -8,7 +8,11 @@ import {
   requireNonEmpty,
   requirePositiveInteger
 } from './http-bridge-internals.js';
-import { type InboundSyncPullInput, type InboundSyncRecord, type InboundSyncTransport } from './index.js';
+import {
+  type InboundSyncPullInput,
+  type InboundSyncRecord,
+  type InboundSyncTransport
+} from './index.js';
 
 type BridgeInboundHttpRecord = Readonly<{
   cursor: string;
@@ -35,7 +39,9 @@ export class NonRetryableInboundSyncError extends Error {
   }
 }
 
-export function createHttpBridgeInboundTransport(options: HttpBridgeInboundTransportOptions): InboundSyncTransport {
+export function createHttpBridgeInboundTransport(
+  options: HttpBridgeInboundTransportOptions
+): InboundSyncTransport {
   const endpoint = normalizeBridgeEndpoint(options.endpoint);
   const fetchImpl = options.fetch ?? globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new Error('A fetch implementation is required');
@@ -57,7 +63,9 @@ export function createHttpBridgeInboundTransport(options: HttpBridgeInboundTrans
         return await mapBridgeInboundHttpResponse(response, requestBody);
       } catch (error) {
         if (isAbortError(error)) {
-          throw new Error(`Bridge inbound request timed out after ${timeoutMs}ms`, { cause: error });
+          throw new Error(`Bridge inbound request timed out after ${timeoutMs}ms`, {
+            cause: error
+          });
         }
         throw error;
       } finally {
@@ -106,7 +114,10 @@ function normalizeInboundPullInput(input: InboundSyncPullInput): NormalizedInbou
   };
 }
 
-function parseBridgeInboundResponse(text: string, requestedLimit: number | undefined): ParsedBridgeInboundResponse {
+function parseBridgeInboundResponse(
+  text: string,
+  requestedLimit: number | undefined
+): ParsedBridgeInboundResponse {
   const trimmed = text.trim();
   if (trimmed.length === 0) return { parseStatus: 'empty' };
 
@@ -117,9 +128,11 @@ function parseBridgeInboundResponse(text: string, requestedLimit: number | undef
     return invalidBridgeInboundResponse('Bridge returned malformed JSON inbound response');
   }
 
-  if (!isRecord(parsed)) return invalidBridgeInboundResponse('Bridge returned invalid inbound response body');
+  if (!isRecord(parsed))
+    return invalidBridgeInboundResponse('Bridge returned invalid inbound response body');
   const records = parsed.records;
-  if (!Array.isArray(records)) return invalidBridgeInboundResponse('Bridge inbound response records must be an array');
+  if (!Array.isArray(records))
+    return invalidBridgeInboundResponse('Bridge inbound response records must be an array');
   if (requestedLimit !== undefined && records.length > requestedLimit) {
     return invalidBridgeInboundResponse('Bridge returned more inbound records than requested');
   }
@@ -136,10 +149,19 @@ function parseBridgeInboundResponse(text: string, requestedLimit: number | undef
 function parseBridgeInboundRecord(
   value: unknown,
   index: number
-): Readonly<{ parseStatus: 'valid'; record: BridgeInboundHttpRecord }> | Readonly<{ parseStatus: 'invalid'; reason: string }> {
-  if (!isRecord(value)) return { parseStatus: 'invalid', reason: `Bridge inbound record ${index} must be a JSON object` };
+):
+  | Readonly<{ parseStatus: 'valid'; record: BridgeInboundHttpRecord }>
+  | Readonly<{ parseStatus: 'invalid'; reason: string }> {
+  if (!isRecord(value))
+    return {
+      parseStatus: 'invalid',
+      reason: `Bridge inbound record ${index} must be a JSON object`
+    };
   if ('sourceId' in value || 'streamId' in value || 'scope' in value) {
-    return { parseStatus: 'invalid', reason: `Bridge inbound record ${index} must not override checkpoint identity` };
+    return {
+      parseStatus: 'invalid',
+      reason: `Bridge inbound record ${index} must not override checkpoint identity`
+    };
   }
 
   const cursor = value.cursor;
@@ -149,17 +171,26 @@ function parseBridgeInboundRecord(
 
   const sequence = value.sequence;
   if (typeof sequence !== 'number' || !Number.isSafeInteger(sequence) || sequence < 0) {
-    return { parseStatus: 'invalid', reason: `Bridge inbound record ${index} sequence must be a non-negative integer` };
+    return {
+      parseStatus: 'invalid',
+      reason: `Bridge inbound record ${index} sequence must be a non-negative integer`
+    };
   }
 
   if (!isRecord(value.event)) {
-    return { parseStatus: 'invalid', reason: `Bridge inbound record ${index} event must be a JSON object` };
+    return {
+      parseStatus: 'invalid',
+      reason: `Bridge inbound record ${index} event must be a JSON object`
+    };
   }
 
   const receivedAt = value.receivedAt;
   if (receivedAt !== undefined) {
     if (typeof receivedAt !== 'string' || !isCanonicalIsoDateString(receivedAt)) {
-      return { parseStatus: 'invalid', reason: `Bridge inbound record ${index} receivedAt must be a canonical ISO date string` };
+      return {
+        parseStatus: 'invalid',
+        reason: `Bridge inbound record ${index} receivedAt must be a canonical ISO date string`
+      };
     }
   }
 

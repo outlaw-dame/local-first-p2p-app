@@ -45,14 +45,14 @@ The doctrine was explicit:
 
 ## Specification mapping
 
-| Existing term | Specification owner | Promotion rule |
-|---|---|---|
-| `DigestRef` | `03-data/content-refs.md`, `03-data/object-references.md` | Canonical digest descriptor. It proves byte identity only, not authorization or availability. |
-| `ContentLink` | `03-data/content-refs.md` | CID-compatible content link. It MUST remain network-neutral and IPFS-optional. |
-| `BlockRef` | `03-data/content-refs.md`, `04-sync/portable-sync-drops.md` | Reference to a block-level payload unit. Useful for media, bundles, and sync drops. |
-| `ObjectRef` | `03-data/object-references.md` | Canonical protocol object reference used by messages, feeds, reports, evidence, media, mailbox envelopes, and sync. |
-| `BundleRef` | `03-data/content-refs.md`, `04-sync/portable-sync-drops.md` | Reference to a bounded content bundle or future Portable Sync Drop component. |
-| `StorageLocationHint` | future `07-availability/provider-descriptors.md` | Provider/location hint only. It MUST NOT become authority, proof of persistence, or global availability. |
+| Existing term         | Specification owner                                         | Promotion rule                                                                                                      |
+| --------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `DigestRef`           | `03-data/content-refs.md`, `03-data/object-references.md`   | Canonical digest descriptor. It proves byte identity only, not authorization or availability.                       |
+| `ContentLink`         | `03-data/content-refs.md`                                   | CID-compatible content link. It MUST remain network-neutral and IPFS-optional.                                      |
+| `BlockRef`            | `03-data/content-refs.md`, `04-sync/portable-sync-drops.md` | Reference to a block-level payload unit. Useful for media, bundles, and sync drops.                                 |
+| `ObjectRef`           | `03-data/object-references.md`                              | Canonical protocol object reference used by messages, feeds, reports, evidence, media, mailbox envelopes, and sync. |
+| `BundleRef`           | `03-data/content-refs.md`, `04-sync/portable-sync-drops.md` | Reference to a bounded content bundle or future Portable Sync Drop component.                                       |
+| `StorageLocationHint` | future `07-availability/provider-descriptors.md`            | Provider/location hint only. It MUST NOT become authority, proof of persistence, or global availability.            |
 
 ## Required doctrine boundaries
 

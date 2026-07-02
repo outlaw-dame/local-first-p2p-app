@@ -23,11 +23,11 @@ type SyncDropManifest = Readonly<{
   createdAt: string;
   expiresAt?: string;
   creatorIdentityId: string;
-  recipientIdentityIds?: ReadonlyArray<string>;  // sealed drop; absent = open
+  recipientIdentityIds?: ReadonlyArray<string>; // sealed drop; absent = open
   partitionIds: ReadonlyArray<string>;
   eventCount: number;
-  rootDigest: string;  // DigestRef over canonical manifest-without-rootDigest + sorted event digests
-  encryptedPayloadKeyWraps?: ReadonlyArray<PayloadKeyRecipientWrap>;  // from ADR-002
+  rootDigest: string; // DigestRef over canonical manifest-without-rootDigest + sorted event digests
+  encryptedPayloadKeyWraps?: ReadonlyArray<PayloadKeyRecipientWrap>; // from ADR-002
 }>;
 ```
 
@@ -47,7 +47,7 @@ New package `packages/sync-drop/`:
 async function createSyncDrop(
   events: ReadonlyArray<SignedEventEnvelope>,
   opts: CreateSyncDropOptions
-): Promise<{ manifest: SyncDropManifest; blocks: ReadonlyArray<Uint8Array> }>
+): Promise<{ manifest: SyncDropManifest; blocks: ReadonlyArray<Uint8Array> }>;
 ```
 
 - Validates each event via `validateSignedEvent` before inclusion.
@@ -62,7 +62,7 @@ async function importSyncDrop(
   manifest: SyncDropManifest,
   blocks: ReadonlyArray<Uint8Array>,
   opts: ImportSyncDropOptions
-): Promise<ImportSyncDropResult>
+): Promise<ImportSyncDropResult>;
 ```
 
 - Recomputes the canonical manifest digest and `rootDigest` against blocks before any event is processed.

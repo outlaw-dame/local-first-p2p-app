@@ -39,7 +39,11 @@ describe('identity control projection seed', () => {
       3
     );
 
-    const state = seedIdentityControlProjection([capabilityGranted, deviceAuthorized, controllerCreated]);
+    const state = seedIdentityControlProjection([
+      capabilityGranted,
+      deviceAuthorized,
+      controllerCreated
+    ]);
 
     expect(state.controllerPublicKey).toBe('controller-public-key');
     expect(state.epoch).toBe(1);
@@ -50,63 +54,98 @@ describe('identity control projection seed', () => {
 
   it('enforces monotonic epoch and known-entity revocation', () => {
     const initial = seedIdentityControlProjection([
-      signedIdentityEvent('identity.controller.created', {
-        controllerPublicKey: 'controller-public-key',
-        initialDeviceId: 'device:primary'
-      }, 1, 'evt_controller_created'),
-      signedIdentityEvent('identity.device.authorized', {
-        authorizedDeviceId: 'device:laptop',
-        authorizedPublicKey: 'device-laptop-public-key',
-        epoch: 2
-      }, 2, 'evt_device_authorized')
+      signedIdentityEvent(
+        'identity.controller.created',
+        {
+          controllerPublicKey: 'controller-public-key',
+          initialDeviceId: 'device:primary'
+        },
+        1,
+        'evt_controller_created'
+      ),
+      signedIdentityEvent(
+        'identity.device.authorized',
+        {
+          authorizedDeviceId: 'device:laptop',
+          authorizedPublicKey: 'device-laptop-public-key',
+          epoch: 2
+        },
+        2,
+        'evt_device_authorized'
+      )
     ]);
 
     expect(() =>
       applyIdentityControlEvent(
         initial,
-        signedIdentityEvent('identity.device.authorized', {
-          authorizedDeviceId: 'device:tablet',
-          authorizedPublicKey: 'device-tablet-public-key',
-          epoch: 2
-        }, 3, 'evt_device_authorized_stale')
+        signedIdentityEvent(
+          'identity.device.authorized',
+          {
+            authorizedDeviceId: 'device:tablet',
+            authorizedPublicKey: 'device-tablet-public-key',
+            epoch: 2
+          },
+          3,
+          'evt_device_authorized_stale'
+        )
       )
     ).toThrow(/payload\.epoch must be greater than current epoch/);
 
     expect(() =>
       applyIdentityControlEvent(
         initial,
-        signedIdentityEvent('identity.device.revoked', {
-          revokedDeviceId: 'device:unknown',
-          epoch: 3
-        }, 3, 'evt_device_revoked_unknown')
+        signedIdentityEvent(
+          'identity.device.revoked',
+          {
+            revokedDeviceId: 'device:unknown',
+            epoch: 3
+          },
+          3,
+          'evt_device_revoked_unknown'
+        )
       )
     ).toThrow(/references unknown device/);
   });
 
   it('rejects controller re-initialization', () => {
     const initial = seedIdentityControlProjection([
-      signedIdentityEvent('identity.controller.created', {
-        controllerPublicKey: 'controller-public-key',
-        initialDeviceId: 'device:primary'
-      }, 1, 'evt_controller_created')
+      signedIdentityEvent(
+        'identity.controller.created',
+        {
+          controllerPublicKey: 'controller-public-key',
+          initialDeviceId: 'device:primary'
+        },
+        1,
+        'evt_controller_created'
+      )
     ]);
 
     expect(() =>
       applyIdentityControlEvent(
         initial,
-        signedIdentityEvent('identity.controller.created', {
-          controllerPublicKey: 'controller-public-key',
-          initialDeviceId: 'device:secondary'
-        }, 2, 'evt_controller_reinit')
+        signedIdentityEvent(
+          'identity.controller.created',
+          {
+            controllerPublicKey: 'controller-public-key',
+            initialDeviceId: 'device:secondary'
+          },
+          2,
+          'evt_controller_reinit'
+        )
       )
     ).toThrow(/may only be applied once/);
   });
 
   it('requires controller-created signature key to match controller public key payload', () => {
-    const created = signedIdentityEvent('identity.controller.created', {
-      controllerPublicKey: 'controller-public-key',
-      initialDeviceId: 'device:primary'
-    }, 1, 'evt_controller_created');
+    const created = signedIdentityEvent(
+      'identity.controller.created',
+      {
+        controllerPublicKey: 'controller-public-key',
+        initialDeviceId: 'device:primary'
+      },
+      1,
+      'evt_controller_created'
+    );
 
     expect(() =>
       applyIdentityControlEvent(createEmptyIdentityControlState(), {
@@ -121,50 +160,77 @@ describe('identity control projection seed', () => {
 
   it('requires controller signer for all post-initialization control events', () => {
     const initial = seedIdentityControlProjection([
-      signedIdentityEvent('identity.controller.created', {
-        controllerPublicKey: 'controller-public-key',
-        initialDeviceId: 'device:primary'
-      }, 1, 'evt_controller_created')
+      signedIdentityEvent(
+        'identity.controller.created',
+        {
+          controllerPublicKey: 'controller-public-key',
+          initialDeviceId: 'device:primary'
+        },
+        1,
+        'evt_controller_created'
+      )
     ]);
 
     expect(() =>
-      applyIdentityControlEvent(
-        initial,
-        {
-          ...signedIdentityEvent('identity.device.authorized', {
+      applyIdentityControlEvent(initial, {
+        ...signedIdentityEvent(
+          'identity.device.authorized',
+          {
             authorizedDeviceId: 'device:laptop',
             authorizedPublicKey: 'device-laptop-public-key',
             epoch: 1
-          }, 2, 'evt_device_authorized_bad_signer'),
-          signature: {
-            algorithm: 'ed25519',
-            publicKey: 'attacker-public-key',
-            value: 'attacker-signature'
-          }
+          },
+          2,
+          'evt_device_authorized_bad_signer'
+        ),
+        signature: {
+          algorithm: 'ed25519',
+          publicKey: 'attacker-public-key',
+          value: 'attacker-signature'
         }
-      )
+      })
     ).toThrow(/must be signed by the controller public key/);
   });
 
   it('keeps earliest revocation timestamp when duplicate revokes are replayed', () => {
     const state = seedIdentityControlProjection([
-      signedIdentityEvent('identity.controller.created', {
-        controllerPublicKey: 'controller-public-key',
-        initialDeviceId: 'device:primary'
-      }, 1, 'evt_controller_created'),
-      signedIdentityEvent('identity.device.authorized', {
-        authorizedDeviceId: 'device:laptop',
-        authorizedPublicKey: 'device-laptop-public-key',
-        epoch: 1
-      }, 2, 'evt_device_authorized'),
-      signedIdentityEvent('identity.device.revoked', {
-        revokedDeviceId: 'device:laptop',
-        epoch: 2
-      }, 3, 'evt_device_revoked_first'),
-      signedIdentityEvent('identity.device.revoked', {
-        revokedDeviceId: 'device:laptop',
-        epoch: 3
-      }, 4, 'evt_device_revoked_duplicate')
+      signedIdentityEvent(
+        'identity.controller.created',
+        {
+          controllerPublicKey: 'controller-public-key',
+          initialDeviceId: 'device:primary'
+        },
+        1,
+        'evt_controller_created'
+      ),
+      signedIdentityEvent(
+        'identity.device.authorized',
+        {
+          authorizedDeviceId: 'device:laptop',
+          authorizedPublicKey: 'device-laptop-public-key',
+          epoch: 1
+        },
+        2,
+        'evt_device_authorized'
+      ),
+      signedIdentityEvent(
+        'identity.device.revoked',
+        {
+          revokedDeviceId: 'device:laptop',
+          epoch: 2
+        },
+        3,
+        'evt_device_revoked_first'
+      ),
+      signedIdentityEvent(
+        'identity.device.revoked',
+        {
+          revokedDeviceId: 'device:laptop',
+          epoch: 3
+        },
+        4,
+        'evt_device_revoked_duplicate'
+      )
     ]);
 
     expect(state.devices['device:laptop']?.status).toBe('revoked');
@@ -175,34 +241,54 @@ describe('identity control projection seed', () => {
 
   it('validates capability delegate id during revocation', () => {
     const initial = seedIdentityControlProjection([
-      signedIdentityEvent('identity.controller.created', {
-        controllerPublicKey: 'controller-public-key',
-        initialDeviceId: 'device:primary'
-      }, 1, 'evt_controller_created'),
-      signedIdentityEvent('identity.capability.granted', {
-        capabilityId: 'cap:sync:device:laptop',
-        delegateDeviceId: 'device:laptop',
-        scope: 'sync:outbox',
-        expiresAt: '2026-06-01T00:00:00.000Z'
-      }, 2, 'evt_capability_granted')
+      signedIdentityEvent(
+        'identity.controller.created',
+        {
+          controllerPublicKey: 'controller-public-key',
+          initialDeviceId: 'device:primary'
+        },
+        1,
+        'evt_controller_created'
+      ),
+      signedIdentityEvent(
+        'identity.capability.granted',
+        {
+          capabilityId: 'cap:sync:device:laptop',
+          delegateDeviceId: 'device:laptop',
+          scope: 'sync:outbox',
+          expiresAt: '2026-06-01T00:00:00.000Z'
+        },
+        2,
+        'evt_capability_granted'
+      )
     ]);
 
     expect(() =>
       applyIdentityControlEvent(
         initial,
-        signedIdentityEvent('identity.capability.revoked', {
-          capabilityId: 'cap:sync:device:laptop',
-          delegateDeviceId: 'device:tablet'
-        }, 3, 'evt_capability_revoked_mismatch')
+        signedIdentityEvent(
+          'identity.capability.revoked',
+          {
+            capabilityId: 'cap:sync:device:laptop',
+            delegateDeviceId: 'device:tablet'
+          },
+          3,
+          'evt_capability_revoked_mismatch'
+        )
       )
     ).toThrow(/does not match granted capability delegate/);
   });
 
   it('deduplicates identical events and rejects conflicting duplicate event ids', () => {
-    const controllerCreated = signedIdentityEvent('identity.controller.created', {
-      controllerPublicKey: 'controller-public-key',
-      initialDeviceId: 'device:primary'
-    }, 1, 'evt_controller_created');
+    const controllerCreated = signedIdentityEvent(
+      'identity.controller.created',
+      {
+        controllerPublicKey: 'controller-public-key',
+        initialDeviceId: 'device:primary'
+      },
+      1,
+      'evt_controller_created'
+    );
 
     const deduped = seedIdentityControlProjection([controllerCreated, controllerCreated]);
     expect(deduped.controllerPublicKey).toBe('controller-public-key');
@@ -222,28 +308,50 @@ describe('identity control projection seed', () => {
 
   it('updates lastEventId for idempotent capability revocation replay', () => {
     const state = seedIdentityControlProjection([
-      signedIdentityEvent('identity.controller.created', {
-        controllerPublicKey: 'controller-public-key',
-        initialDeviceId: 'device:primary'
-      }, 1, 'evt_controller_created'),
-      signedIdentityEvent('identity.capability.granted', {
-        capabilityId: 'cap:sync:device:laptop',
-        delegateDeviceId: 'device:laptop',
-        scope: 'sync:outbox',
-        expiresAt: '2026-06-01T00:00:00.000Z'
-      }, 2, 'evt_capability_granted'),
-      signedIdentityEvent('identity.capability.revoked', {
-        capabilityId: 'cap:sync:device:laptop',
-        delegateDeviceId: 'device:laptop'
-      }, 3, 'evt_capability_revoked_first'),
-      signedIdentityEvent('identity.capability.revoked', {
-        capabilityId: 'cap:sync:device:laptop',
-        delegateDeviceId: 'device:laptop'
-      }, 4, 'evt_capability_revoked_duplicate')
+      signedIdentityEvent(
+        'identity.controller.created',
+        {
+          controllerPublicKey: 'controller-public-key',
+          initialDeviceId: 'device:primary'
+        },
+        1,
+        'evt_controller_created'
+      ),
+      signedIdentityEvent(
+        'identity.capability.granted',
+        {
+          capabilityId: 'cap:sync:device:laptop',
+          delegateDeviceId: 'device:laptop',
+          scope: 'sync:outbox',
+          expiresAt: '2026-06-01T00:00:00.000Z'
+        },
+        2,
+        'evt_capability_granted'
+      ),
+      signedIdentityEvent(
+        'identity.capability.revoked',
+        {
+          capabilityId: 'cap:sync:device:laptop',
+          delegateDeviceId: 'device:laptop'
+        },
+        3,
+        'evt_capability_revoked_first'
+      ),
+      signedIdentityEvent(
+        'identity.capability.revoked',
+        {
+          capabilityId: 'cap:sync:device:laptop',
+          delegateDeviceId: 'device:laptop'
+        },
+        4,
+        'evt_capability_revoked_duplicate'
+      )
     ]);
 
     expect(state.capabilities['cap:sync:device:laptop']?.status).toBe('revoked');
-    expect(state.capabilities['cap:sync:device:laptop']?.revokedAt).toBe('2026-05-26T00:00:03.000Z');
+    expect(state.capabilities['cap:sync:device:laptop']?.revokedAt).toBe(
+      '2026-05-26T00:00:03.000Z'
+    );
     expect(state.lastEventId).toBe('evt_capability_revoked_duplicate');
   });
 
@@ -280,7 +388,12 @@ function signedIdentityEvent(
   if (typeof arg2 === 'string') {
     return signedEvent(arg2, arg3 as Record<string, unknown>, arg4 as number, arg1);
   }
-  return signedEvent(arg1 as EventKind, arg2 as Record<string, unknown>, (arg3 as number | undefined) ?? 1, arg4 as string | undefined);
+  return signedEvent(
+    arg1 as EventKind,
+    arg2 as Record<string, unknown>,
+    (arg3 as number | undefined) ?? 1,
+    arg4 as string | undefined
+  );
 }
 
 function signedEvent(

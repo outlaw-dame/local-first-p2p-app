@@ -63,18 +63,18 @@ User Data Root
 
 The roadmap's original `docs/protocol/*` exit criteria now map to the specification tree:
 
-| Roadmap topic | Specification home |
-|---|---|
-| User Data Root / personal replicas | `docs/specification/02-identity/user-data-root.md`, `docs/specification/02-identity/replica-model.md` |
-| Selective replica sync | `docs/specification/04-sync/selective-replica-sync.md`, `docs/specification/04-sync/sync-interests.md`, `docs/specification/04-sync/checkpoints.md` |
-| Data partitions | `docs/specification/03-data/data-partitions.md` |
-| Entity / Component / Snapshot | `docs/specification/03-data/entity-component-snapshots.md` |
-| Low-bandwidth sync | `docs/specification/04-sync/low-bandwidth-profile.md` |
-| Portable Sync Drops | `docs/specification/04-sync/portable-sync-drops.md` |
-| Feeds | `docs/specification/06-social/feeds.md`, `docs/specification/06-social/collections.md` |
-| Mailbox | `docs/specification/05-mailbox/mailbox.md` |
-| Spaces / Channels | `docs/specification/06-social/spaces.md`, `docs/specification/06-social/channels.md` |
-| Threshold authority / FROST | future `docs/specification/08-security/` and ADR |
+| Roadmap topic                      | Specification home                                                                                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User Data Root / personal replicas | `docs/specification/02-identity/user-data-root.md`, `docs/specification/02-identity/replica-model.md`                                               |
+| Selective replica sync             | `docs/specification/04-sync/selective-replica-sync.md`, `docs/specification/04-sync/sync-interests.md`, `docs/specification/04-sync/checkpoints.md` |
+| Data partitions                    | `docs/specification/03-data/data-partitions.md`                                                                                                     |
+| Entity / Component / Snapshot      | `docs/specification/03-data/entity-component-snapshots.md`                                                                                          |
+| Low-bandwidth sync                 | `docs/specification/04-sync/low-bandwidth-profile.md`                                                                                               |
+| Portable Sync Drops                | `docs/specification/04-sync/portable-sync-drops.md`                                                                                                 |
+| Feeds                              | `docs/specification/06-social/feeds.md`, `docs/specification/06-social/collections.md`                                                              |
+| Mailbox                            | `docs/specification/05-mailbox/mailbox.md`                                                                                                          |
+| Spaces / Channels                  | `docs/specification/06-social/spaces.md`, `docs/specification/06-social/channels.md`                                                                |
+| Threshold authority / FROST        | future `docs/specification/08-security/` and ADR                                                                                                    |
 
 ## Phase 5.1 — User Data Root / Personal Replica Doctrine
 

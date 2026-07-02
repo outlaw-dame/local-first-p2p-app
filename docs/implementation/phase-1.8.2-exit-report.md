@@ -74,7 +74,7 @@ today so the wire shape does not need to change at 1.8.5.
    time-decay since attestation), normalize so Σp = 1. Empty / all-
    zero seeds produce empty output (doctrine fallback, not an error).
 7. Iterate `t = (1 − α) · p + α · Cᵀ · t` until `max|Δt| <
-   convergenceThreshold` or `maxIterations`. NaN/Infinity in any
+convergenceThreshold` or `maxIterations`. NaN/Infinity in any
    iteration aborts with `convergedWithinIterations: false`.
 8. BFS from seed nodes for `seedDistance` per subject.
 9. Build the per-subject score map; freeze every level.
@@ -139,17 +139,17 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Pure function `computeReputation(inputs) → LocalReputationState` with all defaults from doctrine | ✓ | `computer.ts` + `DEFAULT_REPUTATION_CONFIG` echoed in output |
-| Personalized seed vector seeded from Phase 2.3 contacts with documented strength bands | ✓ | `SeedContact` shape pinned; doctrine bands (1.0/0.5/0.1) are caller's responsibility — validator accepts any `[0,1]` |
-| Hard caps enforced; truncation deterministic by stable id sort | ✓ | sorted truncation tested; config range tests pin upper bounds |
-| Convergence threshold + iteration cap + graceful failure when not converged | ✓ | `convergedWithinIterations` flag + dedicated chain test |
-| Deep-freeze on construction per Phase 3.2 | ✓ | frozen-walk test |
-| Replay equivalence | ✓ | byte-identical thrice + array-reorder tests |
-| NaN / Infinity rejection (config + intermediates) | ✓ | config tests + intermediate-NaN aborts loop returning empty scores |
-| Empty graph | ✓ | dedicated test |
-| Single-seed graph | ✓ | dedicated test |
+| Criterion                                                                                        | Status | Evidence                                                                                                             |
+| ------------------------------------------------------------------------------------------------ | :----: | -------------------------------------------------------------------------------------------------------------------- |
+| Pure function `computeReputation(inputs) → LocalReputationState` with all defaults from doctrine |   ✓    | `computer.ts` + `DEFAULT_REPUTATION_CONFIG` echoed in output                                                         |
+| Personalized seed vector seeded from Phase 2.3 contacts with documented strength bands           |   ✓    | `SeedContact` shape pinned; doctrine bands (1.0/0.5/0.1) are caller's responsibility — validator accepts any `[0,1]` |
+| Hard caps enforced; truncation deterministic by stable id sort                                   |   ✓    | sorted truncation tested; config range tests pin upper bounds                                                        |
+| Convergence threshold + iteration cap + graceful failure when not converged                      |   ✓    | `convergedWithinIterations` flag + dedicated chain test                                                              |
+| Deep-freeze on construction per Phase 3.2                                                        |   ✓    | frozen-walk test                                                                                                     |
+| Replay equivalence                                                                               |   ✓    | byte-identical thrice + array-reorder tests                                                                          |
+| NaN / Infinity rejection (config + intermediates)                                                |   ✓    | config tests + intermediate-NaN aborts loop returning empty scores                                                   |
+| Empty graph                                                                                      |   ✓    | dedicated test                                                                                                       |
+| Single-seed graph                                                                                |   ✓    | dedicated test                                                                                                       |
 
 ## Deferred for Phase 1.8.5
 

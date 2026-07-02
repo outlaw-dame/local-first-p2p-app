@@ -1,12 +1,13 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
-import { InMemoryBridgeService, handleBridgeDeliveryRequest, handleBridgeInboundReadRequest } from '@lfp2p/bridge-service';
+import {
+  InMemoryBridgeService,
+  handleBridgeDeliveryRequest,
+  handleBridgeInboundReadRequest
+} from '@lfp2p/bridge-service';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
-import {
-  createUnsignedEvent,
-  placeholderPrivatePayloadEnvelope
-} from '@lfp2p/protocol';
+import { createUnsignedEvent, placeholderPrivatePayloadEnvelope } from '@lfp2p/protocol';
 import { createHttpBridgeInboundTransport } from './inbound-http.js';
 import { createHttpBridgeTransport, processInboundSyncBatch, processOutboxBatch } from './index.js';
 
@@ -21,7 +22,11 @@ describe('HTTP bridge outbox integration', () => {
         endpoint: 'https://bridge.test/events',
         fetch: async (input, init) => {
           requestCount += 1;
-          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:00.000Z');
+          return handleBridgeDeliveryRequest(
+            bridge,
+            new Request(input, init),
+            '2026-05-22T00:00:00.000Z'
+          );
         }
       });
 
@@ -37,8 +42,22 @@ describe('HTTP bridge outbox integration', () => {
       });
       const snapshot = await bridge.snapshot('2026-05-22T00:00:01.000Z');
 
-      expect(first).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
-      expect(second).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(first).toEqual({
+        attempted: 1,
+        confirmed: 1,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
+      expect(second).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(requestCount).toBe(1);
       expect((await store.getOutboxEntry(entry.idempotencyKey))?.status).toBe('confirmed');
       expect(snapshot).toMatchObject({
@@ -52,23 +71,44 @@ describe('HTTP bridge outbox integration', () => {
   });
 
   it('pulls accepted bridge records through the inbound reader and applies them locally', async () => {
-    const outboundStore = createLocalFirstStore(`bridge-e2e-outbound-${globalThis.crypto.randomUUID()}`);
-    const inboundStore = createLocalFirstStore(`bridge-e2e-inbound-${globalThis.crypto.randomUUID()}`);
+    const outboundStore = createLocalFirstStore(
+      `bridge-e2e-outbound-${globalThis.crypto.randomUUID()}`
+    );
+    const inboundStore = createLocalFirstStore(
+      `bridge-e2e-inbound-${globalThis.crypto.randomUUID()}`
+    );
     try {
       const bridge = new InMemoryBridgeService({ initialSequence: 0 });
       const entry = await seedOutboxEntry(outboundStore, 'evt_http_bridge_inbound_read');
       const outboxTransport = createHttpBridgeTransport({
         endpoint: 'https://bridge.test/events',
-        fetch: async (input, init) => handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:00.000Z')
+        fetch: async (input, init) =>
+          handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:00.000Z')
       });
       const inboundTransport = createHttpBridgeInboundTransport({
         endpoint: 'https://bridge.test/inbound',
-        fetch: async (input, init) => handleBridgeInboundReadRequest(bridge, new Request(input, init), '2026-05-22T00:00:01.000Z')
+        fetch: async (input, init) =>
+          handleBridgeInboundReadRequest(
+            bridge,
+            new Request(input, init),
+            '2026-05-22T00:00:01.000Z'
+          )
       });
 
       await expect(
-        processOutboxBatch({ store: outboundStore, transport: outboxTransport, now: new Date('2026-05-22T00:00:00.000Z') })
-      ).resolves.toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+        processOutboxBatch({
+          store: outboundStore,
+          transport: outboxTransport,
+          now: new Date('2026-05-22T00:00:00.000Z')
+        })
+      ).resolves.toEqual({
+        attempted: 1,
+        confirmed: 1,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       const records = await inboundTransport.pull({
         sourceId: 'bridge:primary',
         streamId: 'bridge:test',
@@ -84,13 +124,21 @@ describe('HTTP bridge outbox integration', () => {
       });
 
       expect(records).toHaveLength(1);
-      expect(record).toMatchObject({ sourceId: 'bridge:primary', streamId: 'bridge:test', scope: 'identity:alice' });
+      expect(record).toMatchObject({
+        sourceId: 'bridge:primary',
+        streamId: 'bridge:test',
+        scope: 'identity:alice'
+      });
       expect(record.sequence).toBeGreaterThan(0);
       expect(record.cursor).toBe(String(record.sequence));
       expect(applied).toEqual({ received: 1, applied: 1, skipped: 0, rejected: 0, errors: [] });
       await expect(inboundStore.getSignedEvent(entry.eventId)).resolves.toEqual(record.event);
       await expect(
-        inboundStore.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'bridge:test', scope: 'identity:alice' })
+        inboundStore.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'bridge:test',
+          scope: 'identity:alice'
+        })
       ).resolves.toMatchObject({ cursor: record.cursor, sequence: record.sequence });
     } finally {
       await outboundStore.delete();
@@ -99,7 +147,9 @@ describe('HTTP bridge outbox integration', () => {
   });
 
   it('recovers an interrupted local confirmation and confirms idempotently on retry', async () => {
-    const store = createLocalFirstStore(`outbox-http-bridge-recovery-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-http-bridge-recovery-${globalThis.crypto.randomUUID()}`
+    );
     const originalMarkConfirmed = store.markOutboxConfirmed.bind(store);
     let markAttempts = 0;
     store.markOutboxConfirmed = async (...args) => {
@@ -116,7 +166,11 @@ describe('HTTP bridge outbox integration', () => {
         endpoint: 'https://bridge.test/events',
         fetch: async (input, init) => {
           requestCount += 1;
-          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:00.000Z');
+          return handleBridgeDeliveryRequest(
+            bridge,
+            new Request(input, init),
+            '2026-05-22T00:00:00.000Z'
+          );
         }
       });
 
@@ -149,8 +203,22 @@ describe('HTTP bridge outbox integration', () => {
         retryCount: 0,
         updatedAt: '2026-05-22T00:00:00.000Z'
       });
-      expect(beforeRecovery).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
-      expect(afterRecovery).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(beforeRecovery).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
+      expect(afterRecovery).toEqual({
+        attempted: 1,
+        confirmed: 1,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(requestCount).toBe(2);
       expect(markAttempts).toBe(2);
       expect(confirmed).toMatchObject({
@@ -167,7 +235,9 @@ describe('HTTP bridge outbox integration', () => {
   });
 
   it('fails recovered entries at the retry limit before resending', async () => {
-    const store = createLocalFirstStore(`outbox-http-bridge-recovered-limit-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-http-bridge-recovered-limit-${globalThis.crypto.randomUUID()}`
+    );
     try {
       const bridge = new InMemoryBridgeService({ initialSequence: 0 });
       const entry = await seedOutboxEntry(store, 'evt_http_bridge_recovered_limit');
@@ -191,7 +261,11 @@ describe('HTTP bridge outbox integration', () => {
         endpoint: 'https://bridge.test/events',
         fetch: async (input, init) => {
           requestCount += 1;
-          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:30.000Z');
+          return handleBridgeDeliveryRequest(
+            bridge,
+            new Request(input, init),
+            '2026-05-22T00:00:30.000Z'
+          );
         }
       });
 
@@ -205,7 +279,14 @@ describe('HTTP bridge outbox integration', () => {
       const updated = await store.getOutboxEntry(entry.idempotencyKey);
       const snapshot = await bridge.snapshot('2026-05-22T00:00:30.000Z');
 
-      expect(result).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 1, skipped: 0 });
+      expect(result).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 1,
+        skipped: 0
+      });
       expect(requestCount).toBe(0);
       expect(updated).toMatchObject({
         status: 'failed',
@@ -222,7 +303,9 @@ describe('HTTP bridge outbox integration', () => {
   });
 
   it('retries transient HTTP failures after backoff and then confirms delivery', async () => {
-    const store = createLocalFirstStore(`outbox-http-bridge-retry-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-http-bridge-retry-${globalThis.crypto.randomUUID()}`
+    );
     try {
       const bridge = new InMemoryBridgeService({ initialSequence: 0 });
       const entry = await seedOutboxEntry(store, 'evt_http_bridge_retry');
@@ -234,7 +317,11 @@ describe('HTTP bridge outbox integration', () => {
           if (requestCount === 1) {
             return new Response('', { status: 503, statusText: 'Bridge unavailable' });
           }
-          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:02.000Z');
+          return handleBridgeDeliveryRequest(
+            bridge,
+            new Request(input, init),
+            '2026-05-22T00:00:02.000Z'
+          );
         }
       });
 
@@ -263,15 +350,36 @@ describe('HTTP bridge outbox integration', () => {
       const confirmed = await store.getOutboxEntry(entry.idempotencyKey);
       const snapshot = await bridge.snapshot('2026-05-22T00:00:02.000Z');
 
-      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 1, failed: 0, skipped: 0 });
+      expect(first).toEqual({
+        attempted: 1,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 1,
+        failed: 0,
+        skipped: 0
+      });
       expect(afterFailure).toMatchObject({
         status: 'pending',
         retryCount: 1,
         nextRetryAt: '2026-05-22T00:00:02.000Z',
         lastError: 'Bridge unavailable'
       });
-      expect(beforeDue).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
-      expect(afterRetry).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(beforeDue).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
+      expect(afterRetry).toEqual({
+        attempted: 1,
+        confirmed: 1,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(requestCount).toBe(2);
       expect(confirmed).toMatchObject({
         status: 'confirmed',
@@ -287,7 +395,9 @@ describe('HTTP bridge outbox integration', () => {
   });
 
   it('retries thrown fetch failures after backoff and then confirms delivery', async () => {
-    const store = createLocalFirstStore(`outbox-http-bridge-fetch-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-http-bridge-fetch-${globalThis.crypto.randomUUID()}`
+    );
     try {
       const bridge = new InMemoryBridgeService({ initialSequence: 0 });
       const entry = await seedOutboxEntry(store, 'evt_http_bridge_fetch_retry');
@@ -299,7 +409,11 @@ describe('HTTP bridge outbox integration', () => {
           if (requestCount === 1) {
             throw new Error('Temporary bridge outage');
           }
-          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:02.000Z');
+          return handleBridgeDeliveryRequest(
+            bridge,
+            new Request(input, init),
+            '2026-05-22T00:00:02.000Z'
+          );
         }
       });
 
@@ -328,15 +442,36 @@ describe('HTTP bridge outbox integration', () => {
       const confirmed = await store.getOutboxEntry(entry.idempotencyKey);
       const snapshot = await bridge.snapshot('2026-05-22T00:00:02.000Z');
 
-      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 1, failed: 0, skipped: 0 });
+      expect(first).toEqual({
+        attempted: 1,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 1,
+        failed: 0,
+        skipped: 0
+      });
       expect(afterFailure).toMatchObject({
         status: 'pending',
         retryCount: 1,
         nextRetryAt: '2026-05-22T00:00:02.000Z',
         lastError: 'Temporary bridge outage'
       });
-      expect(beforeDue).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
-      expect(afterRetry).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(beforeDue).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
+      expect(afterRetry).toEqual({
+        attempted: 1,
+        confirmed: 1,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(requestCount).toBe(2);
       expect(confirmed).toMatchObject({
         status: 'confirmed',
@@ -352,7 +487,9 @@ describe('HTTP bridge outbox integration', () => {
   });
 
   it('retries timed out bridge requests after backoff and then confirms delivery', async () => {
-    const store = createLocalFirstStore(`outbox-http-bridge-timeout-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-http-bridge-timeout-${globalThis.crypto.randomUUID()}`
+    );
     try {
       const bridge = new InMemoryBridgeService({ initialSequence: 0 });
       const entry = await seedOutboxEntry(store, 'evt_http_bridge_timeout_retry');
@@ -366,7 +503,11 @@ describe('HTTP bridge outbox integration', () => {
             await waitForAbort(init?.signal);
             throw makeAbortError();
           }
-          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:02.000Z');
+          return handleBridgeDeliveryRequest(
+            bridge,
+            new Request(input, init),
+            '2026-05-22T00:00:02.000Z'
+          );
         }
       });
 
@@ -395,15 +536,36 @@ describe('HTTP bridge outbox integration', () => {
       const confirmed = await store.getOutboxEntry(entry.idempotencyKey);
       const snapshot = await bridge.snapshot('2026-05-22T00:00:02.000Z');
 
-      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 1, failed: 0, skipped: 0 });
+      expect(first).toEqual({
+        attempted: 1,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 1,
+        failed: 0,
+        skipped: 0
+      });
       expect(afterFailure).toMatchObject({
         status: 'pending',
         retryCount: 1,
         nextRetryAt: '2026-05-22T00:00:02.000Z',
         lastError: 'Bridge request timed out after 1ms'
       });
-      expect(beforeDue).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
-      expect(afterRetry).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(beforeDue).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
+      expect(afterRetry).toEqual({
+        attempted: 1,
+        confirmed: 1,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(requestCount).toBe(2);
       expect(confirmed).toMatchObject({
         status: 'confirmed',
@@ -419,7 +581,9 @@ describe('HTTP bridge outbox integration', () => {
   });
 
   it('marks repeated transient HTTP failures failed after max attempts', async () => {
-    const store = createLocalFirstStore(`outbox-http-bridge-max-attempts-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-http-bridge-max-attempts-${globalThis.crypto.randomUUID()}`
+    );
     try {
       const bridge = new InMemoryBridgeService({ initialSequence: 0 });
       const entry = await seedOutboxEntry(store, 'evt_http_bridge_max_attempts');
@@ -460,20 +624,41 @@ describe('HTTP bridge outbox integration', () => {
       });
       const snapshot = await bridge.snapshot('2026-05-22T00:00:04.000Z');
 
-      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 1, failed: 0, skipped: 0 });
+      expect(first).toEqual({
+        attempted: 1,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 1,
+        failed: 0,
+        skipped: 0
+      });
       expect(afterFirst).toMatchObject({
         status: 'pending',
         retryCount: 1,
         nextRetryAt: '2026-05-22T00:00:02.000Z',
         lastError: 'Bridge unavailable'
       });
-      expect(second).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 0, failed: 1, skipped: 0 });
+      expect(second).toEqual({
+        attempted: 1,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 1,
+        skipped: 0
+      });
       expect(afterSecond).toMatchObject({
         status: 'failed',
         retryCount: 1,
         lastError: 'Bridge unavailable'
       });
-      expect(third).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(third).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(requestCount).toBe(2);
       expect(snapshot).toMatchObject({
         storeKind: 'memory',
@@ -485,7 +670,9 @@ describe('HTTP bridge outbox integration', () => {
   });
 
   it('marks a local outbox event conflicted when the bridge owns the idempotency key for another event', async () => {
-    const store = createLocalFirstStore(`outbox-http-bridge-conflict-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-http-bridge-conflict-${globalThis.crypto.randomUUID()}`
+    );
     try {
       const bridge = new InMemoryBridgeService({ initialSequence: 0 });
       const idempotencyKey = 'idem_http_bridge_conflict';
@@ -500,7 +687,11 @@ describe('HTTP bridge outbox integration', () => {
         endpoint: 'https://bridge.test/events',
         fetch: async (input, init) => {
           requestCount += 1;
-          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:01.000Z');
+          return handleBridgeDeliveryRequest(
+            bridge,
+            new Request(input, init),
+            '2026-05-22T00:00:01.000Z'
+          );
         }
       });
 
@@ -517,8 +708,22 @@ describe('HTTP bridge outbox integration', () => {
       const updated = await store.getOutboxEntry(entry.idempotencyKey);
       const snapshot = await bridge.snapshot('2026-05-22T00:00:02.000Z');
 
-      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 1, retried: 0, failed: 0, skipped: 0 });
-      expect(second).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(first).toEqual({
+        attempted: 1,
+        confirmed: 0,
+        conflicted: 1,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
+      expect(second).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(requestCount).toBe(1);
       expect(updated?.status).toBe('conflicted');
       expect(updated?.lastError).toBe('Idempotency key already belongs to a different event');
@@ -532,7 +737,9 @@ describe('HTTP bridge outbox integration', () => {
   });
 
   it('marks rejected bridge deliveries as terminal failed without retrying', async () => {
-    const store = createLocalFirstStore(`outbox-http-bridge-rejected-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-http-bridge-rejected-${globalThis.crypto.randomUUID()}`
+    );
     try {
       const bridge = new InMemoryBridgeService({ initialSequence: 0 });
       const entry = await seedOutboxEntry(store, 'evt_http_bridge_rejected');
@@ -551,7 +758,11 @@ describe('HTTP bridge outbox integration', () => {
         endpoint: 'https://bridge.test/events',
         fetch: async (input, init) => {
           requestCount += 1;
-          return handleBridgeDeliveryRequest(bridge, new Request(input, init), '2026-05-22T00:00:00.000Z');
+          return handleBridgeDeliveryRequest(
+            bridge,
+            new Request(input, init),
+            '2026-05-22T00:00:00.000Z'
+          );
         }
       });
 
@@ -568,8 +779,22 @@ describe('HTTP bridge outbox integration', () => {
       const updated = await store.getOutboxEntry(entry.idempotencyKey);
       const snapshot = await bridge.snapshot('2026-05-22T00:00:01.000Z');
 
-      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 0, failed: 1, skipped: 0 });
-      expect(second).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(first).toEqual({
+        attempted: 1,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 1,
+        skipped: 0
+      });
+      expect(second).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(requestCount).toBe(1);
       expect(updated?.status).toBe('failed');
       expect(updated?.retryCount).toBe(0);

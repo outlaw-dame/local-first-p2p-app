@@ -38,16 +38,16 @@ The current slice includes:
 
 ## Specification mapping
 
-| Existing area | Specification owner | Promotion rule |
-|---|---|---|
-| HTTP bridge sync | `04-sync/selective-replica-sync.md`, `07-availability/bridges.md` | Bridge sync is one transport adapter, not the whole sync model. |
-| Sync offsets / cursors | `04-sync/checkpoints.md` | Existing offsets become provider-scoped or partition-scoped checkpoint material. |
-| Local checkpoint store | `04-sync/checkpoints.md` | Checkpoints resume comparison and replay; they are not authority by themselves. |
-| Mutation outbox | `04-sync/selective-replica-sync.md` | Outbox records are candidate outbound records that still require validation and transport policy. |
-| Inbound pull | `04-sync/selective-replica-sync.md` | Inbound records must be validated before apply. |
-| Private payload sync | `04-sync/selective-replica-sync.md`, `04-sync/low-bandwidth-profile.md` | Sync can carry encrypted payload refs/bytes but must not require provider plaintext. |
-| Portable import/export | `04-sync/portable-sync-drops.md` | Offline bundles are import media, not authority or consent. |
-| Mailbox catch-up | `05-mailbox/mailbox.md`, `04-sync/selective-replica-sync.md` | Mailbox delivery/catch-up is related to sync but not durable User Data Root state by itself. |
+| Existing area          | Specification owner                                                     | Promotion rule                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| HTTP bridge sync       | `04-sync/selective-replica-sync.md`, `07-availability/bridges.md`       | Bridge sync is one transport adapter, not the whole sync model.                                   |
+| Sync offsets / cursors | `04-sync/checkpoints.md`                                                | Existing offsets become provider-scoped or partition-scoped checkpoint material.                  |
+| Local checkpoint store | `04-sync/checkpoints.md`                                                | Checkpoints resume comparison and replay; they are not authority by themselves.                   |
+| Mutation outbox        | `04-sync/selective-replica-sync.md`                                     | Outbox records are candidate outbound records that still require validation and transport policy. |
+| Inbound pull           | `04-sync/selective-replica-sync.md`                                     | Inbound records must be validated before apply.                                                   |
+| Private payload sync   | `04-sync/selective-replica-sync.md`, `04-sync/low-bandwidth-profile.md` | Sync can carry encrypted payload refs/bytes but must not require provider plaintext.              |
+| Portable import/export | `04-sync/portable-sync-drops.md`                                        | Offline bundles are import media, not authority or consent.                                       |
+| Mailbox catch-up       | `05-mailbox/mailbox.md`, `04-sync/selective-replica-sync.md`            | Mailbox delivery/catch-up is related to sync but not durable User Data Root state by itself.      |
 
 ## Required boundaries
 

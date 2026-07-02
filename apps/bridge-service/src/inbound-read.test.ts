@@ -26,19 +26,38 @@ describe('Bridge inbound read support', () => {
     const second = makeSignedEvent({ eventId: 'evt_bridge_read_2', privacy: 'dm' });
     const otherTarget = makeSignedEvent({ eventId: 'evt_bridge_read_other', privacy: 'public' });
 
-    await bridge.acceptDelivery({ idempotencyKey: 'idem-read-1', target: 'stream:inbox', event: first }, '1970-01-01T00:00:00.000Z');
-    await bridge.acceptDelivery({ idempotencyKey: 'idem-read-other', target: 'stream:other', event: otherTarget }, '1970-01-01T00:00:01.000Z');
-    await bridge.acceptDelivery({ idempotencyKey: 'idem-read-2', target: 'stream:inbox', event: second }, '1970-01-01T00:00:02.000Z');
+    await bridge.acceptDelivery(
+      { idempotencyKey: 'idem-read-1', target: 'stream:inbox', event: first },
+      '1970-01-01T00:00:00.000Z'
+    );
+    await bridge.acceptDelivery(
+      { idempotencyKey: 'idem-read-other', target: 'stream:other', event: otherTarget },
+      '1970-01-01T00:00:01.000Z'
+    );
+    await bridge.acceptDelivery(
+      { idempotencyKey: 'idem-read-2', target: 'stream:inbox', event: second },
+      '1970-01-01T00:00:02.000Z'
+    );
 
     await expect(
       bridge.readInboundRecords(
-        { sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', limit: 10 },
+        {
+          sourceId: 'bridge:primary',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice',
+          limit: 10
+        },
         '1970-01-01T00:00:03.000Z'
       )
     ).resolves.toEqual({
       records: [
         { cursor: '1', sequence: 1, receivedAt: '1970-01-01T00:00:00.000Z', event: first },
-        { cursor: '2000000', sequence: 2_000_000, receivedAt: '1970-01-01T00:00:02.000Z', event: second }
+        {
+          cursor: '2000000',
+          sequence: 2_000_000,
+          receivedAt: '1970-01-01T00:00:02.000Z',
+          event: second
+        }
       ]
     });
   });
@@ -49,28 +68,58 @@ describe('Bridge inbound read support', () => {
     const second = makeSignedEvent({ eventId: 'evt_cursor_2', privacy: 'public' });
     const third = makeSignedEvent({ eventId: 'evt_cursor_3', privacy: 'public' });
 
-    await bridge.acceptDelivery({ idempotencyKey: 'idem-cursor-1', target: 'stream:inbox', event: first }, '1970-01-01T00:00:00.000Z');
-    await bridge.acceptDelivery({ idempotencyKey: 'idem-cursor-2', target: 'stream:inbox', event: second }, '1970-01-01T00:00:01.000Z');
-    await bridge.acceptDelivery({ idempotencyKey: 'idem-cursor-3', target: 'stream:inbox', event: third }, '1970-01-01T00:00:02.000Z');
+    await bridge.acceptDelivery(
+      { idempotencyKey: 'idem-cursor-1', target: 'stream:inbox', event: first },
+      '1970-01-01T00:00:00.000Z'
+    );
+    await bridge.acceptDelivery(
+      { idempotencyKey: 'idem-cursor-2', target: 'stream:inbox', event: second },
+      '1970-01-01T00:00:01.000Z'
+    );
+    await bridge.acceptDelivery(
+      { idempotencyKey: 'idem-cursor-3', target: 'stream:inbox', event: third },
+      '1970-01-01T00:00:02.000Z'
+    );
 
     await expect(
       bridge.readInboundRecords(
-        { sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', cursor: '1', limit: 1 },
+        {
+          sourceId: 'bridge:primary',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice',
+          cursor: '1',
+          limit: 1
+        },
         '1970-01-01T00:00:03.000Z'
       )
     ).resolves.toEqual({
-      records: [{ cursor: '1000000', sequence: 1_000_000, receivedAt: '1970-01-01T00:00:01.000Z', event: second }]
+      records: [
+        {
+          cursor: '1000000',
+          sequence: 1_000_000,
+          receivedAt: '1970-01-01T00:00:01.000Z',
+          event: second
+        }
+      ]
     });
   });
 
   it('exposes readable records over the HTTP handler', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const event = makeSignedEvent({ eventId: 'evt_http_read', privacy: 'public' });
-    await bridge.acceptDelivery({ idempotencyKey: 'idem-http-read', target: 'stream:inbox', event }, '1970-01-01T00:00:00.000Z');
+    await bridge.acceptDelivery(
+      { idempotencyKey: 'idem-http-read', target: 'stream:inbox', event },
+      '1970-01-01T00:00:00.000Z'
+    );
 
     const response = await handleBridgeInboundReadRequest(
       bridge,
-      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', limit: 10 }),
+      makeReadRequest({
+        sourceId: 'bridge:primary',
+        streamId: 'stream:inbox',
+        scope: 'identity:alice',
+        limit: 10
+      }),
       '1970-01-01T00:00:01.000Z'
     );
 
@@ -91,7 +140,10 @@ describe('Bridge inbound read support', () => {
     );
     const wrong = await handleBridgeInboundReadRequest(
       bridge,
-      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' }, 'wrong-value'),
+      makeReadRequest(
+        { sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' },
+        'wrong-value'
+      ),
       '1970-01-01T00:00:00.000Z',
       { auth: BRIDGE_AUTH }
     );
@@ -105,17 +157,26 @@ describe('Bridge inbound read support', () => {
   it('accepts authorized inbound reads without leaking server auth config', async () => {
     const bridge = new InMemoryBridgeService({ initialSequence: 0 });
     const event = makeSignedEvent({ eventId: 'evt_http_auth_read', privacy: 'public' });
-    await bridge.acceptDelivery({ idempotencyKey: 'idem-http-auth-read', target: 'stream:inbox', event }, '1970-01-01T00:00:00.000Z');
+    await bridge.acceptDelivery(
+      { idempotencyKey: 'idem-http-auth-read', target: 'stream:inbox', event },
+      '1970-01-01T00:00:00.000Z'
+    );
 
     const authorized = await handleBridgeInboundReadRequest(
       bridge,
-      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' }, BRIDGE_AUTH_TOKEN),
+      makeReadRequest(
+        { sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' },
+        BRIDGE_AUTH_TOKEN
+      ),
       '1970-01-01T00:00:01.000Z',
       { auth: BRIDGE_AUTH }
     );
     const misconfigured = await handleBridgeInboundReadRequest(
       bridge,
-      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' }, BRIDGE_AUTH_TOKEN),
+      makeReadRequest(
+        { sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' },
+        BRIDGE_AUTH_TOKEN
+      ),
       '1970-01-01T00:00:01.000Z',
       { auth: { scheme: 'bearer', token: 'bad config value' } }
     );
@@ -139,12 +200,22 @@ describe('Bridge inbound read support', () => {
     );
     const oversized = await handleBridgeInboundReadRequest(
       bridge,
-      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', limit: 501 }),
+      makeReadRequest({
+        sourceId: 'bridge:primary',
+        streamId: 'stream:inbox',
+        scope: 'identity:alice',
+        limit: 501
+      }),
       '1970-01-01T00:00:00.000Z'
     );
     const badCursor = await handleBridgeInboundReadRequest(
       bridge,
-      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice', cursor: 'cursor-1' }),
+      makeReadRequest({
+        sourceId: 'bridge:primary',
+        streamId: 'stream:inbox',
+        scope: 'identity:alice',
+        cursor: 'cursor-1'
+      }),
       '1970-01-01T00:00:00.000Z'
     );
 
@@ -152,7 +223,9 @@ describe('Bridge inbound read support', () => {
     expect(oversized.status).toBe(400);
     await expect(oversized.json()).resolves.toEqual({ reason: 'limit must be at most 500' });
     expect(badCursor.status).toBe(400);
-    await expect(badCursor.json()).resolves.toEqual({ reason: 'cursor must be a non-negative integer string' });
+    await expect(badCursor.json()).resolves.toEqual({
+      reason: 'cursor must be a non-negative integer string'
+    });
   });
 
   it('returns retryable status for internal read failures', async () => {
@@ -168,13 +241,23 @@ describe('Bridge inbound read support', () => {
         throw new Error('storage unavailable');
       },
       pruneExpired: async () => undefined,
-      snapshot: async () => ({ storeKind: 'memory', acceptedCount: 0, maxRecords: 1, ttlMs: 60_000, latestSequence: 0 })
+      snapshot: async () => ({
+        storeKind: 'memory',
+        acceptedCount: 0,
+        maxRecords: 1,
+        ttlMs: 60_000,
+        latestSequence: 0
+      })
     } satisfies BridgeStore;
     const bridge = new BridgeService({ store });
 
     const response = await handleBridgeInboundReadRequest(
       bridge,
-      makeReadRequest({ sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' }),
+      makeReadRequest({
+        sourceId: 'bridge:primary',
+        streamId: 'stream:inbox',
+        scope: 'identity:alice'
+      }),
       '1970-01-01T00:00:00.000Z'
     );
 
@@ -187,16 +270,25 @@ describe('Bridge inbound read support', () => {
     const filePath = join(dir, 'bridge-store.json');
     try {
       const event = makeSignedEvent({ eventId: 'evt_json_read', privacy: 'public' });
-      const writer = new BridgeService({ store: new JsonFileBridgeStore({ filePath, initialSequence: 0, ttlMs: 60_000 }) });
-      await writer.acceptDelivery({ idempotencyKey: 'idem-json-read', target: 'stream:inbox', event }, '1970-01-01T00:00:00.000Z');
+      const writer = new BridgeService({
+        store: new JsonFileBridgeStore({ filePath, initialSequence: 0, ttlMs: 60_000 })
+      });
+      await writer.acceptDelivery(
+        { idempotencyKey: 'idem-json-read', target: 'stream:inbox', event },
+        '1970-01-01T00:00:00.000Z'
+      );
 
-      const reader = new BridgeService({ store: new JsonFileBridgeStore({ filePath, initialSequence: 0, ttlMs: 60_000 }) });
+      const reader = new BridgeService({
+        store: new JsonFileBridgeStore({ filePath, initialSequence: 0, ttlMs: 60_000 })
+      });
       await expect(
         reader.readInboundRecords(
           { sourceId: 'bridge:primary', streamId: 'stream:inbox', scope: 'identity:alice' },
           '1970-01-01T00:00:01.000Z'
         )
-      ).resolves.toEqual({ records: [{ cursor: '1', sequence: 1, receivedAt: '1970-01-01T00:00:00.000Z', event }] });
+      ).resolves.toEqual({
+        records: [{ cursor: '1', sequence: 1, receivedAt: '1970-01-01T00:00:00.000Z', event }]
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

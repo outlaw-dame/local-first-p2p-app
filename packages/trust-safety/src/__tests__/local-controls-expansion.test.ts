@@ -99,18 +99,15 @@ describe('TTL: selector skips expired entries', () => {
 
   it('rejects expiresAt before createdAt at validation time', () => {
     expect(() =>
-      applyLocalControlEvent(
-        createEmptyLocalControlState(),
-        {
-          version: 'lfp2p.local-control-event.v1',
-          eventId: 'e1',
-          createdAt: '2026-05-31T00:00:00Z',
-          action: 'apply',
-          kind: 'safety.account.blocked',
-          targetActorId: 'actor_x',
-          expiresAt: '2026-05-30T00:00:00Z'
-        }
-      )
+      applyLocalControlEvent(createEmptyLocalControlState(), {
+        version: 'lfp2p.local-control-event.v1',
+        eventId: 'e1',
+        createdAt: '2026-05-31T00:00:00Z',
+        action: 'apply',
+        kind: 'safety.account.blocked',
+        targetActorId: 'actor_x',
+        expiresAt: '2026-05-30T00:00:00Z'
+      })
     ).toThrow(/TS_INVALID_TIMESTAMP/);
   });
 });
@@ -240,12 +237,10 @@ describe('Semantic keyword matcher: host-supplied, no ML in package', () => {
       expect(entry.similarityThreshold).toBe(0.7);
       return text.includes('hateful');
     };
-    expect(
-      decideVisibility(state, { text: 'this is a hateful post' }, { semanticMatch })
-    ).toBe('collapse');
-    expect(
-      decideVisibility(state, { text: 'an unrelated post' }, { semanticMatch })
-    ).toBe('show');
+    expect(decideVisibility(state, { text: 'this is a hateful post' }, { semanticMatch })).toBe(
+      'collapse'
+    );
+    expect(decideVisibility(state, { text: 'an unrelated post' }, { semanticMatch })).toBe('show');
   });
 
   it('semantic matcher throwing is contained and treated as no-match', () => {
@@ -253,9 +248,7 @@ describe('Semantic keyword matcher: host-supplied, no ML in package', () => {
     const semanticMatch: SemanticKeywordMatcher = (): boolean => {
       throw new Error('model crashed');
     };
-    expect(
-      decideVisibility(state, { text: 'anything' }, { semanticMatch })
-    ).toBe('show');
+    expect(decideVisibility(state, { text: 'anything' }, { semanticMatch })).toBe('show');
   });
 
   it('rejects mixing substring matchKind with embeddingRef', () => {
@@ -303,9 +296,9 @@ describe('Notification preferences', () => {
       })
     ]);
     expect(state.notificationPreferences['dm-from-non-contacts']).toBeDefined();
-    expect(
-      decideVisibility(state, { notificationChannel: 'dm-from-non-contacts' })
-    ).toBe('collapse');
+    expect(decideVisibility(state, { notificationChannel: 'dm-from-non-contacts' })).toBe(
+      'collapse'
+    );
   });
 
   it('does not affect channels other than the configured one', () => {
@@ -385,8 +378,16 @@ describe('Policy list subscriptions', () => {
 describe('Snapshot export/import: cross-app portability', () => {
   function buildOpinionatedState() {
     return seedLocalControlState([
-      ev({ kind: 'safety.account.blocked', targetActorId: 'actor_x', createdAt: '2026-05-01T00:00:00Z' }),
-      ev({ kind: 'safety.account.allowlisted', targetActorId: 'actor_friend', createdAt: '2026-05-01T00:00:00Z' }),
+      ev({
+        kind: 'safety.account.blocked',
+        targetActorId: 'actor_x',
+        createdAt: '2026-05-01T00:00:00Z'
+      }),
+      ev({
+        kind: 'safety.account.allowlisted',
+        targetActorId: 'actor_friend',
+        createdAt: '2026-05-01T00:00:00Z'
+      }),
       ev({
         kind: 'safety.keyword.muted',
         keyword: 'spoiler',
@@ -416,9 +417,7 @@ describe('Snapshot export/import: cross-app portability', () => {
     });
     const rebuilt = importPreferencesSnapshot(createEmptyLocalControlState(), snapshot);
     expect(decideVisibility(rebuilt, { actorId: 'actor_x' })).toBe('hide');
-    expect(
-      decideVisibility(rebuilt, { text: 'big spoiler ahead' })
-    ).toBe('collapse');
+    expect(decideVisibility(rebuilt, { text: 'big spoiler ahead' })).toBe('collapse');
     expect(rebuilt.snapshotAppliedAt).toBe('2026-05-31T00:00:00Z');
   });
 
@@ -518,13 +517,11 @@ describe('Snapshot export/import: cross-app portability', () => {
         capturedAt: '2026-05-31T00:00:00Z'
       })
     );
-    expect(() =>
-      assertSnapshotIsNotStale(state, '2026-04-01T00:00:00Z')
-    ).toThrow(/older than the currently applied snapshot/);
+    expect(() => assertSnapshotIsNotStale(state, '2026-04-01T00:00:00Z')).toThrow(
+      /older than the currently applied snapshot/
+    );
     // forward-in-time is fine
-    expect(() =>
-      assertSnapshotIsNotStale(state, '2026-06-01T00:00:00Z')
-    ).not.toThrow();
+    expect(() => assertSnapshotIsNotStale(state, '2026-06-01T00:00:00Z')).not.toThrow();
   });
 
   it('safety.preferences.snapshot event cannot be applied via applyLocalControlEvent', () => {

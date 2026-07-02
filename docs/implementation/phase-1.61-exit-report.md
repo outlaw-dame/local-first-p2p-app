@@ -70,12 +70,12 @@ Additional verification:
 
 From `docs/implementation/trust-safety-phase-plan.md` Phase 1.61 exit criteria:
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| Validators reject malformed authorities, scopes, labels, reports, decisions, and object refs | ✓ | `authorities.test.ts`, `subjects.test.ts`, `labels.test.ts`, `reports.test.ts`, `policy-decisions.test.ts` |
-| Fixtures exist for all core objects | ✓ | 18 valid fixtures under `fixtures/valid/` |
-| Invalid fixtures test unknown major versions, missing required fields, unsupported enums, malformed object refs, and unsafe private/public routing | ✓ | 15 invalid fixtures under `fixtures/invalid/`; loader test asserts all are rejected with the appropriate `TS_*` or `CA_*` code |
-| No runtime moderation behavior exists yet | ✓ | package is types + validators only; no projection tables, no UI, no bridge runtime |
+| Criterion                                                                                                                                          | Status | Evidence                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | -----: | ------------------------------------------------------------------------------------------------------------------------------ |
+| Validators reject malformed authorities, scopes, labels, reports, decisions, and object refs                                                       |      ✓ | `authorities.test.ts`, `subjects.test.ts`, `labels.test.ts`, `reports.test.ts`, `policy-decisions.test.ts`                     |
+| Fixtures exist for all core objects                                                                                                                |      ✓ | 18 valid fixtures under `fixtures/valid/`                                                                                      |
+| Invalid fixtures test unknown major versions, missing required fields, unsupported enums, malformed object refs, and unsafe private/public routing |      ✓ | 15 invalid fixtures under `fixtures/invalid/`; loader test asserts all are rejected with the appropriate `TS_*` or `CA_*` code |
+| No runtime moderation behavior exists yet                                                                                                          |      ✓ | package is types + validators only; no projection tables, no UI, no bridge runtime                                             |
 
 ## Security/privacy checks
 
@@ -87,7 +87,7 @@ From `docs/implementation/trust-safety-phase-plan.md` Phase 1.61 exit criteria:
 
 ## Deviations introduced or resolved
 
-- `SafetyLabel` does not carry an `action` field; the T&S event policy assigns label-level actions to the *definition*, with the label inheriting via `defaultAction`. The validator therefore does not cross-check action/scope on labels themselves — that check lives on `SafetyPolicyDecision` and on label-definition `hardSafety` rules.
+- `SafetyLabel` does not carry an `action` field; the T&S event policy assigns label-level actions to the _definition_, with the label inheriting via `defaultAction`. The validator therefore does not cross-check action/scope on labels themselves — that check lives on `SafetyPolicyDecision` and on label-definition `hardSafety` rules.
 - `SafetyLabelerSubscription.scope` is intentionally narrower than the full `EnforcementScope` enum: subscriptions are strictly local concerns (no `network-advisory`).
 - The reason-code list is opinionated. Free-form reason text belongs in encrypted body fields (`encryptedBodyRef`), not in the public `reasonCode` slot — this matches the policy doc's "structured, neutral codes" guidance and reduces inadvertent PII in analytics.
 

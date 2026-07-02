@@ -124,9 +124,9 @@ describe('applyReportAppealEvent — report lifecycle', () => {
   it('resolve of already-resolved report throws TS_LIFECYCLE_TRANSITION', () => {
     let state = applyReportAppealEvent(createEmptyReportsAppealsState(), created('r1', 'idem_1'));
     state = applyReportAppealEvent(state, resolved('r1', 'upheld', 'evt_r1_1'));
-    expect(() =>
-      applyReportAppealEvent(state, resolved('r1', 'dismissed', 'evt_r1_2'))
-    ).toThrow(/already resolved/);
+    expect(() => applyReportAppealEvent(state, resolved('r1', 'dismissed', 'evt_r1_2'))).toThrow(
+      /already resolved/
+    );
   });
 });
 
@@ -178,7 +178,10 @@ describe('applyReportAppealEvent — appeal lifecycle', () => {
   }
 
   it('appeal create -> resolve happy path', () => {
-    let state = applyReportAppealEvent(createEmptyReportsAppealsState(), appealCreated('a1', 'idem_a1'));
+    let state = applyReportAppealEvent(
+      createEmptyReportsAppealsState(),
+      appealCreated('a1', 'idem_a1')
+    );
     expect(state.byAppealId['a1']?.status).toBe('submitted');
     state = applyReportAppealEvent(state, appealResolved('a1'));
     expect(state.byAppealId['a1']?.status).toBe('resolved');
@@ -191,7 +194,10 @@ describe('applyReportAppealEvent — appeal lifecycle', () => {
   });
 
   it('resolve-twice throws TS_LIFECYCLE_TRANSITION', () => {
-    let state = applyReportAppealEvent(createEmptyReportsAppealsState(), appealCreated('a1', 'idem_a1'));
+    let state = applyReportAppealEvent(
+      createEmptyReportsAppealsState(),
+      appealCreated('a1', 'idem_a1')
+    );
     state = applyReportAppealEvent(state, appealResolved('a1', 'dismissed'));
     expect(() => applyReportAppealEvent(state, appealResolved('a1', 'overturned'))).toThrow(
       /already resolved/
@@ -199,7 +205,10 @@ describe('applyReportAppealEvent — appeal lifecycle', () => {
   });
 
   it('overturned appeal records the new decisionId', () => {
-    let state = applyReportAppealEvent(createEmptyReportsAppealsState(), appealCreated('a1', 'idem_a1'));
+    let state = applyReportAppealEvent(
+      createEmptyReportsAppealsState(),
+      appealCreated('a1', 'idem_a1')
+    );
     state = applyReportAppealEvent(state, appealResolved('a1', 'overturned'));
     expect(state.byAppealId['a1']?.newDecisionId).toBe('decision_v2');
   });

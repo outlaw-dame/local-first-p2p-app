@@ -52,15 +52,15 @@ opaque audit key.
 
 Pinned `lfp2p.moderation-event.v1`:
 
-| Event | Payload |
-|---|---|
-| `safety.policy.created` | embeds `SafetyPolicy`; requires `policyVersionNumber === 1` |
-| `safety.policy.updated` | embeds the new version; cross-checked at apply time |
-| `safety.policy.deprecated` | `policyId` + `deprecatedBy` + `deprecatedAt` + `reasonCode` + optional `replacementPolicyId` |
-| `safety.policy.decision.recorded` | embeds existing `SafetyPolicyDecision` + optional `sourceQueueItemId` |
-| `moderation.queue.item.created` | `queueItemId` + `ownerAuthority` + `sourceKind` (`report | label | annotation | manual`) + `sourceId` + `reasonCode` + optional `summary` |
-| `moderation.queue.item.assigned` | `queueItemId` + `assignedTo` + `assignedAt` |
-| `moderation.queue.item.resolved` | `queueItemId` + `resolvedBy` + `resolvedAt` + `resolution` (`acted | dismissed | duplicate | invalid | forwarded`) + `resolutionReasonCode` + optional `resolutionDecisionId` + optional `resolutionNotes` |
+| Event                             | Payload                                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------------------- | --------- | ---------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `safety.policy.created`           | embeds `SafetyPolicy`; requires `policyVersionNumber === 1`                                  |
+| `safety.policy.updated`           | embeds the new version; cross-checked at apply time                                          |
+| `safety.policy.deprecated`        | `policyId` + `deprecatedBy` + `deprecatedAt` + `reasonCode` + optional `replacementPolicyId` |
+| `safety.policy.decision.recorded` | embeds existing `SafetyPolicyDecision` + optional `sourceQueueItemId`                        |
+| `moderation.queue.item.created`   | `queueItemId` + `ownerAuthority` + `sourceKind` (`report                                     | label     | annotation | manual`) + `sourceId`+`reasonCode`+ optional`summary` |
+| `moderation.queue.item.assigned`  | `queueItemId` + `assignedTo` + `assignedAt`                                                  |
+| `moderation.queue.item.resolved`  | `queueItemId` + `resolvedBy` + `resolvedAt` + `resolution` (`acted                           | dismissed | duplicate  | invalid                                               | forwarded`) + `resolutionReasonCode`+ optional`resolutionDecisionId`+ optional`resolutionNotes` |
 
 #### `projection.ts` — `ModerationState` with rich indexing
 
@@ -86,11 +86,11 @@ Resolves the Phase 1.63 cross-reference: given a `reportId`, return the queue it
 
 3 valid + 3 invalid under `packages/trust-safety/fixtures/moderation/`:
 
-| Valid | Invalid (shape-level) |
-|---|---|
-| `policy-created.json` | `policy-version-zero.json` |
+| Valid                     | Invalid (shape-level)                          |
+| ------------------------- | ---------------------------------------------- |
+| `policy-created.json`     | `policy-version-zero.json`                     |
 | `queue-item-created.json` | `policy-supersedes-not-less-than-version.json` |
-| `decision-recorded.json` | `queue-resolved-unknown-resolution.json` |
+| `decision-recorded.json`  | `queue-resolved-unknown-resolution.json`       |
 
 Projection-level lifecycle violations are covered by the unit tests
 in `moderation-runtime.test.ts` (not the fixtures-loader test).
@@ -123,6 +123,7 @@ in `moderation-runtime.test.ts` (not the fixtures-loader test).
 ### New doctrine document
 
 `docs/protocol/moderation-runtime-doctrine.md` with:
+
 - What this is / what this is NOT (the moderation tools API is
   explicitly out of scope here).
 - Five non-negotiable rules.
@@ -142,29 +143,29 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|---:|---|
-| All 7 Phase 1.61 reserved policy/moderation event kinds shipped | ✓ | Plus the new `SafetyPolicy` shape underpinning them |
-| Policy versioning preserves audit chain | ✓ | Versions never overwritten; `decisionsByPolicyId` indexes by version string |
-| Deprecation is not retroactive | ✓ | Direct test asserts decisions remain queryable after deprecation |
-| Queue items are operator-scoped | ✓ | `ownerAuthority` field; `queueIdsByAssignee` indexes per authority |
-| Queue open → resolved skip-assignment permitted | ✓ | Direct test |
-| Cross-references queue ↔ decision both ways | ✓ | `sourceQueueItemId` and `resolutionDecisionId` round-trip verified |
-| Phase 1.63 integration: `queueItemsForSource` for a reportId | ✓ | Direct test |
+| Criterion                                                       | Status | Evidence                                                                    |
+| --------------------------------------------------------------- | -----: | --------------------------------------------------------------------------- |
+| All 7 Phase 1.61 reserved policy/moderation event kinds shipped |      ✓ | Plus the new `SafetyPolicy` shape underpinning them                         |
+| Policy versioning preserves audit chain                         |      ✓ | Versions never overwritten; `decisionsByPolicyId` indexes by version string |
+| Deprecation is not retroactive                                  |      ✓ | Direct test asserts decisions remain queryable after deprecation            |
+| Queue items are operator-scoped                                 |      ✓ | `ownerAuthority` field; `queueIdsByAssignee` indexes per authority          |
+| Queue open → resolved skip-assignment permitted                 |      ✓ | Direct test                                                                 |
+| Cross-references queue ↔ decision both ways                     |      ✓ | `sourceQueueItemId` and `resolutionDecisionId` round-trip verified          |
+| Phase 1.63 integration: `queueItemsForSource` for a reportId    |      ✓ | Direct test                                                                 |
 
 ## Security/privacy checks
 
 - [x] No private plaintext in logs — package emits no logs.
 - [x] Remote/untrusted input validation — every event has shape
-  validation; every state machine transition is enforced before
-  mutation.
+      validation; every state machine transition is enforced before
+      mutation.
 - [x] Malicious/invalid input tests exist — version-zero policy,
-  supersedes ≥ versionNumber, unknown resolution enum, every illegal
-  state transition.
+      supersedes ≥ versionNumber, unknown resolution enum, every illegal
+      state transition.
 - [x] Revocation/permission behavior — deprecation is the protocol
-  way to "revoke" a policy without rewriting history.
+      way to "revoke" a policy without rewriting history.
 - [x] Derived state rebuild/delete behavior — `seedModerationState` is
-  the canonical rebuild; idempotent on `eventId` and `decisionId`.
+      the canonical rebuild; idempotent on `eventId` and `decisionId`.
 
 ## Deviations introduced or resolved
 

@@ -18,9 +18,7 @@ import { PRIVATE_BY_NATURE_SUBJECTS } from '../subjects.js';
 export type ReportRoutingPrivacy = 'public-routable' | 'private-only';
 
 export function classifyReportPrivacy(report: SafetyReport): ReportRoutingPrivacy {
-  return PRIVATE_BY_NATURE_SUBJECTS.has(report.subject.type)
-    ? 'private-only'
-    : 'public-routable';
+  return PRIVATE_BY_NATURE_SUBJECTS.has(report.subject.type) ? 'private-only' : 'public-routable';
 }
 
 /**

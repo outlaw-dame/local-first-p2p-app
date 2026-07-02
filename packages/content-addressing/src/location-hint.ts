@@ -62,10 +62,7 @@ export type StorageLocationHint = Readonly<{
 }>;
 
 export function isLocationHintKind(value: unknown): value is LocationHintKind {
-  return (
-    typeof value === 'string' &&
-    LOCATION_HINT_KINDS.includes(value as LocationHintKind)
-  );
+  return typeof value === 'string' && LOCATION_HINT_KINDS.includes(value as LocationHintKind);
 }
 
 export function validateStorageLocationHint(value: unknown): StorageLocationHint {
@@ -94,10 +91,7 @@ export function validateStorageLocationHint(value: unknown): StorageLocationHint
 
   let priority: number | undefined;
   if (record.priority !== undefined) {
-    priority = assertSafeNonNegativeInteger(
-      record.priority,
-      'StorageLocationHint.priority'
-    );
+    priority = assertSafeNonNegativeInteger(record.priority, 'StorageLocationHint.priority');
   }
 
   let expiresAt: string | undefined;

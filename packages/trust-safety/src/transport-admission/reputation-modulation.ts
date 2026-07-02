@@ -28,11 +28,7 @@ import {
   getReputationBand,
   type ReputationBand
 } from '../reputation-graph/surface-integration.js';
-import {
-  DEFAULT_RATE_LIMIT,
-  validateRateLimitConfig,
-  type RateLimitConfig
-} from './rate-limit.js';
+import { DEFAULT_RATE_LIMIT, validateRateLimitConfig, type RateLimitConfig } from './rate-limit.js';
 import { tsError } from '../errors.js';
 
 export type ModulatedRateLimit = Readonly<{

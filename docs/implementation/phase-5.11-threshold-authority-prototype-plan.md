@@ -16,11 +16,11 @@ Before any code: evaluate candidate libraries and record the decision in a follo
 
 Candidates (no implementation yet):
 
-| Library | Language | Browser? | Ed25519 ciphersuite? |
-|---|---|---|---|
-| `@noble/curves` frost helpers | TypeScript | Yes | Ed25519 ✅ |
-| `frost-core` (via WASM) | Rust | Possible | Ed25519 ✅ |
-| In-house Ed25519 FROST (from RFC 9591 Appendix C) | TypeScript | Yes | Ed25519 ✅ |
+| Library                                           | Language   | Browser? | Ed25519 ciphersuite? |
+| ------------------------------------------------- | ---------- | -------- | -------------------- |
+| `@noble/curves` frost helpers                     | TypeScript | Yes      | Ed25519 ✅           |
+| `frost-core` (via WASM)                           | Rust       | Possible | Ed25519 ✅           |
+| In-house Ed25519 FROST (from RFC 9591 Appendix C) | TypeScript | Yes      | Ed25519 ✅           |
 
 Decision requirement from ADR-014: the Ed25519 FROST ciphersuite MUST be used so output signatures pass the existing `verifySignedEventEnvelope` path without modification.
 
@@ -33,7 +33,9 @@ One PR (docs only).
 New package `packages/frost-adapter/`:
 
 ```ts
-interface SyncTransport { /* not used here; shown only in sync plan */ }
+interface SyncTransport {
+  /* not used here; shown only in sync plan */
+}
 
 interface FrostProvider {
   generateShares(
@@ -42,11 +44,7 @@ interface FrostProvider {
     totalShares: number
   ): Promise<ReadonlyArray<FrostShare>>;
 
-  sign(
-    share: FrostShare,
-    nonce: FrostNonce,
-    message: Uint8Array
-  ): Promise<FrostSignatureShare>;
+  sign(share: FrostShare, nonce: FrostNonce, message: Uint8Array): Promise<FrostSignatureShare>;
 
   aggregate(
     signatureShares: ReadonlyArray<FrostSignatureShare>,
@@ -54,11 +52,7 @@ interface FrostProvider {
     message: Uint8Array
   ): Promise<Uint8Array>;
 
-  verify(
-    signature: Uint8Array,
-    message: Uint8Array,
-    verificationKey: Uint8Array
-  ): boolean;
+  verify(signature: Uint8Array, message: Uint8Array, verificationKey: Uint8Array): boolean;
 }
 
 type FrostShare = Readonly<{ index: number; scalar: Uint8Array; verificationKey: Uint8Array }>;
@@ -92,6 +86,7 @@ type StoredFrostShare = Readonly<{
 Dexie schema v15/v16: `frostShares` table (PK: `shareId`, index: `identityId, createdAt`).
 
 Storage discipline (from ADR-014):
+
 - Share scalar encrypted via `EncryptedKeyMaterial` under `localProtectionKeys`.
 - NEVER logged, NEVER synced, NEVER emitted in any audit record.
 
@@ -107,7 +102,7 @@ async function generateRecoveryShares(
   threshold: number,
   trustees: ReadonlyArray<{ identityId: string; devicePublicKey: Uint8Array }>,
   provider: FrostProvider
-): Promise<DealerOutput>
+): Promise<DealerOutput>;
 
 type DealerOutput = Readonly<{
   localShare: FrostShare;
@@ -138,7 +133,7 @@ async function runThresholdSigningCeremony(
   remoteSignatureShares: ReadonlyArray<FrostSignatureShare>,
   message: Uint8Array,
   provider: FrostProvider
-): Promise<Uint8Array>
+): Promise<Uint8Array>;
 ```
 
 - Verifies `threshold >= 1` and `remoteSignatureShares.length >= threshold - 1` before proceeding.
@@ -152,13 +147,19 @@ One PR. Tests verify the output signature passes `verifySignedEventEnvelope` and
 
 New event kind:
 
-| Kind | Privacy | Consistency class |
-|---|---|---|
-| `identity.recovery.configured` | `self` | B |
+| Kind                           | Privacy | Consistency class |
+| ------------------------------ | ------- | ----------------- |
+| `identity.recovery.configured` | `self`  | B                 |
 
 Payload (inside encrypted envelope):
+
 ```ts
-{ threshold: number; totalShares: number; trustees: ReadonlyArray<{ identityId: string; deviceId: string }>; configuredAt: string }
+{
+  threshold: number;
+  totalShares: number;
+  trustees: ReadonlyArray<{ identityId: string; deviceId: string }>;
+  configuredAt: string;
+}
 ```
 
 No share material in the payload. This event records configuration for audit only.

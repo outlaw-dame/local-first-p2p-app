@@ -83,15 +83,16 @@ is never accepted.
 
 `packages/trust-safety/fixtures/reputation-graph/`:
 
-| Kind | Valid | Invalid |
-|---|---|---|
-| `reputation.observation.recorded` | outbox-useful / bridge-misbehaved / mixed-counts / domain-media-correct | unknown-kind / window-inverted |
-| `reputation.attestation.published` | positive-verified-in-person / positive-with-expiry / negative-bad-actor / dispute-strength-zero | strength-above-one / expires-before-created |
-| `reputation.attestation.revoked` | basic / delayed / iso-with-offset / much-later | before-created / missing-attestation-id |
-| `reputation.aggregator.published` | single-subject / batch / zero-confidence / domain-subject | score-above-one / empty-subjects |
-| `reputation.aggregator.score.removed` | revoked / expired / superseded / algorithm-changed | unknown-reason / unknown-subject-type |
+| Kind                                  | Valid                                                                                           | Invalid                                     |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `reputation.observation.recorded`     | outbox-useful / bridge-misbehaved / mixed-counts / domain-media-correct                         | unknown-kind / window-inverted              |
+| `reputation.attestation.published`    | positive-verified-in-person / positive-with-expiry / negative-bad-actor / dispute-strength-zero | strength-above-one / expires-before-created |
+| `reputation.attestation.revoked`      | basic / delayed / iso-with-offset / much-later                                                  | before-created / missing-attestation-id     |
+| `reputation.aggregator.published`     | single-subject / batch / zero-confidence / domain-subject                                       | score-above-one / empty-subjects            |
+| `reputation.aggregator.score.removed` | revoked / expired / superseded / algorithm-changed                                              | unknown-reason / unknown-subject-type       |
 
 ### 79 new adversarial tests
+
 `packages/trust-safety/src/__tests__/reputation-graph-events.test.ts`
 
 Coverage:
@@ -139,20 +140,20 @@ pnpm build       # clean
 
 ## Acceptance criteria (mapped to the Phase 1.8 doctrine)
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| New event kinds added with bounded enums for kind / contextTag / valence / algorithm / removal-reason | ✓ | 5 enums + `REPUTATION_EVENT_KINDS`, all frozen at module load |
-| Validation rejects free-form text | ✓ | every string field uses `assertOneOf` against a frozen enum |
-| Validation rejects unknown enums (deterministic, not partial) | ✓ | 6 dedicated tests; doctrine #5 cross-check |
-| Validation rejects window violations | ✓ | inverted window + oversized window tests |
-| Validation rejects strengths outside [0, 1] | ✓ | parameterized test with NaN / Inf / oob values |
-| Validation rejects score / confidence outside [0, 1] | ✓ | parameterized test on aggregator subject score |
-| Validation rejects counts outside [0, maxObservationCount] | ✓ | parameterized test |
-| Phase 3.2 frozen-walk + replay-equivalence pinned | ✓ | dedicated `Object.isFrozen` walks + round-trip fixture test |
-| Fixtures: 4 valid + 2 invalid per kind | ✓ | 20 valid + 10 invalid; cardinality test |
-| Prototype-pollution defense at every payload object boundary | ✓ | 5 dedicated tests using `JSON.parse` delivery |
-| Aggregator subject-list cap | ✓ | exact-cap accept + one-over reject + empty reject |
-| Default privacy = `device-local` for observation + attestation | n/a at protocol layer | Privacy is enforced at the SignedEventEnvelope layer, not on the inner payload — doctrine #2 lives at the envelope boundary, enforced when these payloads are emitted by Phase 1.8.2+ |
+| Criterion                                                                                             |        Status         | Evidence                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------- | :-------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New event kinds added with bounded enums for kind / contextTag / valence / algorithm / removal-reason |           ✓           | 5 enums + `REPUTATION_EVENT_KINDS`, all frozen at module load                                                                                                                         |
+| Validation rejects free-form text                                                                     |           ✓           | every string field uses `assertOneOf` against a frozen enum                                                                                                                           |
+| Validation rejects unknown enums (deterministic, not partial)                                         |           ✓           | 6 dedicated tests; doctrine #5 cross-check                                                                                                                                            |
+| Validation rejects window violations                                                                  |           ✓           | inverted window + oversized window tests                                                                                                                                              |
+| Validation rejects strengths outside [0, 1]                                                           |           ✓           | parameterized test with NaN / Inf / oob values                                                                                                                                        |
+| Validation rejects score / confidence outside [0, 1]                                                  |           ✓           | parameterized test on aggregator subject score                                                                                                                                        |
+| Validation rejects counts outside [0, maxObservationCount]                                            |           ✓           | parameterized test                                                                                                                                                                    |
+| Phase 3.2 frozen-walk + replay-equivalence pinned                                                     |           ✓           | dedicated `Object.isFrozen` walks + round-trip fixture test                                                                                                                           |
+| Fixtures: 4 valid + 2 invalid per kind                                                                |           ✓           | 20 valid + 10 invalid; cardinality test                                                                                                                                               |
+| Prototype-pollution defense at every payload object boundary                                          |           ✓           | 5 dedicated tests using `JSON.parse` delivery                                                                                                                                         |
+| Aggregator subject-list cap                                                                           |           ✓           | exact-cap accept + one-over reject + empty reject                                                                                                                                     |
+| Default privacy = `device-local` for observation + attestation                                        | n/a at protocol layer | Privacy is enforced at the SignedEventEnvelope layer, not on the inner payload — doctrine #2 lives at the envelope boundary, enforced when these payloads are emitted by Phase 1.8.2+ |
 
 ## Deferred work (post-1.8.1)
 

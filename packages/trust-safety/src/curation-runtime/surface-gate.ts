@@ -45,9 +45,8 @@ export const LOCAL_CURATION_SURFACES: ReadonlySet<CurationSurface> = new Set<Cur
 ]);
 
 /** Envelope privacy scopes that may flow onto a public curation surface. */
-export const PUBLIC_SAFE_ENVELOPE_SCOPES: ReadonlySet<EnvelopePrivacyScope> = new Set<EnvelopePrivacyScope>([
-  'public'
-]);
+export const PUBLIC_SAFE_ENVELOPE_SCOPES: ReadonlySet<EnvelopePrivacyScope> =
+  new Set<EnvelopePrivacyScope>(['public']);
 
 /** Reasons a curation surface may refuse to ingest a candidate item. */
 export const SURFACE_GATE_REASONS = [
@@ -159,10 +158,7 @@ export function decideReportAsCurationSignal(
   report: SafetyReport,
   surface: CurationSurface
 ): ReportSignalDecision {
-  if (
-    PUBLIC_CURATION_SURFACES.has(surface) &&
-    classifyReportPrivacy(report) === 'private-only'
-  ) {
+  if (PUBLIC_CURATION_SURFACES.has(surface) && classifyReportPrivacy(report) === 'private-only') {
     return Object.freeze({ allowed: false, reason: 'private-only-report-signal' });
   }
   return Object.freeze({ allowed: true, reason: 'allowed' });

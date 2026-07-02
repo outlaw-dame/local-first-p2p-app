@@ -43,9 +43,7 @@ function realLocalState(subjects: Array<{ id: string; score: number }>): LocalRe
     ],
     attestations: [],
     revocations: [],
-    seedContacts: [
-      { subject: 'actor:alice', strength: 1.0, attestedAt: '2026-06-01T00:00:00Z' }
-    ],
+    seedContacts: [{ subject: 'actor:alice', strength: 1.0, attestedAt: '2026-06-01T00:00:00Z' }],
     nowIso: FIXED_NOW_ISO
   });
 }
@@ -90,7 +88,9 @@ describe('computeAggregatedReputation — LOCAL ALWAYS WINS', () => {
     const view = computeAggregatedReputation({
       localState: local,
       subscriptions: [{ labelerId: 'openrank', priority: 1 }],
-      aggregatorEvents: [aggregatorEvent('openrank', [{ actorId: 'bob', score: 0.001, confidence: 0.9 }])]
+      aggregatorEvents: [
+        aggregatorEvent('openrank', [{ actorId: 'bob', score: 0.001, confidence: 0.9 }])
+      ]
     });
 
     // Bob's entry MUST come from local, with the local score.
@@ -107,7 +107,9 @@ describe('computeAggregatedReputation — LOCAL ALWAYS WINS', () => {
     const view = computeAggregatedReputation({
       localState: local,
       subscriptions: [{ labelerId: 'openrank', priority: 1 }],
-      aggregatorEvents: [aggregatorEvent('openrank', [{ actorId: 'carol', score: 0.5, confidence: 0.7 }])]
+      aggregatorEvents: [
+        aggregatorEvent('openrank', [{ actorId: 'carol', score: 0.5, confidence: 0.7 }])
+      ]
     });
     const carolEntry = view.entries.get('actor:carol')!;
     expect(carolEntry.sourceLabelerId).toBe('openrank');

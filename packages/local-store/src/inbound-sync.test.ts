@@ -71,7 +71,9 @@ describe('atomic inbound sync storage', () => {
       });
 
       expect(replay.status).toBe('skipped');
-      await expect(store.getSignedEvent('evt_inbound_replay_original')).resolves.toEqual(firstEvent);
+      await expect(store.getSignedEvent('evt_inbound_replay_original')).resolves.toEqual(
+        firstEvent
+      );
       await expect(store.getSignedEvent('evt_inbound_replay_duplicate')).resolves.toBeUndefined();
     } finally {
       await store.delete();
@@ -124,7 +126,9 @@ describe('atomic inbound sync storage', () => {
   });
 
   it('rejects stale checkpoints before validating malformed stale events', async () => {
-    const store = createLocalFirstStore(`inbound-stale-malformed-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `inbound-stale-malformed-${globalThis.crypto.randomUUID()}`
+    );
     const currentEvent = makeSignedEvent('evt_inbound_current_before_malformed');
     const malformedStaleEvent = {
       ...makeSignedEvent('evt_inbound_malformed_stale'),

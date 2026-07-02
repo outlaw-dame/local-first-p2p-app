@@ -438,14 +438,16 @@ class LocalFirstP2PDatabase extends Dexie {
     });
     this.version(3).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt'
     });
     this.version(4).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -453,7 +455,8 @@ class LocalFirstP2PDatabase extends Dexie {
     });
     this.version(5).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -462,7 +465,8 @@ class LocalFirstP2PDatabase extends Dexie {
     });
     this.version(6).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -472,7 +476,8 @@ class LocalFirstP2PDatabase extends Dexie {
     });
     this.version(7).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -490,7 +495,8 @@ class LocalFirstP2PDatabase extends Dexie {
     // additive: existing v7 rows roll forward unchanged.
     this.version(8).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -508,7 +514,8 @@ class LocalFirstP2PDatabase extends Dexie {
     // common admin / debug queries without forcing a full scan.
     this.version(9).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -525,7 +532,8 @@ class LocalFirstP2PDatabase extends Dexie {
     // existing v9 rows roll forward unchanged.
     this.version(10).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -548,7 +556,8 @@ class LocalFirstP2PDatabase extends Dexie {
     // instead of scanning the whole log by kind.
     this.version(11).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -610,7 +619,10 @@ export class DexieLocalFirstStore {
       .toArray();
   }
 
-  async claimOutboxEntry(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<MutationOutboxEntry | undefined> {
+  async claimOutboxEntry(
+    idempotencyKey: string,
+    updatedAt = new Date().toISOString()
+  ): Promise<MutationOutboxEntry | undefined> {
     requireNonEmpty(idempotencyKey, 'idempotencyKey');
     requireIsoDate(updatedAt, 'updatedAt');
     return this.transaction('rw', ['mutationOutbox'], async () => {
@@ -626,7 +638,10 @@ export class DexieLocalFirstStore {
     });
   }
 
-  async markOutboxConfirmed(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<void> {
+  async markOutboxConfirmed(
+    idempotencyKey: string,
+    updatedAt = new Date().toISOString()
+  ): Promise<void> {
     requireNonEmpty(idempotencyKey, 'idempotencyKey');
     requireIsoDate(updatedAt, 'updatedAt');
     await this.transaction('rw', ['mutationOutbox'], async () => {
@@ -760,7 +775,9 @@ export class DexieLocalFirstStore {
     return this.#db.syncCheckpoints.get(syncCheckpointId(normalized));
   }
 
-  async getIdentityControlProjection(identityId: string): Promise<StoredIdentityControlProjection | undefined> {
+  async getIdentityControlProjection(
+    identityId: string
+  ): Promise<StoredIdentityControlProjection | undefined> {
     requireNonEmpty(identityId, 'identityId');
     return this.#db.identityControlProjections.get(identityId);
   }
@@ -790,58 +807,51 @@ export class DexieLocalFirstStore {
     validateSignedEvent(event);
     const updatedAt = options.updatedAt ?? new Date().toISOString();
     requireIsoDate(updatedAt, 'updatedAt');
-    return this.transaction(
-      'rw',
-      ['signedEvents', 'mlsGroupProjections'],
-      async () => {
-        const existing = await this.#db.signedEvents.get(event.eventId);
-        if (existing !== undefined) {
-          const payload = event.payload as Record<string, unknown> | null | undefined;
-          const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
-          const currentState = groupId
-            ? await this.#db.mlsGroupProjections.get(groupId)
-            : undefined;
-          const controlId = typeof payload?.controlId === 'string' ? payload.controlId : event.eventId;
-          let outcome: 'accepted' | 'rejected' | 'fork-queued' = 'accepted';
-          if (currentState) {
-            if (currentState.rejectedControls.some((r) => r.controlId === controlId)) {
-              outcome = 'rejected';
-            } else if (currentState.forkCandidates.some((c) => c.controlId === controlId)) {
-              outcome = 'fork-queued';
-            }
-          }
-          const fallback = groupId
-            ? createEmptyMlsGroupProjectionState(groupId, updatedAt)
-            : createEmptyMlsGroupProjectionState('unknown', updatedAt);
-          return {
-            status: 'skipped',
-            outcome,
-            state: currentState ?? fallback
-          } satisfies AppendMlsGroupControlEventResult;
-        }
-
+    return this.transaction('rw', ['signedEvents', 'mlsGroupProjections'], async () => {
+      const existing = await this.#db.signedEvents.get(event.eventId);
+      if (existing !== undefined) {
         const payload = event.payload as Record<string, unknown> | null | undefined;
         const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
-        const currentState = groupId
-          ? await this.#db.mlsGroupProjections.get(groupId)
-          : undefined;
-
-        const result = projectMlsGroupControlEvent({
-          state: currentState,
-          event,
-          localDeviceId: options.localDeviceId,
-          allowAutomatedForkRecovery: options.allowAutomatedForkRecovery
-        });
-
-        await this.#db.signedEvents.put(storedSignedEvent(event));
-        await this.#db.mlsGroupProjections.put(result.state);
+        const currentState = groupId ? await this.#db.mlsGroupProjections.get(groupId) : undefined;
+        const controlId =
+          typeof payload?.controlId === 'string' ? payload.controlId : event.eventId;
+        let outcome: 'accepted' | 'rejected' | 'fork-queued' = 'accepted';
+        if (currentState) {
+          if (currentState.rejectedControls.some((r) => r.controlId === controlId)) {
+            outcome = 'rejected';
+          } else if (currentState.forkCandidates.some((c) => c.controlId === controlId)) {
+            outcome = 'fork-queued';
+          }
+        }
+        const fallback = groupId
+          ? createEmptyMlsGroupProjectionState(groupId, updatedAt)
+          : createEmptyMlsGroupProjectionState('unknown', updatedAt);
         return {
-          status: 'stored',
-          outcome: result.outcome,
-          state: result.state
+          status: 'skipped',
+          outcome,
+          state: currentState ?? fallback
         } satisfies AppendMlsGroupControlEventResult;
       }
-    );
+
+      const payload = event.payload as Record<string, unknown> | null | undefined;
+      const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
+      const currentState = groupId ? await this.#db.mlsGroupProjections.get(groupId) : undefined;
+
+      const result = projectMlsGroupControlEvent({
+        state: currentState,
+        event,
+        localDeviceId: options.localDeviceId,
+        allowAutomatedForkRecovery: options.allowAutomatedForkRecovery
+      });
+
+      await this.#db.signedEvents.put(storedSignedEvent(event));
+      await this.#db.mlsGroupProjections.put(result.state);
+      return {
+        status: 'stored',
+        outcome: result.outcome,
+        state: result.state
+      } satisfies AppendMlsGroupControlEventResult;
+    });
   }
 
   /**
@@ -877,7 +887,9 @@ export class DexieLocalFirstStore {
       const controlId = typeof payload?.controlId === 'string' ? payload.controlId : '';
       if (controlId.length > 0 && currentState !== undefined) {
         const alreadyAccepted = currentState.acceptedControlIds.includes(controlId);
-        const alreadyRejected = currentState.rejectedControls.some((r) => r.controlId === controlId);
+        const alreadyRejected = currentState.rejectedControls.some(
+          (r) => r.controlId === controlId
+        );
         const alreadyQueued = currentState.forkCandidates.some((c) => c.controlId === controlId);
         if (alreadyAccepted || alreadyRejected || alreadyQueued) {
           let outcome: 'accepted' | 'rejected' | 'fork-queued' = 'accepted';
@@ -947,37 +959,26 @@ export class DexieLocalFirstStore {
     validateSignedEvent(event);
     const updatedAt = options.updatedAt ?? new Date().toISOString();
     requireIsoDate(updatedAt, 'updatedAt');
-    return this.transaction(
-      'rw',
-      ['signedEvents', 'identityControlProjections'],
-      async () => {
-        const existing = await this.#db.signedEvents.get(event.eventId);
-        const projection =
-          await this.#db.identityControlProjections.get(event.author);
-        if (existing !== undefined) {
-          if (projection === undefined) {
-            throw new Error(
-              `appendLocalIdentityEvent: signedEvent ${event.eventId} present but projection for ${event.author} is missing`
-            );
-          }
-          return projection;
-        }
-        const nextProjection = await projectionUpdate(
-          projection,
-          event,
-          updatedAt
-        );
-        validateIdentityControlProjection(nextProjection);
-        if (nextProjection.identityId !== event.author) {
+    return this.transaction('rw', ['signedEvents', 'identityControlProjections'], async () => {
+      const existing = await this.#db.signedEvents.get(event.eventId);
+      const projection = await this.#db.identityControlProjections.get(event.author);
+      if (existing !== undefined) {
+        if (projection === undefined) {
           throw new Error(
-            'identity control projection identityId must match event.author'
+            `appendLocalIdentityEvent: signedEvent ${event.eventId} present but projection for ${event.author} is missing`
           );
         }
-        await this.#db.signedEvents.put(storedSignedEvent(event));
-        await this.#db.identityControlProjections.put(nextProjection);
-        return nextProjection;
+        return projection;
       }
-    );
+      const nextProjection = await projectionUpdate(projection, event, updatedAt);
+      validateIdentityControlProjection(nextProjection);
+      if (nextProjection.identityId !== event.author) {
+        throw new Error('identity control projection identityId must match event.author');
+      }
+      await this.#db.signedEvents.put(storedSignedEvent(event));
+      await this.#db.identityControlProjections.put(nextProjection);
+      return nextProjection;
+    });
   }
 
   /**
@@ -989,17 +990,10 @@ export class DexieLocalFirstStore {
    * This avoids a circular dependency: the store does not depend on
    * `@lfp2p/identity`.
    */
-  async listLocalIdentityEvents(
-    identityId: string
-  ): Promise<SignedEventEnvelope[]> {
+  async listLocalIdentityEvents(identityId: string): Promise<SignedEventEnvelope[]> {
     requireNonEmpty(identityId, 'identityId');
-    const rows = await this.#db.signedEvents
-      .where('author')
-      .equals(identityId)
-      .sortBy('createdAt');
-    return rows
-      .filter((row) => row.kind.startsWith('identity.'))
-      .map((row) => row.event);
+    const rows = await this.#db.signedEvents.where('author').equals(identityId).sortBy('createdAt');
+    return rows.filter((row) => row.kind.startsWith('identity.')).map((row) => row.event);
   }
 
   async getContactProfile(identityId: string): Promise<StoredContactProfile | undefined> {
@@ -1017,7 +1011,10 @@ export class DexieLocalFirstStore {
     return this.transaction('rw', ['contactProfiles'], async () => {
       const existing = await this.#db.contactProfiles.get(prepared.identityId);
       if (prepared.petnameCanonical !== undefined) {
-        const conflicting = await this.#db.contactProfiles.where('petnameCanonical').equals(prepared.petnameCanonical).first();
+        const conflicting = await this.#db.contactProfiles
+          .where('petnameCanonical')
+          .equals(prepared.petnameCanonical)
+          .first();
         if (conflicting !== undefined && conflicting.identityId !== prepared.identityId) {
           throw new Error(`petname already assigned to ${conflicting.identityId}`);
         }
@@ -1027,14 +1024,22 @@ export class DexieLocalFirstStore {
       const next: StoredContactProfile = {
         identityId: prepared.identityId,
         ...(prepared.petname === undefined ? {} : { petname: prepared.petname }),
-        ...(prepared.petnameCanonical === undefined ? {} : { petnameCanonical: prepared.petnameCanonical }),
+        ...(prepared.petnameCanonical === undefined
+          ? {}
+          : { petnameCanonical: prepared.petnameCanonical }),
         ...(prepared.displayName === undefined ? {} : { displayName: prepared.displayName }),
         ...(prepared.avatarUrl === undefined ? {} : { avatarUrl: prepared.avatarUrl }),
         ...(prepared.websiteUrl === undefined ? {} : { websiteUrl: prepared.websiteUrl }),
         ...(prepared.note === undefined ? {} : { note: prepared.note }),
-        ...(prepared.primaryDeviceId === undefined ? {} : { primaryDeviceId: prepared.primaryDeviceId }),
-        ...(prepared.controllerPublicKey === undefined ? {} : { controllerPublicKey: prepared.controllerPublicKey }),
-        ...(prepared.shortFingerprint === undefined ? {} : { shortFingerprint: prepared.shortFingerprint }),
+        ...(prepared.primaryDeviceId === undefined
+          ? {}
+          : { primaryDeviceId: prepared.primaryDeviceId }),
+        ...(prepared.controllerPublicKey === undefined
+          ? {}
+          : { controllerPublicKey: prepared.controllerPublicKey }),
+        ...(prepared.shortFingerprint === undefined
+          ? {}
+          : { shortFingerprint: prepared.shortFingerprint }),
         verificationStatus: prepared.verificationStatus,
         createdAt,
         updatedAt: prepared.updatedAt
@@ -1253,9 +1258,7 @@ export class DexieLocalFirstStore {
     await this.#db.capabilityProofRecords.put(validated);
   }
 
-  async getCapabilityProofRecord(
-    proofId: string
-  ): Promise<CapabilityProofRecord | undefined> {
+  async getCapabilityProofRecord(proofId: string): Promise<CapabilityProofRecord | undefined> {
     requireNonEmpty(proofId, 'proofId');
     return this.#db.capabilityProofRecords.get(proofId);
   }
@@ -1330,13 +1333,21 @@ export class DexieLocalFirstStore {
     }
     return this.transaction('rw', tables, async () => {
       const existing = await this.#db.syncCheckpoints.get(next.checkpointId);
-      const decision = checkpointAdvanceDecision(existing, next, input.checkpoint.allowRewind === true);
+      const decision = checkpointAdvanceDecision(
+        existing,
+        next,
+        input.checkpoint.allowRewind === true
+      );
       if (decision === 'skip' && existing) return { status: 'skipped', checkpoint: existing };
 
       validateSignedEvent(input.event);
       if (input.identityControlProjectionUpdate !== undefined) {
         const currentProjection = await this.#db.identityControlProjections.get(input.event.author);
-        const nextProjection = await input.identityControlProjectionUpdate(currentProjection, input.event, next.updatedAt);
+        const nextProjection = await input.identityControlProjectionUpdate(
+          currentProjection,
+          input.event,
+          next.updatedAt
+        );
         validateIdentityControlProjection(nextProjection);
         if (nextProjection.identityId !== input.event.author) {
           throw new Error('identity control projection identityId must match event.author');
@@ -1378,7 +1389,11 @@ export class DexieLocalFirstStore {
     }
   }
 
-  async updateOutboxStatus(idempotencyKey: string, status: OutboxStatus, patch: OutboxStatusPatch): Promise<void> {
+  async updateOutboxStatus(
+    idempotencyKey: string,
+    status: OutboxStatus,
+    patch: OutboxStatusPatch
+  ): Promise<void> {
     requireNonEmpty(idempotencyKey, 'idempotencyKey');
     if (patch.updatedAt !== undefined) requireIsoDate(patch.updatedAt, 'updatedAt');
     if (patch.lastError !== undefined) requireNonEmpty(patch.lastError, 'lastError');
@@ -1442,12 +1457,18 @@ function checkpointAdvanceDecision(
 ): CheckpointAdvanceDecision {
   if (!existing) return 'advance';
   if (next.sequence < existing.sequence && !allowRewind) {
-    throw new SyncCheckpointRejectedError('stale-sequence', 'Sync checkpoint cannot move backwards without allowRewind');
+    throw new SyncCheckpointRejectedError(
+      'stale-sequence',
+      'Sync checkpoint cannot move backwards without allowRewind'
+    );
   }
   if (next.sequence === existing.sequence) {
     if (next.cursor === existing.cursor) return 'skip';
     if (!allowRewind) {
-      throw new SyncCheckpointRejectedError('cursor-mismatch', 'Sync checkpoint cursor mismatch at same sequence');
+      throw new SyncCheckpointRejectedError(
+        'cursor-mismatch',
+        'Sync checkpoint cursor mismatch at same sequence'
+      );
     }
   }
   return 'advance';
@@ -1479,7 +1500,9 @@ function validateLocalProtectionKey(key: StoredLocalProtectionKey): void {
   if (key.keyId.trim().length === 0) throw new Error('keyId is required');
 }
 
-function validateAdvanceSyncCheckpointInput(input: AdvanceSyncCheckpointInput): StoredSyncCheckpoint {
+function validateAdvanceSyncCheckpointInput(
+  input: AdvanceSyncCheckpointInput
+): StoredSyncCheckpoint {
   const key = normalizeSyncCheckpointKey(input);
   requireNonEmpty(input.cursor, 'cursor');
   requireNonNegativeInteger(input.sequence, 'sequence');
@@ -1562,9 +1585,16 @@ function validatePutContactProfileInput(input: PutContactProfileInput): Readonly
   const websiteUrl = normalizeOptionalExternalUrl(input.websiteUrl, 'websiteUrl');
   const note = normalizeOptionalText(input.note, 'note', 280);
   const primaryDeviceId = normalizeOptionalText(input.primaryDeviceId, 'primaryDeviceId', 128);
-  const controllerPublicKey = normalizeOptionalText(input.controllerPublicKey, 'controllerPublicKey', 2048);
+  const controllerPublicKey = normalizeOptionalText(
+    input.controllerPublicKey,
+    'controllerPublicKey',
+    2048
+  );
   const shortFingerprint = normalizeOptionalText(input.shortFingerprint, 'shortFingerprint', 64);
-  const verificationStatus = requireIdentityVerificationStatus(input.verificationStatus ?? 'unknown', 'verificationStatus');
+  const verificationStatus = requireIdentityVerificationStatus(
+    input.verificationStatus ?? 'unknown',
+    'verificationStatus'
+  );
   const updatedAt = input.updatedAt ?? new Date().toISOString();
   requireIsoDate(updatedAt, 'updatedAt');
   return {
@@ -1583,7 +1613,11 @@ function validatePutContactProfileInput(input: PutContactProfileInput): Readonly
   };
 }
 
-function normalizeOptionalText(value: string | undefined, label: string, maxLength: number): string | undefined {
+function normalizeOptionalText(
+  value: string | undefined,
+  label: string,
+  maxLength: number
+): string | undefined {
   if (value === undefined) return undefined;
   const normalized = value.trim();
   if (normalized.length === 0) return undefined;
@@ -1603,7 +1637,10 @@ function normalizeOptionalAvatarUrl(value: string | undefined): string | undefin
   return normalized;
 }
 
-function normalizeOptionalExternalUrl(value: string | undefined, label: string): string | undefined {
+function normalizeOptionalExternalUrl(
+  value: string | undefined,
+  label: string
+): string | undefined {
   if (value === undefined) return undefined;
   const normalized = value.trim();
   if (normalized.length === 0) return undefined;
@@ -1637,7 +1674,10 @@ function requireLengthBetween(value: string, label: string, min: number, max: nu
   return value;
 }
 
-function requireIdentityVerificationStatus(value: string, label: string): IdentityVerificationStatus {
+function requireIdentityVerificationStatus(
+  value: string,
+  label: string
+): IdentityVerificationStatus {
   switch (value) {
     case 'unknown':
     case 'controller-known':

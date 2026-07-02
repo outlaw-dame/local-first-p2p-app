@@ -40,7 +40,7 @@ capability, the user opts in via Phase 1.66, and the adapter's
 - `AGGREGATED_REPUTATION_VIEW_VERSION = 'lfp2p.reputation-aggregated-view.v1'`.
 - `LOCAL_REPUTATION_SOURCE = '__local__'` — sentinel constant.
 - `AggregatedReputationEntry` per-subject record: `{ subject, score,
-  confidence, priority, sourceLabelerId, seedDistance? }`. Privacy-
+confidence, priority, sourceLabelerId, seedDistance? }`. Privacy-
   safe per Phase 3.1 — only the stable labeler id is exposed as
   source attribution, never any raw aggregator-event reference.
 - `AggregatedReputationView` — `{ version, entries, contributingLabelers }`.
@@ -51,7 +51,7 @@ capability, the user opts in via Phase 1.66, and the adapter's
   the caller's responsibility to plumb the event's signing-author
   identity to a labeler id during ingestion.
 - `computeAggregatedReputation({ localState, subscriptions,
-  aggregatorEvents })` pure function. Composition rules:
+aggregatorEvents })` pure function. Composition rules:
   1. Every subject in `localState.scores` → local score wins.
   2. Every subject NOT in local → highest-priority subscribed
      aggregator with data (lower priority number = higher rank).
@@ -65,6 +65,7 @@ capability, the user opts in via Phase 1.66, and the adapter's
 - Deep-frozen output at every level (Phase 3.2 frozen-walk).
 
 ### 19 new adversarial tests
+
 `reputation-graph-aggregator-runtime.test.ts`
 
 - **Local-always-#0 invariant (3)**: local-scored subject keeps
@@ -100,13 +101,13 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| `labeler.kind: reputation-aggregator` declared (extends Phase 1.66 capabilities) | ✓ | extends `LABELER_KINDS` tuple; capability `aggregate.reputation-scoring` added |
-| `reputation.aggregator.published` event validated; subjects bounded; per-event subject cap enforced deterministically | ✓ | already shipped in Phase 1.8.1 — aggregator-runtime consumes the validated event |
-| Optional external adapter package (NOT in protocol core) demonstrates fetch-OpenRank-republish-as-labeler-events | ✓ (interface) | the `AggregatorEventWithSource` shape IS the adapter interface — a thin OpenRank adapter is a separate package that maps OpenRank HTTP responses to this shape and re-publishes as `reputation.aggregator.published` envelopes. Full adapter package ship deferred (not in protocol core). |
-| Adapter is opt-in via Phase 1.66 subscribe flow; revocation is one event | ✓ | subscription priority filtering + `aggregator.score.removed` event support (1.8.1) cover both |
-| Local-personalized score is always labeler #0; external aggregators stack below | ✓ | sentinel constant + 3 dedicated tests; structurally enforced (the runtime cannot return a non-local source for a locally-scored subject) |
+| Criterion                                                                                                             |    Status     | Evidence                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------- | :-----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `labeler.kind: reputation-aggregator` declared (extends Phase 1.66 capabilities)                                      |       ✓       | extends `LABELER_KINDS` tuple; capability `aggregate.reputation-scoring` added                                                                                                                                                                                                             |
+| `reputation.aggregator.published` event validated; subjects bounded; per-event subject cap enforced deterministically |       ✓       | already shipped in Phase 1.8.1 — aggregator-runtime consumes the validated event                                                                                                                                                                                                           |
+| Optional external adapter package (NOT in protocol core) demonstrates fetch-OpenRank-republish-as-labeler-events      | ✓ (interface) | the `AggregatorEventWithSource` shape IS the adapter interface — a thin OpenRank adapter is a separate package that maps OpenRank HTTP responses to this shape and re-publishes as `reputation.aggregator.published` envelopes. Full adapter package ship deferred (not in protocol core). |
+| Adapter is opt-in via Phase 1.66 subscribe flow; revocation is one event                                              |       ✓       | subscription priority filtering + `aggregator.score.removed` event support (1.8.1) cover both                                                                                                                                                                                              |
+| Local-personalized score is always labeler #0; external aggregators stack below                                       |       ✓       | sentinel constant + 3 dedicated tests; structurally enforced (the runtime cannot return a non-local source for a locally-scored subject)                                                                                                                                                   |
 
 ## Deferred work
 

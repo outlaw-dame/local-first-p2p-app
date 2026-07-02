@@ -23,7 +23,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Block, BlockTitle, Button, List, ListItem } from 'framework7-react';
 import type { ProofRegistry } from '@lfp2p/capabilities';
 import { generateSigningKeypair, type SigningKeypair } from '@lfp2p/crypto';
-import { type createLocalFirstStore, type StoredIdentityControlProjection } from '@lfp2p/local-store';
+import {
+  type createLocalFirstStore,
+  type StoredIdentityControlProjection
+} from '@lfp2p/local-store';
 import { emitDeviceRotatedEvent } from './pwa-identity-emit.js';
 import {
   buildIdentityAuditViewModel,
@@ -104,10 +107,7 @@ export function IdentityAudit({
 
   const viewModel = useMemo(
     () =>
-      buildIdentityAuditViewModel(
-        projection,
-        proofRegistry === undefined ? {} : { proofRegistry }
-      ),
+      buildIdentityAuditViewModel(projection, proofRegistry === undefined ? {} : { proofRegistry }),
     [projection, proofRegistry]
   );
 
@@ -154,7 +154,10 @@ export function IdentityAudit({
       <BlockTitle>Identity audit — devices</BlockTitle>
       <List inset strong>
         {viewModel.devices.length === 0 ? (
-          <ListItem title="No devices yet" subtitle="The controller event has not been replayed yet." />
+          <ListItem
+            title="No devices yet"
+            subtitle="The controller event has not been replayed yet."
+          />
         ) : (
           viewModel.devices.map((row) => (
             <ListItem
@@ -171,8 +174,8 @@ export function IdentityAudit({
                 <div slot="footer" className="lfp2p-muted-detail">
                   <em>
                     Controller device. Rotating the controller key is a separate flow
-                    (controller-key supersession; not yet shipped). Re-verify your
-                    fingerprint with contacts out of band instead.
+                    (controller-key supersession; not yet shipped). Re-verify your fingerprint with
+                    contacts out of band instead.
                   </em>
                 </div>
               ) : null}
@@ -214,8 +217,8 @@ export function IdentityAudit({
       <Block inset strong>
         {viewModel.contactCardPublication === undefined ? (
           <p className="lfp2p-muted-detail">
-            No contact card has been published from this device yet. Use the
-            "Export contact card" flow above to publish one.
+            No contact card has been published from this device yet. Use the "Export contact card"
+            flow above to publish one.
           </p>
         ) : (
           <>
@@ -266,7 +269,9 @@ function formatProofStateSummary(proofState: {
   for (const state of states) {
     counts.set(state, (counts.get(state) ?? 0) + 1);
   }
-  const ordered = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const ordered = Array.from(counts.entries()).sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+  );
   const parts = ordered.map(([state, n]) => `${n} ${state}`);
   return `${states.length} total (${parts.join(', ')})`;
 }

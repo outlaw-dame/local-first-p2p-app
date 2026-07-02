@@ -45,6 +45,7 @@ Five emit helpers, one per Phase 1.8.1 event kind:
 - `emitAggregatorRemoved({ subject, reason, ... })`
 
 Each helper:
+
 - builds the event payload from caller inputs,
 - validates via `validateReputationEvent` (raises
   `TrustSafetyError` on out-of-range / bounded-enum violations
@@ -98,6 +99,7 @@ Three responsibilities:
 ### `apps/pwa/src/pwa-reputation-settings.tsx` (new)
 
 Functional React component with three sub-sections:
+
 - **Spam-gate thresholds** — two number inputs feeding
   `clampSpamGateInput`; shows live warnings + effective config.
 - **Observation emit form** — subject actor id + observation kind
@@ -117,6 +119,7 @@ Dexie reputation event log.
 ### 34 new adversarial tests
 
 `pwa-reputation-state.test.ts` (22):
+
 - **Spam-gate clamping** (8): defaults pass through; clamp > 1;
   reset NaN; warn permissive; clamp > 10 distance; reset
   non-integer distance; reject negative threshold; frozen output.
@@ -130,6 +133,7 @@ Dexie reputation event log.
   output ordering + frozen-walk.
 
 `pwa-reputation-emit.test.ts` (12):
+
 - **Observation emit** (4): happy path + idempotency, inverted
   window, unknown kind, corrupt-row protection.
 - **Attestation emit** (3): happy path with fingerprint tag,
@@ -151,14 +155,14 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Dexie schema v8 with `trustSafetyReputationEvents` table | ✓ | append/list/load methods + idempotent on eventId + corrupt-row skipping |
-| Five PWA emit helpers (one per Phase 1.8.1 event kind) | ✓ | dedicated tests across happy + adversarial paths |
-| Spam-gate threshold sliders with clamping + warnings | ✓ | 8 dedicated tests + defense-in-depth via `resolveSpamGateConfig` |
-| Observation / attestation emit forms with device-local privacy notice | ✓ | `DEVICE_LOCAL_PRIVACY_NOTICE` frozen + surfaced |
-| Aggregator subscription UI enforces LOCAL-ALWAYS-#0 at the form layer | ✓ | reserved-sentinel rejection test + priority-0 bump test |
-| All inputs validate at the helper boundary (defense-in-depth) | ✓ | every helper test pins `TrustSafetyError` on invalid input |
+| Criterion                                                             | Status | Evidence                                                                |
+| --------------------------------------------------------------------- | :----: | ----------------------------------------------------------------------- |
+| Dexie schema v8 with `trustSafetyReputationEvents` table              |   ✓    | append/list/load methods + idempotent on eventId + corrupt-row skipping |
+| Five PWA emit helpers (one per Phase 1.8.1 event kind)                |   ✓    | dedicated tests across happy + adversarial paths                        |
+| Spam-gate threshold sliders with clamping + warnings                  |   ✓    | 8 dedicated tests + defense-in-depth via `resolveSpamGateConfig`        |
+| Observation / attestation emit forms with device-local privacy notice |   ✓    | `DEVICE_LOCAL_PRIVACY_NOTICE` frozen + surfaced                         |
+| Aggregator subscription UI enforces LOCAL-ALWAYS-#0 at the form layer |   ✓    | reserved-sentinel rejection test + priority-0 bump test                 |
+| All inputs validate at the helper boundary (defense-in-depth)         |   ✓    | every helper test pins `TrustSafetyError` on invalid input              |
 
 ## Deferred work
 
@@ -168,7 +172,7 @@ pnpm build       # clean
 - **PWA computed-state surface**: a debug / audit panel that runs
   `computeReputation` over the local log and surfaces the
   resulting `LocalReputationState` to the user (per-subject score
-  + band) for transparency.
+  - band) for transparency.
 - **Aggregator-event ingestion** into the persistence layer when a
   subscribed labeler publishes `reputation.aggregator.published`
   events through the bridge. Emit-side ready; ingestion-side
