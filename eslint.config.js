@@ -54,5 +54,16 @@ export default tseslint.config(
       'no-debugger': 'error',
       'no-alert': 'error'
     }
+  },
+  // Build/tooling scripts (e.g. bundle-budget gate) run under Node and
+  // legitimately use console/process. They are not production runtime
+  // source, so the privacy-safe-logging rule above does not apply.
+  {
+    files: ['packages/*/scripts/**/*.mjs', 'apps/*/scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      }
+    }
   }
 );
