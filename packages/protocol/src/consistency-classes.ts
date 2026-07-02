@@ -94,7 +94,21 @@ const EVENT_KIND_CONSISTENCY_CLASS_VALUES = {
   'chat.message.sent': 'D',
   'chat.message.edited': 'D',
   'chat.message.deleted': 'D',
-  'chat.thread.accepted': 'D'
+  'chat.thread.accepted': 'D',
+  // Phase 5.11 — User Data Root lifecycle events. Append-only
+  // claim/release / add/remove / join/leave / bind state machine with
+  // explicit legal transitions; not CRDT/LWW-mergeable. The payload
+  // ciphertext is `self`-scoped, but the *event* is a Class B lifecycle
+  // record, not Class D message content.
+  'udr.partition.claimed': 'B',
+  'udr.partition.released': 'B',
+  'udr.feed-subscription.added': 'B',
+  'udr.feed-subscription.removed': 'B',
+  'udr.sync-interest.added': 'B',
+  'udr.sync-interest.removed': 'B',
+  'udr.mailbox.bound': 'B',
+  'udr.space.joined': 'B',
+  'udr.space.left': 'B'
 } as const satisfies Readonly<Record<EventKind, OperationConsistencyClass>>;
 
 /**

@@ -45,7 +45,22 @@ const EVENT_KINDS = [
   'chat.message.sent',
   'chat.message.edited',
   'chat.message.deleted',
-  'chat.thread.accepted'
+  'chat.thread.accepted',
+  // Phase 5.11 — User Data Root (UDR) lifecycle event kinds (Class B).
+  // ALL udr.* kinds are `self`-scoped: they describe what one identity
+  // owns/subscribes to across its own devices and MUST carry a
+  // PrivatePayloadEnvelopeV1. The bridge transports them as opaque
+  // ciphertext and MUST NOT inspect the payload. Inner-payload
+  // validation lives in @lfp2p/udr-projection after local decrypt.
+  'udr.partition.claimed',
+  'udr.partition.released',
+  'udr.feed-subscription.added',
+  'udr.feed-subscription.removed',
+  'udr.sync-interest.added',
+  'udr.sync-interest.removed',
+  'udr.mailbox.bound',
+  'udr.space.joined',
+  'udr.space.left'
 ] as const;
 
 /**
@@ -446,6 +461,28 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
       // PrivatePayloadEnvelopeV1 shape check above).
       break;
     }
+    case 'udr.partition.claimed':
+    case 'udr.partition.released':
+    case 'udr.feed-subscription.added':
+    case 'udr.feed-subscription.removed':
+    case 'udr.sync-interest.added':
+    case 'udr.sync-interest.removed':
+    case 'udr.mailbox.bound':
+    case 'udr.space.joined':
+    case 'udr.space.left': {
+      requirePrivacyForUdrEvent(privacy, kind);
+      // UDR events are `self`-scoped encrypted lifecycle records. The
+      // decrypt path (@lfp2p/udr-projection) only understands
+      // PrivatePayloadEnvelopeV1, so reject an MLS-shaped payload here —
+      // fail fast at admission rather than producing an unprojectable
+      // event. Inner-payload validation happens after local decrypt.
+      if (!looksLikePrivatePayloadEnvelope(payload)) {
+        throw new Error(
+          `${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for UDR events)`
+        );
+      }
+      break;
+    }
     default:
       break;
   }
@@ -828,6 +865,12 @@ function requirePrivacyForIdentityEvent(privacy: PrivacyScope, kind: EventKind):
 function requirePrivacyForChatEvent(privacy: PrivacyScope, kind: EventKind): void {
   if (privacy !== 'dm' && privacy !== 'group') {
     throw new Error(`${kind} must use privacy scope dm or group (got: ${privacy})`);
+  }
+}
+
+function requirePrivacyForUdrEvent(privacy: PrivacyScope, kind: EventKind): void {
+  if (privacy !== 'self') {
+    throw new Error(`${kind} must use privacy scope self (got: ${privacy})`);
   }
 }
 
