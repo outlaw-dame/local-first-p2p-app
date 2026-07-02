@@ -79,7 +79,7 @@ Store semantics:
 ## Welcome and fan-out design
 
 - Welcomes ride the existing mailbox delivery-envelope path; the store-side work is routing ciphertext to a device inbox with mailbox TTL/caps. Sealed-recipient delivery is used where the mailbox profile supports it.
-- Fan-out attaches an optional per-group monotonic sequence as an **ordering hint**. Hints accelerate catch-up and fork *detection*; they are prohibited as an input to fork *resolution* (a hint-trusting client would hand ordering authority back to the surface).
+- Fan-out attaches an optional per-group monotonic sequence as an **ordering hint**. Hints accelerate catch-up and fork _detection_; they are prohibited as an input to fork _resolution_ (a hint-trusting client would hand ordering authority back to the surface).
 
 ## Consequences
 
@@ -96,15 +96,15 @@ Store semantics:
 
 ## Threat model
 
-| Threat | Mitigation |
-|---|---|
-| Surface withholds commits to partition a group | Multi-surface publication; direct/sync-drop fallback; membership-digest mismatch surfaces the gap |
-| KeyPackage pool depletion by hostile fetcher | Rate limits, per-requester caps, last-resort KeyPackage |
-| Store serves stale/revoked KeyPackages | Client-side expiry + device-authorization re-validation; store deletion is hygiene only |
-| Surface forges or mutates records | Everything is signed; mutation fails client validation |
-| Surface equivocates (different views per member) | Signed records + membership digests + fork recovery converge state when members compare notes |
-| Ordering-hint manipulation | Hints are advisory by specification; resolution inputs are signed candidates only |
-| Metadata harvesting by DS-capable surface | Pseudonymous group routing labels (spec open question), privacy-safe logging rules, mailbox sealed recipients |
+| Threat                                           | Mitigation                                                                                                    |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Surface withholds commits to partition a group   | Multi-surface publication; direct/sync-drop fallback; membership-digest mismatch surfaces the gap             |
+| KeyPackage pool depletion by hostile fetcher     | Rate limits, per-requester caps, last-resort KeyPackage                                                       |
+| Store serves stale/revoked KeyPackages           | Client-side expiry + device-authorization re-validation; store deletion is hygiene only                       |
+| Surface forges or mutates records                | Everything is signed; mutation fails client validation                                                        |
+| Surface equivocates (different views per member) | Signed records + membership digests + fork recovery converge state when members compare notes                 |
+| Ordering-hint manipulation                       | Hints are advisory by specification; resolution inputs are signed candidates only                             |
+| Metadata harvesting by DS-capable surface        | Pseudonymous group routing labels (spec open question), privacy-safe logging rules, mailbox sealed recipients |
 
 ## Follow-up
 

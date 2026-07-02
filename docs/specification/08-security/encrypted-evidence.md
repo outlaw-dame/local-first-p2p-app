@@ -15,7 +15,7 @@
 
 ## Purpose
 
-Phase 1.63 shipped the evidence *reference* rules: reports about private-by-nature subjects must carry encrypted evidence refs, and bridges must forward reports without decrypting anything. What it deferred — and what this document specifies — is the **retrieval path**: how an authorized moderation authority actually obtains and decrypts evidence bytes, and how evidence for MLS-protected group content is produced without leaking group keys.
+Phase 1.63 shipped the evidence _reference_ rules: reports about private-by-nature subjects must carry encrypted evidence refs, and bridges must forward reports without decrypting anything. What it deferred — and what this document specifies — is the **retrieval path**: how an authorized moderation authority actually obtains and decrypts evidence bytes, and how evidence for MLS-protected group content is produced without leaking group keys.
 
 ## Scope
 
@@ -37,7 +37,7 @@ Evidence must be verifiable and retrievable by exactly the authority a report ta
 - Evidence MUST be encrypted **to the moderation authority** named on the report. Group keys, MLS epochs, or account-local keys of the reported content MUST NOT be shared with, exported to, or derivable by the authority.
 - Delivery surfaces (bridge, relay, mailbox host, super-peer, storage provider) MUST NOT decrypt, require plaintext of, or index the contents of evidence.
 - Identity-kind object references MUST NOT be used as an `encryptedBodyRef` (Phase 1.63 rule).
-- Retrieval MUST follow content-addressed fetch discipline: fetch → byte cap → verify digest → bounded decode → decrypt. Digest verification happens on ciphertext bytes *before* decryption; decryption failure after a valid digest is diagnostic state, not retry-forever state.
+- Retrieval MUST follow content-addressed fetch discipline: fetch → byte cap → verify digest → bounded decode → decrypt. Digest verification happens on ciphertext bytes _before_ decryption; decryption failure after a valid digest is diagnostic state, not retry-forever state.
 - An authority MUST NOT apply moderation consequences based on evidence it could not decrypt and verify.
 
 ## Evidence re-encryption model

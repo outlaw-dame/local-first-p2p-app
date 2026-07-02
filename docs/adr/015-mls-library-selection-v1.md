@@ -28,13 +28,13 @@ Phase 6 needs a concrete v1 provider. The primary runtime is the PWA: a browser 
 
 ### Candidates evaluated
 
-| Candidate | Language | Browser path | Assessment |
-|---|---|---|---|
-| `ts-mls` | TypeScript | native (no WASM) | RFC 9420 implementation in pure TypeScript, validated against the official MLS test vectors; supports the required ciphersuite; small dependency surface (audited noble-style primitives); integrates directly with TypeScript fixtures and Dexie persistence. Young project with a small maintainer base. |
-| OpenMLS | Rust | wasm32 + bindings | Mature, actively maintained, externally reviewed. WASM bundle is large for a PWA budget; state/storage traits cross the JS↔WASM boundary awkwardly (custom storage provider glue, serialization churn); adds a Rust toolchain to CI for a docs-and-TypeScript monorepo. |
-| `mls-rs` | Rust | wasm32 (supported) | Production-grade (AWS), FIPS-capable, actively maintained. Same WASM boundary and toolchain costs as OpenMLS; API is oriented to Rust/FFI consumers. Strongest candidate for the future native/full-peer runtime. |
-| `mlspp` | C++ | Emscripten/WASM | Proven in large deployments (Cisco; basis of Discord's DAVE). C++/Emscripten toolchain burden is the highest of the set; browser embedding exists but is bespoke per consumer. |
-| `mls-ts` (Matrix) | TypeScript | native | Incomplete and effectively inactive. Eliminated; this supersedes ADR-012's direction to evaluate it first. |
+| Candidate         | Language   | Browser path       | Assessment                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ---------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ts-mls`          | TypeScript | native (no WASM)   | RFC 9420 implementation in pure TypeScript, validated against the official MLS test vectors; supports the required ciphersuite; small dependency surface (audited noble-style primitives); integrates directly with TypeScript fixtures and Dexie persistence. Young project with a small maintainer base. |
+| OpenMLS           | Rust       | wasm32 + bindings  | Mature, actively maintained, externally reviewed. WASM bundle is large for a PWA budget; state/storage traits cross the JS↔WASM boundary awkwardly (custom storage provider glue, serialization churn); adds a Rust toolchain to CI for a docs-and-TypeScript monorepo.                                    |
+| `mls-rs`          | Rust       | wasm32 (supported) | Production-grade (AWS), FIPS-capable, actively maintained. Same WASM boundary and toolchain costs as OpenMLS; API is oriented to Rust/FFI consumers. Strongest candidate for the future native/full-peer runtime.                                                                                          |
+| `mlspp`           | C++        | Emscripten/WASM    | Proven in large deployments (Cisco; basis of Discord's DAVE). C++/Emscripten toolchain burden is the highest of the set; browser embedding exists but is bespoke per consumer.                                                                                                                             |
+| `mls-ts` (Matrix) | TypeScript | native             | Incomplete and effectively inactive. Eliminated; this supersedes ADR-012's direction to evaluate it first.                                                                                                                                                                                                 |
 
 ## Decision
 
@@ -55,12 +55,12 @@ Do not implement an in-house MLS stack (unchanged from ADR-012).
 
 ## Risks and mitigations
 
-| Risk | Mitigation |
-|---|---|
+| Risk                                        | Mitigation                                                                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ts-mls` is young; maintainer base is small | Adapter boundary + committed conformance vectors make substitution cheap; mls-rs is the named fallback; pin exact versions and review diffs on upgrade |
-| Pure-TS crypto performance on large groups | Acceptable for v1 group sizes (chat-scale); benchmark fixture added; WASM provider path exists if tree operations become a bottleneck |
-| Library bug produces invalid wire output | Conformance vectors in CI; cross-validation test against a second implementation planned when the mls-rs provider lands |
-| Supply-chain compromise of the dependency | Version pinning, lockfile discipline, minimal transitive dependency surface, and the existing repo review rules for dependency bumps |
+| Pure-TS crypto performance on large groups  | Acceptable for v1 group sizes (chat-scale); benchmark fixture added; WASM provider path exists if tree operations become a bottleneck                  |
+| Library bug produces invalid wire output    | Conformance vectors in CI; cross-validation test against a second implementation planned when the mls-rs provider lands                                |
+| Supply-chain compromise of the dependency   | Version pinning, lockfile discipline, minimal transitive dependency surface, and the existing repo review rules for dependency bumps                   |
 
 ## Non-goals
 

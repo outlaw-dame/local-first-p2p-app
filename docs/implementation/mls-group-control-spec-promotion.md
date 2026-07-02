@@ -27,27 +27,28 @@ The MLS group-control slice (Phase 3 doctrine + Phase 4 projection) was written 
 - `@lfp2p/mls-group-projection`: pure projection over eleven signed group-control event kinds (`mls.group.created`, `mls.member.proposed`, `mls.member.added`, `mls.member.removed`, `mls.device.updated`, `mls.commit.published`, `mls.welcome.issued`, `mls.epoch.advanced`, `mls.fork.detected`, `mls.fork.recovery.published`, `mls.stale-epoch.rejected`).
 - Projection state tracks membership, local device status, epoch chain, fork candidates, fork recovery records (`policy-authority` | `deterministic-fallback`), and rejected-record diagnostics.
 - Replay-equivalence, idempotency, stale-epoch, and fork-handling test coverage in the package suite.
+- Protocol-level MLS application-message envelope recognition already ships in `packages/protocol/src/mls.ts` (`MLS_APPLICATION_MESSAGE_ENVELOPE_VERSION`, `looksLikeMlsApplicationMessageEnvelope`), and `validatePayloadPrivacyScope` accepts these envelopes for `group` privacy alongside Phase 2 private-payload envelopes.
 - Doctrine docs: `docs/protocol/mls-group-keying.md`, `docs/protocol/mls-group-control-records.md`.
 
 ## Current non-implemented pieces
 
 - No MLS cryptographic runtime (no library dependency yet; ADR-015 now selects `ts-mls` behind an `MlsProvider` boundary).
 - No KeyPackage store or any virtual Delivery Service capability on the bridge (ADR-016 now defines the model).
-- No MLS application-message envelope validation in `packages/protocol` (`validatePayloadPrivacyScope` still only knows Phase 2 envelopes for `group` privacy).
+- No _semantic_ MLS application-message validation binding envelopes to group id / epoch / sender device (the protocol layer already recognizes the envelope shape and gates it to `group` privacy — see Current implemented slice — but wrong-group / wrong-epoch / stale-epoch / scope-widening rejection and MLS-active format-fallback rejection are projection/runtime work).
 - No Welcome-over-mailbox routing.
 - No encrypted-evidence retrieval runtime (blocked on Phase 7.0 block-store).
 - No PWA group UX or key-ceremony surfaces.
 
 ## Layer mapping
 
-| Existing concept | New specification owner | Promotion rule |
-|---|---|---|
-| `docs/protocol/mls-group-keying.md` doctrine | `08-security/mls-group-keying.md` | Spec is now the normative home; the protocol doc remains design history. |
-| `mls.*` group-control events | `08-security/mls-group-keying.md` + Event Type Registry | Kinds preserved exactly as shipped; registry entry required before any new kind. |
-| Fork candidate queue + recovery records | `08-security/mls-fork-detection-and-recovery.md` | Shipped projection behavior is the reference; spec adds the deterministic-fallback constraints and scope-widening prohibition as normative rules. |
-| Delivery-service doctrine section (ADR-012) | `08-security/mls-virtual-delivery-service.md` + ADR-016 | "Delivery services only" is decomposed into three registered capabilities; ordering is explicitly advisory. |
-| Phase 1.63 encrypted-evidence guards | `08-security/encrypted-evidence.md` | Structural guards stay in `@lfp2p/trust-safety`; the retrieval path and re-encryption model are now specified. |
-| `MlsProvider` boundary (doctrine) | ADR-015 | Interface definition is the first Phase 6 implementation gate. |
+| Existing concept                             | New specification owner                                 | Promotion rule                                                                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/protocol/mls-group-keying.md` doctrine | `08-security/mls-group-keying.md`                       | Spec is now the normative home; the protocol doc remains design history.                                                                          |
+| `mls.*` group-control events                 | `08-security/mls-group-keying.md` + Event Type Registry | Kinds preserved exactly as shipped; registry entry required before any new kind.                                                                  |
+| Fork candidate queue + recovery records      | `08-security/mls-fork-detection-and-recovery.md`        | Shipped projection behavior is the reference; spec adds the deterministic-fallback constraints and scope-widening prohibition as normative rules. |
+| Delivery-service doctrine section (ADR-012)  | `08-security/mls-virtual-delivery-service.md` + ADR-016 | "Delivery services only" is decomposed into three registered capabilities; ordering is explicitly advisory.                                       |
+| Phase 1.63 encrypted-evidence guards         | `08-security/encrypted-evidence.md`                     | Structural guards stay in `@lfp2p/trust-safety`; the retrieval path and re-encryption model are now specified.                                    |
+| `MlsProvider` boundary (doctrine)            | ADR-015                                                 | Interface definition is the first Phase 6 implementation gate.                                                                                    |
 
 ## Required doctrine boundaries
 
@@ -69,7 +70,7 @@ Series 8 specs, ADR-015, ADR-016, glossary/changelog/registry updates, this docu
 
 ### Stage P6-M3 — Group payload validation
 
-MLS application-message envelope recognition in `packages/protocol` group privacy validation; wrong-group/wrong-epoch/replay/scope-widening rejection fixtures; MLS-active format-fallback rejection.
+Protocol-level envelope recognition already exists (`packages/protocol/src/mls.ts`); the remaining work is _semantic_ binding and projection enforcement: wrong-group / wrong-epoch / stale-epoch / replay / scope-widening rejection fixtures, and MLS-active format-fallback rejection (once a group is MLS-active, its Phase 2 private-payload envelopes are rejected).
 
 ### Stage P6-M4 — Virtual Delivery Service on the bridge
 

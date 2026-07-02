@@ -62,22 +62,24 @@ linear → forked → (recovering) → linear
 ```
 
 - `linear`: one accepted head epoch.
-- `forked`: one accepted head plus one or more queued fork candidates for the same parent. Application messages for the accepted head remain processable; messages for candidate branches are held.
+- `forked`: the accepted head is the last **pre-fork** epoch (the shared parent), plus one or more queued fork candidates competing to become the next epoch. The accepted head is stable and is never rewound or superseded by recovery — recovery only selects among the candidate _next_ epochs. Application messages that belong to the stable accepted head remain processable; **no application messages for any candidate branch are applied while `forked`** — they are held until a winner is selected. Because no candidate-branch state is applied before resolution, selecting a winner requires no rollback.
 - `recovering`: a recovery record has been observed and is being validated/applied.
-- Return to `linear`: the surviving branch's commits apply in order; losing candidates are discarded with a diagnostic record retained.
+- Return to `linear`: the surviving candidate becomes the new accepted head and its subsequent commits apply in order; losing candidates are discarded (their held messages dropped) with a diagnostic record retained.
 
 Replay of detection and recovery records MUST be idempotent, and a projection rebuilt from the event log MUST reach the same final state (replay equivalence).
 
 ## Recovery record
 
-`mls.fork.recovery.published` MUST include:
+`mls.fork.recovery.published` wire payload MUST include:
 
 - `groupId`, the forked parent `epoch`, and `previousControlId`;
-- the selected surviving commit reference;
-- the recovery method: `policy-authority` or `deterministic-fallback`;
+- `selectedCommitRef` — the `controlId` of the surviving fork candidate. It matches a queued candidate's control id (`forkCandidates[].controlId`), so a conforming writer MUST emit the candidate's control id, not a raw MLS commit hash;
+- `rejectedCandidates` — the list of losing candidate `controlId`s to clear from the queue. A candidate that is neither the selection nor in this list remains queued (the fork is only partially resolved), so writers SHOULD list every competing candidate for the epoch;
 - issuer Device id; the issuer MUST hold recovery authority under group policy at the time of issuance.
 
-Validation MUST reject recovery records that: come from unauthorized issuers, select a commit that was never a queued/observable candidate, select a scope-widening commit, or target an epoch that is not actually forked.
+The **recovery method** (`policy-authority` vs `deterministic-fallback`) is NOT a wire field. It is derived locally by the projection from whether automated fallback was permitted for this resolution, and recorded on the local `MlsGroupForkRecoveryRecord`. This keeps the wire schema minimal (it is not in the group-control allowed-keys set) and prevents a writer from mislabeling an unauthorized resolution as policy-authority.
+
+Validation MUST reject recovery records that: come from unauthorized issuers, select a `controlId` that was never a queued/observable candidate, select a scope-widening candidate, or target an epoch that is not actually forked.
 
 Recovery records for high-consequence groups MAY require threshold authorization (see ADR-014); the resulting signature is a standard Ed25519 signature and validates through the normal path.
 
@@ -91,7 +93,16 @@ Where group policy explicitly opts in, implementations MAY resolve a fork withou
 - replay-safe;
 - incapable of selecting a scope-widening commit — if any candidate widens scope, deterministic fallback MUST abstain and require a policy-authority record.
 
-The fallback result is still recorded as a `mls.fork.recovery.published` record with method `deterministic-fallback` so the log is self-describing.
+The fallback result is still recorded as a `mls.fork.recovery.published` record; the projection derives and stores method `deterministic-fallback` locally (see Recovery record) so the log is self-describing without trusting a wire-supplied method label.
+
+## Undecryptable or unvalidatable candidates
+
+Forward secrecy means a Device that joined at epoch N does not hold the keys for epoch N−1. If a fork branches from an epoch that predates a Device's membership, that Device cannot decrypt or fully validate the competing branch.
+
+- A candidate a Device cannot decrypt or structurally-and-authorization validate MUST be quarantined, not treated as invalid-and-discarded — the Device lacks the information to judge it.
+- A Device MUST NOT run deterministic fallback for a fork in which it cannot validate every candidate: an unjudgeable branch could be scope-widening, and the tie-break rule cannot be applied to contents the Device cannot read. Deterministic fallback is available only when all candidates are fully validated locally.
+- With an unvalidatable candidate present, resolution MUST rely on a signed `mls.fork.recovery.published` record from an authorized policy authority (a Device that _was_ present across the fork). The quarantined Device then applies that signed selection without needing to have validated the losing branch itself.
+- A Device MUST NOT silently drop a quarantined candidate or advance past the fork on its own; it surfaces the recovery-impaired fork state and waits for an authoritative recovery record.
 
 ## Stale epochs
 
@@ -99,7 +110,7 @@ A message or commit for an epoch older than the accepted head MUST be rejected f
 
 ## Validation
 
-Fork candidates MUST pass full structural and authorization validation (member, non-revoked Device, correct binding) before queueing. Invalid conflicting commits are ordinary rejections, not fork candidates.
+A conflicting commit the Device can fully evaluate MUST pass full structural and authorization validation (member, non-revoked Device, correct binding) before it becomes a validated fork candidate. A commit that fails that validation is an ordinary rejection, not a fork candidate. A commit the Device cannot yet evaluate because of forward secrecy is quarantined rather than rejected (see Undecryptable or unvalidatable candidates) — absence of the keys to judge it is not evidence that it is invalid.
 
 The candidate queue MUST be bounded per group; on overflow, implementations MUST keep the earliest candidates, record a diagnostic, and surface degraded fork state rather than evicting silently.
 
