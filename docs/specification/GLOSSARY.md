@@ -88,11 +88,23 @@ A scoped area of a User Data Root or Space data model with its own privacy, cons
 
 An authorized local actor capable of signing, storing, decrypting, projecting, or synchronizing protocol records within the authority granted to it.
 
+### Encrypted Evidence
+
+Report evidence content encrypted so that only the moderation authority a safety report targets can decrypt it.
+
+Evidence for encrypted-group content is produced by reporter-side re-encryption; group keys are never shared with the authority. Encrypted Evidence is a claim by the reporter, not a protocol-verified transcript.
+
 ### Entity
 
 A portable data object that may be composed from components and represented by snapshots.
 
 Entities are intended for app data modeling, not for replacing authority-layer state machines.
+
+### Epoch
+
+One step in an MLS Group's linear key schedule. Each membership or key change advances the epoch.
+
+Epoch numbers are safe non-negative integers starting at 0. Stale epochs fail closed.
 
 ### Feed Collection
 
@@ -112,6 +124,18 @@ The application-specific presentation of feed candidates.
 
 Examples include chronological timelines, ranked feeds, unread channel views, forum thread lists, media grids, or mixed social feeds.
 
+### Fork
+
+Two or more valid, conflicting MLS commits that each claim to advance the same parent epoch of the same group.
+
+Forks are detected, queued, and surfaced; they are resolved only by signed recovery records or an explicitly permitted deterministic fallback, never by silently accepting arbitrary remote state.
+
+### Group-Control Record
+
+A signed protocol event that mirrors an MLS state change (creation, membership, commits, welcomes, epoch advancement, fork handling) so group cryptographic state is auditable, replayable, and local-first.
+
+Group-Control Records are protocol records bound to controller identity and device authorization, not raw MLS library internals.
+
 ### Identity Root
 
 The root cryptographic identity from which controller authority, device authorization, and recovery behavior derive.
@@ -127,6 +151,12 @@ Inbox state is mailbox/delivery state, not the complete User Data Root.
 One of the three canonical protocol-aware provider roles: `bridge`, `relay`, or `super-peer`.
 
 Other provider capabilities (mailbox hosting, search, feed generation, media caching, storage) are advertised as capability identifiers by these surfaces, not as independent surfaces. See `docs/protocol/infrastructure-capability-surfaces.md`.
+
+### KeyPackage
+
+A pre-published, signed MLS object that lets other members add a Device to a group asynchronously.
+
+KeyPackages bind to controller identity, device identity, authorization state, ciphersuite, and expiry. Ordinary KeyPackages are consume-once; a Device may keep one reusable last-resort KeyPackage.
 
 ### Mailbox
 
@@ -145,6 +175,12 @@ Mailbox Delivery records do not prove that a recipient accepted the payload into
 A mailbox-scoped receipt that records provider, recipient, device, group, expiry, rejection, or acceptance observations according to a mailbox state machine.
 
 A Mailbox Receipt is not automatically proof of user-visible delivery.
+
+### MLS Group
+
+An MLS-managed (RFC 9420) cryptographic membership and key schedule protecting group-scoped payloads with forward secrecy and post-compromise security.
+
+MLS Group state is subordinate to controller identity, device authorization, and capability policy; it is not a transport, identity system, or object authority.
 
 ### Object Reference
 
@@ -213,6 +249,18 @@ Sync Interests should support selective, private, and low-bandwidth operation.
 The logical, portable, user-owned data space replicated across authorized devices and optional providers.
 
 The User Data Root is not a single physical server, mailbox, repository, pod, bridge, relay, super-peer, app view, or storage provider.
+
+### Virtual Delivery Service
+
+The RFC 9420 Delivery Service role decomposed into optional provider capabilities (KeyPackage store, Welcome delivery, message fan-out) that any delivery surface may advertise.
+
+No single surface is "the" Delivery Service; no surface gains plaintext access, membership authority, or commit-ordering authority.
+
+### Welcome
+
+An encrypted MLS message that lets a newly added Device join a group at a specific epoch.
+
+Welcomes are delivered as encrypted mailbox payloads; a recipient validates a Welcome against a KeyPackage it actually published and rejects wrong-recipient or replayed Welcomes.
 
 ## Naming status
 

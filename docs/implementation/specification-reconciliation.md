@@ -41,6 +41,21 @@ Purpose:
 - prevents chat from becoming an app-only surface;
 - records next gates: persistence, mailbox boundaries, selective sync, Space/Channel context, PWA UI.
 
+### MLS group control (Phase 6 doctrine gate)
+
+Promotion PR: `docs/implementation/mls-group-control-spec-promotion.md`.
+
+Status: promoted into Series 8 security specs.
+
+New specification homes:
+
+- `docs/specification/08-security/mls-group-keying.md`
+- `docs/specification/08-security/mls-virtual-delivery-service.md`
+- `docs/specification/08-security/mls-fork-detection-and-recovery.md`
+- `docs/specification/08-security/encrypted-evidence.md`
+
+Decision records: `docs/adr/015-mls-library-selection-v1.md` (library), `docs/adr/016-virtual-delivery-service-v1.md` (virtual Delivery Service). See the promotion document for the P6-M2 … P6-M6 implementation stages.
+
 ## Promotion candidates
 
 ### 1. Content addressing / Object References
@@ -197,9 +212,9 @@ New specification homes:
 
 Needed action:
 
-Create `docs/implementation/mls-group-control-spec-promotion.md`, then Series 8 security specs.
+Done — `docs/implementation/mls-group-control-spec-promotion.md` and the Series 8 security specs exist (see "MLS group control" under "Already promoted / in progress" above).
 
-The promotion should preserve:
+The promotion preserves:
 
 - MLS control events as signed protocol records;
 - group privacy envelope validation;
