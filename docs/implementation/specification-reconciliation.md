@@ -203,12 +203,13 @@ Older sources:
 - `docs/protocol/mls-group-keying.md`
 - `packages/mls-group-projection`
 
-New specification homes:
+New specification homes (Series 8 now shipped):
 
-- `docs/specification/05-mailbox/`
-- `docs/specification/06-social/spaces.md`
-- `docs/specification/06-social/channels.md`
-- future `docs/specification/08-security/`
+- `docs/specification/08-security/mls-group-keying.md`
+- `docs/specification/08-security/mls-virtual-delivery-service.md`
+- `docs/specification/08-security/mls-fork-detection-and-recovery.md`
+- `docs/specification/08-security/encrypted-evidence.md`
+- cross-cutting integration into `docs/specification/05-mailbox/`, `docs/specification/06-social/spaces.md`, and `docs/specification/06-social/channels.md` (mapped under "Cross-specification integration" in the promotion doc; runtime binding is Stage P6-M7)
 
 Needed action:
 
