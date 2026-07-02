@@ -21,6 +21,13 @@
   - `SECURITY_MODEL.md`
   - `SPEC_STATUS.md`
   - `TEMPLATE.md`
+- Added specification series 8 (security) initial documents (Phase 6 doctrine gate):
+  - `08-security/mls-group-keying.md`
+  - `08-security/mls-virtual-delivery-service.md`
+  - `08-security/mls-fork-detection-and-recovery.md`
+  - `08-security/encrypted-evidence.md`
+- Added glossary terms: Encrypted Evidence, Epoch, Fork, Group-Control Record, KeyPackage, MLS Group, Virtual Delivery Service, Welcome.
+- Registered (Draft) in the registry framework: the eleven `mls.*` Group-Control Record event kinds; capabilities `availability.mls-key-package-store`, `availability.mls-welcome-delivery`, `availability.mls-message-fanout`; error codes `key-package-exhausted`, `key-package-expired`, `fork-unresolved`, `recovery-unauthorized`, `evidence-undecryptable`, `evidence-digest-mismatch`.
 - Established the no-undocumented-primitive rule.
 - Established initial conformance profile taxonomy.
 - Established initial registry framework.
