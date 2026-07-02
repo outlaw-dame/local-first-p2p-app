@@ -8,11 +8,17 @@
 
 ## Scope
 
-Implement the User Data Root (UDR) as a local-first logical container scoped to one identity. The UDR tracks which partitions, replicas, feed subscriptions, sync interests, content-addressed objects, mailbox binding, and Spaces a user owns or has subscribed to, and provides a deterministic projection from signed events.
+Implement the User Data Root (UDR) as a local-first logical container scoped to one Identity Root. The UDR tracks which partitions, replicas, feed subscriptions, sync interests, content-addressed objects, mailbox binding, and Spaces a user owns or has subscribed to, and provides a deterministic projection from signed events.
 
 Sync checkpoints are not UDR state. They live in the sync store and are advanced by the sync engine. The UDR may reference sync interest configuration, but it MUST NOT claim or release checkpoint rows.
 
 Out of scope: hosted UDR providers, cross-provider migration, P2P UDR replication (those belong to sync engine and availability provider phases).
+
+## Identity binding
+
+A UDR is bound to an Identity Root identifier, not to a provider account, mailbox address, app-view session, local database row, or raw Device key.
+
+Controller key material proves authority over the Identity Root. Authorized Device keys may emit or sync UDR-related records only within their granted scope. This allows the same account to have multiple authorized devices and multiple replicas while preserving one logical user-owned data root.
 
 ## Step 1 — `StoredUserDataRoot` schema in `@lfp2p/local-store`
 
@@ -20,7 +26,7 @@ Add to `packages/local-store/src/index.ts`:
 
 ```ts
 type StoredUserDataRoot = Readonly<{
-  identityId: string; // controller identity this UDR belongs to
+  identityId: string; // Identity Root identifier this UDR belongs to, not a provider account or Device key
   partitionIds: ReadonlyArray<string>;
   contentRefs: ReadonlyArray<string>; // ObjectRef keys the user claims
   syncInterestIds: ReadonlyArray<string>;
@@ -62,7 +68,7 @@ New package `packages/udr-projection/`:
 - `UdrState` type with partition set, feed subscription set, sync interest set, space set, and mailbox binding.
 - `applyUdrEvent(state, decryptedPayload, meta) → UdrState` pure state machine.
 - `createEmptyUdrState(identityId) → UdrState`.
-- `CHAT_ERROR_CODES`-style `UDR_ERROR_CODES` with `UDR_INVALID_PAYLOAD`, `UDR_UNKNOWN_KIND`.
+- `UDR_ERROR_CODES` with `UDR_INVALID_PAYLOAD`, `UDR_UNKNOWN_KIND`.
 - Deep-frozen outputs (Phase 3.2).
 - Full fixture suite (valid + invalid payloads, duplicate no-op, replay equivalence).
 
