@@ -1,9 +1,11 @@
 # MLS Group-Control Records
 
-- Status: Draft
+- Status: Superseded — retained as design history
 - Date: 2026-06-27
 - Roadmap phase: Phase 4
 - Related implementation plan: `docs/implementation/phase-4-mls-group-control-implementation-plan.md`
+
+> **Normative home:** the group-control record model is now specified in `docs/specification/08-security/mls-group-keying.md` (record families, common fields, validation) and `docs/specification/08-security/mls-fork-detection-and-recovery.md` (fork/recovery records). The shipped `mls.*` event kinds live in `packages/mls-group-projection`. This file is preserved for design rationale only.
 
 ## Purpose
 

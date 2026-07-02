@@ -16,7 +16,7 @@
 - Related specifications:
   - `docs/specification/06-social/`
   - future `docs/specification/07-availability/`
-  - future `docs/specification/08-security/`
+  - `docs/specification/08-security/` (Series 8 started — MLS specs shipped; trust-safety-specific security specs still future)
   - future `docs/specification/09-profiles/`
 
 ## Purpose

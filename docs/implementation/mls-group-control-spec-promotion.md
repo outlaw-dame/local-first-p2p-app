@@ -50,6 +50,19 @@ The MLS group-control slice (Phase 3 doctrine + Phase 4 projection) was written 
 | Phase 1.63 encrypted-evidence guards         | `08-security/encrypted-evidence.md`                     | Structural guards stay in `@lfp2p/trust-safety`; the retrieval path and re-encryption model are now specified.                                    |
 | `MlsProvider` boundary (doctrine)            | ADR-015                                                 | Interface definition is the first Phase 6 implementation gate.                                                                                    |
 
+## Cross-specification integration
+
+The Layer mapping above covers where MLS _cryptographic_ doctrine now lives. MLS group state also touches mailbox delivery, social containers, and sync — cross-cutting integration that an earlier promotion draft mapped and that is preserved here so it is not lost as those runtimes are built. These are **integration obligations**, not new event kinds; the owning specs remain the source of truth.
+
+| MLS concept                     | Integrates with                                                          | Obligation                                                                                                                                                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Welcome / group-control routing | `05-mailbox/delivery-envelopes.md`, `05-mailbox/retention-and-expiry.md` | Welcome and group-control material travels as encrypted mailbox deliveries; provider-accepted ≠ recipient-applied; undecryptable material yields a placeholder, not a crash; TTL/retry are mailbox concerns, not group-state changes. |
+| Group application messages      | `06-social/channels.md`, `05-mailbox/mailbox.md`                         | Message delivery state and social Channel context stay distinct; a Channel-backed group message is a social object whose payload is MLS-protected, not a mailbox record.                                                              |
+| Group membership                | `06-social/spaces.md`, `06-social/roles.md`                              | A Space/Channel's social membership and its MLS group's recipient set must stay reconciled; membership/role changes that alter who can read a private Channel MUST drive the corresponding MLS add/remove commit and epoch change.    |
+| Sync replay of group-control    | `04-sync/selective-replica-sync.md`                                      | Group-control records validate before projection and before any private payload is applied; sync delivery is not group-state acceptance.                                                                                              |
+
+Runtime work that must honor these obligations is staged below (Welcome/mailbox in P6-M4, end-to-end group flows in P6-M5) and in the future Space/Channel integration stage. A Space/Channel runtime that binds private Channels to MLS groups MUST cite this section and MUST NOT let social membership and MLS membership diverge silently.
+
 ## Required doctrine boundaries
 
 - **Provider is not protocol**: MLS library state never persists or replicates as protocol objects; only RFC 9420 wire objects and signed group-control records cross the boundary.
@@ -57,6 +70,7 @@ The MLS group-control slice (Phase 3 doctrine + Phase 4 projection) was written 
 - **Fork resolution is signed**: no wall-clock, arrival-order, or surface-hint tie-breaking; scope-widening commits can never win a tie-break.
 - **Evidence never widens keys**: reporting group content re-encrypts to the moderation authority; group keys never leave the group.
 - **No format fallback**: MLS-active groups reject Phase 2 private payload envelopes.
+- **No silent membership drift**: a Space/Channel's social membership and its MLS group's cryptographic membership must not diverge silently; a change to one that should affect the other must produce the corresponding signed event (see Cross-specification integration).
 
 ## Promotion stages
 
@@ -84,6 +98,18 @@ Create/join/message/remove flows across two simulated devices; fork detect→rec
 
 Blocked on Phase 7.0 `@lfp2p/block-store`. Reporter-side re-encryption helper, authority-side retrieval pipeline (fetch → cap → verify-digest → decode → decrypt), report-AAD binding.
 
+### Stage P6-M7 — Space/Channel ↔ MLS binding (future, after Series 6 social runtime)
+
+Deferred until the Space/Channel runtime exists (see `docs/implementation/space-channel-runtime-implementation-plan.md`). Defines how private Spaces and Channels bind to MLS group state, honoring the Cross-specification integration obligations above:
+
+- Space social membership versus MLS group recipient set (and how they are kept reconciled);
+- Channel writer policy versus MLS recipient set (who may commit versus who may send);
+- role/capability changes that must trigger an MLS add/remove commit and epoch change;
+- private Channel feed heads over MLS-protected payloads;
+- invite / accept / reject lifecycle mapped onto KeyPackage publication, add proposals, and Welcome routing.
+
+This stage adds no new `mls.*` event kinds; it wires existing group-control records to Space/Channel/role events and MUST NOT let social and cryptographic membership diverge silently.
+
 ## Tests required by promotion
 
 - provider adapter passes official RFC 9420 interop vectors;
@@ -96,4 +122,4 @@ Blocked on Phase 7.0 `@lfp2p/block-store`. Reporter-side re-encryption helper, a
 
 ## Current status
 
-The MLS group-control slice is promoted as the Series 8 security foundation. Doctrine (specs + ADR-015 + ADR-016) is complete for Phase 6; implementation begins at Stage P6-M2 and MUST be extended through the stages above rather than replaced or bypassed.
+The MLS group-control slice is promoted as the Series 8 security foundation. Doctrine (specs + ADR-015 + ADR-016) is complete for Phase 6. Stage P6-M2 (`@lfp2p/mls-provider`) and the Phase 7.0 `@lfp2p/block-store` prerequisite are shipped; the remaining stages P6-M3 … P6-M7 MUST be extended through rather than replaced or bypassed. This document supersedes the earlier Phase 5-era `mls-group-control-spec-promotion.md` draft; the cross-cutting mailbox/social/sync integration that draft mapped is preserved under Cross-specification integration above so no obligation is lost.
