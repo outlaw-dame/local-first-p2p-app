@@ -11,6 +11,10 @@
 
 Define the mailbox protocol event kinds, `MailboxDeliveryEnvelope` schema, and local projection (`@lfp2p/mailbox-projection`). Wire into `@lfp2p/local-store`. Mailbox HTTP server and actor are out of scope; this plan delivers the client-side schema and state machine only.
 
+## Status
+
+Steps 1 and 3 are shipped (the pure protocol + projection foundation, mirroring the UDR #148 pattern): the seven `mailbox.*` kinds with per-kind privacy + consistency classes in `@lfp2p/protocol`, and `@lfp2p/mailbox-projection` (inbox/outbox lifecycle state machine + receipts/acks/checkpoints, truly-immutable collections, deterministic replay, recipient-mismatch IDOR guard). Steps 2 (fixture suite), 4 (Dexie tables + decrypt seam), 5 (expiry sweep), and 6 (PWA view) remain.
+
 ## Step 1 — `mailbox.*` event kinds in `packages/protocol`
 
 New event kinds:

@@ -60,8 +60,40 @@ const EVENT_KINDS = [
   'udr.sync-interest.removed',
   'udr.mailbox.bound',
   'udr.space.joined',
-  'udr.space.left'
+  'udr.space.left',
+  // Phase 5.11 — mailbox delivery event kinds. All carry a
+  // PrivatePayloadEnvelopeV1 (every kind is dm/group/self scoped), so
+  // the bridge transports them as opaque ciphertext and MUST NOT
+  // decrypt. Per-kind privacy is pinned by MAILBOX_KIND_ALLOWED_PRIVACY;
+  // decrypted-payload validation lives in @lfp2p/mailbox-projection.
+  'mailbox.envelope.queued',
+  'mailbox.envelope.delivered',
+  'mailbox.envelope.expired',
+  'mailbox.envelope.fetched',
+  'mailbox.receipt.issued',
+  'mailbox.ack.sent',
+  'mailbox.checkpoint.advanced'
 ] as const;
+
+/**
+ * Phase 5.11 — per-kind privacy allowlist for mailbox events. Delivery-
+ * plane events (queued/delivered/expired) are `dm` or `group` (visible
+ * to sender+recipient/group); recipient-local lifecycle (fetched,
+ * receipt, checkpoint) is `self`; the applied/rejected acknowledgement
+ * back to the sender is `dm`. Every scope here requires a
+ * PrivatePayloadEnvelopeV1, enforced by validatePayloadPrivacyScope.
+ */
+const MAILBOX_KIND_ALLOWED_PRIVACY = Object.freeze<
+  Readonly<Record<string, ReadonlyArray<PrivacyScope>>>
+>({
+  'mailbox.envelope.queued': ['dm', 'group'],
+  'mailbox.envelope.delivered': ['dm', 'group'],
+  'mailbox.envelope.expired': ['dm', 'group'],
+  'mailbox.envelope.fetched': ['self'],
+  'mailbox.receipt.issued': ['self'],
+  'mailbox.ack.sent': ['dm'],
+  'mailbox.checkpoint.advanced': ['self']
+});
 
 /**
  * Phase 1.8.14 — Doctrine-bound privacy rules for reputation kinds.
@@ -483,6 +515,26 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
       }
       break;
     }
+    case 'mailbox.envelope.queued':
+    case 'mailbox.envelope.delivered':
+    case 'mailbox.envelope.expired':
+    case 'mailbox.envelope.fetched':
+    case 'mailbox.receipt.issued':
+    case 'mailbox.ack.sent':
+    case 'mailbox.checkpoint.advanced': {
+      requirePrivacyForMailboxEvent(privacy, kind);
+      // Every mailbox kind is dm/group/self scoped and MUST carry a
+      // PrivatePayloadEnvelopeV1. Reject MLS-shaped payloads (the
+      // mailbox decrypt path only understands the private-payload
+      // envelope); decrypted-payload validation lives in
+      // @lfp2p/mailbox-projection.
+      if (!looksLikePrivatePayloadEnvelope(payload)) {
+        throw new Error(
+          `${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for mailbox events)`
+        );
+      }
+      break;
+    }
     default:
       break;
   }
@@ -871,6 +923,18 @@ function requirePrivacyForChatEvent(privacy: PrivacyScope, kind: EventKind): voi
 function requirePrivacyForUdrEvent(privacy: PrivacyScope, kind: EventKind): void {
   if (privacy !== 'self') {
     throw new Error(`${kind} must use privacy scope self (got: ${privacy})`);
+  }
+}
+
+function requirePrivacyForMailboxEvent(privacy: PrivacyScope, kind: EventKind): void {
+  const allowed = MAILBOX_KIND_ALLOWED_PRIVACY[kind];
+  if (allowed === undefined) {
+    // Unreachable — the caller pinned `kind` to a mailbox kind via the
+    // switch. Defense-in-depth only.
+    throw new Error(`${kind} has no mailbox privacy policy registered`);
+  }
+  if (!allowed.includes(privacy)) {
+    throw new Error(`${kind} must use privacy scope ${allowed.join(' or ')} (got: ${privacy})`);
   }
 }
 
