@@ -16,9 +16,9 @@ Out of scope: hosted UDR providers, cross-provider migration, P2P UDR replicatio
 
 ## Identity binding
 
-A UDR is bound to an Identity Root identifier, not to a provider account, mailbox address, app-view session, local database row, or raw Device key.
+A UDR is bound to an Identity Root identifier, not to a provider account, mailbox address, app-view session, local database row, or raw device key.
 
-Controller key material proves authority over the Identity Root. Authorized Device keys may emit or sync UDR-related records only within their granted scope. This allows the same account to have multiple authorized devices and multiple replicas while preserving one logical user-owned data root.
+Controller key material proves authority over the Identity Root. Authorized device keys may emit or sync UDR-related records only within their granted scope. This allows the same account to have multiple authorized devices and multiple replicas while preserving one logical user-owned data root.
 
 ## Step 1 — `StoredUserDataRoot` schema in `@lfp2p/local-store`
 
@@ -26,7 +26,7 @@ Add to `packages/local-store/src/index.ts`:
 
 ```ts
 type StoredUserDataRoot = Readonly<{
-  identityId: string; // Identity Root identifier this UDR belongs to, not a provider account or Device key
+  identityId: string; // Identity Root identifier this UDR belongs to, not a provider account or device key
   partitionIds: ReadonlyArray<string>;
   contentRefs: ReadonlyArray<string>; // ObjectRef keys the user claims
   syncInterestIds: ReadonlyArray<string>;
