@@ -108,7 +108,18 @@ const EVENT_KIND_CONSISTENCY_CLASS_VALUES = {
   'udr.sync-interest.removed': 'B',
   'udr.mailbox.bound': 'B',
   'udr.space.joined': 'B',
-  'udr.space.left': 'B'
+  'udr.space.left': 'B',
+  // Phase 5.11 — mailbox delivery events. Delivery-plane records carry
+  // encrypted payloads (Class D). `mailbox.envelope.expired` is a
+  // lifecycle transition that destroys availability, not an encrypted
+  // key/payload transition, so it is Class B (append-only lifecycle).
+  'mailbox.envelope.queued': 'D',
+  'mailbox.envelope.delivered': 'D',
+  'mailbox.envelope.expired': 'B',
+  'mailbox.envelope.fetched': 'D',
+  'mailbox.receipt.issued': 'D',
+  'mailbox.ack.sent': 'D',
+  'mailbox.checkpoint.advanced': 'D'
 } as const satisfies Readonly<Record<EventKind, OperationConsistencyClass>>;
 
 /**

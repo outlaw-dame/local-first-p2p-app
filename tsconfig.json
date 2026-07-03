@@ -18,6 +18,7 @@
     { "path": "packages/mls-provider" },
     { "path": "packages/block-store" },
     { "path": "packages/udr-projection" },
+    { "path": "packages/mailbox-projection" },
     { "path": "packages/envelope" },
     { "path": "packages/chat-projection" },
     { "path": "packages/design-tokens" },
