@@ -40,6 +40,19 @@ Signed records
 Deterministic projections
 ```
 
+## Identity Root identifiers and key material
+
+An Identity Root is not merely a raw cryptographic key pair.
+
+An Identity Root is the protocol identity anchor whose authority is proven by controller key material and the Identity Control Log. A simple v1 implementation may bootstrap an Identity Root from a controller key pair, but the protocol model MUST preserve the distinction between:
+
+- the Identity Root identifier: the stable protocol identity being controlled;
+- controller verification material: the active key material authorized to control that Identity Root;
+- Device verification material: delegated key material authorized to act within a granted scope;
+- provider, mailbox, transport, or app-view account identifiers: availability or UX identifiers that are not protocol identity authority by themselves.
+
+This distinction matters because controller rotation, recovery, or future threshold authority MUST be able to preserve Identity Root continuity without treating every key replacement as a new account.
+
 ## Identity Root vs Controller
 
 The Identity Root is the durable protocol identity anchor.

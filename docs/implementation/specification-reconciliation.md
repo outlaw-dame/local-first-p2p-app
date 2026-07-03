@@ -1,16 +1,16 @@
 # Specification Reconciliation Inventory
 
 - Status: Draft
-- Date: 2026-06-30
-- Scope: map older implementation/protocol planning docs and shipped slices into the new `docs/specification/` tree
+- Date: 2026-07-02
+- Scope: map older implementation/protocol planning docs and shipped slices into the `docs/specification/` tree
 
 ## Purpose
 
-The repository now has an implementation-independent specification tree under `docs/specification/`.
+The repository has an implementation-independent specification tree under `docs/specification/`.
 
 Several older docs and shipped slices predate that tree. Those older docs are still useful, but they must not remain as competing sources of protocol authority.
 
-This inventory identifies which older slices are already represented by the new specifications, which need promotion documents, and which should become implementation plans rather than new protocol doctrine.
+This inventory identifies which older slices are already represented by the newer specifications, which have promotion documents, and which remain implementation plans.
 
 ## Rule
 
@@ -26,317 +26,81 @@ Older docs should be read as:
 
 They should not silently define protocol semantics outside the specification tree.
 
-## Already promoted / in progress
-
-### Phase 5 chat slice
-
-Promotion PR: `docs/implementation/phase-5-chat-spec-promotion.md`.
-
-Status: ready as the first promotion pattern.
-
-Purpose:
-
-- preserves existing `chat.*` event kinds;
-- maps them to mailbox, social, sync, data, and identity specs;
-- prevents chat from becoming an app-only surface;
-- records next gates: persistence, mailbox boundaries, selective sync, Space/Channel context, PWA UI.
-
-### MLS group control (Phase 6 doctrine gate)
-
-Promotion PR: `docs/implementation/mls-group-control-spec-promotion.md`.
-
-Status: promoted into Series 8 security specs.
-
-New specification homes:
-
-- `docs/specification/08-security/mls-group-keying.md`
-- `docs/specification/08-security/mls-virtual-delivery-service.md`
-- `docs/specification/08-security/mls-fork-detection-and-recovery.md`
-- `docs/specification/08-security/encrypted-evidence.md`
-
-Decision records: `docs/adr/015-mls-library-selection-v1.md` (library), `docs/adr/016-virtual-delivery-service-v1.md` (virtual Delivery Service). See the promotion document for the P6-M2 … P6-M6 implementation stages.
-
-## Promotion candidates
-
-### 1. Content addressing / Object References
-
-Older sources:
-
-- `docs/implementation/phase-1.56-content-addressing-plan.md`
-- `docs/protocol/content-addressing.md`
-- `docs/threat-model/content-addressing-abuse.md`
-- `packages/content-addressing`
-
-New specification homes:
-
-- `docs/specification/03-data/object-references.md`
-- `docs/specification/03-data/content-refs.md`
-- `docs/specification/03-data/merkle-checkpoints.md`
-- `docs/specification/03-data/entity-component-snapshots.md`
-- `docs/specification/04-sync/portable-sync-drops.md`
-
-Needed action:
-
-Create `docs/implementation/content-addressing-spec-promotion.md`.
-
-That document should map `DigestRef`, `ContentLink`, `BlockRef`, `ObjectRef`, `BundleRef`, and `StorageLocationHint` into the Series 3 data specs and Series 4 Portable Sync Drop model.
-
-It should also clarify deferred work:
-
-- BLAKE3 runtime;
-- additional multibase parsers;
-- media manifest integration;
-- storage adapters;
-- provider availability hints;
-- Content Bundle / Portable Sync Drop packaging.
-
-### 2. Trust & Safety stack
-
-Older sources:
-
-- `docs/implementation/trust-safety-complete-summary.md`
-- `docs/protocol/trust-safety-event-policy.md`
-- `docs/protocol/local-controls-portability.md`
-- `docs/protocol/bridge-admission-doctrine.md`
-- `docs/protocol/curation-doctrine.md`
-- `docs/protocol/labeler-runtime-doctrine.md`
-- `docs/protocol/moderation-runtime-doctrine.md`
-- `docs/protocol/content-categories-doctrine.md`
-- `docs/protocol/block-evasion-resilience.md`
-- `docs/protocol/reputation-graph-doctrine.md`
-- `packages/trust-safety`
-
-New specification homes:
-
-- `docs/specification/06-social/`
-- `docs/specification/07-availability/`
-- `docs/specification/08-security/`
-- `docs/specification/09-profiles/`
-
-Needed action:
-
-Create a Trust & Safety specification promotion suite, likely split into:
-
-- `docs/specification/06-social/local-controls.md`
-- `docs/specification/06-social/moderation-labels.md`
-- `docs/specification/06-social/reports-and-appeals.md`
-- `docs/specification/06-social/curation-and-reach.md`
-- `docs/specification/07-availability/transport-admission.md`
-- `docs/specification/09-profiles/trust-safety-profile.md`
-
-This is a high-priority promotion because the code is substantial and currently relies on older doctrine docs for conceptual anchoring.
-
-### 3. Bridge / Relay / Super-peer availability surfaces
-
-Older sources:
-
-- `docs/implementation/phase-4.6-relay-superpeer-policy-plan.md`
-- `docs/implementation/phase-4.5-production-bridge-hardening-plan.md`
-- `docs/protocol/bridge-admission-doctrine.md`
-- `apps/bridge-service`
-
-New specification homes:
-
-- `docs/specification/07-availability/`
-- `docs/specification/05-mailbox/`
-- `docs/specification/04-sync/`
-
-Needed action:
-
-Create Series 7 availability specs:
-
-- `docs/specification/07-availability/bridges.md`
-- `docs/specification/07-availability/relays.md`
-- `docs/specification/07-availability/super-peers.md`
-- `docs/specification/07-availability/provider-descriptors.md`
-- `docs/specification/07-availability/admission-policy.md`
-- `docs/specification/07-availability/advisory-reputation.md`
-
-Non-negotiable mapping:
-
-- bridge/relay/super-peer are availability infrastructure;
-- provider acceptance is not durable user acceptance;
-- providers do not become Identity Root, User Data Root, Space, mailbox, or feed authority;
-- operator policy is service-local unless a capability grants a narrow authority role.
-
-### 4. Existing sync-client / checkpointed bridge sync
-
-Older sources:
-
-- `docs/adr/003-sync-offsets-and-cursors-v1.md`
-- `docs/implementation/next-development-path.md`
-- `packages/sync-client`
-- `packages/local-store` `syncCheckpoints`
-
-New specification homes:
-
-- `docs/specification/04-sync/selective-replica-sync.md`
-- `docs/specification/04-sync/sync-interests.md`
-- `docs/specification/04-sync/checkpoints.md`
-- `docs/specification/04-sync/low-bandwidth-profile.md`
-- `docs/specification/04-sync/portable-sync-drops.md`
-
-Needed action:
-
-Create `docs/implementation/sync-client-spec-promotion.md`.
-
-That document should map the current checkpointed bridge sync into Selective Replica Sync and identify the delta to:
-
-- Sync Interests;
-- partition-scoped checkpoints;
-- headers-first sync;
-- lazy payload fetch;
-- mailbox adapter;
-- direct P2P/WebRTC adapter;
-- Hypercore/Corestore adapter;
-- Portable Sync Drop adapter;
-- local-nearby/Bluetooth adapter;
-- super-peer availability adapter.
-
-### 5. MLS group control
-
-Older sources:
-
-- `docs/implementation/phase-3-mls-implementation-plan.md`
-- `docs/implementation/phase-4-mls-group-control-implementation-plan.md`
-- `docs/adr/012-mls-dependency-and-group-keying-v1.md`
-- `docs/protocol/mls-group-keying.md`
-- `packages/mls-group-projection`
-
-New specification homes (Series 8 now shipped):
-
-- `docs/specification/08-security/mls-group-keying.md`
-- `docs/specification/08-security/mls-virtual-delivery-service.md`
-- `docs/specification/08-security/mls-fork-detection-and-recovery.md`
-- `docs/specification/08-security/encrypted-evidence.md`
-- cross-cutting integration into `docs/specification/05-mailbox/`, `docs/specification/06-social/spaces.md`, and `docs/specification/06-social/channels.md` (mapped under "Cross-specification integration" in the promotion doc; runtime binding is Stage P6-M7)
-
-Needed action:
-
-Done — `docs/implementation/mls-group-control-spec-promotion.md` and the Series 8 security specs exist (see "MLS group control" under "Already promoted / in progress" above).
-
-The promotion preserves:
-
-- MLS control events as signed protocol records;
-- group privacy envelope validation;
-- fork detection/recovery;
-- multi-device welcome routing;
-- mailbox/bridge/super-peer delivery without plaintext access;
-- providers not becoming membership authority.
-
-### 6. Reputation graph
-
-Older sources:
-
-- `docs/protocol/reputation-graph-doctrine.md`
-- `docs/implementation/phase-1.8.1-exit-report.md` through `phase-1.8.14-exit-report.md`
-- `packages/trust-safety/src/reputation-graph/`
-- `packages/sync-client` reputation ingestion work
-
-New specification homes:
-
-- `docs/specification/06-social/curation-and-reach.md`
-- `docs/specification/07-availability/advisory-reputation.md`
-- `docs/specification/09-profiles/trust-safety-profile.md`
-
-Needed action:
-
-Fold reputation into the Trust & Safety promotion suite, but keep one dedicated section because reputation touches both social ranking and availability/admission.
-
-### 7. Feeds / Collections runtime
-
-Older sources:
-
-- `docs/implementation/phase-5-foundation-roadmap.md`
-- `docs/protocol/curation-doctrine.md`
-- `packages/trust-safety` curation runtime
-
-New specification homes:
-
-- `docs/specification/06-social/feeds.md`
-- `docs/specification/06-social/collections.md`
-- `docs/specification/07-availability/`
-
-Needed action:
-
-Do not create another doctrine doc first. Create a runtime implementation plan only after Content Addressing, Sync, and T&S promotion are anchored.
-
-Suggested future file:
-
-- `docs/implementation/feed-runtime-implementation-plan.md`
-
-### 8. Mailbox runtime
-
-Older sources:
-
-- `docs/implementation/phase-5-foundation-roadmap.md`
-- Phase 5 chat implementation plan
-- bridge/outbox foundation
-
-New specification homes:
-
-- `docs/specification/05-mailbox/mailbox.md`
-- `docs/specification/05-mailbox/delivery-envelopes.md`
-- `docs/specification/05-mailbox/receipts-and-acks.md`
-- `docs/specification/05-mailbox/forwarding.md`
-- `docs/specification/05-mailbox/retention-and-expiry.md`
-
-Needed action:
-
-Create `docs/implementation/mailbox-runtime-implementation-plan.md` after chat promotion lands.
-
-This should be implementation planning, not another protocol doctrine doc.
-
-### 9. Spaces / Channels runtime
-
-Older sources:
-
-- `docs/implementation/phase-5-foundation-roadmap.md`
-- Phase 5 chat implementation plan
-- MLS group-control docs
-
-New specification homes:
-
-- `docs/specification/06-social/spaces.md`
-- `docs/specification/06-social/channels.md`
-- `docs/specification/06-social/threads.md`
-- `docs/specification/06-social/roles.md`
-- `docs/specification/06-social/presence.md`
-
-Needed action:
-
-Create `docs/implementation/space-channel-runtime-implementation-plan.md` after mailbox and sync boundaries are implemented.
-
-## Roadmap docs that need pointer updates
-
-The following older docs should be updated with pointers to this inventory and/or the new specification files:
-
-- `docs/implementation/phase-5-foundation-roadmap.md`
-- `docs/implementation/next-development-path.md`
-- `docs/implementation/phase-1.56-content-addressing-plan.md`
-- `docs/implementation/trust-safety-complete-summary.md`
-- `docs/implementation/phase-4.6-relay-superpeer-policy-plan.md`
-- `docs/implementation/phase-4-mls-group-control-implementation-plan.md`
-
-## Recommended order
-
-1. Merge the chat promotion PR.
-2. Content Addressing / ObjectRef promotion.
-3. Trust & Safety specification promotion suite.
-4. Availability surfaces / super-peer specs.
-5. Existing sync-client promotion.
-6. MLS group-control promotion.
-7. Mailbox runtime implementation plan.
-8. Feed runtime implementation plan.
-9. Space/Channel runtime implementation plan.
+## Current reconciliation status
+
+| Area | Current status | Primary current docs |
+|---|---|---|
+| Identity Root / controller / device authority | Represented in Series 2 and implemented in the identity-control core. Older identity-control docs remain implementation evidence and detailed lifecycle rationale. | `docs/specification/02-identity/identity-root.md`, `docs/specification/02-identity/device-model.md`, `docs/protocol/identity-control-log.md`, `docs/adr/001-identity-control-log-v1.md`, `docs/implementation/phase-2.1-exit-report.md` |
+| User Data Root | Represented in Series 2; Phase 5.11 now provides the implementation plan for local-store state, `udr.*` events, UDR projection, local-store append/load wiring, and PWA view-model wiring. | `docs/specification/02-identity/user-data-root.md`, `docs/specification/02-identity/replica-model.md`, `docs/implementation/phase-5.11-user-data-root-plan.md` |
+| Chat slice | Promoted. Runtime implementation remains staged behind persistence, mailbox, sync, Space/Channel, and PWA UI gates. | `docs/implementation/phase-5-chat-spec-promotion.md` |
+| Content addressing / Object References | Promoted. Runtime storage/fetch adapters and remaining hash/runtime work are deferred implementation work. | `docs/implementation/content-addressing-spec-promotion.md`, `docs/specification/03-data/` |
+| Trust & Safety stack | Promoted. Series 6/7/9 specs and the promotion doc now anchor older T&S docs and package behavior. Runtime/UI gaps remain implementation work. | `docs/implementation/trust-safety-spec-promotion.md`, `docs/specification/06-social/`, `docs/specification/07-availability/`, `docs/specification/09-profiles/` |
+| Availability surfaces | Promoted. Bridge/relay/super-peer/provider descriptors are availability infrastructure, not protocol authority. | `docs/implementation/availability-surfaces-spec-promotion.md`, `docs/specification/07-availability/` |
+| Existing sync-client / checkpointed bridge sync | Promoted. The existing sync-client is one adapter slice toward Selective Replica Sync, not the complete sync engine. | `docs/implementation/sync-client-spec-promotion.md`, `docs/specification/04-sync/` |
+| MLS group control | Promoted into Series 8 security specs. | `docs/implementation/mls-group-control-spec-promotion.md`, `docs/specification/08-security/` |
+| Mailbox runtime | Runtime implementation plan exists. Implementation has started with the mailbox runtime foundation package. | `docs/implementation/mailbox-runtime-implementation-plan.md`, `packages/mailbox-runtime/` |
+| Feed runtime | Runtime implementation plan exists. | `docs/implementation/feed-runtime-implementation-plan.md` |
+| Spaces / Channels runtime | Runtime implementation plan exists. | `docs/implementation/space-channel-runtime-implementation-plan.md` |
+
+## Identity and UDR clarification
+
+The current identity model is not "identity equals one raw key pair."
+
+The current model is:
+
+```txt
+Identity Root = stable protocol identity anchor
+Controller key material = active authority over that Identity Root
+device key material = delegated authority within scope
+User Data Root = durable portable state for that Identity Root
+Replica = copy or partial copy of state
+Provider / mailbox / transport account = availability or UX surface, not identity authority
+```
+
+A simple v1 implementation may bootstrap an Identity Root from one controller key pair, but future controller rotation, recovery, or threshold authority must preserve Identity Root continuity without treating every key replacement as a new account.
+
+## Remaining implementation deltas
+
+The following are not new doctrine gaps; they are implementation stages already mapped to current specs/plans:
+
+1. Phase 2.2 identity projection persistence and PWA emit/append wiring.
+2. Phase 5.11 Step 1 `StoredUserDataRoot` local-store schema keyed by Identity Root identifier.
+3. Phase 5.11 Step 2 `udr.*` event kinds in `packages/protocol`.
+4. Phase 5.11 Step 3 `@lfp2p/udr-projection`.
+5. Phase 5.11 Step 4 local-store `appendUdrEvent` / `loadUdrState`.
+6. Mailbox runtime local-store schema and bridge/provider adapter.
+7. Feed runtime package and provider-assisted generator adapter.
+8. Space/Channel runtime package and MLS/private group binding.
+9. Full sync adapter expansion beyond checkpointed bridge sync.
+10. Identity recovery, multi-controller accounts, and capability delegation chains.
+
+## Completed promotion history
+
+The following older promotion targets have been addressed and should no longer be treated as missing doctrine work:
+
+- content addressing / Object References promotion;
+- Trust & Safety promotion;
+- availability surfaces promotion;
+- sync-client promotion;
+- MLS group-control promotion;
+- mailbox runtime implementation plan;
+- feed runtime implementation plan;
+- Space/Channel runtime implementation plan.
+
+If an older roadmap still says one of these files must be created, that statement is stale and should be interpreted through this inventory and the files listed above.
 
 ## Development gating rule
 
 Do not expand a user-facing runtime surface if its underlying shipped slice still has no mapping into the specification tree.
 
-For example:
+Examples:
 
 - do not expand chat UI before the chat promotion and mailbox/sync boundaries are accepted;
 - do not expand feed UI before feeds consume Collections, Object References, curation policy, and Sync Interests;
 - do not expand super-peer behavior before Series 7 availability specs land;
-- do not expand moderation tooling before Trust & Safety has a spec-tree home.
+- do not expand moderation tooling before Trust & Safety has a spec-tree home;
+- do not treat a UDR replica, mailbox route, provider account, or local database row as the user identity.
+
+## Maintenance rule
+
+When a promotion document or runtime plan lands, update this inventory in the same PR or a follow-up cleanup PR. This file should not continue to list completed promotions as missing work.
