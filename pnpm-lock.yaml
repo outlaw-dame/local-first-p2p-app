@@ -39,7 +39,7 @@ importers:
         specifier: latest
         version: 17.7.0
       prettier:
-        specifier: latest
+        specifier: 3.8.4
         version: 3.8.4
       typescript:
         specifier: latest

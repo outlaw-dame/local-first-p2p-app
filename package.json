@@ -31,7 +31,7 @@
     "eslint-plugin-react-refresh": "latest",
     "fake-indexeddb": "latest",
     "globals": "latest",
-    "prettier": "latest",
+    "prettier": "3.8.4",
     "typescript": "latest",
     "typescript-eslint": "latest",
     "vite": "latest",
