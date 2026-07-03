@@ -11,7 +11,9 @@
     { "path": "../crypto" },
     { "path": "../protocol" },
     { "path": "../capabilities" },
-    { "path": "../mls-group-projection" }
+    { "path": "../mls-group-projection" },
+    { "path": "../private-payload" },
+    { "path": "../udr-projection" }
   ],
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"]

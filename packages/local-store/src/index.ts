@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import { type EncryptedKeyMaterial } from '@lfp2p/crypto';
-import { type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
+import { type JsonValue, type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
 import {
   type LabelerEvent,
   type LabelersState,
@@ -26,6 +26,17 @@ import {
   createEmptyMlsGroupProjectionState,
   projectMlsGroupControlEvent
 } from '@lfp2p/mls-group-projection';
+import {
+  type ApplyUdrEventMeta,
+  type UdrState,
+  type UdrStateSnapshot,
+  applyUdrEvent,
+  createEmptyUdrState,
+  deserializeUdrState,
+  isUdrEventKind,
+  serializeUdrState
+} from '@lfp2p/udr-projection';
+import { type PrivatePayloadAadContext, decryptPrivatePayload } from '@lfp2p/private-payload';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
 export type DeviceIdentityStatus = 'active' | 'revoked';
@@ -44,7 +55,8 @@ export type LocalFirstTableName =
   | 'capabilityProofRecords'
   | 'mlsGroupProjections'
   | 'chatThreads'
-  | 'chatEventLog';
+  | 'chatEventLog'
+  | 'userDataRoot';
 
 /**
  * Stored local-control event. The full envelope is preserved as the
@@ -304,6 +316,51 @@ export type AppendMlsGroupControlEventOptions = Readonly<{
   updatedAt?: string;
 }>;
 
+/**
+ * Phase 5.11 — persisted User Data Root projection row (Step 1).
+ *
+ * This is exactly a `UdrStateSnapshot` (from `@lfp2p/udr-projection`)
+ * keyed by `identityId`. It is a DERIVED, rebuildable cache: the
+ * authoritative source is the encrypted `udr.*` event log in
+ * `signedEvents`. `appliedEventIds` is persisted so incremental
+ * `appendUdrEvent` is idempotent AND self-healing — an event that could
+ * not be decrypted yet (key not present) is stored durably but left out
+ * of `appliedEventIds`, so a later append/load with the key projects it.
+ *
+ * Structural ids only (partition/feed/sync-interest/space, mailbox
+ * binding). The row is plaintext local IndexedDB (device-owned
+ * metadata); message-grade content is never stored here. The plan's
+ * reserved `contentRefs` field is deferred until a `udr.content.*`
+ * event kind exists to populate it — added with that kind, not now.
+ */
+export type StoredUserDataRoot = UdrStateSnapshot;
+
+export type AppendUdrEventOptions = Readonly<{
+  /** Symmetric key material for the `self`-scoped private payload envelope. */
+  keyMaterial: string;
+  /**
+   * When set, `event.author` MUST equal this identity or the append is
+   * rejected. Lets a caller pin the local identity and refuse events
+   * routed for a different identity (defence-in-depth alongside the
+   * decrypt-to-self gate).
+   */
+  expectedIdentityId?: string;
+}>;
+
+export type AppendUdrEventResult = Readonly<{
+  /**
+   * - `applied`: decrypted, validated, folded into the projection.
+   * - `skipped`: already projected (eventId in `appliedEventIds`).
+   * - `undecryptable`: could not decrypt (e.g. key not present yet); the
+   *   signed event is stored durably and will project on a later
+   *   append/load once the key is available (self-healing).
+   * - `rejected`: decrypted but the inner payload is invalid; not stored,
+   *   projection unchanged.
+   */
+  status: 'applied' | 'skipped' | 'undecryptable' | 'rejected';
+  state: UdrState;
+}>;
+
 export type AppendMlsGroupControlEventResult = Readonly<{
   status: 'stored' | 'skipped';
   outcome: 'accepted' | 'rejected' | 'fork-queued';
@@ -421,6 +478,7 @@ class LocalFirstP2PDatabase extends Dexie {
   mlsGroupProjections!: Table<StoredMlsGroupProjection, string>;
   chatThreads!: Table<StoredChatThreadProjection, string>;
   chatEventLog!: Table<StoredChatEventLogRow, string>;
+  userDataRoot!: Table<StoredUserDataRoot, string>;
 
   constructor(name: string) {
     super(name);
@@ -571,6 +629,30 @@ class LocalFirstP2PDatabase extends Dexie {
       mlsGroupProjections: 'groupId, updatedAt',
       chatThreads: 'threadId, lastActivityAt',
       chatEventLog: 'eventId, kind, threadIdHash, createdAt'
+    });
+    // Phase 5.11 — User Data Root projection cache. Additive over v11:
+    // existing rows roll forward untouched. `userDataRoot` is keyed by
+    // identityId; the projected id-sets live in the row (no separate
+    // index needed — one row per identity). The authoritative source is
+    // the encrypted `udr.*` event log in `signedEvents`.
+    this.version(12).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt',
+      trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence',
+      capabilityProofRecords: 'proofId, scheme, verificationState, expiresAt',
+      mlsGroupProjections: 'groupId, updatedAt',
+      chatThreads: 'threadId, lastActivityAt',
+      chatEventLog: 'eventId, kind, threadIdHash, createdAt',
+      userDataRoot: 'identityId, updatedAt'
     });
   }
 }
@@ -915,6 +997,140 @@ export class DexieLocalFirstStore {
         state: result.state
       } satisfies AppendMlsGroupControlEventResult;
     });
+  }
+
+  // -------------------------------------------------------------------
+  // User Data Root persistence (Phase 5.11 Step 4)
+  //
+  // Delivery-path note: `udr.*` events are `self`-scoped. By Phase 1.64
+  // doctrine (`self`/`device-local` never traverse a bridge/relay/
+  // super-peer), UDR events are NOT bridge-admissible — so there is
+  // deliberately no `processInboundSyncBatch` routing for them yet.
+  // Their cross-device transport is the encrypted mailbox / account-
+  // local sync envelope (a separate deferred phase). Until then the
+  // live path is: local device emits a `udr.*` event → `appendUdrEvent`
+  // → projection. Do NOT "fix" this by adding `self` to the bridge
+  // allow-list; that would silently widen infrastructure scope and
+  // violate the admission doctrine.
+  // -------------------------------------------------------------------
+
+  async getUserDataRoot(identityId: string): Promise<StoredUserDataRoot | undefined> {
+    requireNonEmpty(identityId, 'identityId');
+    return this.#db.userDataRoot.get(identityId);
+  }
+
+  /**
+   * Decrypt-and-apply one `self`-scoped `udr.*` event into the identity's
+   * UDR projection. Idempotent on `eventId` (via the projection's
+   * `appliedEventIds`). Self-healing: an event whose payload cannot be
+   * decrypted yet (e.g. the content key is not present) is stored
+   * durably but left unprojected, so a later `appendUdrEvent` /
+   * `loadUdrState` with the key folds it in. A decrypted-but-invalid
+   * payload is rejected and NOT stored (permanent garbage).
+   *
+   * The decrypt-to-self gate is the projection-authorization boundary:
+   * only events the local key can decrypt advance the projection, so a
+   * forged event for another identity cannot corrupt state. (Authoritative
+   * envelope-layer signature verification remains a repo-wide deferred
+   * guard.)
+   */
+  async appendUdrEvent(
+    event: SignedEventEnvelope,
+    options: AppendUdrEventOptions
+  ): Promise<AppendUdrEventResult> {
+    validateSignedEvent(event);
+    if (!isUdrEventKind(event.kind)) {
+      throw new Error(`appendUdrEvent: ${event.kind} is not a udr.* event kind`);
+    }
+    requireNonEmpty(options.keyMaterial, 'keyMaterial');
+    const identityId = event.author;
+    requireNonEmpty(identityId, 'event.author');
+    if (options.expectedIdentityId !== undefined && options.expectedIdentityId !== identityId) {
+      throw new Error('appendUdrEvent: event.author does not match expectedIdentityId');
+    }
+
+    // Decrypt BEFORE opening a Dexie transaction: awaiting WebCrypto
+    // inside a transaction commits it prematurely. `applyUdrEvent`
+    // itself is synchronous and runs inside the transaction below.
+    const decrypted = await decryptUdrPayload(event, options.keyMaterial);
+
+    return this.transaction('rw', ['signedEvents', 'userDataRoot'], async () => {
+      const storedRow = await this.#db.userDataRoot.get(identityId);
+      const currentState = storedRow
+        ? deserializeUdrState(storedRow)
+        : createEmptyUdrState(identityId);
+      // Idempotency re-checked inside the transaction against the
+      // current row, so concurrent appends of the same event converge.
+      if (currentState.appliedEventIds.has(event.eventId)) {
+        return { status: 'skipped', state: currentState } satisfies AppendUdrEventResult;
+      }
+      if (decrypted === undefined) {
+        // Undecryptable (e.g. key not present yet): store durably for
+        // self-healing, leave the projection row untouched.
+        await this.#db.signedEvents.put(storedSignedEvent(event));
+        return { status: 'undecryptable', state: currentState } satisfies AppendUdrEventResult;
+      }
+      let nextState: UdrState;
+      try {
+        nextState = applyUdrEvent(currentState, decrypted, udrApplyMeta(event));
+      } catch {
+        // Decrypted but structurally invalid — do not persist, do not
+        // project (permanent garbage must not pollute the durable log).
+        return { status: 'rejected', state: currentState } satisfies AppendUdrEventResult;
+      }
+      await this.#db.signedEvents.put(storedSignedEvent(event));
+      await this.#db.userDataRoot.put(serializeUdrState(nextState));
+      return { status: 'applied', state: nextState } satisfies AppendUdrEventResult;
+    });
+  }
+
+  /**
+   * Every locally-stored `udr.*` event for `identityId`, filtered to
+   * events actually authored by that identity, in stable replay order
+   * (`createdAt`, then `eventId`).
+   */
+  async listLocalUdrEvents(identityId: string): Promise<SignedEventEnvelope[]> {
+    requireNonEmpty(identityId, 'identityId');
+    const rows = await this.#db.signedEvents.where('author').equals(identityId).toArray();
+    const events = rows.filter((row) => isUdrEventKind(row.kind)).map((row) => row.event);
+    events.sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+      if (a.eventId === b.eventId) return 0;
+      return a.eventId < b.eventId ? -1 : 1;
+    });
+    return events;
+  }
+
+  /**
+   * Rebuild the UDR projection for `identityId` from its encrypted event
+   * log (the authoritative source) and persist the refreshed row. This
+   * is the recovery / self-healing path: events that were previously
+   * undecryptable are folded in once `keyMaterial` can decrypt them.
+   * Undecryptable / invalid events are skipped rather than aborting the
+   * rebuild.
+   */
+  async loadUdrState(identityId: string, keyMaterial: string): Promise<UdrState> {
+    requireNonEmpty(identityId, 'identityId');
+    requireNonEmpty(keyMaterial, 'keyMaterial');
+    const events = await this.listLocalUdrEvents(identityId);
+    // Decrypt + fold the whole log in memory (all async crypto happens
+    // OUTSIDE any Dexie transaction), then persist the rebuilt row in a
+    // single short write transaction. Undecryptable / invalid events are
+    // skipped so one bad record cannot abort the rebuild.
+    let state = createEmptyUdrState(identityId);
+    for (const event of events) {
+      const decrypted = await decryptUdrPayload(event, keyMaterial);
+      if (decrypted === undefined) continue;
+      try {
+        state = applyUdrEvent(state, decrypted, udrApplyMeta(event));
+      } catch {
+        // Structurally invalid decrypted payload — skip.
+      }
+    }
+    await this.transaction('rw', ['userDataRoot'], async () => {
+      await this.#db.userDataRoot.put(serializeUdrState(state));
+    });
+    return state;
   }
 
   // -------------------------------------------------------------------
@@ -1432,12 +1648,66 @@ export class DexieLocalFirstStore {
         return this.#db.chatThreads;
       case 'chatEventLog':
         return this.#db.chatEventLog;
+      case 'userDataRoot':
+        return this.#db.userDataRoot;
     }
   }
 }
 
 export function createLocalFirstStore(databaseName?: string): DexieLocalFirstStore {
   return new DexieLocalFirstStore(databaseName);
+}
+
+/**
+ * Build the AAD context that binds the private-payload ciphertext to
+ * this exact event envelope. Must match the fields the encrypt side
+ * used, or decryption fails closed. `udr.*` events are `self`-scoped.
+ */
+function buildUdrAadContext(event: SignedEventEnvelope): PrivatePayloadAadContext {
+  return {
+    eventId: event.eventId,
+    kind: event.kind,
+    author: event.author,
+    deviceId: event.deviceId,
+    createdAt: event.createdAt,
+    privacy: event.privacy as PrivatePayloadAadContext['privacy'],
+    schemaVersion: event.schemaVersion,
+    ...(event.lamport !== undefined ? { lamport: event.lamport } : {}),
+    ...(event.refs !== undefined ? { refs: event.refs } : {})
+  };
+}
+
+/**
+ * Decrypt a `self`-scoped `udr.*` envelope to plaintext. This is the
+ * only async (WebCrypto) step and MUST run OUTSIDE any Dexie
+ * transaction — awaiting a non-Dexie promise inside a transaction
+ * auto-commits it prematurely. The subsequent read-modify-write folds
+ * the plaintext in with the synchronous, pure `applyUdrEvent` INSIDE a
+ * transaction. Returns `undefined` on decrypt failure (privacy-safe: no
+ * error detail surfaced); the caller treats that as `undecryptable`.
+ */
+async function decryptUdrPayload(
+  event: SignedEventEnvelope,
+  keyMaterial: string
+): Promise<JsonValue | undefined> {
+  try {
+    return await decryptPrivatePayload({
+      envelope: event.payload as unknown as Parameters<typeof decryptPrivatePayload>[0]['envelope'],
+      context: buildUdrAadContext(event),
+      keyMaterial
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+/** Build the projection meta for a udr event (pure). */
+function udrApplyMeta(event: SignedEventEnvelope): ApplyUdrEventMeta {
+  return {
+    kind: event.kind as ApplyUdrEventMeta['kind'],
+    eventId: event.eventId,
+    createdAt: event.createdAt
+  };
 }
 
 function storedSignedEvent(event: SignedEventEnvelope): StoredSignedEvent {

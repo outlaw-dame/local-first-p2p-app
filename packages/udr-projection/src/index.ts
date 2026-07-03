@@ -95,13 +95,105 @@ export function createEmptyUdrState(identityId: string): UdrState {
   }
   return Object.freeze({
     identityId,
-    partitionIds: Object.freeze(new Set<string>()),
-    feedSubscriptionIds: Object.freeze(new Set<string>()),
-    syncInterestIds: Object.freeze(new Set<string>()),
-    spaceIds: Object.freeze(new Set<string>()),
+    partitionIds: readonlySet([]),
+    feedSubscriptionIds: readonlySet([]),
+    syncInterestIds: readonlySet([]),
+    spaceIds: readonlySet([]),
     mailboxId: undefined,
     updatedAt: '',
-    appliedEventIds: Object.freeze(new Set<string>())
+    appliedEventIds: readonlySet([])
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Serialization boundary
+// ---------------------------------------------------------------------------
+
+/**
+ * Plain, storage-friendly snapshot of `UdrState`. Persistence layers
+ * (e.g. `@lfp2p/local-store`) store this shape; set construction stays
+ * inside this package so the read-only-set invariant is never bypassed.
+ * Arrays are sorted so the serialized form is canonical (stable diffs
+ * and equality in tests / storage).
+ */
+export type UdrStateSnapshot = Readonly<{
+  identityId: string;
+  partitionIds: readonly string[];
+  feedSubscriptionIds: readonly string[];
+  syncInterestIds: readonly string[];
+  spaceIds: readonly string[];
+  mailboxId?: string;
+  updatedAt: string;
+  appliedEventIds: readonly string[];
+}>;
+
+function sortedFrozen(set: ReadonlySet<string>): readonly string[] {
+  return Object.freeze([...set].sort());
+}
+
+export function serializeUdrState(state: UdrState): UdrStateSnapshot {
+  const snapshot: { -readonly [K in keyof UdrStateSnapshot]: UdrStateSnapshot[K] } = {
+    identityId: state.identityId,
+    partitionIds: sortedFrozen(state.partitionIds),
+    feedSubscriptionIds: sortedFrozen(state.feedSubscriptionIds),
+    syncInterestIds: sortedFrozen(state.syncInterestIds),
+    spaceIds: sortedFrozen(state.spaceIds),
+    updatedAt: state.updatedAt,
+    appliedEventIds: sortedFrozen(state.appliedEventIds)
+  };
+  if (state.mailboxId !== undefined) snapshot.mailboxId = state.mailboxId;
+  return Object.freeze(snapshot);
+}
+
+/**
+ * Rebuild `UdrState` from a stored snapshot, validating defensively —
+ * a corrupt or tampered persisted row must not crash the caller or
+ * inject malformed state. Unknown array members that are not non-empty
+ * strings are rejected (fail closed) rather than silently dropped, so
+ * tampering is surfaced.
+ */
+export function deserializeUdrState(snapshot: UdrStateSnapshot): UdrState {
+  if (typeof snapshot !== 'object' || snapshot === null) {
+    throw new UdrProjectionError('UDR_INVALID_PAYLOAD', 'snapshot must be an object');
+  }
+  if (typeof snapshot.identityId !== 'string' || snapshot.identityId.length === 0) {
+    throw new UdrProjectionError('UDR_INVALID_PAYLOAD', 'snapshot.identityId must be non-empty');
+  }
+  const readIds = (value: unknown, field: string): ReadonlySet<string> => {
+    if (!Array.isArray(value)) {
+      throw new UdrProjectionError('UDR_INVALID_PAYLOAD', `snapshot.${field} must be an array`);
+    }
+    for (const v of value) {
+      if (typeof v !== 'string' || v.length === 0 || v.length > MAX_ID_LENGTH) {
+        throw new UdrProjectionError(
+          'UDR_INVALID_PAYLOAD',
+          `snapshot.${field} entries must be non-empty strings within bounds`
+        );
+      }
+    }
+    return readonlySet(value as string[]);
+  };
+  if (snapshot.mailboxId !== undefined) {
+    if (
+      typeof snapshot.mailboxId !== 'string' ||
+      snapshot.mailboxId.length === 0 ||
+      snapshot.mailboxId.length > MAX_ID_LENGTH
+    ) {
+      throw new UdrProjectionError('UDR_INVALID_PAYLOAD', 'snapshot.mailboxId must be a valid id');
+    }
+  }
+  if (typeof snapshot.updatedAt !== 'string') {
+    throw new UdrProjectionError('UDR_INVALID_PAYLOAD', 'snapshot.updatedAt must be a string');
+  }
+  return Object.freeze({
+    identityId: snapshot.identityId,
+    partitionIds: readIds(snapshot.partitionIds, 'partitionIds'),
+    feedSubscriptionIds: readIds(snapshot.feedSubscriptionIds, 'feedSubscriptionIds'),
+    syncInterestIds: readIds(snapshot.syncInterestIds, 'syncInterestIds'),
+    spaceIds: readIds(snapshot.spaceIds, 'spaceIds'),
+    mailboxId: snapshot.mailboxId,
+    updatedAt: snapshot.updatedAt,
+    appliedEventIds: readIds(snapshot.appliedEventIds, 'appliedEventIds')
   });
 }
 
@@ -130,19 +222,44 @@ function requireId(payload: Readonly<Record<string, JsonValue>>, field: string):
 }
 
 // ---------------------------------------------------------------------------
-// Immutable set helpers
+// Truly-immutable set helpers
 // ---------------------------------------------------------------------------
+
+function blockMutation(): never {
+  throw new TypeError('UdrState sets are read-only');
+}
+
+/**
+ * Build a genuinely read-only `Set`. `Object.freeze(new Set(...))` does
+ * NOT stop `add`/`delete`/`clear` — freezing only locks own properties,
+ * not the internal `[[SetData]]`. A consumer holding a returned
+ * `UdrState` could otherwise corrupt projected membership (and, worse,
+ * `appliedEventIds`, breaking replay/idempotency). Here we replace the
+ * three mutators with a fail-closed throw and freeze the instance so
+ * they cannot be reassigned. Reads (`has`, `size`, iteration) are
+ * unaffected.
+ */
+function readonlySet(values: Iterable<string>): ReadonlySet<string> {
+  const set = new Set(values);
+  for (const method of ['add', 'delete', 'clear'] as const) {
+    Object.defineProperty(set, method, {
+      value: blockMutation,
+      writable: false,
+      enumerable: false,
+      configurable: false
+    });
+  }
+  return Object.freeze(set);
+}
 
 function withAdded(set: ReadonlySet<string>, value: string): ReadonlySet<string> {
   if (set.has(value)) return set;
-  return Object.freeze(new Set(set).add(value));
+  return readonlySet([...set, value]);
 }
 
 function withRemoved(set: ReadonlySet<string>, value: string): ReadonlySet<string> {
   if (!set.has(value)) return set;
-  const next = new Set(set);
-  next.delete(value);
-  return Object.freeze(next);
+  return readonlySet([...set].filter((v) => v !== value));
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +285,12 @@ export function applyUdrEvent(
   if (typeof meta.eventId !== 'string' || meta.eventId.length === 0) {
     throw new UdrProjectionError('UDR_INVALID_PAYLOAD', 'meta.eventId must be a non-empty string');
   }
+  if (typeof meta.createdAt !== 'string' || meta.createdAt.length === 0) {
+    throw new UdrProjectionError(
+      'UDR_INVALID_PAYLOAD',
+      'meta.createdAt must be a non-empty string'
+    );
+  }
   if (state.appliedEventIds.has(meta.eventId)) {
     return state;
   }
@@ -175,13 +298,10 @@ export function applyUdrEvent(
   const record = asObject(payload);
   const base = applyKind(state, meta.kind, record);
 
-  const appliedEventIds = Object.freeze(new Set(state.appliedEventIds).add(meta.eventId));
+  const appliedEventIds = readonlySet([...state.appliedEventIds, meta.eventId]);
   // updatedAt advances monotonically under ordered replay; guard against
   // an out-of-order older timestamp regressing it.
-  const updatedAt =
-    typeof meta.createdAt === 'string' && meta.createdAt > state.updatedAt
-      ? meta.createdAt
-      : state.updatedAt;
+  const updatedAt = meta.createdAt > state.updatedAt ? meta.createdAt : state.updatedAt;
 
   return Object.freeze({
     ...base,

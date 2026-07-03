@@ -237,12 +237,18 @@ importers:
       '@lfp2p/mls-group-projection':
         specifier: workspace:*
         version: link:../mls-group-projection
+      '@lfp2p/private-payload':
+        specifier: workspace:*
+        version: link:../private-payload
       '@lfp2p/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@lfp2p/trust-safety':
         specifier: workspace:*
         version: link:../trust-safety
+      '@lfp2p/udr-projection':
+        specifier: workspace:*
+        version: link:../udr-projection
       dexie:
         specifier: ^4.0.0
         version: 4.4.3

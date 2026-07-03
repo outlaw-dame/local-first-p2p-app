@@ -79,6 +79,14 @@ Wire projection into Dexie:
 
 One PR. Adds one Dexie integration test file, including an undecryptable payload placeholder/reject path that does not corrupt UDR state.
 
+### Step 4 status (shipped) and a correction
+
+Shipped in `@lfp2p/local-store`: `StoredUserDataRoot` (Step 1, Dexie v12), `appendUdrEvent`, `loadUdrState`, `listLocalUdrEvents`, and the internal decrypt seam. Refinements made during implementation:
+
+- **Decrypt outside the Dexie transaction.** Awaiting WebCrypto inside a Dexie transaction triggers `PrematureCommitError`. The decrypt (async) runs first; the read-modify-write with the synchronous, pure `applyUdrEvent` runs inside the transaction. Idempotency is re-checked inside the transaction against the current row, so concurrent appends converge.
+- **Self-healing via `appliedEventIds`.** An event that cannot be decrypted yet (`undecryptable`) is stored durably in `signedEvents` but left out of the projection; a later `appendUdrEvent`/`loadUdrState` with the key folds it in. A decrypted-but-invalid payload is `rejected` and NOT stored.
+- **`processInboundSyncBatch` routing is deliberately deferred, NOT implemented.** `udr.*` events are `self`-scoped, and Phase 1.64 doctrine (`admission.ts`) is explicit that `self`/`device-local` **never traverse a bridge/relay/super-peer**. So the bridge does not deliver UDR events, and adding routing that could never fire — or, worse, widening `BRIDGE_ALLOWED_PRIVACY_SCOPES` to include `self` — would be dead code and a security regression respectively. The live path is local emit (Step 5) → `appendUdrEvent`. Cross-device UDR transport is the encrypted mailbox / account-local sync envelope (a separate deferred phase); inbound routing lands with that path.
+
 ## Step 5 — PWA UDR view
 
 `apps/pwa/src/pwa-udr-state.ts`:
