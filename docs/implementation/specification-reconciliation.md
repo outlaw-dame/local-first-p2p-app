@@ -30,7 +30,7 @@ They should not silently define protocol semantics outside the specification tre
 
 | Area | Current status | Primary current docs |
 |---|---|---|
-| Identity Root / controller / Device authority | Represented in Series 2 and implemented in the identity-control core. Older identity-control docs remain implementation evidence and detailed lifecycle rationale. | `docs/specification/02-identity/identity-root.md`, `docs/specification/02-identity/device-model.md`, `docs/protocol/identity-control-log.md`, `docs/adr/001-identity-control-log-v1.md`, `docs/implementation/phase-2.1-exit-report.md` |
+| Identity Root / controller / device authority | Represented in Series 2 and implemented in the identity-control core. Older identity-control docs remain implementation evidence and detailed lifecycle rationale. | `docs/specification/02-identity/identity-root.md`, `docs/specification/02-identity/device-model.md`, `docs/protocol/identity-control-log.md`, `docs/adr/001-identity-control-log-v1.md`, `docs/implementation/phase-2.1-exit-report.md` |
 | User Data Root | Represented in Series 2; Phase 5.11 now provides the implementation plan for local-store state, `udr.*` events, UDR projection, local-store append/load wiring, and PWA view-model wiring. | `docs/specification/02-identity/user-data-root.md`, `docs/specification/02-identity/replica-model.md`, `docs/implementation/phase-5.11-user-data-root-plan.md` |
 | Chat slice | Promoted. Runtime implementation remains staged behind persistence, mailbox, sync, Space/Channel, and PWA UI gates. | `docs/implementation/phase-5-chat-spec-promotion.md` |
 | Content addressing / Object References | Promoted. Runtime storage/fetch adapters and remaining hash/runtime work are deferred implementation work. | `docs/implementation/content-addressing-spec-promotion.md`, `docs/specification/03-data/` |
@@ -51,7 +51,7 @@ The current model is:
 ```txt
 Identity Root = stable protocol identity anchor
 Controller key material = active authority over that Identity Root
-Device key material = delegated authority within scope
+device key material = delegated authority within scope
 User Data Root = durable portable state for that Identity Root
 Replica = copy or partial copy of state
 Provider / mailbox / transport account = availability or UX surface, not identity authority
