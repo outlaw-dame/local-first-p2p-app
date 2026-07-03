@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   applyUdrEvent,
   createEmptyUdrState,
+  deserializeUdrState,
   isUdrEventKind,
+  serializeUdrState,
   UDR_EVENT_KINDS,
   UdrProjectionError
 } from '../index.js';
-import type { ApplyUdrEventMeta, UdrState } from '../index.js';
+import type { ApplyUdrEventMeta, UdrState, UdrStateSnapshot } from '../index.js';
 
 let seq = 0;
 function meta(
@@ -213,6 +215,109 @@ describe('applyUdrEvent — deep freeze', () => {
     expect(Object.isFrozen(s.partitionIds)).toBe(true);
     expect(Object.isFrozen(s.appliedEventIds)).toBe(true);
   });
+
+  it('returned sets are truly immutable — add/delete/clear fail closed', () => {
+    const s = fold([
+      { payload: { spaceId: 'sp1', joinedAt: 'x' }, meta: meta('udr.space.joined') }
+    ]);
+    // Cast away readonly to prove a hostile caller cannot mutate the
+    // projected membership or the replay-idempotency set.
+    const spaces = s.spaceIds as Set<string>;
+    expect(() => spaces.add('sp2')).toThrow(/read-only/);
+    expect(() => spaces.delete('sp1')).toThrow(/read-only/);
+    expect(() => spaces.clear()).toThrow(/read-only/);
+    expect([...s.spaceIds]).toEqual(['sp1']);
+    const applied = s.appliedEventIds as Set<string>;
+    expect(() => applied.add('forged')).toThrow(/read-only/);
+  });
+});
+
+describe('serialize / deserialize round-trip', () => {
+  it('round-trips a populated state to a canonical snapshot and back', () => {
+    const s = fold([
+      {
+        payload: { partitionId: 'p2', scope: 'private', claimedAt: 'x' },
+        meta: meta('udr.partition.claimed')
+      },
+      {
+        payload: { partitionId: 'p1', scope: 'private', claimedAt: 'x' },
+        meta: meta('udr.partition.claimed')
+      },
+      { payload: { spaceId: 'sp1', joinedAt: 'x' }, meta: meta('udr.space.joined') },
+      { payload: { mailboxId: 'mb1', boundAt: 'x' }, meta: meta('udr.mailbox.bound') }
+    ]);
+    const snap = serializeUdrState(s);
+    // Arrays are sorted (canonical).
+    expect(snap.partitionIds).toEqual(['p1', 'p2']);
+    expect(snap.mailboxId).toBe('mb1');
+    const restored = deserializeUdrState(snap);
+    expect([...restored.partitionIds].sort()).toEqual(['p1', 'p2']);
+    expect(restored.mailboxId).toBe('mb1');
+    expect([...restored.spaceIds]).toEqual(['sp1']);
+    expect(restored.updatedAt).toBe(s.updatedAt);
+    // Re-serializing yields an identical snapshot (stable).
+    expect(serializeUdrState(restored)).toEqual(snap);
+  });
+
+  it('omits mailboxId when unbound', () => {
+    const snap = serializeUdrState(createEmptyUdrState('identity:alice'));
+    expect('mailboxId' in snap).toBe(false);
+  });
+
+  it('deserialized sets are truly immutable', () => {
+    const snap = serializeUdrState(
+      fold([{ payload: { spaceId: 'sp1', joinedAt: 'x' }, meta: meta('udr.space.joined') }])
+    );
+    const restored = deserializeUdrState(snap);
+    expect(() => (restored.spaceIds as Set<string>).add('evil')).toThrow(/read-only/);
+  });
+
+  it('a restored state continues to apply events correctly', () => {
+    const snap = serializeUdrState(
+      fold([
+        {
+          payload: { partitionId: 'p1', scope: 'private', claimedAt: 'x' },
+          meta: meta('udr.partition.claimed', { eventId: 'e1' })
+        }
+      ])
+    );
+    const restored = deserializeUdrState(snap);
+    const next = applyUdrEvent(
+      restored,
+      { spaceId: 'sp1', joinedAt: 'x' },
+      meta('udr.space.joined', { eventId: 'e2' })
+    );
+    expect([...next.partitionIds]).toEqual(['p1']);
+    expect([...next.spaceIds]).toEqual(['sp1']);
+    // e1 is still deduped after a round-trip (appliedEventIds preserved).
+    const dupe = applyUdrEvent(
+      next,
+      { partitionId: 'p1', scope: 'private', claimedAt: 'x' },
+      meta('udr.partition.claimed', { eventId: 'e1' })
+    );
+    expect(dupe).toBe(next);
+  });
+
+  it('rejects tampered / corrupt snapshots (fail closed)', () => {
+    const good = serializeUdrState(createEmptyUdrState('identity:alice'));
+    expectCode(() => deserializeUdrState({ ...good, identityId: '' }), 'UDR_INVALID_PAYLOAD');
+    expectCode(
+      () => deserializeUdrState({ ...good, partitionIds: 'nope' as never }),
+      'UDR_INVALID_PAYLOAD'
+    );
+    expectCode(
+      () => deserializeUdrState({ ...good, spaceIds: [42] as never }),
+      'UDR_INVALID_PAYLOAD'
+    );
+    expectCode(
+      () => deserializeUdrState({ ...good, spaceIds: [''] as never }),
+      'UDR_INVALID_PAYLOAD'
+    );
+    expectCode(
+      () => deserializeUdrState({ ...good, mailboxId: 123 as never } as UdrStateSnapshot),
+      'UDR_INVALID_PAYLOAD'
+    );
+  });
 });
 
 describe('applyUdrEvent — adversarial payloads', () => {
@@ -268,6 +373,31 @@ describe('applyUdrEvent — adversarial payloads', () => {
           start(),
           { spaceId: 'sp1' },
           { kind: 'udr.space.joined', eventId: '', createdAt: 'x' }
+        ),
+      'UDR_INVALID_PAYLOAD'
+    );
+  });
+
+  it('rejects an empty or non-string createdAt in meta', () => {
+    expectCode(
+      () =>
+        applyUdrEvent(
+          start(),
+          { spaceId: 'sp1' },
+          { kind: 'udr.space.joined', eventId: 'e1', createdAt: '' }
+        ),
+      'UDR_INVALID_PAYLOAD'
+    );
+    expectCode(
+      () =>
+        applyUdrEvent(
+          start(),
+          { spaceId: 'sp1' },
+          {
+            kind: 'udr.space.joined',
+            eventId: 'e1',
+            createdAt: 42 as never
+          }
         ),
       'UDR_INVALID_PAYLOAD'
     );

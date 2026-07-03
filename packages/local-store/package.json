@@ -14,8 +14,10 @@
     "@lfp2p/crypto": "workspace:*",
     "@lfp2p/envelope": "workspace:^",
     "@lfp2p/mls-group-projection": "workspace:*",
+    "@lfp2p/private-payload": "workspace:*",
     "@lfp2p/protocol": "workspace:*",
     "@lfp2p/trust-safety": "workspace:*",
+    "@lfp2p/udr-projection": "workspace:*",
     "dexie": "^4.0.0"
   },
   "devDependencies": {
