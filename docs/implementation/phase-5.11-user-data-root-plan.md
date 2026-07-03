@@ -93,12 +93,17 @@ Shipped in `@lfp2p/local-store`: `StoredUserDataRoot` (Step 1, Dexie v12), `appe
 - **Self-healing via `appliedEventIds`.** An event that cannot be decrypted yet (`undecryptable`) is stored durably in `signedEvents` but left out of the projection; a later `appendUdrEvent`/`loadUdrState` with the key folds it in. A decrypted-but-invalid payload is `rejected` and NOT stored.
 - **`processInboundSyncBatch` routing is deliberately deferred, NOT implemented.** `udr.*` events are `self`-scoped, and Phase 1.64 doctrine (`admission.ts`) is explicit that `self`/`device-local` **never traverse a bridge/relay/super-peer**. So the bridge does not deliver UDR events, and adding routing that could never fire — or, worse, widening `BRIDGE_ALLOWED_PRIVACY_SCOPES` to include `self` — would be dead code and a security regression respectively. The live path is local emit (Step 5) → `appendUdrEvent`. Cross-device UDR transport is the encrypted mailbox / account-local sync envelope (a separate deferred phase); inbound routing lands with that path.
 
-## Step 5 — PWA UDR view
+## Step 5 — PWA UDR view (shipped)
 
 `apps/pwa/src/pwa-udr-state.ts`:
 
-- `buildUdrViewModel(store, identityId) → UdrViewModel`.
-- Emits `udr.*` events on partition claim/release, feed add/remove, sync interest add/remove, and space join/leave.
+- `buildUdrViewModel(store, identityId) → UdrViewModel` — reads the persisted projection row into a deep-frozen, UI-friendly view model (structural ids + counts + mailbox binding; no decryption).
+- Nine emit helpers covering all `udr.*` kinds (partition claim/release, feed add/remove, sync-interest add/remove, mailbox bind, space join/leave). Each encrypts the payload to the user's content key with AAD bound to the exact envelope, signs, and appends via `store.appendUdrEvent` with `expectedIdentityId` pinned (IDOR guard). All emit helpers are `async` so argument-validation failures surface as rejected promises, not sync throws.
+
+Notes made during implementation:
+
+- **AAD binding is exercised end-to-end.** The emit AAD context and `createUnsignedEvent` use identical fixed fields (`lamport: 0`, `schemaVersion: 1`, `privacy: 'self'`, no refs), so the store's `buildUdrAadContext` reconstructs the same AAD on decrypt. The test asserting `status === 'applied'` (not `undecryptable`) proves the round-trip.
+- **UI-only, no protocol changes.** The module is logic + view model; wiring into the app shell (`root-app.tsx`) is left for a dedicated UI PR.
 
 One PR. UI-only, no protocol changes.
 

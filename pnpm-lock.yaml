@@ -92,6 +92,9 @@ importers:
       '@lfp2p/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@lfp2p/private-payload':
+        specifier: workspace:*
+        version: link:../../packages/private-payload
       '@lfp2p/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -101,6 +104,9 @@ importers:
       '@lfp2p/trust-safety':
         specifier: workspace:*
         version: link:../../packages/trust-safety
+      '@lfp2p/udr-projection':
+        specifier: workspace:*
+        version: link:../../packages/udr-projection
       '@lfp2p/ui':
         specifier: workspace:*
         version: link:../../packages/ui
