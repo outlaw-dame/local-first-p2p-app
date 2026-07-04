@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
+import { generateSigningKeypair, verifySignedEventEnvelope } from '@lfp2p/crypto';
 import type { JsonValue, SignedEventEnvelope } from '@lfp2p/protocol';
 import {
   encryptPrivatePayload,
@@ -276,6 +277,222 @@ describe('mailbox persistence (Phase 5.11 Step 4)', () => {
       (await store.appendMailboxEvent(c, { ownerIdentityId: BOB, keyMaterial: key })).status
     ).toBe('applied');
     expect((await store.getMailboxCheckpoint('mb1'))?.cursor).toBe('42');
+    await store.delete();
+  });
+});
+
+describe('mailbox expiry sweep (Phase 5.11 Step 5)', () => {
+  const NOW = '2026-07-04T12:00:00.000Z';
+  const PAST = '2026-07-01T00:00:00.000Z';
+  const FUTURE = '2026-08-01T00:00:00.000Z';
+  const keypair = generateSigningKeypair();
+
+  function sweepOptions(owner: string, key: string, overrides: Record<string, unknown> = {}) {
+    return {
+      ownerIdentityId: owner,
+      deviceId: 'device:sweeper-1',
+      signingKeypair: keypair,
+      resolveEnvelopeKey: () => ({
+        keyMaterial: key,
+        keyId: 'content:key:conv',
+        privacy: 'dm' as const
+      }),
+      now: NOW,
+      ...overrides
+    };
+  }
+
+  it('marks queued envelopes past expiresAt expired; leaves future ones alone', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    const q1 = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({ envelopeId: 'env-past', expiresAt: PAST }),
+      key
+    );
+    const q2 = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({ envelopeId: 'env-future', expiresAt: FUTURE }),
+      key
+    );
+    await store.appendMailboxEvent(q1, { ownerIdentityId: BOB, keyMaterial: key });
+    await store.appendMailboxEvent(q2, { ownerIdentityId: BOB, keyMaterial: key });
+
+    const result = await store.sweepExpiredMailboxEnvelopes(sweepOptions(BOB, key));
+    expect(result.expired).toEqual(['env-past']);
+    expect(result.skipped).toEqual([]);
+
+    const inbox = await store.getMailboxInbox(BOB);
+    const past = inbox.find((r) => r.envelopeId === 'env-past');
+    const future = inbox.find((r) => r.envelopeId === 'env-future');
+    expect(past?.status).toBe('expired');
+    expect(past?.entry.expiredAt).toBe(NOW);
+    expect(past?.entry.expiredReason).toBe('ttl');
+    expect(future?.status).toBe('queued');
+
+    // The emitted event is durably logged and genuinely signed.
+    const events = await store.listLocalMailboxEvents();
+    const expiredEvents = events.filter((e) => e.kind === 'mailbox.envelope.expired');
+    expect(expiredEvents).toHaveLength(1);
+    expect(verifySignedEventEnvelope(expiredEvents[0]!)).toBe(true);
+    await store.delete();
+  });
+
+  it('sweeps the sender outbox side for delivered envelopes', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    const q = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({ envelopeId: 'env-out', expiresAt: PAST }),
+      key
+    );
+    const d = await makeMailboxEvent(
+      'mailbox.envelope.delivered',
+      'dm',
+      { envelopeId: 'env-out', deliveredAt: 'd', providerId: 'p1' },
+      key
+    );
+    await store.appendMailboxEvent(q, { ownerIdentityId: ALICE, keyMaterial: key });
+    await store.appendMailboxEvent(d, { ownerIdentityId: ALICE, keyMaterial: key });
+
+    const result = await store.sweepExpiredMailboxEnvelopes(sweepOptions(ALICE, key));
+    expect(result.expired).toEqual(['env-out']);
+    const outbox = await store.getMailboxOutbox(ALICE);
+    expect(outbox[0]?.status).toBe('expired');
+    expect(outbox[0]?.entry.expiredReason).toBe('ttl');
+    await store.delete();
+  });
+
+  it('does not sweep fetched envelopes (content already retrieved)', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    const q = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({ envelopeId: 'env-f', expiresAt: PAST }),
+      key
+    );
+    const f = await makeMailboxEvent(
+      'mailbox.envelope.fetched',
+      'self',
+      { envelopeId: 'env-f', fetchedAt: 'f', recipientDeviceId: 'device:bob-1' },
+      key
+    );
+    await store.appendMailboxEvent(q, { ownerIdentityId: BOB, keyMaterial: key });
+    await store.appendMailboxEvent(f, { ownerIdentityId: BOB, keyMaterial: key });
+
+    const result = await store.sweepExpiredMailboxEnvelopes(sweepOptions(BOB, key));
+    expect(result.expired).toEqual([]);
+    expect((await store.getMailboxInbox(BOB))[0]?.status).toBe('fetched');
+    await store.delete();
+  });
+
+  it('treats expiresAt exactly equal to now as expired', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    const q = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({ envelopeId: 'env-edge', expiresAt: NOW }),
+      key
+    );
+    await store.appendMailboxEvent(q, { ownerIdentityId: BOB, keyMaterial: key });
+    const result = await store.sweepExpiredMailboxEnvelopes(sweepOptions(BOB, key));
+    expect(result.expired).toEqual(['env-edge']);
+    await store.delete();
+  });
+
+  it('is idempotent: a second sweep emits nothing', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    const q = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({ envelopeId: 'env-i', expiresAt: PAST }),
+      key
+    );
+    await store.appendMailboxEvent(q, { ownerIdentityId: BOB, keyMaterial: key });
+
+    expect((await store.sweepExpiredMailboxEnvelopes(sweepOptions(BOB, key))).expired).toEqual([
+      'env-i'
+    ]);
+    const logCount = (await store.listLocalMailboxEvents()).length;
+
+    const second = await store.sweepExpiredMailboxEnvelopes(sweepOptions(BOB, key));
+    expect(second.expired).toEqual([]);
+    expect(second.skipped).toEqual([]);
+    expect((await store.listLocalMailboxEvents()).length).toBe(logCount);
+    await store.delete();
+  });
+
+  it('skips envelopes whose key cannot be resolved, then sweeps them once it can', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    const q = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({ envelopeId: 'env-k', expiresAt: PAST }),
+      key
+    );
+    await store.appendMailboxEvent(q, { ownerIdentityId: BOB, keyMaterial: key });
+
+    const noKey = await store.sweepExpiredMailboxEnvelopes(
+      sweepOptions(BOB, key, { resolveEnvelopeKey: () => undefined })
+    );
+    expect(noKey.expired).toEqual([]);
+    expect(noKey.skipped).toEqual(['env-k']);
+    expect((await store.getMailboxInbox(BOB))[0]?.status).toBe('queued');
+
+    const retry = await store.sweepExpiredMailboxEnvelopes(sweepOptions(BOB, key));
+    expect(retry.expired).toEqual(['env-k']);
+    expect((await store.getMailboxInbox(BOB))[0]?.status).toBe('expired');
+    await store.delete();
+  });
+
+  it('replay from the event log reproduces the swept (expired) state', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    const q = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({ envelopeId: 'env-r', expiresAt: PAST }),
+      key
+    );
+    await store.appendMailboxEvent(q, { ownerIdentityId: BOB, keyMaterial: key });
+    await store.sweepExpiredMailboxEnvelopes(sweepOptions(BOB, key));
+
+    // Full rebuild from the durable log — the sweep's emitted event
+    // must fold back in, not just the mutated row.
+    const rows = await store.loadMailboxInboxState(BOB, () => key);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.entry.status).toBe('expired');
+    expect(rows[0]?.entry.expiredReason).toBe('ttl');
+    await store.delete();
+  });
+
+  it('expires both sides of a self-to-self envelope with one event', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    const q = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({
+        envelopeId: 'env-s',
+        senderIdentityId: ALICE,
+        recipientIdentityId: ALICE,
+        expiresAt: PAST
+      }),
+      key
+    );
+    await store.appendMailboxEvent(q, { ownerIdentityId: ALICE, keyMaterial: key });
+
+    const result = await store.sweepExpiredMailboxEnvelopes(sweepOptions(ALICE, key));
+    expect(result.expired).toEqual(['env-s']);
+    expect((await store.getMailboxInbox(ALICE))[0]?.status).toBe('expired');
+    expect((await store.getMailboxOutbox(ALICE))[0]?.status).toBe('expired');
     await store.delete();
   });
 });
