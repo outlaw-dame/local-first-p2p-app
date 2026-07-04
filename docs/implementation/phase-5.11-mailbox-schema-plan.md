@@ -13,10 +13,11 @@ Define the mailbox protocol event kinds, `MailboxDeliveryEnvelope` schema, and l
 
 ## Status
 
-Steps 1, 3, and 4 are shipped:
+Steps 1, 3, 4, and 5 are shipped:
 
 - Step 1 + 3 (foundation, mirroring UDR #148): the seven `mailbox.*` kinds with per-kind privacy + consistency classes in `@lfp2p/protocol`, and `@lfp2p/mailbox-projection` (inbox/outbox lifecycle state machine + receipts/acks/checkpoints, truly-immutable collections, deterministic replay, recipient-mismatch IDOR guard) — plus `hydrateMailboxState` (Step 4a) so persistence can apply events per-envelope without duplicating the state machine.
 - Step 4 (persistence): Dexie v13 tables (`mailboxInbox`/`mailboxOutbox`/`mailboxEventLog`/`mailboxCheckpoints`), `appendMailboxEvent` (decrypt-outside-txn + per-envelope apply inside-txn, dedup on a `projected` flag so undecryptable events self-heal, decrypt-to-party IDOR gate), `loadMailboxInboxState` (replay rebuild), and `getMailboxInbox`/`getMailboxOutbox`/`getMailboxCheckpoint`.
+- Step 5 (expiry sweep): `sweepExpiredMailboxEnvelopes` on the store — scans the cleartext `expiresAt` index for owner rows still `queued`/`delivered`, and EMITS a signed `mailbox.envelope.expired` (reason `ttl`) through `appendMailboxEvent` so the event log stays the source of truth and replay reproduces expired state. Rows are never deleted.
 
 Refinements/decisions made during Step 4:
 
@@ -24,7 +25,13 @@ Refinements/decisions made during Step 4:
 - **Derived cache + authoritative log.** `mailboxEventLog` (durable, dedup-authoritative) is the source of truth; inbox/outbox rows are a rebuildable cache. Index columns (`recipientIdentityId`/`senderIdentityId`, `status`, `expiresAt`) are cleartext for queries; consistent with the UDR precedent (derived cache cleartext, encrypted event log source), which departs from the plan's "encryptedState" suggestion — noted deliberately.
 - **`processInboundSyncBatch` routing deferred (not dead-coded).** Mailbox `dm`/`group` events DO traverse the bridge, so routing is more relevant than for UDR — but it needs per-event decrypt-key resolution at the sync layer, which does not exist yet. The live path is caller-supplied event → `appendMailboxEvent`.
 
-Steps 2 (dedicated fixture suite), 5 (expiry sweep), and 6 (PWA view) remain.
+Refinements/decisions made during Step 5:
+
+- **The sweep signature grew a key resolver.** The protocol pins `mailbox.envelope.expired` to `dm`/`group` privacy (delivery-plane, visible to both parties), so the sweep cannot encrypt to the owner's self key — the caller supplies `resolveEnvelopeKey(row)` (mirroring the `loadMailboxInboxState` resolver). Unresolvable envelopes are reported `skipped` and retried next sweep.
+- **`fetched` envelopes are not swept.** The state machine is `queued/delivered → expired`; expiry destroys availability at the actor, and fetched content is already local. One event per envelope covers both inbox and outbox sides.
+- **PWA lifecycle hookup (foreground resume / sync-batch completion) is Step 6's concern** — the sweep is a store method, callable but not yet called.
+
+Steps 2 (dedicated fixture suite) and 6 (PWA view) remain.
 
 ## Step 1 — `mailbox.*` event kinds in `packages/protocol`
 

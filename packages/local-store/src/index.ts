@@ -1,6 +1,11 @@
 import Dexie, { type Table } from 'dexie';
-import { type EncryptedKeyMaterial } from '@lfp2p/crypto';
-import { type JsonValue, type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
+import { type EncryptedKeyMaterial, type SigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
+import {
+  type JsonValue,
+  type SignedEventEnvelope,
+  createUnsignedEvent,
+  validateSignedEvent
+} from '@lfp2p/protocol';
 import {
   type LabelerEvent,
   type LabelersState,
@@ -46,7 +51,12 @@ import {
   hydrateMailboxState,
   isMailboxEventKind
 } from '@lfp2p/mailbox-projection';
-import { type PrivatePayloadAadContext, decryptPrivatePayload } from '@lfp2p/private-payload';
+import {
+  type PrivatePayloadAadContext,
+  buildPrivatePayloadAad,
+  decryptPrivatePayload,
+  encryptPrivatePayload
+} from '@lfp2p/private-payload';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
 export type DeviceIdentityStatus = 'active' | 'revoked';
@@ -452,6 +462,46 @@ export type AppendMailboxEventResult = Readonly<{
    *   the envelope (recipient-mismatch) — not stored, no projection change.
    */
   status: 'applied' | 'skipped' | 'undecryptable' | 'rejected';
+}>;
+
+/**
+ * Conversation key for one envelope's `mailbox.envelope.expired` emit.
+ * The protocol pins expired events to `dm`/`group` privacy (delivery-
+ * plane, visible to both parties), so the sweep cannot use the owner's
+ * self key — the caller resolves the right conversation key and scope.
+ */
+export type MailboxEnvelopeKeyResolution = Readonly<{
+  keyMaterial: string;
+  /** Key id recorded on the envelope (references the key, not the key). */
+  keyId: string;
+  privacy: 'dm' | 'group';
+}>;
+
+export type SweepExpiredMailboxEnvelopesOptions = Readonly<{
+  /** The local mailbox owner whose inbox/outbox rows are swept. */
+  ownerIdentityId: string;
+  /** Authorised device id doing the signing; event `deviceId`. */
+  deviceId: string;
+  /** Signing keypair for the emitted `mailbox.envelope.expired` events. */
+  signingKeypair: SigningKeypair;
+  /**
+   * Per-envelope conversation-key resolver (mirrors the
+   * `loadMailboxInboxState` resolver). Return `undefined` to skip the
+   * envelope this sweep — it is reported in `skipped` and retried on
+   * the next sweep once the key is available.
+   */
+  resolveEnvelopeKey: (
+    row: StoredMailboxInboxRow | StoredMailboxOutboxRow
+  ) => MailboxEnvelopeKeyResolution | undefined;
+  /** Sweep instant (ISO-8601); defaults to `new Date().toISOString()`. */
+  now?: string;
+}>;
+
+export type SweepExpiredMailboxEnvelopesResult = Readonly<{
+  /** envelopeIds marked expired by this sweep, in emit order. */
+  expired: readonly string[];
+  /** envelopeIds past expiry but not swept (no key resolved); retried next sweep. */
+  skipped: readonly string[];
 }>;
 
 export type SyncCheckpointRejectedCode = 'stale-sequence' | 'cursor-mismatch';
@@ -1443,6 +1493,80 @@ export class DexieLocalFirstStore {
     return [...rebuilt.inbox.entries()].map(([envelopeId, entry]) => inboxRow(envelopeId, entry));
   }
 
+  /**
+   * Phase 5.11 Step 5 — TTL expiry sweep. Marks every owner envelope
+   * whose `expiresAt` has passed (status still `queued`/`delivered`)
+   * expired by EMITTING a signed `mailbox.envelope.expired` event
+   * (reason `ttl`) through `appendMailboxEvent`, so the durable event
+   * log stays the source of truth and a replay reproduces the expired
+   * state. Rows are never deleted — expiry destroys availability at
+   * the mailbox actor, not local history. `fetched` envelopes are left
+   * alone: the content was already retrieved, and the state machine is
+   * `queued/delivered → expired`.
+   *
+   * Idempotent: a repeat sweep finds no non-expired rows past
+   * `expiresAt` and emits nothing. Concurrent sweeps on two devices
+   * emit distinct events; the projection no-ops the second. Intended
+   * callers: PWA foreground resume and sync batch completion.
+   */
+  async sweepExpiredMailboxEnvelopes(
+    options: SweepExpiredMailboxEnvelopesOptions
+  ): Promise<SweepExpiredMailboxEnvelopesResult> {
+    requireNonEmpty(options.ownerIdentityId, 'ownerIdentityId');
+    requireNonEmpty(options.deviceId, 'deviceId');
+    const owner = options.ownerIdentityId;
+    const now = options.now ?? new Date().toISOString();
+
+    // `expiresAt <= now` counts as expired (the TTL instant itself is
+    // past availability). ISO-8601 strings order lexicographically, so
+    // the cleartext index column answers this without decrypting rows.
+    const sweepable = (status: string) => status === 'queued' || status === 'delivered';
+    const inboxRows = await this.#db.mailboxInbox
+      .where('expiresAt')
+      .belowOrEqual(now)
+      .filter((row) => row.recipientIdentityId === owner && sweepable(row.status))
+      .toArray();
+    const outboxRows = await this.#db.mailboxOutbox
+      .where('expiresAt')
+      .belowOrEqual(now)
+      .filter((row) => row.senderIdentityId === owner && sweepable(row.status))
+      .toArray();
+
+    // One event per envelope even when the owner is both sender and
+    // recipient — a single expired event updates both rows.
+    const candidates = new Map<string, StoredMailboxInboxRow | StoredMailboxOutboxRow>();
+    for (const row of [...inboxRows, ...outboxRows]) {
+      if (!candidates.has(row.envelopeId)) candidates.set(row.envelopeId, row);
+    }
+
+    const expired: string[] = [];
+    const skipped: string[] = [];
+    for (const envelopeId of [...candidates.keys()].sort()) {
+      const row = candidates.get(envelopeId);
+      if (row === undefined) continue;
+      const key = options.resolveEnvelopeKey(row);
+      if (key === undefined || key.keyMaterial.length === 0 || key.keyId.length === 0) {
+        skipped.push(envelopeId);
+        continue;
+      }
+      // Encrypt + sign OUTSIDE any transaction (WebCrypto await);
+      // `appendMailboxEvent` owns its own transaction.
+      const event = await buildExpiredMailboxEvent(envelopeId, now, options, key);
+      const result = await this.appendMailboxEvent(event, {
+        ownerIdentityId: owner,
+        keyMaterial: key.keyMaterial
+      });
+      if (result.status === 'applied') {
+        expired.push(envelopeId);
+      } else {
+        // Defensive — we encrypt and decrypt with the same key, so a
+        // non-applied result should not occur; report it for retry.
+        skipped.push(envelopeId);
+      }
+    }
+    return { expired, skipped };
+  }
+
   // -------------------------------------------------------------------
   // Local identity-event append + replay (Phase 2.2)
   //
@@ -2063,6 +2187,57 @@ function buildMailboxAadContext(event: SignedEventEnvelope): PrivatePayloadAadCo
     ...(event.lamport !== undefined ? { lamport: event.lamport } : {}),
     ...(event.refs !== undefined ? { refs: event.refs } : {})
   };
+}
+
+/**
+ * Build the signed `mailbox.envelope.expired` event the sweep emits.
+ * The AAD context and `createUnsignedEvent` are built from the SAME
+ * fixed field values (`lamport: 0`, `schemaVersion: 1`, no refs) so
+ * the AAD recomputed on decrypt matches byte-for-byte, and `createdAt`
+ * equals the payload's `expiredAt` (the sweep instant).
+ */
+async function buildExpiredMailboxEvent(
+  envelopeId: string,
+  expiredAt: string,
+  options: SweepExpiredMailboxEnvelopesOptions,
+  key: MailboxEnvelopeKeyResolution
+): Promise<SignedEventEnvelope> {
+  const rand = globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  const eventId = `evt_mbx_${rand}`;
+  const lamport = 0;
+  const schemaVersion = 1;
+  const context: PrivatePayloadAadContext = {
+    eventId,
+    kind: 'mailbox.envelope.expired',
+    author: options.ownerIdentityId,
+    deviceId: options.deviceId,
+    createdAt: expiredAt,
+    privacy: key.privacy,
+    schemaVersion,
+    lamport
+  };
+  // Validate the AAD context up front (also guards field shapes).
+  buildPrivatePayloadAad(context);
+  const envelope = await encryptPrivatePayload({
+    plaintext: { envelopeId, expiredAt, reason: 'ttl' },
+    context,
+    keyMaterial: key.keyMaterial,
+    keyId: key.keyId
+  });
+  return signEventEnvelope(
+    createUnsignedEvent({
+      eventId,
+      kind: 'mailbox.envelope.expired',
+      author: options.ownerIdentityId,
+      deviceId: options.deviceId,
+      createdAt: expiredAt,
+      lamport,
+      schemaVersion,
+      privacy: key.privacy,
+      payload: envelope as unknown as JsonValue as SignedEventEnvelope['payload']
+    }),
+    options.signingKeypair
+  );
 }
 
 function mailboxApplyMeta(event: SignedEventEnvelope): ApplyMailboxEventMeta {
