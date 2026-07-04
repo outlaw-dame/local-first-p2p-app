@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   applyMailboxEvent,
   createEmptyMailboxState,
+  hydrateMailboxState,
   isMailboxEventKind,
   MAILBOX_EVENT_KINDS,
   MailboxProjectionError
 } from '../index.js';
-import type { ApplyMailboxEventMeta, MailboxDeliveryEnvelope, MailboxState } from '../index.js';
+import type {
+  ApplyMailboxEventMeta,
+  InboxEntry,
+  MailboxDeliveryEnvelope,
+  MailboxState
+} from '../index.js';
 
 const ALICE = 'identity:alice';
 const BOB = 'identity:bob';
@@ -280,6 +286,37 @@ describe('immutability (Phase 3.2)', () => {
     expect(() => (s.inbox as Map<string, unknown>).set('evil', {})).toThrow(/read-only/);
     expect(() => (s.inbox as Map<string, unknown>).delete('e1')).toThrow(/read-only/);
     expect(() => (s.appliedEventIds as Set<string>).add('x')).toThrow(/read-only/);
+  });
+});
+
+describe('hydrateMailboxState (per-envelope apply reuse)', () => {
+  it('reconstructs a state whose entries continue to project correctly', () => {
+    // Project one envelope to 'delivered' in a full state...
+    const env = envelope({ envelopeId: 'e1' });
+    const full = fold(BOB, [
+      { payload: env, meta: meta('mailbox.envelope.queued', { eventId: 'q' }) },
+      {
+        payload: { envelopeId: 'e1', deliveredAt: 'd' },
+        meta: meta('mailbox.envelope.delivered', { eventId: 'del' })
+      }
+    ]);
+    const entry = full.inbox.get('e1') as InboxEntry;
+
+    // ...then hydrate a minimal state with just that entry and apply a fetch.
+    const seeded = hydrateMailboxState({ identityId: BOB, inbox: [['e1', entry]] });
+    const fetched = applyMailboxEvent(
+      seeded,
+      { envelopeId: 'e1', fetchedAt: 'f', recipientDeviceId: 'x' },
+      meta('mailbox.envelope.fetched', { eventId: 'fe' })
+    );
+    expect(fetched.inbox.get('e1')?.status).toBe('fetched');
+    expect(fetched.inbox.get('e1')?.deliveredAt).toBe('d'); // preserved from hydration
+  });
+
+  it('produces truly-immutable collections and rejects a bad identity', () => {
+    const s = hydrateMailboxState({ identityId: BOB });
+    expect(() => (s.inbox as Map<string, unknown>).set('x', {})).toThrow(/read-only/);
+    expectCode(() => hydrateMailboxState({ identityId: '' }), 'MAILBOX_INVALID_PAYLOAD');
   });
 });
 

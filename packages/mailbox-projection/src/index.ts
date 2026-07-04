@@ -226,6 +226,46 @@ export function createEmptyMailboxState(identityId: string): MailboxState {
   });
 }
 
+export type HydrateMailboxStateInput = Readonly<{
+  identityId: string;
+  inbox?: Iterable<readonly [string, InboxEntry]>;
+  outbox?: Iterable<readonly [string, OutboxEntry]>;
+  checkpoints?: Iterable<readonly [string, MailboxCheckpoint]>;
+  updatedAt?: string;
+  appliedEventIds?: Iterable<string>;
+}>;
+
+/**
+ * Reconstruct a `MailboxState` from already-projected entries. This lets
+ * a persistence layer (`@lfp2p/local-store`) apply a single event
+ * against just the affected envelope's current entries — each envelope's
+ * lifecycle is independent, so a minimal seeded state yields identical
+ * results to the full aggregate. It is intentionally light on
+ * validation: the entries originate from this projection's own prior
+ * output, and the authoritative correctness path is a full replay of the
+ * encrypted event log through `applyMailboxEvent` (which re-validates).
+ * Only the identity and the top-level container shapes are checked.
+ */
+export function hydrateMailboxState(input: HydrateMailboxStateInput): MailboxState {
+  if (typeof input !== 'object' || input === null) {
+    throw new MailboxProjectionError('MAILBOX_INVALID_PAYLOAD', 'hydrate input must be an object');
+  }
+  if (typeof input.identityId !== 'string' || input.identityId.length === 0) {
+    throw new MailboxProjectionError(
+      'MAILBOX_INVALID_PAYLOAD',
+      'identityId must be a non-empty string'
+    );
+  }
+  return Object.freeze({
+    identityId: input.identityId,
+    inbox: readonlyMap<InboxEntry>(input.inbox ?? []),
+    outbox: readonlyMap<OutboxEntry>(input.outbox ?? []),
+    checkpoints: readonlyMap<MailboxCheckpoint>(input.checkpoints ?? []),
+    updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt : '',
+    appliedEventIds: readonlySet(input.appliedEventIds ?? [])
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Payload field validation (decrypted app payloads; never logged)
 // ---------------------------------------------------------------------------

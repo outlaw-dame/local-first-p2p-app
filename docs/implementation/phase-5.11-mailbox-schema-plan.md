@@ -13,7 +13,18 @@ Define the mailbox protocol event kinds, `MailboxDeliveryEnvelope` schema, and l
 
 ## Status
 
-Steps 1 and 3 are shipped (the pure protocol + projection foundation, mirroring the UDR #148 pattern): the seven `mailbox.*` kinds with per-kind privacy + consistency classes in `@lfp2p/protocol`, and `@lfp2p/mailbox-projection` (inbox/outbox lifecycle state machine + receipts/acks/checkpoints, truly-immutable collections, deterministic replay, recipient-mismatch IDOR guard). Steps 2 (fixture suite), 4 (Dexie tables + decrypt seam), 5 (expiry sweep), and 6 (PWA view) remain.
+Steps 1, 3, and 4 are shipped:
+
+- Step 1 + 3 (foundation, mirroring UDR #148): the seven `mailbox.*` kinds with per-kind privacy + consistency classes in `@lfp2p/protocol`, and `@lfp2p/mailbox-projection` (inbox/outbox lifecycle state machine + receipts/acks/checkpoints, truly-immutable collections, deterministic replay, recipient-mismatch IDOR guard) — plus `hydrateMailboxState` (Step 4a) so persistence can apply events per-envelope without duplicating the state machine.
+- Step 4 (persistence): Dexie v13 tables (`mailboxInbox`/`mailboxOutbox`/`mailboxEventLog`/`mailboxCheckpoints`), `appendMailboxEvent` (decrypt-outside-txn + per-envelope apply inside-txn, dedup on a `projected` flag so undecryptable events self-heal, decrypt-to-party IDOR gate), `loadMailboxInboxState` (replay rebuild), and `getMailboxInbox`/`getMailboxOutbox`/`getMailboxCheckpoint`.
+
+Refinements/decisions made during Step 4:
+
+- **Per-envelope rows, not an aggregate.** A mailbox is high-cardinality; an aggregate blob (UDR-style) would grow unbounded and cost O(n) per append. Per-envelope rows keep append O(1) and let the Step 5 sweep query by `expiresAt`.
+- **Derived cache + authoritative log.** `mailboxEventLog` (durable, dedup-authoritative) is the source of truth; inbox/outbox rows are a rebuildable cache. Index columns (`recipientIdentityId`/`senderIdentityId`, `status`, `expiresAt`) are cleartext for queries; consistent with the UDR precedent (derived cache cleartext, encrypted event log source), which departs from the plan's "encryptedState" suggestion — noted deliberately.
+- **`processInboundSyncBatch` routing deferred (not dead-coded).** Mailbox `dm`/`group` events DO traverse the bridge, so routing is more relevant than for UDR — but it needs per-event decrypt-key resolution at the sync layer, which does not exist yet. The live path is caller-supplied event → `appendMailboxEvent`.
+
+Steps 2 (dedicated fixture suite), 5 (expiry sweep), and 6 (PWA view) remain.
 
 ## Step 1 — `mailbox.*` event kinds in `packages/protocol`
 

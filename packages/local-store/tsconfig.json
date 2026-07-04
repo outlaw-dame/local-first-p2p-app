@@ -12,6 +12,7 @@
     { "path": "../protocol" },
     { "path": "../capabilities" },
     { "path": "../mls-group-projection" },
+    { "path": "../mailbox-projection" },
     { "path": "../private-payload" },
     { "path": "../udr-projection" }
   ],

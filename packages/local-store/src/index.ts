@@ -36,6 +36,16 @@ import {
   isUdrEventKind,
   serializeUdrState
 } from '@lfp2p/udr-projection';
+import {
+  type ApplyMailboxEventMeta,
+  type InboxEntry,
+  type MailboxCheckpoint,
+  type MailboxEventKind,
+  type OutboxEntry,
+  applyMailboxEvent,
+  hydrateMailboxState,
+  isMailboxEventKind
+} from '@lfp2p/mailbox-projection';
 import { type PrivatePayloadAadContext, decryptPrivatePayload } from '@lfp2p/private-payload';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
@@ -56,7 +66,11 @@ export type LocalFirstTableName =
   | 'mlsGroupProjections'
   | 'chatThreads'
   | 'chatEventLog'
-  | 'userDataRoot';
+  | 'userDataRoot'
+  | 'mailboxInbox'
+  | 'mailboxOutbox'
+  | 'mailboxEventLog'
+  | 'mailboxCheckpoints';
 
 /**
  * Stored local-control event. The full envelope is preserved as the
@@ -367,6 +381,79 @@ export type AppendMlsGroupControlEventResult = Readonly<{
   state: MlsGroupProjectionState;
 }>;
 
+/* -------------------------------------------------------------------------- */
+/*                    Phase 5.11 — mailbox persistence (Step 4)               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Per-envelope inbox row (recipient view). Index columns
+ * (`recipientIdentityId`, `status`, `expiresAt`) are stored in the clear
+ * so the store can query by owner / status and sweep expired envelopes
+ * (Step 5) without deserializing every row; the projected `entry` holds
+ * the full lifecycle detail. This is a DERIVED, rebuildable cache — the
+ * authoritative source is the encrypted `mailboxEventLog`, so a corrupt
+ * or tampered row is corrected by `loadMailboxInboxState` (full replay).
+ * Mailboxes are high-cardinality, so per-envelope rows (not a single
+ * aggregate blob) keep each append O(1) and bound row growth.
+ */
+export type StoredMailboxInboxRow = Readonly<{
+  envelopeId: string;
+  recipientIdentityId: string;
+  status: string;
+  expiresAt: string;
+  entry: InboxEntry;
+}>;
+
+export type StoredMailboxOutboxRow = Readonly<{
+  envelopeId: string;
+  senderIdentityId: string;
+  status: string;
+  expiresAt: string;
+  entry: OutboxEntry;
+}>;
+
+/** Durable, dedup-authoritative log of mailbox events (source of truth). */
+export type StoredMailboxEventLogRow = Readonly<{
+  eventId: string;
+  kind: string;
+  /** envelopeId for envelope/receipt/ack kinds; mailboxId for checkpoint. */
+  envelopeId: string;
+  createdAt: string;
+  /**
+   * Whether the event was successfully decrypted AND folded into the
+   * projection. `false` for an event stored while undecryptable — the
+   * dedup gate skips only PROJECTED events, so an undecryptable event
+   * re-processes (self-heals) once its key is available.
+   */
+  projected: boolean;
+  event: SignedEventEnvelope;
+}>;
+
+export type StoredMailboxCheckpoint = MailboxCheckpoint;
+
+export type AppendMailboxEventOptions = Readonly<{
+  /** The local mailbox owner (recipient and/or sender). Projection key. */
+  ownerIdentityId: string;
+  /**
+   * Symmetric key material for this event's private-payload envelope. The
+   * caller resolves the right key for the event's scope (dm/group/self);
+   * a wrong/absent key yields `undecryptable` (self-healing).
+   */
+  keyMaterial: string;
+}>;
+
+export type AppendMailboxEventResult = Readonly<{
+  /**
+   * - `applied`: decrypted, validated, folded into the inbox/outbox rows.
+   * - `skipped`: already in the mailbox event log (idempotent).
+   * - `undecryptable`: could not decrypt yet; the signed event is stored
+   *   durably and projects on a later append/`loadMailboxInboxState`.
+   * - `rejected`: decrypted but invalid, or the owner is not a party to
+   *   the envelope (recipient-mismatch) — not stored, no projection change.
+   */
+  status: 'applied' | 'skipped' | 'undecryptable' | 'rejected';
+}>;
+
 export type SyncCheckpointRejectedCode = 'stale-sequence' | 'cursor-mismatch';
 
 export type StoredIdentityControlDevice = Readonly<{
@@ -479,6 +566,10 @@ class LocalFirstP2PDatabase extends Dexie {
   chatThreads!: Table<StoredChatThreadProjection, string>;
   chatEventLog!: Table<StoredChatEventLogRow, string>;
   userDataRoot!: Table<StoredUserDataRoot, string>;
+  mailboxInbox!: Table<StoredMailboxInboxRow, string>;
+  mailboxOutbox!: Table<StoredMailboxOutboxRow, string>;
+  mailboxEventLog!: Table<StoredMailboxEventLogRow, string>;
+  mailboxCheckpoints!: Table<StoredMailboxCheckpoint, string>;
 
   constructor(name: string) {
     super(name);
@@ -653,6 +744,35 @@ class LocalFirstP2PDatabase extends Dexie {
       chatThreads: 'threadId, lastActivityAt',
       chatEventLog: 'eventId, kind, threadIdHash, createdAt',
       userDataRoot: 'identityId, updatedAt'
+    });
+    // Phase 5.11 — mailbox delivery projection. Additive over v12:
+    // existing rows roll forward untouched. Per-envelope inbox/outbox
+    // rows (not an aggregate blob) keep each append O(1) and let the
+    // expiry sweep query by `expiresAt`. The `mailboxEventLog` is the
+    // durable, dedup-authoritative source; inbox/outbox are a derived,
+    // rebuildable cache.
+    this.version(13).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt',
+      trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence',
+      capabilityProofRecords: 'proofId, scheme, verificationState, expiresAt',
+      mlsGroupProjections: 'groupId, updatedAt',
+      chatThreads: 'threadId, lastActivityAt',
+      chatEventLog: 'eventId, kind, threadIdHash, createdAt',
+      userDataRoot: 'identityId, updatedAt',
+      mailboxInbox: 'envelopeId, recipientIdentityId, status, expiresAt',
+      mailboxOutbox: 'envelopeId, senderIdentityId, status, expiresAt',
+      mailboxEventLog: 'eventId, kind, envelopeId, createdAt',
+      mailboxCheckpoints: 'mailboxId'
     });
   }
 }
@@ -1131,6 +1251,196 @@ export class DexieLocalFirstStore {
       await this.#db.userDataRoot.put(serializeUdrState(state));
     });
     return state;
+  }
+
+  // -------------------------------------------------------------------
+  // Mailbox delivery persistence (Phase 5.11 Step 4)
+  //
+  // Delivery-path note: mailbox `dm`/`group` events DO traverse the
+  // bridge (unlike `self`-scoped UDR), so a future
+  // `processInboundSyncBatch` route can feed inbound events here — but
+  // that route needs per-event decrypt-key resolution at the sync layer,
+  // which does not exist yet. It is therefore deliberately deferred (not
+  // dead-coded). The live path is: local emit / caller-supplied event →
+  // `appendMailboxEvent`. `mailbox.checkpoint.advanced` is also routed
+  // here for the sync cursor.
+  //
+  // Storage model: per-envelope inbox/outbox rows (mailboxes are
+  // high-cardinality, so an aggregate blob would grow unbounded and cost
+  // O(n) per append). `mailboxEventLog` is the durable, dedup-
+  // authoritative source of truth; the inbox/outbox rows are a derived
+  // cache rebuilt by `loadMailboxInboxState`.
+  // -------------------------------------------------------------------
+
+  async getMailboxInbox(identityId: string): Promise<StoredMailboxInboxRow[]> {
+    requireNonEmpty(identityId, 'identityId');
+    return this.#db.mailboxInbox.where('recipientIdentityId').equals(identityId).toArray();
+  }
+
+  async getMailboxOutbox(identityId: string): Promise<StoredMailboxOutboxRow[]> {
+    requireNonEmpty(identityId, 'identityId');
+    return this.#db.mailboxOutbox.where('senderIdentityId').equals(identityId).toArray();
+  }
+
+  async getMailboxCheckpoint(mailboxId: string): Promise<StoredMailboxCheckpoint | undefined> {
+    requireNonEmpty(mailboxId, 'mailboxId');
+    return this.#db.mailboxCheckpoints.get(mailboxId);
+  }
+
+  /**
+   * Decrypt-and-apply one mailbox event into the per-envelope projection
+   * for `options.ownerIdentityId`. Idempotent on `eventId` via the
+   * mailbox event log. Self-healing: an event whose payload cannot be
+   * decrypted yet is stored durably but unprojected, and folds in on a
+   * later `appendMailboxEvent` / `loadMailboxInboxState` with the key. A
+   * decrypted-but-invalid payload, or one whose owner is not a party to
+   * the envelope (recipient-mismatch), is rejected and NOT stored.
+   *
+   * The decrypt-to-party gate is the projection-authorization boundary
+   * (mirrors the UDR decrypt-to-self gate): only events the owner can
+   * decrypt AND is a party to advance the projection.
+   */
+  async appendMailboxEvent(
+    event: SignedEventEnvelope,
+    options: AppendMailboxEventOptions
+  ): Promise<AppendMailboxEventResult> {
+    validateSignedEvent(event);
+    if (!isMailboxEventKind(event.kind)) {
+      throw new Error(`appendMailboxEvent: ${event.kind} is not a mailbox.* event kind`);
+    }
+    requireNonEmpty(options.ownerIdentityId, 'ownerIdentityId');
+    requireNonEmpty(options.keyMaterial, 'keyMaterial');
+
+    // Decrypt BEFORE the Dexie transaction (awaiting WebCrypto inside a
+    // transaction commits it prematurely). The projection apply is
+    // synchronous and runs inside the transaction below.
+    const decrypted = await decryptMailboxPayload(event, options.keyMaterial);
+    const owner = options.ownerIdentityId;
+
+    return this.transaction(
+      'rw',
+      ['mailboxEventLog', 'mailboxInbox', 'mailboxOutbox', 'mailboxCheckpoints'],
+      async () => {
+        // Idempotency: skip only if the event was already PROJECTED. An
+        // event stored while undecryptable (projected=false) re-processes
+        // so it can self-heal once its key is available.
+        const logged = await this.#db.mailboxEventLog.get(event.eventId);
+        if (logged?.projected === true) {
+          return { status: 'skipped' } satisfies AppendMailboxEventResult;
+        }
+        if (decrypted === undefined) {
+          // Undecryptable: store durably for self-healing; no projection.
+          await this.#db.mailboxEventLog.put(mailboxEventLogRow(event, undefined, false));
+          return { status: 'undecryptable' } satisfies AppendMailboxEventResult;
+        }
+
+        const targetId = mailboxTargetId(event.kind, decrypted);
+        if (targetId === undefined) {
+          // Payload lacks the id field the kind requires — invalid.
+          return { status: 'rejected' } satisfies AppendMailboxEventResult;
+        }
+
+        // Seed a minimal state with just this envelope's current entries
+        // (each envelope's lifecycle is independent), apply, extract.
+        const existingInbox = await this.#db.mailboxInbox.get(targetId);
+        const existingOutbox = await this.#db.mailboxOutbox.get(targetId);
+        const existingCheckpoint =
+          event.kind === 'mailbox.checkpoint.advanced'
+            ? await this.#db.mailboxCheckpoints.get(targetId)
+            : undefined;
+
+        const seeded = hydrateMailboxState({
+          identityId: owner,
+          inbox: existingInbox ? [[targetId, existingInbox.entry]] : [],
+          outbox: existingOutbox ? [[targetId, existingOutbox.entry]] : [],
+          checkpoints: existingCheckpoint ? [[targetId, existingCheckpoint]] : []
+        });
+
+        let next;
+        try {
+          next = applyMailboxEvent(seeded, decrypted, mailboxApplyMeta(event));
+        } catch {
+          // Invalid payload OR recipient-mismatch (owner not a party):
+          // do not persist, do not project. Privacy-safe: no detail.
+          return { status: 'rejected' } satisfies AppendMailboxEventResult;
+        }
+
+        // Upsert the affected rows from the projection result.
+        const inboxEntry = next.inbox.get(targetId);
+        if (inboxEntry !== undefined) {
+          await this.#db.mailboxInbox.put(inboxRow(targetId, inboxEntry));
+        }
+        const outboxEntry = next.outbox.get(targetId);
+        if (outboxEntry !== undefined) {
+          await this.#db.mailboxOutbox.put(outboxRow(targetId, outboxEntry));
+        }
+        const checkpoint = next.checkpoints.get(targetId);
+        if (checkpoint !== undefined) {
+          await this.#db.mailboxCheckpoints.put(checkpoint);
+        }
+        await this.#db.mailboxEventLog.put(mailboxEventLogRow(event, targetId, true));
+        return { status: 'applied' } satisfies AppendMailboxEventResult;
+      }
+    );
+  }
+
+  /** Every locally-stored mailbox event, in stable replay order. */
+  async listLocalMailboxEvents(): Promise<SignedEventEnvelope[]> {
+    const rows = await this.#db.mailboxEventLog.toArray();
+    rows.sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+      if (a.eventId === b.eventId) return 0;
+      return a.eventId < b.eventId ? -1 : 1;
+    });
+    return rows.map((r) => r.event);
+  }
+
+  /**
+   * Rebuild `identityId`'s mailbox projection from the durable event log
+   * (authoritative source) and reconcile the derived inbox/outbox/
+   * checkpoint rows. Recovery / self-healing path: previously
+   * undecryptable events fold in once `resolveKeyMaterial` can decrypt
+   * them. `resolveKeyMaterial(event)` returns the per-event key (or
+   * `undefined` to skip). Events for a different identity
+   * (recipient-mismatch) or with invalid payloads are skipped.
+   */
+  async loadMailboxInboxState(
+    identityId: string,
+    resolveKeyMaterial: (event: SignedEventEnvelope) => string | undefined
+  ): Promise<StoredMailboxInboxRow[]> {
+    requireNonEmpty(identityId, 'identityId');
+    const events = await this.listLocalMailboxEvents();
+    // Decrypt + fold the whole log in memory (all async crypto OUTSIDE a
+    // transaction), then reconcile rows in a single write transaction.
+    let state = hydrateMailboxState({ identityId });
+    for (const event of events) {
+      const keyMaterial = resolveKeyMaterial(event);
+      if (keyMaterial === undefined || keyMaterial.length === 0) continue;
+      const decrypted = await decryptMailboxPayload(event, keyMaterial);
+      if (decrypted === undefined) continue;
+      try {
+        state = applyMailboxEvent(state, decrypted, mailboxApplyMeta(event));
+      } catch {
+        // recipient-mismatch (other identity) or invalid payload — skip.
+      }
+    }
+    const rebuilt = state;
+    await this.transaction(
+      'rw',
+      ['mailboxInbox', 'mailboxOutbox', 'mailboxCheckpoints'],
+      async () => {
+        for (const [envelopeId, entry] of rebuilt.inbox) {
+          await this.#db.mailboxInbox.put(inboxRow(envelopeId, entry));
+        }
+        for (const [envelopeId, entry] of rebuilt.outbox) {
+          await this.#db.mailboxOutbox.put(outboxRow(envelopeId, entry));
+        }
+        for (const [, checkpoint] of rebuilt.checkpoints) {
+          await this.#db.mailboxCheckpoints.put(checkpoint);
+        }
+      }
+    );
+    return [...rebuilt.inbox.entries()].map(([envelopeId, entry]) => inboxRow(envelopeId, entry));
   }
 
   // -------------------------------------------------------------------
@@ -1650,6 +1960,14 @@ export class DexieLocalFirstStore {
         return this.#db.chatEventLog;
       case 'userDataRoot':
         return this.#db.userDataRoot;
+      case 'mailboxInbox':
+        return this.#db.mailboxInbox;
+      case 'mailboxOutbox':
+        return this.#db.mailboxOutbox;
+      case 'mailboxEventLog':
+        return this.#db.mailboxEventLog;
+      case 'mailboxCheckpoints':
+        return this.#db.mailboxCheckpoints;
     }
   }
 }
@@ -1707,6 +2025,103 @@ function udrApplyMeta(event: SignedEventEnvelope): ApplyUdrEventMeta {
     kind: event.kind as ApplyUdrEventMeta['kind'],
     eventId: event.eventId,
     createdAt: event.createdAt
+  };
+}
+
+// --- Phase 5.11 mailbox helpers (mirror the UDR decrypt seam) ---
+
+/**
+ * Decrypt a mailbox event's private-payload envelope to plaintext. Only
+ * async (WebCrypto) step; MUST run OUTSIDE any Dexie transaction.
+ * Returns `undefined` on decrypt failure (privacy-safe — no detail),
+ * which the caller treats as `undecryptable`.
+ */
+async function decryptMailboxPayload(
+  event: SignedEventEnvelope,
+  keyMaterial: string
+): Promise<JsonValue | undefined> {
+  try {
+    return await decryptPrivatePayload({
+      envelope: event.payload as unknown as Parameters<typeof decryptPrivatePayload>[0]['envelope'],
+      context: buildMailboxAadContext(event),
+      keyMaterial
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function buildMailboxAadContext(event: SignedEventEnvelope): PrivatePayloadAadContext {
+  return {
+    eventId: event.eventId,
+    kind: event.kind,
+    author: event.author,
+    deviceId: event.deviceId,
+    createdAt: event.createdAt,
+    privacy: event.privacy as PrivatePayloadAadContext['privacy'],
+    schemaVersion: event.schemaVersion,
+    ...(event.lamport !== undefined ? { lamport: event.lamport } : {}),
+    ...(event.refs !== undefined ? { refs: event.refs } : {})
+  };
+}
+
+function mailboxApplyMeta(event: SignedEventEnvelope): ApplyMailboxEventMeta {
+  return {
+    kind: event.kind as MailboxEventKind,
+    eventId: event.eventId,
+    createdAt: event.createdAt
+  };
+}
+
+/**
+ * The projection key a decrypted mailbox payload targets: `envelopeId`
+ * for envelope/receipt/ack kinds, `mailboxId` for checkpoint. Returns
+ * `undefined` when the required id field is missing/invalid, so the
+ * caller can reject the event without throwing.
+ */
+function mailboxTargetId(kind: string, payload: JsonValue): string | undefined {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined;
+  const record = payload as Record<string, JsonValue>;
+  const field = kind === 'mailbox.checkpoint.advanced' ? 'mailboxId' : 'envelopeId';
+  const value = record[field];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function inboxRow(envelopeId: string, entry: InboxEntry): StoredMailboxInboxRow {
+  return {
+    envelopeId,
+    recipientIdentityId: entry.envelope.recipientIdentityId,
+    status: entry.status,
+    expiresAt: entry.envelope.expiresAt,
+    entry
+  };
+}
+
+function outboxRow(envelopeId: string, entry: OutboxEntry): StoredMailboxOutboxRow {
+  return {
+    envelopeId,
+    senderIdentityId: entry.envelope.senderIdentityId,
+    status: entry.status,
+    expiresAt: entry.envelope.expiresAt,
+    entry
+  };
+}
+
+function mailboxEventLogRow(
+  event: SignedEventEnvelope,
+  targetId: string | undefined,
+  projected: boolean
+): StoredMailboxEventLogRow {
+  return {
+    eventId: event.eventId,
+    kind: event.kind,
+    // For an undecryptable event we cannot read the envelopeId; use a
+    // placeholder so the row is still keyed/queryable. Replay recovers
+    // the true target once the key is available.
+    envelopeId: targetId ?? '',
+    createdAt: event.createdAt,
+    projected,
+    event
   };
 }
 
