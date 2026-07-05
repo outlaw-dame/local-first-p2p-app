@@ -86,6 +86,9 @@ importers:
       '@lfp2p/local-store':
         specifier: workspace:*
         version: link:../../packages/local-store
+      '@lfp2p/mailbox-projection':
+        specifier: workspace:*
+        version: link:../../packages/mailbox-projection
       '@lfp2p/mls-group-projection':
         specifier: workspace:*
         version: link:../../packages/mls-group-projection

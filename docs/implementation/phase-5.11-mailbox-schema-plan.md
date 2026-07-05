@@ -13,11 +13,13 @@ Define the mailbox protocol event kinds, `MailboxDeliveryEnvelope` schema, and l
 
 ## Status
 
-Steps 1, 3, 4, and 5 are shipped:
+All steps (1–6) are shipped:
 
 - Step 1 + 3 (foundation, mirroring UDR #148): the seven `mailbox.*` kinds with per-kind privacy + consistency classes in `@lfp2p/protocol`, and `@lfp2p/mailbox-projection` (inbox/outbox lifecycle state machine + receipts/acks/checkpoints, truly-immutable collections, deterministic replay, recipient-mismatch IDOR guard) — plus `hydrateMailboxState` (Step 4a) so persistence can apply events per-envelope without duplicating the state machine.
 - Step 4 (persistence): Dexie v13 tables (`mailboxInbox`/`mailboxOutbox`/`mailboxEventLog`/`mailboxCheckpoints`), `appendMailboxEvent` (decrypt-outside-txn + per-envelope apply inside-txn, dedup on a `projected` flag so undecryptable events self-heal, decrypt-to-party IDOR gate), `loadMailboxInboxState` (replay rebuild), and `getMailboxInbox`/`getMailboxOutbox`/`getMailboxCheckpoint`.
 - Step 5 (expiry sweep): `sweepExpiredMailboxEnvelopes` on the store — scans the cleartext `expiresAt` index for owner rows still `queued`/`delivered`, and EMITS a signed `mailbox.envelope.expired` (reason `ttl`) through `appendMailboxEvent` so the event log stays the source of truth and replay reproduces expired state. Rows are never deleted.
+- Step 2 (payload fixtures): a data-driven conformance suite in `@lfp2p/mailbox-projection` (`fixtures/{valid,invalid}` + `mailbox-fixtures.test.ts`) — 10 valid + 8 invalid decrypted-payload scenarios run through the real `applyMailboxEvent`, covering all seven kinds, visible/sealed/forwarded/self variants, and the `MAILBOX_RECIPIENT_MISMATCH` IDOR case. No runtime change.
+- Step 6 (PWA surface): `apps/pwa/src/pwa-mailbox-state.ts` — `buildMailboxInboxViewModel` (deep-frozen, IDOR-filtered, no device-id leak), `emitMailboxEnvelopeQueued` (sender pinned to the emitter, `dm`/`group` conversation key) and `emitMailboxReceiptIssued` (`self` key), plus `createMailboxSweepRunner` (in-flight-deduped, coalesced, error-isolated) and the `sweepAfterForegroundSync` adapter for the app shell's existing foreground-sync `onResult` seam.
 
 Refinements/decisions made during Step 4:
 
@@ -31,7 +33,13 @@ Refinements/decisions made during Step 5:
 - **`fetched` envelopes are not swept.** The state machine is `queued/delivered → expired`; expiry destroys availability at the actor, and fetched content is already local. One event per envelope covers both inbox and outbox sides.
 - **PWA lifecycle hookup (foreground resume / sync-batch completion) is Step 6's concern** — the sweep is a store method, callable but not yet called.
 
-Steps 2 (dedicated fixture suite) and 6 (PWA view) remain.
+Refinements/decisions made during Step 6:
+
+- **View model minimises exposure.** `MailboxInboxItem` surfaces a derived `addressing: 'sealed' | 'visible'` flag and deliberately omits the raw `recipientDeviceId`, so a device-pin can never leak through UI logs/analytics (plan constraint: sealed-vs-visible must not leak deviceId). `isExpired` is derived from `now` as well as terminal status, so availability shows as gone even before the local sweep emits the `expired` event.
+- **Emit helpers, not app wiring.** Like `pwa-udr-state`, Step 6 ships tested helpers; the app shell wires them. `emitMailboxEnvelopeQueued` pins `senderIdentityId` to the emitter (anti-spoof) and takes a `dm`/`group` conversation key; `emitMailboxReceiptIssued` is `self`-scoped. `createMailboxSweepRunner` wraps the Step 5 sweep with in-flight dedup (no duplicate `expired` emits), a coalescing window (absorbs the online+visible burst), and error isolation (never throws into the sync lifecycle). Full retry/backoff is intentionally omitted — the sweep is local, idempotent, and its triggers are already rate-limited upstream.
+- **App-shell sweep wiring still pending the same dependency as sync routing.** A real `dm`/`group` conversation-key resolver does not yet exist in the PWA, so the sweep runner is provided-but-unwired (a one-line `sweepAfterForegroundSync` in `root-app.tsx`'s existing `onResult` once key resolution lands). Not stubbed with a fake resolver.
+
+All six steps are shipped. The remaining cross-cutting work (`processInboundSyncBatch` mailbox routing and the app-shell wiring above) is blocked on per-event `dm`/`group` decrypt-key resolution at the sync layer, tracked outside this plan.
 
 ## Step 1 — `mailbox.*` event kinds in `packages/protocol`
 

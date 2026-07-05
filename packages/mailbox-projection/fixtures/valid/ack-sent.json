@@ -1,0 +1,47 @@
+{
+  "name": "sender outbox: delivered records providerId and ack resolves it",
+  "identityId": "identity:alice",
+  "log": [
+    {
+      "kind": "mailbox.envelope.queued",
+      "eventId": "q",
+      "createdAt": "2026-07-04T00:00:01.000Z",
+      "payload": {
+        "envelopeId": "e1",
+        "recipientIdentityId": "identity:bob",
+        "senderIdentityId": "identity:alice",
+        "contentRef": "sha-256:abc123",
+        "expiresAt": "2026-08-01T00:00:00.000Z"
+      }
+    },
+    {
+      "kind": "mailbox.envelope.delivered",
+      "eventId": "d",
+      "createdAt": "2026-07-04T00:00:02.000Z",
+      "payload": {
+        "envelopeId": "e1",
+        "deliveredAt": "2026-07-04T00:00:02.000Z",
+        "providerId": "provider-1"
+      }
+    },
+    {
+      "kind": "mailbox.ack.sent",
+      "eventId": "a",
+      "createdAt": "2026-07-04T00:00:03.000Z",
+      "payload": {
+        "envelopeId": "e1",
+        "ackId": "ack-1",
+        "ackKind": "applied",
+        "sentAt": "2026-07-04T00:00:03.000Z"
+      }
+    }
+  ],
+  "assert": {
+    "outbox": {
+      "key": "e1",
+      "status": "delivered",
+      "providerId": "provider-1",
+      "ackKind": "applied"
+    }
+  }
+}
