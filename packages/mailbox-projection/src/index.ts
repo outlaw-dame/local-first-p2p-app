@@ -300,6 +300,30 @@ function optStr(payload: Readonly<Record<string, JsonValue>>, field: string): st
   return reqStr(payload, field);
 }
 
+/**
+ * Validate an ISO-8601 timestamp field AND canonicalise it to UTC
+ * (`…Z`, millisecond precision). `expiresAt` is compared lexicographically
+ * against a canonical `now` by both the persistence-layer expiry sweep
+ * (a string-indexed range query) and the PWA view model, so a value
+ * carrying a non-UTC offset (e.g. `2026-07-04T13:00:00+02:00`) would sort
+ * incorrectly and evade expiry. Canonicalising here — at the single
+ * projection boundary every stored envelope passes through — makes the
+ * comparison sound regardless of how the payload was authored, and is
+ * deterministic (a pure function of the input), so replay equivalence
+ * holds. An unparseable value is rejected, never silently kept.
+ */
+function reqIsoTimestamp(payload: Readonly<Record<string, JsonValue>>, field: string): string {
+  const raw = reqStr(payload, field);
+  const ms = Date.parse(raw);
+  if (!Number.isFinite(ms)) {
+    throw new MailboxProjectionError(
+      'MAILBOX_INVALID_PAYLOAD',
+      `${field} must be a valid ISO-8601 timestamp`
+    );
+  }
+  return new Date(ms).toISOString();
+}
+
 function reqEnum<T extends string>(
   payload: Readonly<Record<string, JsonValue>>,
   field: string,
@@ -321,7 +345,7 @@ function validateEnvelope(payload: Readonly<Record<string, JsonValue>>): Mailbox
     recipientIdentityId: reqStr(payload, 'recipientIdentityId'),
     senderIdentityId: reqStr(payload, 'senderIdentityId'),
     contentRef: reqStr(payload, 'contentRef', MAX_REF_LENGTH),
-    expiresAt: reqStr(payload, 'expiresAt')
+    expiresAt: reqIsoTimestamp(payload, 'expiresAt')
   };
   const recipientDeviceId = optStr(payload, 'recipientDeviceId');
   if (recipientDeviceId !== undefined) envelope.recipientDeviceId = recipientDeviceId;

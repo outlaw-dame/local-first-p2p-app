@@ -1515,7 +1515,11 @@ export class DexieLocalFirstStore {
     requireNonEmpty(options.ownerIdentityId, 'ownerIdentityId');
     requireNonEmpty(options.deviceId, 'deviceId');
     const owner = options.ownerIdentityId;
-    const now = options.now ?? new Date().toISOString();
+    // Canonicalise `now` to UTC so the lexicographic index range query is
+    // sound: stored `expiresAt` values are canonicalised by the mailbox
+    // projection, and comparing them against a caller-supplied `now` that
+    // carried a non-UTC offset would otherwise mis-order the boundary.
+    const now = canonicalizeIsoTimestamp(options.now, 'now') ?? new Date().toISOString();
 
     // `expiresAt <= now` counts as expired (the TTL instant itself is
     // past availability). ISO-8601 strings order lexicographically, so
@@ -2238,6 +2242,21 @@ async function buildExpiredMailboxEvent(
     }),
     options.signingKeypair
   );
+}
+
+/**
+ * Validate and canonicalise an optional ISO-8601 timestamp to UTC.
+ * Returns `undefined` when the input is absent (caller falls back to a
+ * fresh timestamp). Throws on a present-but-unparseable value so a bad
+ * `now` cannot silently corrupt an expiry range query.
+ */
+function canonicalizeIsoTimestamp(value: string | undefined, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) {
+    throw new Error(`${field} must be a valid ISO-8601 timestamp`);
+  }
+  return new Date(ms).toISOString();
 }
 
 function mailboxApplyMeta(event: SignedEventEnvelope): ApplyMailboxEventMeta {

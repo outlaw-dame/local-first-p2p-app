@@ -495,4 +495,35 @@ describe('mailbox expiry sweep (Phase 5.11 Step 5)', () => {
     expect((await store.getMailboxOutbox(ALICE))[0]?.status).toBe('expired');
     await store.delete();
   });
+
+  it('canonicalises a non-UTC-offset `now` so the boundary is sound', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    // Stored expiresAt canonicalises to 2026-07-04T10:00:00.000Z.
+    const q = await makeMailboxEvent(
+      'mailbox.envelope.queued',
+      'dm',
+      deliveryEnvelope({ envelopeId: 'env-tz', expiresAt: '2026-07-04T10:00:00.000Z' }),
+      key
+    );
+    await store.appendMailboxEvent(q, { ownerIdentityId: BOB, keyMaterial: key });
+
+    // now = 2026-07-04T13:00:00+02:00 == 11:00:00Z, i.e. AFTER expiry.
+    // Lexicographically the raw offset string sorts before '2026-07-04T10…',
+    // so without canonicalisation this envelope would wrongly be skipped.
+    const swept = await store.sweepExpiredMailboxEnvelopes(
+      sweepOptions(BOB, key, { now: '2026-07-04T13:00:00+02:00' })
+    );
+    expect(swept.expired).toEqual(['env-tz']);
+    await store.delete();
+  });
+
+  it('rejects a malformed `now`', async () => {
+    const store = freshStore();
+    const key = generatePrivatePayloadKeyMaterial();
+    await expect(
+      store.sweepExpiredMailboxEnvelopes(sweepOptions(BOB, key, { now: 'not-a-date' }))
+    ).rejects.toThrow(/now/);
+    await store.delete();
+  });
 });

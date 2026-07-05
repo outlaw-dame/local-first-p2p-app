@@ -382,4 +382,59 @@ describe('sweepAfterForegroundSync', () => {
     sweepAfterForegroundSync(runner, { status: 'completed' });
     expect(runs).toBe(1);
   });
+
+  it('rejects an invalid runner or result', () => {
+    const runner: MailboxSweepRunner = { run: () => Promise.resolve(undefined) };
+    expect(() => sweepAfterForegroundSync(null as never, { status: 'completed' })).toThrow(
+      /runner/
+    );
+    expect(() => sweepAfterForegroundSync(runner, null as never)).toThrow(/result/);
+  });
+});
+
+describe('timestamp canonicalisation (sound expiry)', () => {
+  it('emit canonicalises a non-UTC-offset expiresAt into the stored envelope', async () => {
+    const c = ctx();
+    // 2026-08-01T02:00:00+02:00 == 2026-08-01T00:00:00Z.
+    await queueSelf(c, { expiresAt: '2026-08-01T02:00:00+02:00' });
+    const [item] = await buildMailboxInboxViewModel(c.store, BOB, NOW);
+    expect(item?.expiresAt).toBe('2026-08-01T00:00:00.000Z');
+    await c.cleanup();
+  });
+
+  it('view model canonicalises `now` before the expiry comparison', async () => {
+    const c = ctx();
+    await queueSelf(c, { expiresAt: '2026-07-04T10:00:00.000Z' });
+    // now = 13:00+02:00 == 11:00Z, after expiry; a raw-string compare would
+    // sort '2026-07-04T13…+02:00' after '2026-07-04T10…Z' and miss it.
+    const [item] = await buildMailboxInboxViewModel(c.store, BOB, '2026-07-04T13:00:00+02:00');
+    expect(item?.isExpired).toBe(true);
+    await c.cleanup();
+  });
+});
+
+describe('defensive guards at public boundaries', () => {
+  it('rejects non-object / malformed inputs before doing any work', async () => {
+    const c = ctx();
+    await expect(buildMailboxInboxViewModel(null as never, BOB)).rejects.toThrow(
+      /store must be a valid Store/
+    );
+    await expect(emitMailboxEnvelopeQueued(null as never)).rejects.toThrow(
+      /input must be an object/
+    );
+    await expect(
+      emitMailboxEnvelopeQueued({
+        store: c.store,
+        identityId: BOB,
+        deviceId: DEVICE,
+        signingKeypair: KEYPAIR,
+        conversationKey: { keyMaterial: c.convKey, keyId: c.convKeyId, privacy: 'dm' }
+      } as never)
+    ).rejects.toThrow(/input\.envelope must be an object/);
+    await expect(emitMailboxReceiptIssued(null as never)).rejects.toThrow(
+      /input must be an object/
+    );
+    expect(() => createMailboxSweepRunner(null as never)).toThrow(/ctx must be an object/);
+    await c.cleanup();
+  });
 });

@@ -445,3 +445,28 @@ describe('adversarial payloads', () => {
     expect(s.inbox.get('e1')?.status).toBe('queued');
   });
 });
+
+describe('expiresAt canonicalisation (sound lexicographic expiry)', () => {
+  it('canonicalises a non-UTC-offset expiresAt to UTC on the projected envelope', () => {
+    // 2026-08-01T02:00:00+02:00 is exactly 2026-08-01T00:00:00Z.
+    const s = fold(BOB, [
+      {
+        payload: envelope({ envelopeId: 'e1', expiresAt: '2026-08-01T02:00:00+02:00' }),
+        meta: meta('mailbox.envelope.queued')
+      }
+    ]);
+    expect(s.inbox.get('e1')?.envelope.expiresAt).toBe('2026-08-01T00:00:00.000Z');
+  });
+
+  it('rejects an unparseable expiresAt rather than storing it', () => {
+    expectCode(
+      () =>
+        applyMailboxEvent(
+          createEmptyMailboxState(BOB),
+          { ...envelope({ envelopeId: 'e1' }), expiresAt: 'not-a-timestamp' },
+          meta('mailbox.envelope.queued')
+        ),
+      'MAILBOX_INVALID_PAYLOAD'
+    );
+  });
+});

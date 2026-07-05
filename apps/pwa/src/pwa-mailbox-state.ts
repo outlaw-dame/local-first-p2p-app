@@ -145,6 +145,9 @@ export async function buildMailboxInboxViewModel(
   identityId: string,
   now: string = new Date().toISOString()
 ): Promise<readonly MailboxInboxItem[]> {
+  if (store === null || typeof store !== 'object' || typeof store.getMailboxInbox !== 'function') {
+    throw new Error('store must be a valid Store instance');
+  }
   requireId(identityId, 'identityId');
   const nowIso = requireIsoTimestamp(now, 'now');
   const rows = await store.getMailboxInbox(identityId);
@@ -209,12 +212,26 @@ function requireRef(value: unknown, field: string): string {
   return value;
 }
 
+/**
+ * Validate an ISO-8601 timestamp AND canonicalise it to UTC (`…Z`, ms
+ * precision). `expiresAt` and the view model's `now` are compared
+ * lexicographically, so a non-UTC offset (e.g. `+02:00`) must be
+ * normalised or it would sort incorrectly and evade expiry.
+ */
 function requireIsoTimestamp(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_ID_LENGTH) {
     throw new Error(`${field} must be a non-empty ISO-8601 timestamp`);
   }
-  if (!Number.isFinite(Date.parse(value))) {
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) {
     throw new Error(`${field} must be a valid ISO-8601 timestamp`);
+  }
+  return new Date(ms).toISOString();
+}
+
+function requireObject<T>(value: T, field: string): T {
+  if (value === null || typeof value !== 'object') {
+    throw new Error(`${field} must be an object`);
   }
   return value;
 }
@@ -317,6 +334,8 @@ export type QueueMailboxEnvelopeInput = MailboxEmitContext &
 export async function emitMailboxEnvelopeQueued(
   input: QueueMailboxEnvelopeInput
 ): Promise<AppendMailboxEventResult> {
+  requireObject(input, 'input');
+  const src = requireObject(input.envelope, 'input.envelope');
   const key = input.conversationKey;
   if (key === null || typeof key !== 'object') {
     throw new Error('conversationKey must be provided for a dm/group delivery envelope');
@@ -325,7 +344,6 @@ export async function emitMailboxEnvelopeQueued(
     throw new Error("conversationKey.privacy must be 'dm' or 'group'");
   }
 
-  const src = input.envelope;
   const createdAt = input.createdAt ?? new Date().toISOString();
   const payload: JsonValue = {
     envelopeId: requireId(src.envelopeId, 'envelope.envelopeId'),
@@ -372,6 +390,7 @@ export type IssueMailboxReceiptInput = MailboxEmitContext &
 export async function emitMailboxReceiptIssued(
   input: IssueMailboxReceiptInput
 ): Promise<AppendMailboxEventResult> {
+  requireObject(input, 'input');
   const receiptKind = input.receiptKind;
   if (!(RECEIPT_KINDS as readonly string[]).includes(receiptKind)) {
     throw new Error(`receiptKind must be one of ${RECEIPT_KINDS.join(', ')}`);
@@ -456,6 +475,7 @@ export type MailboxSweepRunner = Readonly<{
  * rate-limited by the foreground-sync controller.
  */
 export function createMailboxSweepRunner(ctx: MailboxSweepContext): MailboxSweepRunner {
+  requireObject(ctx, 'ctx');
   requireId(ctx.ownerIdentityId, 'ownerIdentityId');
   requireId(ctx.deviceId, 'deviceId');
   if (typeof ctx.resolveEnvelopeKey !== 'function') {
@@ -520,6 +540,10 @@ export function sweepAfterForegroundSync(
   runner: MailboxSweepRunner,
   result: ForegroundSyncOutcome
 ): void {
+  if (runner === null || typeof runner !== 'object' || typeof runner.run !== 'function') {
+    throw new Error('runner must be a valid MailboxSweepRunner');
+  }
+  requireObject(result, 'result');
   if (result.status === 'completed') {
     void runner.run();
   }
