@@ -178,6 +178,25 @@ describe('mailbox persistence (Phase 5.11 Step 4)', () => {
     await store.delete();
   });
 
+  it('with no key at all, stores the event undecryptable then self-heals on load', async () => {
+    const store = freshStore();
+    const realKey = generatePrivatePayloadKeyMaterial();
+    const q = await makeMailboxEvent('mailbox.envelope.queued', 'dm', deliveryEnvelope(), realKey);
+
+    // Inbound-sync path: the conversation key is not yet resolvable, so
+    // no keyMaterial is supplied. The event must still be durably logged.
+    const first = await store.appendMailboxEvent(q, { ownerIdentityId: BOB });
+    expect(first.status).toBe('undecryptable');
+    expect(await store.getMailboxInbox(BOB)).toHaveLength(0);
+    expect(await store.listLocalMailboxEvents()).toHaveLength(1); // durable
+
+    // The key later becomes available → full replay heals it.
+    const rebuilt = await store.loadMailboxInboxState(BOB, () => realKey);
+    expect(rebuilt).toHaveLength(1);
+    expect(rebuilt[0]?.status).toBe('queued');
+    await store.delete();
+  });
+
   it('loadMailboxInboxState rebuilds from the durable log, skipping undecryptable', async () => {
     const store = freshStore();
     const realKey = generatePrivatePayloadKeyMaterial();

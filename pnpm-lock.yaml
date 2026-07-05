@@ -355,6 +355,9 @@ importers:
       '@lfp2p/bridge-service':
         specifier: workspace:*
         version: link:../../apps/bridge-service
+      '@lfp2p/private-payload':
+        specifier: workspace:*
+        version: link:../private-payload
       '@lfp2p/trust-safety':
         specifier: workspace:*
         version: link:../trust-safety
