@@ -177,6 +177,34 @@ export type ProcessInboundSyncInput = Readonly<{
    * arrive.
    */
   registerIdentityCapabilityProofs?: boolean;
+  /**
+   * Phase 5.11 Step 6 — opt-in mailbox delivery projection dispatch.
+   * When set, every `mailbox.*` envelope that lands FRESH (i.e.,
+   * `putSignedEventWithSyncCheckpoint` returned `'stored'`, not
+   * `'skipped'`) is folded into the mailbox projection via
+   * `store.appendMailboxEvent`, keyed by `ownerIdentityId`.
+   *
+   * `resolveKeyMaterial(event)` returns the per-event conversation key
+   * (`dm`/`group` events each carry their own `PrivatePayloadEnvelopeV1`),
+   * or `undefined` when the key is not yet resolvable. In the latter
+   * case the event is still recorded in the durable mailbox event log
+   * as `undecryptable` and self-heals on a later
+   * `loadMailboxInboxState` once the key is available — nothing is lost.
+   *
+   * The decrypt-to-party gate inside `appendMailboxEvent` is the
+   * authorization boundary: an event `ownerIdentityId` is not a party to
+   * (recipient-mismatch), or that decrypts to an invalid payload, is
+   * rejected and NOT projected. Failures surface in the `mailbox`
+   * summary, NOT the outer batch result — the inbound stream MUST keep
+   * advancing the checkpoint. Default `undefined` so existing callers
+   * see no change in the result shape.
+   */
+  mailboxRouting?:
+    | Readonly<{
+        ownerIdentityId: string;
+        resolveKeyMaterial: (event: SignedEventEnvelope) => string | undefined;
+      }>
+    | undefined;
 }>;
 
 export type InboundSyncError = Readonly<{
@@ -261,6 +289,28 @@ export type InboundMlsGroupControlDispatchSummary = Readonly<{
   errors: ReadonlyArray<Readonly<{ index: number; eventId?: string; reason: string }>>;
 }>;
 
+/**
+ * Phase 5.11 Step 6 — per-batch mailbox delivery dispatch summary.
+ * Surfaced only when the caller supplies `mailboxRouting`. Privacy-safe
+ * (no raw payload bytes, no envelope ids beyond the signed event id).
+ */
+export type InboundMailboxDispatchSummary = Readonly<{
+  /** Envelopes decrypted, validated, and folded into the projection. */
+  applied: number;
+  /**
+   * Envelopes stored durably but not yet projected — no key was
+   * resolvable, or the wrong key was supplied. They self-heal on a later
+   * `loadMailboxInboxState` once the key is available.
+   */
+  undecryptable: number;
+  /**
+   * Rejected by the decrypt-to-party gate (owner is not a party to the
+   * envelope) or an invalid decrypted payload. Not projected.
+   */
+  rejected: number;
+  errors: ReadonlyArray<Readonly<{ index: number; eventId?: string; reason: string }>>;
+}>;
+
 export type ProcessInboundSyncResult = Readonly<{
   received: number;
   applied: number;
@@ -274,6 +324,8 @@ export type ProcessInboundSyncResult = Readonly<{
   capabilityProofs?: InboundCapabilityProofDispatchSummary;
   /** Present only when `mlsGroupControlOptions` was passed in. */
   mlsGroupControl?: InboundMlsGroupControlDispatchSummary;
+  /** Present only when `mailboxRouting` was passed in. */
+  mailbox?: InboundMailboxDispatchSummary;
 }>;
 
 export type PullAndProcessInboundSyncInput = SyncCheckpointKey &
@@ -408,6 +460,11 @@ export async function processInboundSyncBatch(
       ? { options: input.mlsGroupControlOptions, summary: mutableMlsGroupControlSummary() }
       : undefined;
 
+  const mailboxRouting =
+    input.mailboxRouting !== undefined
+      ? { options: input.mailboxRouting, summary: mutableMailboxSummary() }
+      : undefined;
+
   if (expectedCheckpointKey !== undefined) {
     preflightInboundRecordsMatchCheckpointKey(input.records, expectedCheckpointKey);
   }
@@ -477,6 +534,15 @@ export async function processInboundSyncBatch(
             summary: mlsGroupControlRouting.summary
           });
         }
+        if (mailboxRouting !== undefined && isMailboxEvent(record.event)) {
+          await dispatchInboundMailboxEnvelope({
+            store: input.store,
+            event: record.event,
+            index,
+            options: mailboxRouting.options,
+            summary: mailboxRouting.summary
+          });
+        }
       } else {
         result.skipped += 1;
       }
@@ -507,6 +573,8 @@ export async function processInboundSyncBatch(
     mlsGroupControlRouting === undefined
       ? undefined
       : freezeMlsGroupControlSummary(mlsGroupControlRouting.summary);
+  const mailboxField =
+    mailboxRouting === undefined ? undefined : freezeMailboxSummary(mailboxRouting.summary);
 
   return {
     ...result,
@@ -515,7 +583,8 @@ export async function processInboundSyncBatch(
       : {}),
     ...(reputationField === undefined ? {} : { reputation: reputationField }),
     ...(capabilityProofField === undefined ? {} : { capabilityProofs: capabilityProofField }),
-    ...(mlsGroupControlField === undefined ? {} : { mlsGroupControl: mlsGroupControlField })
+    ...(mlsGroupControlField === undefined ? {} : { mlsGroupControl: mlsGroupControlField }),
+    ...(mailboxField === undefined ? {} : { mailbox: mailboxField })
   };
 }
 
@@ -946,6 +1015,89 @@ async function dispatchInboundMlsGroupControlEnvelope(input: {
     } else {
       summary.applied += 1;
     }
+  } catch (error) {
+    summary.rejected += 1;
+    summary.errors.push({
+      index,
+      ...(typeof event.eventId === 'string' && event.eventId.length > 0
+        ? { eventId: event.eventId }
+        : {}),
+      reason: error instanceof Error ? error.message : 'unknown'
+    });
+  }
+}
+
+type MutableMailboxSummary = {
+  applied: number;
+  undecryptable: number;
+  rejected: number;
+  errors: Array<{ index: number; eventId?: string; reason: string }>;
+};
+
+function mutableMailboxSummary(): MutableMailboxSummary {
+  return { applied: 0, undecryptable: 0, rejected: 0, errors: [] };
+}
+
+function freezeMailboxSummary(summary: MutableMailboxSummary): InboundMailboxDispatchSummary {
+  return Object.freeze({
+    applied: summary.applied,
+    undecryptable: summary.undecryptable,
+    rejected: summary.rejected,
+    errors: Object.freeze(summary.errors.map((e) => Object.freeze({ ...e })))
+  });
+}
+
+function isMailboxEvent(event: unknown): event is SignedEventEnvelope {
+  if (!isRecord(event) || typeof event.kind !== 'string') return false;
+  return event.kind.startsWith('mailbox.');
+}
+
+/**
+ * Phase 5.11 Step 6 — fold a freshly stored inbound mailbox envelope
+ * into the mailbox projection. The per-event conversation key is
+ * resolved by the caller; `undefined` means "not yet available", in
+ * which case `appendMailboxEvent` stores the event durably as
+ * `undecryptable` for later self-heal. The decrypt-to-party gate inside
+ * the store is the authorization boundary (recipient-mismatch → not
+ * projected). Failures surface in the summary, NOT the outer batch
+ * result — the checkpoint MUST keep advancing even when a single
+ * envelope is hostile or malformed.
+ *
+ * Privacy-safe: the only surfaced error text is the store/validator
+ * exception message, never raw payload bytes (Phase 3.1 doctrine).
+ */
+async function dispatchInboundMailboxEnvelope(input: {
+  store: DexieLocalFirstStore;
+  event: SignedEventEnvelope;
+  index: number;
+  options: Readonly<{
+    ownerIdentityId: string;
+    resolveKeyMaterial: (event: SignedEventEnvelope) => string | undefined;
+  }>;
+  summary: MutableMailboxSummary;
+}): Promise<void> {
+  const { store, event, index, options, summary } = input;
+  try {
+    const keyMaterial = options.resolveKeyMaterial(event);
+    const dispatch = await store.appendMailboxEvent(event, {
+      ownerIdentityId: options.ownerIdentityId,
+      ...(keyMaterial === undefined ? {} : { keyMaterial })
+    });
+    if (dispatch.status === 'applied') {
+      summary.applied += 1;
+    } else if (dispatch.status === 'undecryptable') {
+      summary.undecryptable += 1;
+    } else if (dispatch.status === 'rejected') {
+      summary.rejected += 1;
+      summary.errors.push({
+        index,
+        ...(typeof event.eventId === 'string' && event.eventId.length > 0
+          ? { eventId: event.eventId }
+          : {}),
+        reason: 'mailbox envelope rejected (recipient-mismatch or invalid payload)'
+      });
+    }
+    // `skipped` (already projected — idempotent re-delivery) is not counted.
   } catch (error) {
     summary.rejected += 1;
     summary.errors.push({

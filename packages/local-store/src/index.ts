@@ -446,10 +446,14 @@ export type AppendMailboxEventOptions = Readonly<{
   ownerIdentityId: string;
   /**
    * Symmetric key material for this event's private-payload envelope. The
-   * caller resolves the right key for the event's scope (dm/group/self);
-   * a wrong/absent key yields `undecryptable` (self-healing).
+   * caller resolves the right key for the event's scope (dm/group/self).
+   * A wrong key yields `undecryptable`. `undefined`/empty means "no key
+   * yet" — the signed event is still stored durably (`projected: false`)
+   * so it self-heals on a later append/`loadMailboxInboxState` once the
+   * key becomes available. This is the inbound-sync path: a `dm`/`group`
+   * envelope can arrive before its conversation key is resolvable.
    */
-  keyMaterial: string;
+  keyMaterial?: string;
 }>;
 
 export type AppendMailboxEventResult = Readonly<{
@@ -1359,12 +1363,17 @@ export class DexieLocalFirstStore {
       throw new Error(`appendMailboxEvent: ${event.kind} is not a mailbox.* event kind`);
     }
     requireNonEmpty(options.ownerIdentityId, 'ownerIdentityId');
-    requireNonEmpty(options.keyMaterial, 'keyMaterial');
 
     // Decrypt BEFORE the Dexie transaction (awaiting WebCrypto inside a
     // transaction commits it prematurely). The projection apply is
-    // synchronous and runs inside the transaction below.
-    const decrypted = await decryptMailboxPayload(event, options.keyMaterial);
+    // synchronous and runs inside the transaction below. With no key yet
+    // (inbound sync before the conversation key is resolvable) we skip
+    // decryption entirely and store the event undecryptable for
+    // self-heal — indistinguishable downstream from a wrong-key attempt.
+    const hasKey = typeof options.keyMaterial === 'string' && options.keyMaterial.length > 0;
+    const decrypted = hasKey
+      ? await decryptMailboxPayload(event, options.keyMaterial as string)
+      : undefined;
     const owner = options.ownerIdentityId;
 
     return this.transaction(
