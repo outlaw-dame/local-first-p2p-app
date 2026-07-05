@@ -15,6 +15,7 @@
     "@lfp2p/design-tokens": "workspace:*",
     "@lfp2p/identity": "workspace:*",
     "@lfp2p/local-store": "workspace:*",
+    "@lfp2p/mailbox-projection": "workspace:*",
     "@lfp2p/platform": "workspace:*",
     "@lfp2p/private-payload": "workspace:*",
     "@lfp2p/protocol": "workspace:*",

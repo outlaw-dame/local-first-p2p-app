@@ -1,0 +1,28 @@
+{
+  "name": "self-to-self queued populates both inbox and outbox",
+  "identityId": "identity:alice",
+  "log": [
+    {
+      "kind": "mailbox.envelope.queued",
+      "eventId": "q",
+      "createdAt": "2026-07-04T00:00:01.000Z",
+      "payload": {
+        "envelopeId": "e1",
+        "recipientIdentityId": "identity:alice",
+        "senderIdentityId": "identity:alice",
+        "contentRef": "sha-256:abc123",
+        "expiresAt": "2026-08-01T00:00:00.000Z"
+      }
+    }
+  ],
+  "assert": {
+    "inbox": {
+      "key": "e1",
+      "status": "queued"
+    },
+    "outbox": {
+      "key": "e1",
+      "status": "queued"
+    }
+  }
+}
