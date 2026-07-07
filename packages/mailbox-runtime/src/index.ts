@@ -1,4 +1,5 @@
-export const MAILBOX_DELIVERY_ENVELOPE_SCHEMA_VERSION = 'lfp2p.mailbox.delivery-envelope.v1' as const;
+export const MAILBOX_DELIVERY_ENVELOPE_SCHEMA_VERSION =
+  'lfp2p.mailbox.delivery-envelope.v1' as const;
 export const MAILBOX_RECEIPT_SCHEMA_VERSION = 'lfp2p.mailbox.receipt.v1' as const;
 export const MAILBOX_ACK_SCHEMA_VERSION = 'lfp2p.mailbox.ack.v1' as const;
 
@@ -26,12 +27,7 @@ export class MailboxRuntimeError extends Error {
   }
 }
 
-export type MailboxRecipientKind =
-  | 'identity'
-  | 'device'
-  | 'group'
-  | 'space'
-  | 'channel';
+export type MailboxRecipientKind = 'identity' | 'device' | 'group' | 'space' | 'channel';
 
 export type MailboxRecipientScope = Readonly<{
   kind: MailboxRecipientKind;
@@ -148,16 +144,8 @@ export function createQueuedMailboxRouteState(
   envelopeId: string,
   createdAt: string
 ): MailboxRouteState {
-  requireNonEmptyString(
-    envelopeId,
-    'envelopeId',
-    MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE
-  );
-  requireNonEmptyString(
-    createdAt,
-    'createdAt',
-    MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE
-  );
+  requireNonEmptyString(envelopeId, 'envelopeId', MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE);
+  requireNonEmptyString(createdAt, 'createdAt', MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE);
   return freezeRouteState({
     envelopeId,
     status: 'queued',
@@ -166,9 +154,7 @@ export function createQueuedMailboxRouteState(
   });
 }
 
-export function validateMailboxDeliveryEnvelope(
-  input: unknown
-): MailboxDeliveryEnvelopeV1 {
+export function validateMailboxDeliveryEnvelope(input: unknown): MailboxDeliveryEnvelopeV1 {
   const value = requireRecord(
     input,
     MAILBOX_ERROR_CODES.INVALID_ENVELOPE,
@@ -181,50 +167,22 @@ export function validateMailboxDeliveryEnvelope(
     'schemaVersion',
     MAILBOX_ERROR_CODES.INVALID_ENVELOPE
   );
-  requireNonEmptyString(
-    value.envelopeId,
-    'envelopeId',
-    MAILBOX_ERROR_CODES.INVALID_ENVELOPE
-  );
-  requireNonEmptyString(
-    value.authorId,
-    'authorId',
-    MAILBOX_ERROR_CODES.INVALID_ENVELOPE
-  );
-  requireNonEmptyString(
-    value.submitterId,
-    'submitterId',
-    MAILBOX_ERROR_CODES.INVALID_ENVELOPE
-  );
+  requireNonEmptyString(value.envelopeId, 'envelopeId', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
+  requireNonEmptyString(value.authorId, 'authorId', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
+  requireNonEmptyString(value.submitterId, 'submitterId', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
   requireNonEmptyString(
     value.conversationRef,
     'conversationRef',
     MAILBOX_ERROR_CODES.INVALID_ENVELOPE
   );
-  requireNonEmptyString(
-    value.createdAt,
-    'createdAt',
-    MAILBOX_ERROR_CODES.INVALID_ENVELOPE
-  );
-  requireNonEmptyString(
-    value.dedupeKey,
-    'dedupeKey',
-    MAILBOX_ERROR_CODES.INVALID_ENVELOPE
-  );
+  requireNonEmptyString(value.createdAt, 'createdAt', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
+  requireNonEmptyString(value.dedupeKey, 'dedupeKey', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
 
   if (value.expiresAt !== undefined) {
-    requireNonEmptyString(
-      value.expiresAt,
-      'expiresAt',
-      MAILBOX_ERROR_CODES.INVALID_ENVELOPE
-    );
+    requireNonEmptyString(value.expiresAt, 'expiresAt', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
   }
   if (value.signature !== undefined) {
-    requireNonEmptyString(
-      value.signature,
-      'signature',
-      MAILBOX_ERROR_CODES.INVALID_ENVELOPE
-    );
+    requireNonEmptyString(value.signature, 'signature', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
   }
 
   const recipientScopes = validateRecipientScopes(value.recipientScopes);
@@ -234,8 +192,7 @@ export function validateMailboxDeliveryEnvelope(
     MAILBOX_ERROR_CODES.INVALID_ENVELOPE
   );
 
-  const hasPayloadRef =
-    typeof value.payloadRef === 'string' && value.payloadRef.length > 0;
+  const hasPayloadRef = typeof value.payloadRef === 'string' && value.payloadRef.length > 0;
   const hasInlinePayload = isRecord(value.protectedInlinePayload);
   if (!hasPayloadRef && !hasInlinePayload) {
     throw new MailboxRuntimeError(
@@ -244,11 +201,7 @@ export function validateMailboxDeliveryEnvelope(
     );
   }
   if (value.payloadRef !== undefined) {
-    requireNonEmptyString(
-      value.payloadRef,
-      'payloadRef',
-      MAILBOX_ERROR_CODES.INVALID_ENVELOPE
-    );
+    requireNonEmptyString(value.payloadRef, 'payloadRef', MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
   }
 
   return deepFreeze({
@@ -282,49 +235,22 @@ export function validateMailboxReceipt(input: unknown): MailboxReceiptV1 {
     'schemaVersion',
     MAILBOX_ERROR_CODES.INVALID_RECEIPT
   );
-  requireNonEmptyString(
-    value.receiptId,
-    'receiptId',
-    MAILBOX_ERROR_CODES.INVALID_RECEIPT
-  );
-  requireNonEmptyString(
-    value.envelopeId,
-    'envelopeId',
-    MAILBOX_ERROR_CODES.INVALID_RECEIPT
-  );
-  requireNonEmptyString(
-    value.actorId,
-    'actorId',
-    MAILBOX_ERROR_CODES.INVALID_RECEIPT
-  );
-  requireNonEmptyString(
-    value.observedAt,
-    'observedAt',
-    MAILBOX_ERROR_CODES.INVALID_RECEIPT
-  );
+  requireNonEmptyString(value.receiptId, 'receiptId', MAILBOX_ERROR_CODES.INVALID_RECEIPT);
+  requireNonEmptyString(value.envelopeId, 'envelopeId', MAILBOX_ERROR_CODES.INVALID_RECEIPT);
+  requireNonEmptyString(value.actorId, 'actorId', MAILBOX_ERROR_CODES.INVALID_RECEIPT);
+  requireNonEmptyString(value.observedAt, 'observedAt', MAILBOX_ERROR_CODES.INVALID_RECEIPT);
 
   if (
     typeof value.receiptType !== 'string' ||
     !RECEIPT_TYPES.has(value.receiptType as MailboxReceiptType)
   ) {
-    throw new MailboxRuntimeError(
-      MAILBOX_ERROR_CODES.INVALID_RECEIPT,
-      'unsupported receiptType'
-    );
+    throw new MailboxRuntimeError(MAILBOX_ERROR_CODES.INVALID_RECEIPT, 'unsupported receiptType');
   }
   if (value.routeHint !== undefined) {
-    requireNonEmptyString(
-      value.routeHint,
-      'routeHint',
-      MAILBOX_ERROR_CODES.INVALID_RECEIPT
-    );
+    requireNonEmptyString(value.routeHint, 'routeHint', MAILBOX_ERROR_CODES.INVALID_RECEIPT);
   }
   if (value.reason !== undefined) {
-    requireNonEmptyString(
-      value.reason,
-      'reason',
-      MAILBOX_ERROR_CODES.INVALID_RECEIPT
-    );
+    requireNonEmptyString(value.reason, 'reason', MAILBOX_ERROR_CODES.INVALID_RECEIPT);
   }
 
   return deepFreeze({
@@ -340,52 +266,20 @@ export function validateMailboxReceipt(input: unknown): MailboxReceiptV1 {
 }
 
 export function validateMailboxAck(input: unknown): MailboxAckV1 {
-  const value = requireRecord(
-    input,
-    MAILBOX_ERROR_CODES.INVALID_ACK,
-    'ack must be an object'
-  );
+  const value = requireRecord(input, MAILBOX_ERROR_CODES.INVALID_ACK, 'ack must be an object');
   requireExact(
     value.schemaVersion,
     MAILBOX_ACK_SCHEMA_VERSION,
     'schemaVersion',
     MAILBOX_ERROR_CODES.INVALID_ACK
   );
-  requireNonEmptyString(
-    value.ackId,
-    'ackId',
-    MAILBOX_ERROR_CODES.INVALID_ACK
-  );
-  requireNonEmptyString(
-    value.envelopeId,
-    'envelopeId',
-    MAILBOX_ERROR_CODES.INVALID_ACK
-  );
-  requireNonEmptyString(
-    value.receiptId,
-    'receiptId',
-    MAILBOX_ERROR_CODES.INVALID_ACK
-  );
-  requireNonEmptyString(
-    value.producerId,
-    'producerId',
-    MAILBOX_ERROR_CODES.INVALID_ACK
-  );
-  requireNonEmptyString(
-    value.recipientId,
-    'recipientId',
-    MAILBOX_ERROR_CODES.INVALID_ACK
-  );
-  requireNonEmptyString(
-    value.deviceId,
-    'deviceId',
-    MAILBOX_ERROR_CODES.INVALID_ACK
-  );
-  requireNonEmptyString(
-    value.acknowledgedAt,
-    'acknowledgedAt',
-    MAILBOX_ERROR_CODES.INVALID_ACK
-  );
+  requireNonEmptyString(value.ackId, 'ackId', MAILBOX_ERROR_CODES.INVALID_ACK);
+  requireNonEmptyString(value.envelopeId, 'envelopeId', MAILBOX_ERROR_CODES.INVALID_ACK);
+  requireNonEmptyString(value.receiptId, 'receiptId', MAILBOX_ERROR_CODES.INVALID_ACK);
+  requireNonEmptyString(value.producerId, 'producerId', MAILBOX_ERROR_CODES.INVALID_ACK);
+  requireNonEmptyString(value.recipientId, 'recipientId', MAILBOX_ERROR_CODES.INVALID_ACK);
+  requireNonEmptyString(value.deviceId, 'deviceId', MAILBOX_ERROR_CODES.INVALID_ACK);
+  requireNonEmptyString(value.acknowledgedAt, 'acknowledgedAt', MAILBOX_ERROR_CODES.INVALID_ACK);
 
   return deepFreeze({
     schemaVersion: MAILBOX_ACK_SCHEMA_VERSION,
@@ -442,27 +336,12 @@ export function applyMailboxReceiptToRouteState(
 }
 
 function validateRouteState(state: MailboxRouteState): void {
-  requireNonEmptyString(
-    state.envelopeId,
-    'envelopeId',
-    MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE
-  );
-  requireNonEmptyString(
-    state.updatedAt,
-    'updatedAt',
-    MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE
-  );
+  requireNonEmptyString(state.envelopeId, 'envelopeId', MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE);
+  requireNonEmptyString(state.updatedAt, 'updatedAt', MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE);
   if (!ROUTE_STATUSES.has(state.status)) {
-    throw new MailboxRuntimeError(
-      MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE,
-      'status is unsupported'
-    );
+    throw new MailboxRuntimeError(MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE, 'status is unsupported');
   }
-  validateStringArray(
-    state.receiptIds,
-    'receiptIds',
-    MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE
-  );
+  validateStringArray(state.receiptIds, 'receiptIds', MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE);
 }
 
 function receiptTypeToStatus(type: MailboxReceiptType): MailboxRouteStatus {
@@ -487,15 +366,10 @@ function receiptTypeToStatus(type: MailboxReceiptType): MailboxRouteStatus {
 function isNewerTimestamp(candidate: string, current: string): boolean {
   const candidateMs = Date.parse(candidate);
   const currentMs = Date.parse(current);
-  return (
-    !Number.isNaN(candidateMs) &&
-    (Number.isNaN(currentMs) || candidateMs > currentMs)
-  );
+  return !Number.isNaN(candidateMs) && (Number.isNaN(currentMs) || candidateMs > currentMs);
 }
 
-function validateRecipientScopes(
-  input: unknown
-): readonly MailboxRecipientScope[] {
+function validateRecipientScopes(input: unknown): readonly MailboxRecipientScope[] {
   if (!Array.isArray(input) || input.length === 0) {
     throw new MailboxRuntimeError(
       MAILBOX_ERROR_CODES.INVALID_ENVELOPE,
@@ -571,10 +445,7 @@ function requireNonEmptyString(
   code: MailboxErrorCode
 ): asserts input is string {
   if (typeof input !== 'string' || input.length === 0) {
-    throw new MailboxRuntimeError(
-      code,
-      `${field} must be a non-empty string`
-    );
+    throw new MailboxRuntimeError(code, `${field} must be a non-empty string`);
   }
 }
 

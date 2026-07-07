@@ -278,6 +278,8 @@ importers:
         specifier: workspace:*
         version: link:../protocol
 
+  packages/mailbox-runtime: {}
+
   packages/mls-group-projection:
     dependencies:
       '@lfp2p/protocol':
