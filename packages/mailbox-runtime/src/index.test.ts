@@ -76,6 +76,33 @@ describe('validateMailboxDeliveryEnvelope', () => {
     expect(Object.isFrozen(validated.protectedInlinePayload)).toBe(true);
   });
 
+  it('does not freeze caller-owned inline payload objects', () => {
+    const callerPayload = { ciphertextRef: 'payload:sealed' };
+    const validated = validateMailboxDeliveryEnvelope(
+      envelope({
+        payloadRef: undefined,
+        protectedInlinePayload: callerPayload
+      })
+    );
+    expect(Object.isFrozen(validated.protectedInlinePayload)).toBe(true);
+    expect(Object.isFrozen(callerPayload)).toBe(false);
+    callerPayload.ciphertextRef = 'payload:changed';
+    expect(validated.protectedInlinePayload?.ciphertextRef).toBe('payload:sealed');
+  });
+
+  it('rejects non-plain inline payload objects', () => {
+    expectMailboxError(
+      () =>
+        validateMailboxDeliveryEnvelope(
+          envelope({
+            payloadRef: undefined,
+            protectedInlinePayload: new Date() as unknown as MailboxDeliveryEnvelopeV1['protectedInlinePayload']
+          })
+        ),
+      MAILBOX_ERROR_CODES.INVALID_ENVELOPE
+    );
+  });
+
   it('requires schemaVersion for upgrade-safe envelopes', () => {
     const invalid = { ...envelope(), schemaVersion: 'old' };
 
@@ -199,5 +226,53 @@ describe('mailbox route state transitions', () => {
       () => applyMailboxReceiptToRouteState(initial, receipt({ envelopeId: 'mailbox:envelope:other' })),
       MAILBOX_ERROR_CODES.UNSUPPORTED_TRANSITION
     );
+  });
+
+  it('does not regress from recipient applied to provider accepted when receipts arrive out of order', () => {
+    const initial = createQueuedMailboxRouteState(ENVELOPE_ID, T0);
+    const applied = applyMailboxReceiptToRouteState(
+      initial,
+      receipt({
+        receiptId: 'receipt:applied',
+        receiptType: 'recipient.applied',
+        observedAt: '2026-06-30T00:05:00.000Z'
+      })
+    );
+    const lateProviderAccepted = applyMailboxReceiptToRouteState(
+      applied,
+      receipt({
+        receiptId: 'receipt:late-provider-accepted',
+        receiptType: 'provider.accepted',
+        observedAt: '2026-06-30T00:01:00.000Z'
+      })
+    );
+    expect(lateProviderAccepted.status).toBe('applied');
+    expect(lateProviderAccepted.updatedAt).toBe('2026-06-30T00:05:00.000Z');
+    expect(lateProviderAccepted.receiptIds).toEqual([
+      'receipt:applied',
+      'receipt:late-provider-accepted'
+    ]);
+  });
+
+  it('does not regress updatedAt for equal-precedence stale receipts', () => {
+    const initial = createQueuedMailboxRouteState(ENVELOPE_ID, T0);
+    const first = applyMailboxReceiptToRouteState(
+      initial,
+      receipt({
+        receiptId: 'receipt:failed-newer',
+        receiptType: 'recipient.rejected',
+        observedAt: '2026-06-30T00:05:00.000Z'
+      })
+    );
+    const staleSamePrecedence = applyMailboxReceiptToRouteState(
+      first,
+      receipt({
+        receiptId: 'receipt:failed-older',
+        receiptType: 'provider.expired',
+        observedAt: '2026-06-30T00:02:00.000Z'
+      })
+    );
+    expect(staleSamePrecedence.status).toBe('failed');
+    expect(staleSamePrecedence.updatedAt).toBe('2026-06-30T00:05:00.000Z');
   });
 });
