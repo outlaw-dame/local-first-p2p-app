@@ -118,7 +118,8 @@ describe('validateMailboxDeliveryEnvelope', () => {
 
   it('rejects envelopes without any payload carrier', () => {
     expectMailboxError(
-      () => validateMailboxDeliveryEnvelope(envelope({ payloadRef: undefined, protectedInlinePayload: undefined })),
+      () =>
+        validateMailboxDeliveryEnvelope(envelope({ payloadRef: undefined, protectedInlinePayload: undefined })),
       MAILBOX_ERROR_CODES.INVALID_ENVELOPE
     );
   });
@@ -248,10 +249,7 @@ describe('mailbox route state transitions', () => {
     );
     expect(lateProviderAccepted.status).toBe('applied');
     expect(lateProviderAccepted.updatedAt).toBe('2026-06-30T00:05:00.000Z');
-    expect(lateProviderAccepted.receiptIds).toEqual([
-      'receipt:applied',
-      'receipt:late-provider-accepted'
-    ]);
+    expect(lateProviderAccepted.receiptIds).toEqual(['receipt:applied', 'receipt:late-provider-accepted']);
   });
 
   it('does not regress updatedAt for equal-precedence stale receipts', () => {

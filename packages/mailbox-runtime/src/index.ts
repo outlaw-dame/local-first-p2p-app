@@ -401,7 +401,10 @@ function requireExact(input: unknown, expected: string, field: string, code: Mai
 
 function cloneJsonObject(input: unknown): JsonObject {
   if (!isRecord(input)) {
-    throw new MailboxRuntimeError(MAILBOX_ERROR_CODES.INVALID_ENVELOPE, 'protectedInlinePayload must be a plain object');
+    throw new MailboxRuntimeError(
+      MAILBOX_ERROR_CODES.INVALID_ENVELOPE,
+      'protectedInlinePayload must be a plain object'
+    );
   }
   return deepFreeze(JSON.parse(JSON.stringify(input)) as JsonObject);
 }
