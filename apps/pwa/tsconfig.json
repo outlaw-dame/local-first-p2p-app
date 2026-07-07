@@ -10,6 +10,7 @@
     { "path": "../../packages/capabilities" },
     { "path": "../../packages/crypto" },
     { "path": "../../packages/design-tokens" },
+    { "path": "../../packages/envelope" },
     { "path": "../../packages/platform" },
     { "path": "../../packages/local-store" },
     { "path": "../../packages/mailbox-projection" },
