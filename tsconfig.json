@@ -21,6 +21,7 @@
     { "path": "packages/mailbox-projection" },
     { "path": "packages/envelope" },
     { "path": "packages/chat-projection" },
+    { "path": "packages/mailbox-runtime" },
     { "path": "packages/design-tokens" },
     { "path": "packages/platform" },
     { "path": "packages/local-store" },
