@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   resolveEnvelopeRecipientsFromIdentityProjections,
-  type RecipientIdentityProjection
+  type RecipientIdentityProjection,
+  type ResolveRecipientsFromProjectionsInput
 } from './pwa-recipient-resolution.js';
 
 const WRAP_A = 'A'.repeat(43);
@@ -161,7 +162,9 @@ describe('resolveEnvelopeRecipientsFromIdentityProjections', () => {
 
   it('rejects malformed input and projection containers without TypeError', () => {
     expect(() =>
-      resolveEnvelopeRecipientsFromIdentityProjections(null as unknown as RecipientIdentityProjection[])
+      resolveEnvelopeRecipientsFromIdentityProjections(
+        null as unknown as ResolveRecipientsFromProjectionsInput
+      )
     ).toThrow(/input must be an object/);
 
     expect(() =>
@@ -180,5 +183,60 @@ describe('resolveEnvelopeRecipientsFromIdentityProjections', () => {
         ]
       })
     ).toThrow(/projection\.devices must be an object/);
+  });
+
+  it('skips malformed devices and devices with blank ids', () => {
+    const recipients = resolveEnvelopeRecipientsFromIdentityProjections({
+      projections: [
+        projection('identity:alice', {
+          malformed: null as unknown as RecipientIdentityProjection['devices'][string],
+          blank: {
+            deviceId: '   ',
+            publicKey: 'blank-signing-key',
+            status: 'active',
+            authorizedAt: '2026-07-07T00:00:00.000Z',
+            wrapPublicKey: WRAP_B,
+            wrapKeyRef: 'wrap-key:blank'
+          },
+          valid: {
+            deviceId: 'device:alice-phone',
+            publicKey: 'alice-phone-signing-key',
+            status: 'active',
+            authorizedAt: '2026-07-07T00:00:00.000Z',
+            wrapPublicKey: WRAP_A,
+            wrapKeyRef: 'wrap-key:device:alice-phone'
+          }
+        })
+      ]
+    });
+
+    expect(recipients.map((r) => r.recipientDeviceId)).toEqual(['device:alice-phone']);
+  });
+
+  it('accepts null allow-list as unset and rejects non-array allow-list values', () => {
+    const recipients = resolveEnvelopeRecipientsFromIdentityProjections({
+      recipientIdentityIds: null,
+      projections: [
+        projection('identity:alice', {
+          valid: {
+            deviceId: 'device:alice-phone',
+            publicKey: 'alice-phone-signing-key',
+            status: 'active',
+            authorizedAt: '2026-07-07T00:00:00.000Z',
+            wrapPublicKey: WRAP_A,
+            wrapKeyRef: 'wrap-key:device:alice-phone'
+          }
+        })
+      ]
+    } as unknown as ResolveRecipientsFromProjectionsInput);
+
+    expect(recipients.map((r) => r.recipientIdentityId)).toEqual(['identity:alice']);
+
+    expect(() =>
+      resolveEnvelopeRecipientsFromIdentityProjections({
+        recipientIdentityIds: 'identity:alice',
+        projections: []
+      } as unknown as ResolveRecipientsFromProjectionsInput)
+    ).toThrow(/recipientIdentityIds must be an array or undefined/);
   });
 });
