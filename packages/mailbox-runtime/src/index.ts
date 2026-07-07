@@ -109,6 +109,30 @@ const RECEIPT_TYPES = new Set<MailboxReceiptType>([
   'recipient.unreadable'
 ]);
 
+const ROUTE_STATUSES = new Set<MailboxRouteStatus>([
+  'queued',
+  'submitted',
+  'provider.accepted',
+  'provider.rejected',
+  'fetched',
+  'applied',
+  'expired',
+  'failed',
+  'unreadable'
+]);
+
+const STATUS_PRECEDENCE: Record<MailboxRouteStatus, number> = {
+  queued: 0,
+  submitted: 1,
+  'provider.accepted': 2,
+  'provider.rejected': 3,
+  fetched: 4,
+  expired: 5,
+  unreadable: 5,
+  failed: 5,
+  applied: 6
+};
+
 export function createQueuedMailboxRouteState(
   envelopeId: string,
   createdAt: string
@@ -164,8 +188,8 @@ export function validateMailboxDeliveryEnvelope(input: unknown): MailboxDelivery
     recipientScopes,
     conversationRef: value.conversationRef,
     ...(value.payloadRef !== undefined ? { payloadRef: value.payloadRef } : {}),
-    ...(value.protectedInlinePayload !== undefined && value.protectedInlinePayload !== null
-      ? { protectedInlinePayload: deepFreezeJsonObject(value.protectedInlinePayload) }
+    ...(value.protectedInlinePayload !== undefined
+      ? { protectedInlinePayload: cloneJsonObject(value.protectedInlinePayload) }
       : {}),
     createdAt: value.createdAt,
     ...(value.expiresAt !== undefined ? { expiresAt: value.expiresAt } : {}),
@@ -255,10 +279,24 @@ export function applyMailboxReceiptToRouteState(
     return state;
   }
 
+  const nextStatus = receiptTypeToStatus(validReceipt.receiptType);
+  const currentPrecedence = STATUS_PRECEDENCE[state.status];
+  const nextPrecedence = STATUS_PRECEDENCE[nextStatus];
+
+  let status = state.status;
+  let updatedAt = state.updatedAt;
+
+  if (nextPrecedence > currentPrecedence) {
+    status = nextStatus;
+    updatedAt = validReceipt.observedAt;
+  } else if (nextPrecedence === currentPrecedence && isNewerTimestamp(validReceipt.observedAt, state.updatedAt)) {
+    updatedAt = validReceipt.observedAt;
+  }
+
   return freezeRouteState({
     envelopeId: state.envelopeId,
-    status: receiptTypeToStatus(validReceipt.receiptType),
-    updatedAt: validReceipt.observedAt,
+    status,
+    updatedAt,
     receiptIds: [...state.receiptIds, validReceipt.receiptId]
   });
 }
@@ -266,6 +304,9 @@ export function applyMailboxReceiptToRouteState(
 function validateRouteState(state: MailboxRouteState): void {
   requireNonEmptyString(state.envelopeId, 'envelopeId', MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE);
   requireNonEmptyString(state.updatedAt, 'updatedAt', MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE);
+  if (!ROUTE_STATUSES.has(state.status)) {
+    throw new MailboxRuntimeError(MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE, 'status is unsupported');
+  }
   validateStringArray(state.receiptIds, 'receiptIds', MAILBOX_ERROR_CODES.INVALID_ROUTE_STATE);
 }
 
@@ -286,6 +327,12 @@ function receiptTypeToStatus(type: MailboxReceiptType): MailboxRouteStatus {
     case 'recipient.unreadable':
       return 'unreadable';
   }
+}
+
+function isNewerTimestamp(candidate: string, current: string): boolean {
+  const candidateMs = Date.parse(candidate);
+  const currentMs = Date.parse(current);
+  return !Number.isNaN(candidateMs) && (Number.isNaN(currentMs) || candidateMs > currentMs);
 }
 
 function validateRecipientScopes(input: unknown): readonly MailboxRecipientScope[] {
@@ -333,7 +380,11 @@ function requireRecord(input: unknown, code: MailboxErrorCode, message: string):
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {
-  return typeof input === 'object' && input !== null && !Array.isArray(input);
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(input);
+  return prototype === null || prototype === Object.prototype;
 }
 
 function requireNonEmptyString(input: unknown, field: string, code: MailboxErrorCode): asserts input is string {
@@ -348,8 +399,11 @@ function requireExact(input: unknown, expected: string, field: string, code: Mai
   }
 }
 
-function deepFreezeJsonObject(input: JsonObject): JsonObject {
-  return deepFreeze(input) as JsonObject;
+function cloneJsonObject(input: unknown): JsonObject {
+  if (!isRecord(input)) {
+    throw new MailboxRuntimeError(MAILBOX_ERROR_CODES.INVALID_ENVELOPE, 'protectedInlinePayload must be a plain object');
+  }
+  return deepFreeze(JSON.parse(JSON.stringify(input)) as JsonObject);
 }
 
 function deepFreeze<T>(value: T): T {
