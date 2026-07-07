@@ -80,6 +80,9 @@ importers:
       '@lfp2p/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@lfp2p/envelope':
+        specifier: workspace:*
+        version: link:../../packages/envelope
       '@lfp2p/identity':
         specifier: workspace:*
         version: link:../../packages/identity

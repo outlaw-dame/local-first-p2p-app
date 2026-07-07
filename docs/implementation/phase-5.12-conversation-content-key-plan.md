@@ -94,13 +94,21 @@ profiles / the identity-control projection — active, non-revoked devices only.
 ## Status
 
 - **A (recipient resolver): shipped** (#159).
-- **B (device wrap-keypair lifecycle): this PR.** `DeviceIdentityManager` now
+- **B (device wrap-keypair lifecycle): shipped** (#160). `DeviceIdentityManager`
   provisions an X25519 wrap keypair on device creation (private key encrypted at
-  rest under the device protection key), surfaces it on `LocalDeviceSession.wrap`
-  (`{ keyRef, keypair }`), and self-heals a pre-5.12B record on restore
-  (race-safe: concurrent contexts converge on one wrap key). `StoredDeviceIdentity`
-  gains additive `wrapPublicKey` / `wrapKeyRef` / `encryptedWrapPrivateKey`
-  (all-or-nothing, validated).
-- C–E: subsequent PRs. C publishes the wrap public key on the contact card /
-  device projection; D resolves peer recipients from local data; E wires the
-  session wrap key into the resolver (`resolveKeyMaterial`) and the send path.
+  rest under the device protection key), surfaces it on `LocalDeviceSession.wrap`,
+  and self-heals a pre-5.12B record on restore (race-safe, fail-closed).
+- **E-recipient (device key resolver wiring): this PR.** `pwa-envelope-keys.ts`
+  (`createDeviceEnvelopeKeyResolver` + `deviceWrapKeys`) turns the device session
+  wrap key (B) into the `resolveKeyMaterial(event)` the 5.12A resolver drives —
+  the exact input the mailbox inbound sync router and expiry sweep consume, and
+  what chat inbound will reuse. Identity-bound; never throws (non-resolvable →
+  `undefined` → self-heal). This completes the **recipient decryption path** end
+  to end (tested: sender `createSignedEnvelopeEvent` → resolver → real decrypt).
+- **Remaining (sender side): C, D, and the send-path/app-enable of E.** C
+  publishes the wrap public key on the contact card / `identity.device.authorized`
+  projection; D resolves peer recipients (active devices' wrap keys) from local
+  data; the send path then swaps mailbox/chat emit to `createEnvelopeEvent` with
+  those recipients, and the app shell enables `mailboxRouting` +
+  `sweepAfterForegroundSync` with the resolver above. These are additive and do
+  not change any shipped interface.
