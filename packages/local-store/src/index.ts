@@ -200,6 +200,21 @@ export type StoredDeviceIdentity = Readonly<{
   status: DeviceIdentityStatus;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Phase 5.12B — X25519 wrap keypair for dm/group content-key delivery.
+   * The wrap PUBLIC key is published so senders can wrap per-event content
+   * keys to this device; the wrap PRIVATE key is encrypted at rest under the
+   * same `protectionKeyId` as the signing key and never leaves the device.
+   * `wrapKeyRef` is the stable id senders record in `recipientWraps`.
+   *
+   * All three are present together or all absent: absent means a device
+   * record created before 5.12B, which the identity manager self-heals
+   * (generates + persists a wrap keypair) on next restore. Additive Dexie
+   * fields (not indexed), so no schema-version bump is required.
+   */
+  wrapPublicKey?: string;
+  wrapKeyRef?: string;
+  encryptedWrapPrivateKey?: EncryptedKeyMaterial;
 }>;
 
 export type StoredLocalProtectionKey = Readonly<{
@@ -2381,6 +2396,20 @@ function validateDeviceIdentity(identity: StoredDeviceIdentity): void {
   if (identity.deviceId.trim().length === 0) throw new Error('deviceId is required');
   if (identity.publicKey.trim().length === 0) throw new Error('publicKey is required');
   if (identity.protectionKeyId.trim().length === 0) throw new Error('protectionKeyId is required');
+  // Wrap keypair (5.12B) is all-or-nothing: a half-populated record would let
+  // a device advertise a wrap public key it cannot decrypt to, or hold a
+  // private key nothing references.
+  const wrapParts = [identity.wrapPublicKey, identity.wrapKeyRef, identity.encryptedWrapPrivateKey];
+  const presentCount = wrapParts.filter((p) => p !== undefined).length;
+  if (presentCount !== 0 && presentCount !== wrapParts.length) {
+    throw new Error('wrap keypair fields must be all present or all absent');
+  }
+  if (identity.wrapPublicKey !== undefined && identity.wrapPublicKey.trim().length === 0) {
+    throw new Error('wrapPublicKey must be non-empty when present');
+  }
+  if (identity.wrapKeyRef !== undefined && identity.wrapKeyRef.trim().length === 0) {
+    throw new Error('wrapKeyRef must be non-empty when present');
+  }
 }
 
 function validateLocalProtectionKey(key: StoredLocalProtectionKey): void {

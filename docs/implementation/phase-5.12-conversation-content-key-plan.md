@@ -93,7 +93,14 @@ profiles / the identity-control projection — active, non-revoked devices only.
 
 ## Status
 
-- **A (recipient resolver): this PR.**
-- B–E: subsequent PRs, in order. Until B lands, the resolver is exercised by
-  tests with directly-supplied wrap keys (its true inputs); no app path yet
-  passes it a real device key, so nothing claims end-to-end delivery prematurely.
+- **A (recipient resolver): shipped** (#159).
+- **B (device wrap-keypair lifecycle): this PR.** `DeviceIdentityManager` now
+  provisions an X25519 wrap keypair on device creation (private key encrypted at
+  rest under the device protection key), surfaces it on `LocalDeviceSession.wrap`
+  (`{ keyRef, keypair }`), and self-heals a pre-5.12B record on restore
+  (race-safe: concurrent contexts converge on one wrap key). `StoredDeviceIdentity`
+  gains additive `wrapPublicKey` / `wrapKeyRef` / `encryptedWrapPrivateKey`
+  (all-or-nothing, validated).
+- C–E: subsequent PRs. C publishes the wrap public key on the contact card /
+  device projection; D resolves peer recipients from local data; E wires the
+  session wrap key into the resolver (`resolveKeyMaterial`) and the send path.

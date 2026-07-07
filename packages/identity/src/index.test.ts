@@ -1,7 +1,13 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { createUnsignedEvent } from '@lfp2p/protocol';
-import { signEventEnvelope, verifySignedEventEnvelope } from '@lfp2p/crypto';
+import {
+  signEventEnvelope,
+  toBase64Url,
+  unwrapPayloadKeyWithX25519,
+  verifySignedEventEnvelope,
+  wrapPayloadKeyWithX25519
+} from '@lfp2p/crypto';
 import { createLocalFirstStore } from '@lfp2p/local-store';
 import {
   authorizeIdentityOperation,
@@ -341,5 +347,109 @@ describe('identity trust snapshot helpers', () => {
         now: '2026-05-22T00:30:00.000Z'
       })
     ).toMatchObject({ authorized: false, status: 'blocked-capability-missing' });
+  });
+});
+
+describe('DeviceIdentityManager — wrap keypair (Phase 5.12B)', () => {
+  const NOW = '2026-07-05T00:00:00.000Z';
+
+  it('provisions a wrap keypair on create and persists it encrypted at rest', async () => {
+    const store = createLocalFirstStore(`identity-wrap-${globalThis.crypto.randomUUID()}`);
+    const session = await new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW);
+
+    expect(session.wrap.keyRef).toMatch(/^wrap-key:device:/);
+    expect(session.wrap.keypair.publicKey.length).toBeGreaterThan(0);
+    expect(session.wrap.keypair.privateKey.length).toBeGreaterThan(0);
+
+    const record = await store.getActiveDeviceIdentity();
+    expect(record?.wrapPublicKey).toBe(session.wrap.keypair.publicKey);
+    expect(record?.wrapKeyRef).toBe(session.wrap.keyRef);
+    expect(record?.encryptedWrapPrivateKey?.algorithm).toBe('aes-gcm-256');
+    // At rest: the private key must NOT appear in cleartext anywhere in the row.
+    expect(JSON.stringify(record)).not.toContain(session.wrap.keypair.privateKey);
+    await store.delete();
+  });
+
+  it('the provisioned wrap keypair actually wraps and unwraps a content key', async () => {
+    const store = createLocalFirstStore(`identity-wrap-rt-${globalThis.crypto.randomUUID()}`);
+    const session = await new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW);
+
+    const contentKey = toBase64Url(globalThis.crypto.getRandomValues(new Uint8Array(32)));
+    const wrapped = wrapPayloadKeyWithX25519(contentKey, session.wrap.keypair.publicKey);
+    const unwrapped = unwrapPayloadKeyWithX25519(wrapped, session.wrap.keypair.privateKey);
+    expect(unwrapped).toBe(contentKey);
+    await store.delete();
+  });
+
+  it('restores the identical wrap keypair across manager instances', async () => {
+    const store = createLocalFirstStore(`identity-wrap-restore-${globalThis.crypto.randomUUID()}`);
+    const first = await new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW);
+    const second = await new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW);
+    expect(second.wrap).toEqual(first.wrap);
+    await store.delete();
+  });
+
+  it('self-heals a pre-5.12B record that has no wrap keypair, and persists the upgrade', async () => {
+    const store = createLocalFirstStore(`identity-wrap-heal-${globalThis.crypto.randomUUID()}`);
+    // Provision, then simulate an old record by stripping the wrap fields.
+    await new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW);
+    const rec = await store.getActiveDeviceIdentity();
+    if (rec === undefined) throw new Error('expected a device record');
+    const { wrapPublicKey, wrapKeyRef, encryptedWrapPrivateKey, ...legacy } = rec;
+    void wrapPublicKey;
+    void wrapKeyRef;
+    void encryptedWrapPrivateKey;
+    await store.putDeviceIdentity(legacy);
+    expect((await store.getActiveDeviceIdentity())?.encryptedWrapPrivateKey).toBeUndefined();
+
+    // Restore heals it.
+    const healed = await new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW);
+    expect(healed.wrap.keyRef).toMatch(/^wrap-key:device:/);
+
+    const healedRecord = await store.getActiveDeviceIdentity();
+    expect(healedRecord?.wrapPublicKey).toBe(healed.wrap.keypair.publicKey);
+    expect(healedRecord?.wrapKeyRef).toBe(healed.wrap.keyRef);
+    expect(healedRecord?.encryptedWrapPrivateKey?.algorithm).toBe('aes-gcm-256');
+
+    // Stable and identical on a subsequent restore — the heal is one-time.
+    const again = await new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW);
+    expect(again.wrap).toEqual(healed.wrap);
+    await store.delete();
+  });
+
+  it('concurrent heals converge on a single wrap keypair', async () => {
+    const store = createLocalFirstStore(`identity-wrap-race-${globalThis.crypto.randomUUID()}`);
+    await new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW);
+    const rec = await store.getActiveDeviceIdentity();
+    if (rec === undefined) throw new Error('expected a device record');
+    const { wrapPublicKey, wrapKeyRef, encryptedWrapPrivateKey, ...legacy } = rec;
+    void wrapPublicKey;
+    void wrapKeyRef;
+    void encryptedWrapPrivateKey;
+    await store.putDeviceIdentity(legacy);
+
+    // Separate manager instances (no shared in-flight guard) heal in parallel.
+    const sessions = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW)
+      )
+    );
+    const refs = new Set(sessions.map((s) => s.wrap.keyRef));
+    const pubKeys = new Set(sessions.map((s) => s.wrap.keypair.publicKey));
+    expect(refs.size).toBe(1);
+    expect(pubKeys.size).toBe(1);
+    expect((await store.getActiveDeviceIdentity())?.wrapKeyRef).toBe(sessions[0]?.wrap.keyRef);
+    await store.delete();
+  });
+
+  it('rejects a half-populated wrap record at the store boundary', async () => {
+    const store = createLocalFirstStore(`identity-wrap-partial-${globalThis.crypto.randomUUID()}`);
+    await new DeviceIdentityManager(store).getOrCreatePrimaryDeviceSession(NOW);
+    const rec = await store.getActiveDeviceIdentity();
+    if (rec === undefined) throw new Error('expected a device record');
+    await expect(store.putDeviceIdentity({ ...rec, wrapKeyRef: undefined })).rejects.toThrow(
+      /wrap keypair fields must be all present or all absent/
+    );
+    await store.delete();
   });
 });
