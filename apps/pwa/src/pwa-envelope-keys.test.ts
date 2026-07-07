@@ -149,4 +149,18 @@ describe('deviceWrapKeys / resolver input validation', () => {
   it('rejects an empty wrapKeys set', () => {
     expect(() => createDeviceEnvelopeKeyResolver([])).toThrow(/wrapKeys/);
   });
+
+  it('fails fast on a malformed wrapKeys element at construction (not silently at use)', () => {
+    expect(() =>
+      createDeviceEnvelopeKeyResolver([
+        { deviceId: 'd', wrapKeyRef: 'r', wrapPrivateKey: '' } as never
+      ])
+    ).toThrow(/wrapPrivateKey/);
+    expect(() =>
+      createDeviceEnvelopeKeyResolver([
+        { deviceId: '', wrapKeyRef: 'r', wrapPrivateKey: 'k' } as never
+      ])
+    ).toThrow(/deviceId/);
+    expect(() => createDeviceEnvelopeKeyResolver([null as never])).toThrow(/objects/);
+  });
 });

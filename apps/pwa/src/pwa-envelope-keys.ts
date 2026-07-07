@@ -54,6 +54,18 @@ export function createDeviceEnvelopeKeyResolver(
   if (!Array.isArray(wrapKeys) || wrapKeys.length === 0) {
     throw new Error('wrapKeys must be a non-empty array');
   }
+  // Validate elements up front (fail-fast). The resolver body swallows throws
+  // to `undefined`, so a malformed wrap key here would otherwise silently make
+  // EVERY event unresolvable — validate at construction instead of at use.
+  for (const key of wrapKeys) {
+    if (key === null || typeof key !== 'object') {
+      throw new Error('wrapKeys elements must be objects');
+    }
+    requireNonEmpty(key.deviceId, 'deviceId');
+    requireNonEmpty(key.wrapKeyRef, 'wrapKeyRef');
+    requireNonEmpty(key.wrapPrivateKey, 'wrapPrivateKey');
+    if (key.identityId !== undefined) requireNonEmpty(key.identityId, 'identityId');
+  }
   return (event: SignedEventEnvelope): string | undefined => {
     const envelope = asPayloadEnvelope(event);
     if (envelope === undefined) return undefined;
