@@ -56,6 +56,9 @@ export type ResolveRecipientsFromProjectionsInput = Readonly<{
 export function resolveEnvelopeRecipientsFromIdentityProjections(
   input: ResolveRecipientsFromProjectionsInput
 ): readonly ResolvedRecipient[] {
+  if (input === null || typeof input !== 'object') {
+    throw new Error('input must be an object');
+  }
   if (!Array.isArray(input.projections)) {
     throw new Error('projections must be an array');
   }
@@ -65,6 +68,9 @@ export function resolveEnvelopeRecipientsFromIdentityProjections(
   const identities: RecipientIdentity[] = [];
 
   for (const projection of input.projections) {
+    if (projection === null || typeof projection !== 'object') {
+      throw new Error('projection must be an object');
+    }
     const identityId = requireNonEmpty(projection.identityId, 'projection.identityId');
     if (seenIdentities.has(identityId)) {
       throw new Error(`Duplicate recipient identity projection: ${identityId}`);
@@ -73,6 +79,10 @@ export function resolveEnvelopeRecipientsFromIdentityProjections(
 
     if (allowed !== undefined && !allowed.has(identityId)) continue;
     if (requireControllerKnown && projection.controllerPublicKey === undefined) continue;
+
+    if (projection.devices === null || typeof projection.devices !== 'object') {
+      throw new Error('projection.devices must be an object');
+    }
 
     const devices: Record<string, RecipientDevice> = {};
     for (const device of Object.values(projection.devices)) {
