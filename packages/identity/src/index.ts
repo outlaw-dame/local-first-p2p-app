@@ -436,19 +436,26 @@ export class DeviceIdentityManager {
       'rw',
       ['deviceIdentities'],
       async (): Promise<StoredDeviceIdentity> => {
+        // Fail closed if the active device changed/was removed during the
+        // async window: writing `record` back would resurrect a deleted
+        // identity or create a second active one (breaking the single-active
+        // invariant). We only ever heal the row that is STILL active for us.
         const current = await this.#store.getActiveDeviceIdentity();
-        const base =
-          current !== undefined && current.deviceId === record.deviceId ? current : record;
+        if (current === undefined || current.deviceId !== record.deviceId) {
+          throw new DeviceIdentityBootstrapError(
+            'Active device identity changed during wrap-key heal; aborting'
+          );
+        }
         // Another context healed first — adopt its wrap key, do not overwrite.
         if (
-          base.encryptedWrapPrivateKey !== undefined &&
-          base.wrapPublicKey !== undefined &&
-          base.wrapKeyRef !== undefined
+          current.encryptedWrapPrivateKey !== undefined &&
+          current.wrapPublicKey !== undefined &&
+          current.wrapKeyRef !== undefined
         ) {
-          return base;
+          return current;
         }
         const updated: StoredDeviceIdentity = {
-          ...base,
+          ...current,
           wrapPublicKey: wrapKeypair.publicKey,
           wrapKeyRef,
           encryptedWrapPrivateKey,
