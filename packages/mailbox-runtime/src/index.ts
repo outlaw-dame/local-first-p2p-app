@@ -164,7 +164,7 @@ export function validateMailboxDeliveryEnvelope(input: unknown): MailboxDelivery
     recipientScopes,
     conversationRef: value.conversationRef,
     ...(value.payloadRef !== undefined ? { payloadRef: value.payloadRef } : {}),
-    ...(value.protectedInlinePayload !== undefined
+    ...(value.protectedInlinePayload !== undefined && value.protectedInlinePayload !== null
       ? { protectedInlinePayload: deepFreezeJsonObject(value.protectedInlinePayload) }
       : {}),
     createdAt: value.createdAt,
