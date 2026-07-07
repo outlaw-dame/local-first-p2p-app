@@ -18,7 +18,9 @@ const T0 = '2026-06-30T00:00:00.000Z';
 const T1 = '2026-06-30T00:01:00.000Z';
 const ENVELOPE_ID = 'mailbox:envelope:alpha';
 
-function envelope(overrides: Partial<MailboxDeliveryEnvelopeV1> = {}): MailboxDeliveryEnvelopeV1 {
+function envelope(
+  overrides: Partial<MailboxDeliveryEnvelopeV1> = {}
+): MailboxDeliveryEnvelopeV1 {
   return {
     schemaVersion: MAILBOX_DELIVERY_ENVELOPE_SCHEMA_VERSION,
     envelopeId: ENVELOPE_ID,
@@ -35,7 +37,9 @@ function envelope(overrides: Partial<MailboxDeliveryEnvelopeV1> = {}): MailboxDe
   };
 }
 
-function receipt(overrides: Partial<MailboxReceiptV1> = {}): MailboxReceiptV1 {
+function receipt(
+  overrides: Partial<MailboxReceiptV1> = {}
+): MailboxReceiptV1 {
   return {
     schemaVersion: MAILBOX_RECEIPT_SCHEMA_VERSION,
     receiptId: 'receipt:alpha',
@@ -47,7 +51,10 @@ function receipt(overrides: Partial<MailboxReceiptV1> = {}): MailboxReceiptV1 {
   };
 }
 
-function expectMailboxError(fn: () => unknown, code: string): void {
+function expectMailboxError(
+  fn: () => unknown,
+  code: string
+): void {
   expect(fn).toThrow(MailboxRuntimeError);
   try {
     fn();
@@ -60,7 +67,9 @@ describe('validateMailboxDeliveryEnvelope', () => {
   it('accepts and freezes a valid envelope with a payload ref', () => {
     const validated = validateMailboxDeliveryEnvelope(envelope());
 
-    expect(validated.schemaVersion).toBe(MAILBOX_DELIVERY_ENVELOPE_SCHEMA_VERSION);
+    expect(validated.schemaVersion).toBe(
+      MAILBOX_DELIVERY_ENVELOPE_SCHEMA_VERSION
+    );
     expect(Object.isFrozen(validated)).toBe(true);
     expect(Object.isFrozen(validated.recipientScopes)).toBe(true);
     expect(Object.isFrozen(validated.routeHints)).toBe(true);
@@ -68,11 +77,16 @@ describe('validateMailboxDeliveryEnvelope', () => {
 
   it('accepts protected inline payloads without requiring a payload ref', () => {
     const validated = validateMailboxDeliveryEnvelope(
-      envelope({ payloadRef: undefined, protectedInlinePayload: { ciphertextRef: 'payload:sealed' } })
+      envelope({
+        payloadRef: undefined,
+        protectedInlinePayload: { ciphertextRef: 'payload:sealed' }
+      })
     );
 
     expect(validated.payloadRef).toBeUndefined();
-    expect(validated.protectedInlinePayload?.ciphertextRef).toBe('payload:sealed');
+    expect(validated.protectedInlinePayload?.ciphertextRef).toBe(
+      'payload:sealed'
+    );
     expect(Object.isFrozen(validated.protectedInlinePayload)).toBe(true);
   });
 
@@ -87,7 +101,9 @@ describe('validateMailboxDeliveryEnvelope', () => {
     expect(Object.isFrozen(validated.protectedInlinePayload)).toBe(true);
     expect(Object.isFrozen(callerPayload)).toBe(false);
     callerPayload.ciphertextRef = 'payload:changed';
-    expect(validated.protectedInlinePayload?.ciphertextRef).toBe('payload:sealed');
+    expect(validated.protectedInlinePayload?.ciphertextRef).toBe(
+      'payload:sealed'
+    );
   });
 
   it('rejects non-plain inline payload objects', () => {
@@ -106,12 +122,16 @@ describe('validateMailboxDeliveryEnvelope', () => {
   it('requires schemaVersion for upgrade-safe envelopes', () => {
     const invalid = { ...envelope(), schemaVersion: 'old' };
 
-    expectMailboxError(() => validateMailboxDeliveryEnvelope(invalid), MAILBOX_ERROR_CODES.INVALID_ENVELOPE);
+    expectMailboxError(
+      () => validateMailboxDeliveryEnvelope(invalid),
+      MAILBOX_ERROR_CODES.INVALID_ENVELOPE
+    );
   });
 
   it('rejects empty recipient scopes', () => {
     expectMailboxError(
-      () => validateMailboxDeliveryEnvelope(envelope({ recipientScopes: [] })),
+      () =>
+        validateMailboxDeliveryEnvelope(envelope({ recipientScopes: [] })),
       MAILBOX_ERROR_CODES.INVALID_ENVELOPE
     );
   });
@@ -119,7 +139,12 @@ describe('validateMailboxDeliveryEnvelope', () => {
   it('rejects envelopes without any payload carrier', () => {
     expectMailboxError(
       () =>
-        validateMailboxDeliveryEnvelope(envelope({ payloadRef: undefined, protectedInlinePayload: undefined })),
+        validateMailboxDeliveryEnvelope(
+          envelope({
+            payloadRef: undefined,
+            protectedInlinePayload: undefined
+          })
+        ),
       MAILBOX_ERROR_CODES.INVALID_ENVELOPE
     );
   });
@@ -135,14 +160,24 @@ describe('validateMailboxReceipt', () => {
 
   it('preserves receipt-specific error codes for bad schema versions', () => {
     expectMailboxError(
-      () => validateMailboxReceipt(receipt({ schemaVersion: 'old' as typeof MAILBOX_RECEIPT_SCHEMA_VERSION })),
+      () =>
+        validateMailboxReceipt(
+          receipt({
+            schemaVersion: 'old' as typeof MAILBOX_RECEIPT_SCHEMA_VERSION
+          })
+        ),
       MAILBOX_ERROR_CODES.INVALID_RECEIPT
     );
   });
 
   it('rejects unsupported receipt transitions', () => {
     expectMailboxError(
-      () => validateMailboxReceipt(receipt({ receiptType: 'recipient.read' as MailboxReceiptV1['receiptType'] })),
+      () =>
+        validateMailboxReceipt(
+          receipt({
+            receiptType: 'recipient.read' as MailboxReceiptV1['receiptType']
+          })
+        ),
       MAILBOX_ERROR_CODES.INVALID_RECEIPT
     );
   });
@@ -205,7 +240,10 @@ describe('mailbox route state transitions', () => {
     const initial = createQueuedMailboxRouteState(ENVELOPE_ID, T0);
     const next = applyMailboxReceiptToRouteState(
       initial,
-      receipt({ receiptId: 'receipt:applied', receiptType: 'recipient.applied' })
+      receipt({
+        receiptId: 'receipt:applied',
+        receiptType: 'recipient.applied'
+      })
     );
 
     expect(next.status).toBe('applied');
@@ -224,7 +262,11 @@ describe('mailbox route state transitions', () => {
     const initial = createQueuedMailboxRouteState(ENVELOPE_ID, T0);
 
     expectMailboxError(
-      () => applyMailboxReceiptToRouteState(initial, receipt({ envelopeId: 'mailbox:envelope:other' })),
+      () =>
+        applyMailboxReceiptToRouteState(
+          initial,
+          receipt({ envelopeId: 'mailbox:envelope:other' })
+        ),
       MAILBOX_ERROR_CODES.UNSUPPORTED_TRANSITION
     );
   });
@@ -249,7 +291,10 @@ describe('mailbox route state transitions', () => {
     );
     expect(lateProviderAccepted.status).toBe('applied');
     expect(lateProviderAccepted.updatedAt).toBe('2026-06-30T00:05:00.000Z');
-    expect(lateProviderAccepted.receiptIds).toEqual(['receipt:applied', 'receipt:late-provider-accepted']);
+    expect(lateProviderAccepted.receiptIds).toEqual([
+      'receipt:applied',
+      'receipt:late-provider-accepted'
+    ]);
   });
 
   it('does not regress updatedAt for equal-precedence stale receipts', () => {
