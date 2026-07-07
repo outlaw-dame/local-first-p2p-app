@@ -158,4 +158,27 @@ describe('resolveEnvelopeRecipientsFromIdentityProjections', () => {
       })
     ).toThrow(/Duplicate recipient identity projection/);
   });
+
+  it('rejects malformed input and projection containers without TypeError', () => {
+    expect(() =>
+      resolveEnvelopeRecipientsFromIdentityProjections(null as unknown as RecipientIdentityProjection[])
+    ).toThrow(/input must be an object/);
+
+    expect(() =>
+      resolveEnvelopeRecipientsFromIdentityProjections({
+        projections: [null as unknown as RecipientIdentityProjection]
+      })
+    ).toThrow(/projection must be an object/);
+
+    expect(() =>
+      resolveEnvelopeRecipientsFromIdentityProjections({
+        projections: [
+          {
+            ...projection('identity:bad', {}),
+            devices: null as unknown as RecipientIdentityProjection['devices']
+          }
+        ]
+      })
+    ).toThrow(/projection\.devices must be an object/);
+  });
 });
