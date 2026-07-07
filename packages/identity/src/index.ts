@@ -3,8 +3,11 @@ import {
   encryptKeyMaterial,
   generateNonExtractableAesGcmKey,
   generateSigningKeypair,
+  generateX25519Keypair,
   sha256Base64Url,
-  type SigningKeypair
+  type EncryptedKeyMaterial,
+  type SigningKeypair,
+  type X25519Keypair
 } from '@lfp2p/crypto';
 import {
   type DexieLocalFirstStore,
@@ -43,9 +46,22 @@ export type LocalDeviceIdentity = Readonly<{
   createdAt: string;
 }>;
 
+/**
+ * The device's X25519 wrap keypair (Phase 5.12B) — used to unwrap per-event
+ * dm/group content keys addressed to this device. `keyRef` is the stable id
+ * senders record in an envelope's `recipientWraps`; the private key is
+ * device-owned secret material (decrypted from `encryptedWrapPrivateKey`).
+ */
+export type LocalDeviceWrap = Readonly<{
+  keyRef: string;
+  keypair: X25519Keypair;
+}>;
+
 export type LocalDeviceSession = Readonly<{
   identity: LocalDeviceIdentity;
   keypair: SigningKeypair;
+  /** X25519 wrap key for dm/group content-key delivery (always present). */
+  wrap: LocalDeviceWrap;
 }>;
 
 export type IdentityTrustSnapshot = Readonly<{
@@ -327,6 +343,12 @@ export class DeviceIdentityManager {
     const deviceId = `device:${publicKeyHash.slice(0, 32)}`;
     const encryptedPrivateKey = await encryptKeyMaterial(keypair.privateKey, protectionKey);
 
+    // X25519 wrap keypair (5.12B): private key encrypted under the SAME
+    // protection key as the signing key; public key + ref are published.
+    const wrapKeypair = generateX25519Keypair();
+    const wrapKeyRef = newWrapKeyRef(deviceId);
+    const encryptedWrapPrivateKey = await encryptKeyMaterial(wrapKeypair.privateKey, protectionKey);
+
     const identity: LocalDeviceIdentity = {
       identityId,
       deviceId,
@@ -335,7 +357,11 @@ export class DeviceIdentityManager {
     };
 
     return {
-      session: { identity, keypair },
+      session: {
+        identity,
+        keypair,
+        wrap: { keyRef: wrapKeyRef, keypair: wrapKeypair }
+      },
       protectionKey,
       record: {
         recordType: 'local-device-identity.v1',
@@ -346,7 +372,10 @@ export class DeviceIdentityManager {
         protectionKeyId,
         status: 'active',
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        wrapPublicKey: wrapKeypair.publicKey,
+        wrapKeyRef,
+        encryptedWrapPrivateKey
       }
     };
   }
@@ -360,6 +389,7 @@ export class DeviceIdentityManager {
     }
 
     const privateKey = await decryptKeyMaterial(record.encryptedPrivateKey, protection.key);
+    const wrap = await this.#restoreOrHealWrap(record, protection.key);
     return {
       identity: {
         identityId: record.identityId,
@@ -370,7 +400,79 @@ export class DeviceIdentityManager {
       keypair: {
         publicKey: record.publicKey,
         privateKey
-      }
+      },
+      wrap
     };
   }
+
+  /**
+   * Return this device's wrap keypair, healing a pre-5.12B record that has
+   * none. Healing is race-safe: the keypair is generated and encrypted
+   * OUTSIDE the write transaction, then a re-read inside the transaction
+   * yields to whichever context persisted a wrap key first (so all contexts
+   * converge on ONE authoritative wrap key, never diverge).
+   */
+  async #restoreOrHealWrap(
+    record: StoredDeviceIdentity,
+    protectionKey: CryptoKey
+  ): Promise<LocalDeviceWrap> {
+    if (
+      record.encryptedWrapPrivateKey !== undefined &&
+      record.wrapPublicKey !== undefined &&
+      record.wrapKeyRef !== undefined
+    ) {
+      const privateKey = await decryptKeyMaterial(record.encryptedWrapPrivateKey, protectionKey);
+      return {
+        keyRef: record.wrapKeyRef,
+        keypair: { publicKey: record.wrapPublicKey, privateKey }
+      };
+    }
+
+    const wrapKeypair = generateX25519Keypair();
+    const wrapKeyRef = newWrapKeyRef(record.deviceId);
+    const encryptedWrapPrivateKey = await encryptKeyMaterial(wrapKeypair.privateKey, protectionKey);
+
+    const healed = await this.#store.transaction(
+      'rw',
+      ['deviceIdentities'],
+      async (): Promise<StoredDeviceIdentity> => {
+        const current = await this.#store.getActiveDeviceIdentity();
+        const base =
+          current !== undefined && current.deviceId === record.deviceId ? current : record;
+        // Another context healed first — adopt its wrap key, do not overwrite.
+        if (
+          base.encryptedWrapPrivateKey !== undefined &&
+          base.wrapPublicKey !== undefined &&
+          base.wrapKeyRef !== undefined
+        ) {
+          return base;
+        }
+        const updated: StoredDeviceIdentity = {
+          ...base,
+          wrapPublicKey: wrapKeypair.publicKey,
+          wrapKeyRef,
+          encryptedWrapPrivateKey,
+          updatedAt: new Date().toISOString()
+        };
+        await this.#store.putDeviceIdentity(updated);
+        return updated;
+      }
+    );
+
+    // `healed` is guaranteed to carry a full wrap keypair now.
+    const privateKey = await decryptKeyMaterial(
+      healed.encryptedWrapPrivateKey as EncryptedKeyMaterial,
+      protectionKey
+    );
+    return {
+      keyRef: healed.wrapKeyRef as string,
+      keypair: { publicKey: healed.wrapPublicKey as string, privateKey }
+    };
+  }
+}
+
+/** Stable, unique ref for a device wrap key, recorded in `recipientWraps`. */
+function newWrapKeyRef(deviceId: string): string {
+  const rand = globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  return `wrap-key:${deviceId}:${rand}`;
 }
