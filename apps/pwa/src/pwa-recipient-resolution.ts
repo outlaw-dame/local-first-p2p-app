@@ -86,10 +86,13 @@ export function resolveEnvelopeRecipientsFromIdentityProjections(
 
     const devices: Record<string, RecipientDevice> = {};
     for (const device of Object.values(projection.devices)) {
+      if (device === null || typeof device !== 'object') continue;
       if (device.status !== 'active') continue;
       if (device.wrapPublicKey === undefined || device.wrapKeyRef === undefined) continue;
-      devices[device.deviceId] = {
-        deviceId: device.deviceId,
+      const deviceId = device.deviceId;
+      if (typeof deviceId !== 'string' || deviceId.trim().length === 0) continue;
+      devices[deviceId] = {
+        deviceId,
         status: device.status,
         wrapPublicKey: device.wrapPublicKey,
         wrapKeyRef: device.wrapKeyRef
@@ -105,9 +108,12 @@ export function resolveEnvelopeRecipientsFromIdentityProjections(
 }
 
 function normalizeRecipientAllowList(
-  values: readonly string[] | undefined
+  values: readonly string[] | undefined | null
 ): ReadonlySet<string> | undefined {
-  if (values === undefined) return undefined;
+  if (values === undefined || values === null) return undefined;
+  if (!Array.isArray(values)) {
+    throw new Error('recipientIdentityIds must be an array or undefined');
+  }
   const out = new Set<string>();
   for (const value of values) out.add(requireNonEmpty(value, 'recipientIdentityId'));
   return out;
