@@ -287,6 +287,42 @@ describe('resolvePayloadKeyForDevice — round trip and statuses', () => {
     });
   });
 
+  it('a failed unwrap on one wrap for us does not poison a later valid wrap', () => {
+    // Two wraps addressed to the same device (rotation): the first is
+    // corrupted, the second is valid. Validation would dedup device ids, but
+    // the resolver must be resilient on a raw/unvalidated envelope.
+    const bob = generateX25519Keypair();
+    const contentKey = freshContentKey();
+    const good = wrapPayloadKeyWithX25519(contentKey, bob.publicKey);
+    const badWrap = {
+      recipientIdentityId: BOB,
+      recipientDeviceId: BOB_DEVICE,
+      keyAgreement: 'x25519-v1',
+      wrappedKey: good.slice(0, -1) + (good.endsWith('A') ? 'B' : 'A'), // corrupted
+      wrappingKeyRef: BOB_KEYREF
+    };
+    const goodWrap = { ...badWrap, wrappedKey: good };
+    const envelope = {
+      version: 'lfp2p.private-payload.v1',
+      algorithm: 'aes-gcm-256',
+      ciphertext: 'AAAA',
+      nonce: toBase64Url(new Uint8Array(12)),
+      keyId: 'k',
+      recipientWraps: [badWrap, goodWrap]
+    } as unknown as PrivatePayloadEnvelopeV1;
+    expect(resolvePayloadKeyForDevice(envelope, [bobKey(bob)])).toEqual({
+      status: 'resolved',
+      keyMaterial: contentKey
+    });
+  });
+
+  it('throws when the envelope is an array (not a plain object)', () => {
+    const bob = generateX25519Keypair();
+    expect(() =>
+      resolvePayloadKeyForDevice([] as unknown as PrivatePayloadEnvelopeV1, [bobKey(bob)])
+    ).toThrow(/envelope must be an object/);
+  });
+
   it('unwrap-failed: recipientWraps exceeds the scan cap', () => {
     const bob = generateX25519Keypair();
     const contentKey = freshContentKey();

@@ -280,7 +280,7 @@ export function resolvePayloadKeyForDevice(
 ): ResolvePayloadKeyResult {
   const keys = normalizeLocalWrapKeys(localWrapKeys);
 
-  if (envelope === null || typeof envelope !== 'object') {
+  if (envelope === null || typeof envelope !== 'object' || Array.isArray(envelope)) {
     throw new Error('envelope must be an object');
   }
   const wraps = (envelope as { recipientWraps?: unknown }).recipientWraps;
@@ -336,7 +336,14 @@ export function resolvePayloadKeyForDevice(
     }
 
     const keyMaterial = tryUnwrapContentKey(wrappedKey, key.wrapPrivateKey);
-    if (keyMaterial === undefined) return Object.freeze({ status: 'unwrap-failed' });
+    if (keyMaterial === undefined) {
+      // Do NOT short-circuit: a sender rotating keys may include more than
+      // one wrap for this device (e.g. old + new). Keep scanning so a later
+      // usable wrap can still resolve; only fall through to `unwrap-failed`
+      // if none succeeds.
+      sawMyDeviceButUnusable = true;
+      continue;
+    }
     return Object.freeze({ status: 'resolved', keyMaterial });
   }
 
