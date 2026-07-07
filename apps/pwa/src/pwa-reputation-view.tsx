@@ -14,10 +14,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Block, BlockTitle, Button, List, ListItem } from 'framework7-react';
 import type { createLocalFirstStore } from '@lfp2p/local-store';
-import {
-  buildReputationView,
-  type ReputationView
-} from './pwa-reputation-view-model.js';
+import { buildReputationView, type ReputationView } from './pwa-reputation-view-model.js';
 
 type Store = ReturnType<typeof createLocalFirstStore>;
 
@@ -27,10 +24,7 @@ export type PwaReputationViewProps = Readonly<{
   observerActorId: string;
 }>;
 
-export function PwaReputationView({
-  store,
-  observerActorId
-}: PwaReputationViewProps): JSX.Element {
+export function PwaReputationView({ store, observerActorId }: PwaReputationViewProps): JSX.Element {
   const [view, setView] = useState<ReputationView | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(false);
@@ -68,17 +62,12 @@ export function PwaReputationView({
         <Button onClick={reload} disabled={loading}>
           {loading ? 'Computing…' : 'Refresh'}
         </Button>
-        {error && (
-          <p style={{ color: 'crimson' }}>
-            Could not compute reputation: {error}
-          </p>
-        )}
+        {error && <p style={{ color: 'crimson' }}>Could not compute reputation: {error}</p>}
         {view && (
           <div>
             <p>
-              <strong>Events:</strong> loaded {view.totalEventsLoaded},
-              consumed {view.totalEventsConsumed} (observations + attestations
-              + revocations).{' '}
+              <strong>Events:</strong> loaded {view.totalEventsLoaded}, consumed{' '}
+              {view.totalEventsConsumed} (observations + attestations + revocations).{' '}
               {view.truncated ? '⚠️ Graph truncated to maxNodes.' : null}{' '}
               {view.convergedWithinIterations
                 ? '✓ Iteration converged.'
@@ -86,8 +75,8 @@ export function PwaReputationView({
             </p>
             {view.entries.length === 0 ? (
               <p>
-                No subjects scored. Record observations or publish
-                attestations to populate the graph.
+                No subjects scored. Record observations or publish attestations to populate the
+                graph.
               </p>
             ) : (
               <List>
@@ -97,9 +86,7 @@ export function PwaReputationView({
                     title={row.subject}
                     after={`band: ${row.band}`}
                     footer={`score ${row.score.toFixed(4)} · confidence ${row.confidence.toFixed(2)} · seed-distance ${
-                      row.seedDistance === Number.POSITIVE_INFINITY
-                        ? '∞'
-                        : String(row.seedDistance)
+                      row.seedDistance === Number.POSITIVE_INFINITY ? '∞' : String(row.seedDistance)
                     }`}
                   />
                 ))}

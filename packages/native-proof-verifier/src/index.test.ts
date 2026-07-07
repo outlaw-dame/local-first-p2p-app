@@ -24,14 +24,8 @@
  *      and a throwing issuer-match strategy returns `invalid`.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  signEventEnvelope,
-  signingKeypairFromSeed
-} from '@lfp2p/crypto';
-import {
-  createUnsignedEvent,
-  type SignedEventEnvelope
-} from '@lfp2p/protocol';
+import { signEventEnvelope, signingKeypairFromSeed } from '@lfp2p/crypto';
+import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
 import type { CapabilityProofRecord } from '@lfp2p/capabilities';
 import {
   assertNativeProofDigest,
@@ -62,9 +56,7 @@ function makeEvent(overrides: { author?: string } = {}): SignedEventEnvelope {
   );
 }
 
-function nativeRecord(
-  overrides: Partial<CapabilityProofRecord> = {}
-): CapabilityProofRecord {
+function nativeRecord(overrides: Partial<CapabilityProofRecord> = {}): CapabilityProofRecord {
   return {
     proofId: 'proof:native:1',
     scheme: 'native-signed-event',
@@ -267,9 +259,9 @@ describe('composeVerifiers', () => {
     const ucanStub: CapabilityProofVerifier = (r) => (r.scheme === 'ucan' ? 'verified' : undefined);
     const composed = composeVerifiers(native, ucanStub);
     expect(composed(nativeRecord({ scheme: 'ucan' }))).toBe('verified');
-    expect(
-      composed(nativeRecord({ issuer: { kind: 'actor', id: 'identity:alice-pubkey' } }))
-    ).toBe('verified');
+    expect(composed(nativeRecord({ issuer: { kind: 'actor', id: 'identity:alice-pubkey' } }))).toBe(
+      'verified'
+    );
   });
 
   it('returns undefined when every verifier abstains', () => {
@@ -311,9 +303,9 @@ describe('assertNativeProofDigest', () => {
 
   it('throws on a digest mismatch', async () => {
     const event = makeEvent();
-    await expect(
-      assertNativeProofDigest({ digest: 'sha-256:nope' }, event)
-    ).rejects.toThrow(/digest mismatch/);
+    await expect(assertNativeProofDigest({ digest: 'sha-256:nope' }, event)).rejects.toThrow(
+      /digest mismatch/
+    );
   });
 
   it('throws TypeError when record is null or lacks a string digest (gemini medium on #79)', async () => {

@@ -24,14 +24,14 @@ no first-class aggregator concept.
 
 ## How ATProto's model maps to ours
 
-| ATProto concept | Our equivalent | Notes |
-|---|---|---|
-| Labeler service (DID + endpoint) | `SafetyLabelerProfile` | Profile carries `labelerId`, `serviceEndpoint`, supported namespaces / labels, and now `kind`. |
-| Label value | `SafetyLabel.labelKey` + `namespace` | Two-part name avoids collisions across labelers. |
-| User subscribes to a labeler | `safety.labeler.subscribed` (envelope scope: `device-local` / `account-local` only) | Private by default; never public. |
-| Per-label-value config (ignore/warn/hide) | `SafetyLabelerSubscription.actionOverrides` | Wider action set: `allow`, `warn`, `collapse`, `blur-media`, `downrank`, `hide`. |
-| Composable stacking in the AppView | `effectiveLabelsForSubject` returning a `ResolvedLabel[]` | One entry per (labelKey × issuing labeler). Caller chooses the combiner; `mostRestrictiveAction` is the default. |
-| Labeler publishes labels via HTTP | Out of scope for this protocol slice | Belongs to a future labeler API (Phase 4 territory). |
+| ATProto concept                           | Our equivalent                                                                      | Notes                                                                                                            |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Labeler service (DID + endpoint)          | `SafetyLabelerProfile`                                                              | Profile carries `labelerId`, `serviceEndpoint`, supported namespaces / labels, and now `kind`.                   |
+| Label value                               | `SafetyLabel.labelKey` + `namespace`                                                | Two-part name avoids collisions across labelers.                                                                 |
+| User subscribes to a labeler              | `safety.labeler.subscribed` (envelope scope: `device-local` / `account-local` only) | Private by default; never public.                                                                                |
+| Per-label-value config (ignore/warn/hide) | `SafetyLabelerSubscription.actionOverrides`                                         | Wider action set: `allow`, `warn`, `collapse`, `blur-media`, `downrank`, `hide`.                                 |
+| Composable stacking in the AppView        | `effectiveLabelsForSubject` returning a `ResolvedLabel[]`                           | One entry per (labelKey × issuing labeler). Caller chooses the combiner; `mostRestrictiveAction` is the default. |
+| Labeler publishes labels via HTTP         | Out of scope for this protocol slice                                                | Belongs to a future labeler API (Phase 4 territory).                                                             |
 
 ## Improvements over ATProto
 
@@ -76,14 +76,14 @@ no first-class aggregator concept.
    - `community-aggregator`
    - `media-scanner`
    - `unknown` (default when absent)
-   
+
    Advisory metadata. The protocol does not infer authority from kind.
    Downstream trust-policy engines (ADR-006) may.
 
 9. **First-class aggregators.** A `community-aggregator` labeler
    declares `aggregatorOf: string[]` listing the source labelerIds
    whose streams it re-publishes. Subscribing to an aggregator
-   transitively trusts its *curation* of which sources to include —
+   transitively trusts its _curation_ of which sources to include —
    not the source labelers themselves for their other work.
    - Aggregator self-loops are rejected (`labelerId` cannot appear in
      its own `aggregatorOf`).
@@ -100,7 +100,7 @@ no first-class aggregator concept.
 11. **Cross-labeler revocation is rejected.** A label can only be
     revoked by an authority whose `actorId` matches the original
     label's `issuer.actorId`. Cross-labeler disagreement is expressed
-    by *issuing an opposing label*, not by trying to revoke the other
+    by _issuing an opposing label_, not by trying to revoke the other
     labeler's signal.
 
 12. **Append-only annotations.** No `safety.annotation.revoked` event:
@@ -109,13 +109,13 @@ no first-class aggregator concept.
 
 ## State machine
 
-| Object | Transitions |
-|---|---|
-| `LabelerProfile` | Re-publish supersedes prior profile under the same `labelerId`. No "withdraw" — to stop offering labels, the labeler simply stops applying them and the subscriber-side TTL / lack-of-fresh-events handles it. |
-| `LabelDefinition` | Append-only by `(namespace, labelKey)`. To change a definition, register a new key. |
-| `LabelerSubscription` | `active → unsubscribed` (terminal). New subscriptions require a fresh `subscriptionId`. |
-| `Label` | `active → revoked` (terminal). Re-applying the same `labelId` is rejected. |
-| `Annotation` | Append-only by `annotationId`. Duplicate id silently no-op (replay-safe). |
+| Object                | Transitions                                                                                                                                                                                                    |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LabelerProfile`      | Re-publish supersedes prior profile under the same `labelerId`. No "withdraw" — to stop offering labels, the labeler simply stops applying them and the subscriber-side TTL / lack-of-fresh-events handles it. |
+| `LabelDefinition`     | Append-only by `(namespace, labelKey)`. To change a definition, register a new key.                                                                                                                            |
+| `LabelerSubscription` | `active → unsubscribed` (terminal). New subscriptions require a fresh `subscriptionId`.                                                                                                                        |
+| `Label`               | `active → revoked` (terminal). Re-applying the same `labelId` is rejected.                                                                                                                                     |
+| `Annotation`          | Append-only by `annotationId`. Duplicate id silently no-op (replay-safe).                                                                                                                                      |
 
 ## What the labeler runtime MUST NOT do
 

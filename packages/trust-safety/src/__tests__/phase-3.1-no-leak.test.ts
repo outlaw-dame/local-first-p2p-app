@@ -215,9 +215,7 @@ describe('Phase 3.1.C — alert/confirm/prompt inventory is pinned', () => {
         seen.add(relative(REPO_ROOT, file));
       }
     }
-    const unexpected = [...seen].filter(
-      (f) => !INTENTIONAL_CONSENT_PROMPT_FILES.includes(f)
-    );
+    const unexpected = [...seen].filter((f) => !INTENTIONAL_CONSENT_PROMPT_FILES.includes(f));
     const missing = INTENTIONAL_CONSENT_PROMPT_FILES.filter((f) => !seen.has(f));
     if (unexpected.length > 0 || missing.length > 0) {
       throw new Error(

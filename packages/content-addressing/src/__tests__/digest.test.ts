@@ -47,21 +47,21 @@ describe('createDigest', () => {
   });
 
   it('rejects unsupported algorithms', async () => {
-    await expect(() =>
-      createDigest('x', 'sha-1' as unknown as 'sha-256')
-    ).rejects.toThrow(/CA_UNSUPPORTED_ALGORITHM/);
+    await expect(() => createDigest('x', 'sha-1' as unknown as 'sha-256')).rejects.toThrow(
+      /CA_UNSUPPORTED_ALGORITHM/
+    );
   });
 
   it('rejects non-finite numbers when digesting JSON', async () => {
-    await expect(() =>
-      createDigest({ a: Number.NaN as unknown as number })
-    ).rejects.toThrow(/CA_NON_FINITE_NUMBER/);
+    await expect(() => createDigest({ a: Number.NaN as unknown as number })).rejects.toThrow(
+      /CA_NON_FINITE_NUMBER/
+    );
   });
 
   it('rejects undefined values inside objects', async () => {
-    await expect(() =>
-      createDigest({ a: undefined as unknown as number })
-    ).rejects.toThrow(/CA_UNDEFINED_VALUE/);
+    await expect(() => createDigest({ a: undefined as unknown as number })).rejects.toThrow(
+      /CA_UNDEFINED_VALUE/
+    );
   });
 });
 
@@ -96,15 +96,15 @@ describe('validateDigestRef', () => {
   });
 
   it('rejects unknown algorithms', () => {
-    expect(() =>
-      validateDigestRef({ algorithm: 'md5', digest: 'x' })
-    ).toThrow(/CA_UNSUPPORTED_ALGORITHM/);
+    expect(() => validateDigestRef({ algorithm: 'md5', digest: 'x' })).toThrow(
+      /CA_UNSUPPORTED_ALGORITHM/
+    );
   });
 
   it('rejects wrong digest length for the algorithm', () => {
-    expect(() =>
-      validateDigestRef({ algorithm: 'sha-256', digest: 'short' })
-    ).toThrow(/CA_WRONG_DIGEST_LENGTH/);
+    expect(() => validateDigestRef({ algorithm: 'sha-256', digest: 'short' })).toThrow(
+      /CA_WRONG_DIGEST_LENGTH/
+    );
   });
 
   it('rejects non-base64url characters', () => {
@@ -136,9 +136,9 @@ describe('canonicalizeJson — adversarial', () => {
       writable: true,
       configurable: true
     });
-    expect(() =>
-      canonicalizeJson(evil as unknown as Record<string, never>)
-    ).toThrow(/CA_FORBIDDEN_KEY/);
+    expect(() => canonicalizeJson(evil as unknown as Record<string, never>)).toThrow(
+      /CA_FORBIDDEN_KEY/
+    );
   });
 
   it('rejects constructor keys', () => {
@@ -156,9 +156,7 @@ describe('canonicalizeJson — adversarial', () => {
     for (let i = 0; i < 200; i += 1) {
       nested = { x: nested };
     }
-    expect(() =>
-      canonicalizeJson(nested as Record<string, unknown>)
-    ).toThrow(/CA_RECURSION_LIMIT/);
+    expect(() => canonicalizeJson(nested as Record<string, unknown>)).toThrow(/CA_RECURSION_LIMIT/);
   });
 
   it('does not pollute Object.prototype via canonicalization output', () => {
@@ -175,9 +173,9 @@ describe('canonicalizeJson — adversarial', () => {
       writable: true,
       configurable: true
     });
-    await expect(() =>
-      createDigest(evil as unknown as Record<string, never>)
-    ).rejects.toThrow(/CA_FORBIDDEN_KEY/);
+    await expect(() => createDigest(evil as unknown as Record<string, never>)).rejects.toThrow(
+      /CA_FORBIDDEN_KEY/
+    );
   });
 });
 

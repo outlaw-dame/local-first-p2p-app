@@ -8,11 +8,17 @@
 
 ## Scope
 
-Implement the User Data Root (UDR) as a local-first logical container scoped to one identity. The UDR tracks which partitions, replicas, feed subscriptions, sync interests, content-addressed objects, mailbox binding, and Spaces a user owns or has subscribed to, and provides a deterministic projection from signed events.
+Implement the User Data Root (UDR) as a local-first logical container scoped to one Identity Root. The UDR tracks which partitions, replicas, feed subscriptions, sync interests, content-addressed objects, mailbox binding, and Spaces a user owns or has subscribed to, and provides a deterministic projection from signed events.
 
 Sync checkpoints are not UDR state. They live in the sync store and are advanced by the sync engine. The UDR may reference sync interest configuration, but it MUST NOT claim or release checkpoint rows.
 
 Out of scope: hosted UDR providers, cross-provider migration, P2P UDR replication (those belong to sync engine and availability provider phases).
+
+## Identity binding
+
+A UDR is bound to an Identity Root identifier, not to a provider account, mailbox address, app-view session, local database row, or raw device key.
+
+Controller key material proves authority over the Identity Root. Authorized device keys may emit or sync UDR-related records only within their granted scope. This allows the same account to have multiple authorized devices and multiple replicas while preserving one logical user-owned data root.
 
 ## Step 1 — `StoredUserDataRoot` schema in `@lfp2p/local-store`
 
@@ -20,7 +26,7 @@ Add to `packages/local-store/src/index.ts`:
 
 ```ts
 type StoredUserDataRoot = Readonly<{
-  identityId: string;             // controller identity this UDR belongs to
+  identityId: string; // Identity Root identifier this UDR belongs to, not a provider account or device key
   partitionIds: ReadonlyArray<string>;
   contentRefs: ReadonlyArray<string>; // ObjectRef keys the user claims
   syncInterestIds: ReadonlyArray<string>;
@@ -39,17 +45,17 @@ One PR. No new package. Passes existing local-store test suite.
 
 New event kinds (all `self` privacy, Class B):
 
-| Kind | Payload |
-|---|---|
-| `udr.partition.claimed` | `{ partitionId, scope, claimedAt }` |
-| `udr.partition.released` | `{ partitionId, releasedAt }` |
-| `udr.feed-subscription.added` | `{ feedId, feedKind, addedAt }` |
-| `udr.feed-subscription.removed` | `{ feedId, removedAt }` |
-| `udr.sync-interest.added` | `{ syncInterestId, interest: SyncInterest, addedAt }` |
-| `udr.sync-interest.removed` | `{ syncInterestId, removedAt }` |
-| `udr.mailbox.bound` | `{ mailboxId, boundAt }` |
-| `udr.space.joined` | `{ spaceId, joinedAt }` |
-| `udr.space.left` | `{ spaceId, leftAt }` |
+| Kind                            | Payload                                               |
+| ------------------------------- | ----------------------------------------------------- |
+| `udr.partition.claimed`         | `{ partitionId, scope, claimedAt }`                   |
+| `udr.partition.released`        | `{ partitionId, releasedAt }`                         |
+| `udr.feed-subscription.added`   | `{ feedId, feedKind, addedAt }`                       |
+| `udr.feed-subscription.removed` | `{ feedId, removedAt }`                               |
+| `udr.sync-interest.added`       | `{ syncInterestId, interest: SyncInterest, addedAt }` |
+| `udr.sync-interest.removed`     | `{ syncInterestId, removedAt }`                       |
+| `udr.mailbox.bound`             | `{ mailboxId, boundAt }`                              |
+| `udr.space.joined`              | `{ spaceId, joinedAt }`                               |
+| `udr.space.left`                | `{ spaceId, leftAt }`                                 |
 
 All `self`-scoped: MUST carry `PrivatePayloadEnvelopeV1`. Bridge MUST NOT inspect payload.
 
@@ -62,7 +68,7 @@ New package `packages/udr-projection/`:
 - `UdrState` type with partition set, feed subscription set, sync interest set, space set, and mailbox binding.
 - `applyUdrEvent(state, decryptedPayload, meta) → UdrState` pure state machine.
 - `createEmptyUdrState(identityId) → UdrState`.
-- `CHAT_ERROR_CODES`-style `UDR_ERROR_CODES` with `UDR_INVALID_PAYLOAD`, `UDR_UNKNOWN_KIND`.
+- `UDR_ERROR_CODES` with `UDR_INVALID_PAYLOAD`, `UDR_UNKNOWN_KIND`.
 - Deep-frozen outputs (Phase 3.2).
 - Full fixture suite (valid + invalid payloads, duplicate no-op, replay equivalence).
 
@@ -79,12 +85,25 @@ Wire projection into Dexie:
 
 One PR. Adds one Dexie integration test file, including an undecryptable payload placeholder/reject path that does not corrupt UDR state.
 
-## Step 5 — PWA UDR view
+### Step 4 status (shipped) and a correction
+
+Shipped in `@lfp2p/local-store`: `StoredUserDataRoot` (Step 1, Dexie v12), `appendUdrEvent`, `loadUdrState`, `listLocalUdrEvents`, and the internal decrypt seam. Refinements made during implementation:
+
+- **Decrypt outside the Dexie transaction.** Awaiting WebCrypto inside a Dexie transaction triggers `PrematureCommitError`. The decrypt (async) runs first; the read-modify-write with the synchronous, pure `applyUdrEvent` runs inside the transaction. Idempotency is re-checked inside the transaction against the current row, so concurrent appends converge.
+- **Self-healing via `appliedEventIds`.** An event that cannot be decrypted yet (`undecryptable`) is stored durably in `signedEvents` but left out of the projection; a later `appendUdrEvent`/`loadUdrState` with the key folds it in. A decrypted-but-invalid payload is `rejected` and NOT stored.
+- **`processInboundSyncBatch` routing is deliberately deferred, NOT implemented.** `udr.*` events are `self`-scoped, and Phase 1.64 doctrine (`admission.ts`) is explicit that `self`/`device-local` **never traverse a bridge/relay/super-peer**. So the bridge does not deliver UDR events, and adding routing that could never fire — or, worse, widening `BRIDGE_ALLOWED_PRIVACY_SCOPES` to include `self` — would be dead code and a security regression respectively. The live path is local emit (Step 5) → `appendUdrEvent`. Cross-device UDR transport is the encrypted mailbox / account-local sync envelope (a separate deferred phase); inbound routing lands with that path.
+
+## Step 5 — PWA UDR view (shipped)
 
 `apps/pwa/src/pwa-udr-state.ts`:
 
-- `buildUdrViewModel(store, identityId) → UdrViewModel`.
-- Emits `udr.*` events on partition claim/release, feed add/remove, sync interest add/remove, and space join/leave.
+- `buildUdrViewModel(store, identityId) → UdrViewModel` — reads the persisted projection row into a deep-frozen, UI-friendly view model (structural ids + counts + mailbox binding; no decryption).
+- Nine emit helpers covering all `udr.*` kinds (partition claim/release, feed add/remove, sync-interest add/remove, mailbox bind, space join/leave). Each encrypts the payload to the user's content key with AAD bound to the exact envelope, signs, and appends via `store.appendUdrEvent` with `expectedIdentityId` pinned (IDOR guard). All emit helpers are `async` so argument-validation failures surface as rejected promises, not sync throws.
+
+Notes made during implementation:
+
+- **AAD binding is exercised end-to-end.** The emit AAD context and `createUnsignedEvent` use identical fixed fields (`lamport: 0`, `schemaVersion: 1`, `privacy: 'self'`, no refs), so the store's `buildUdrAadContext` reconstructs the same AAD on decrypt. The test asserting `status === 'applied'` (not `undecryptable`) proves the round-trip.
+- **UI-only, no protocol changes.** The module is logic + view model; wiring into the app shell (`root-app.tsx`) is left for a dedicated UI PR.
 
 One PR. UI-only, no protocol changes.
 

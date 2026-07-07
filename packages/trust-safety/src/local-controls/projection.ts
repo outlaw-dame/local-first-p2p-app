@@ -21,55 +21,71 @@ import { validateLocalControlEvent } from './events.js';
 
 type ExpiringEntry = Readonly<{ expiresAt?: string }>;
 
-export type BlockedActorEntry = Readonly<ExpiringEntry & {
-  since: string;
-  reasonCode?: string;
-}>;
+export type BlockedActorEntry = Readonly<
+  ExpiringEntry & {
+    since: string;
+    reasonCode?: string;
+  }
+>;
 
-export type AllowlistedActorEntry = Readonly<ExpiringEntry & {
-  since: string;
-  reasonCode?: string;
-}>;
+export type AllowlistedActorEntry = Readonly<
+  ExpiringEntry & {
+    since: string;
+    reasonCode?: string;
+  }
+>;
 
-export type MutedActorEntry = Readonly<ExpiringEntry & {
-  since: string;
-  muteScope: AccountMuteScope;
-}>;
+export type MutedActorEntry = Readonly<
+  ExpiringEntry & {
+    since: string;
+    muteScope: AccountMuteScope;
+  }
+>;
 
-export type BlockedDomainEntry = Readonly<ExpiringEntry & {
-  since: string;
-  reasonCode?: string;
-}>;
+export type BlockedDomainEntry = Readonly<
+  ExpiringEntry & {
+    since: string;
+    reasonCode?: string;
+  }
+>;
 
-export type MutedKeywordEntry = Readonly<ExpiringEntry & {
-  since: string;
-  keyword: string;
-  matchKind: KeywordMatchKind;
-  embeddingRef?: DigestRef;
-  embeddingModel?: string;
-  similarityThreshold?: number;
-}>;
+export type MutedKeywordEntry = Readonly<
+  ExpiringEntry & {
+    since: string;
+    keyword: string;
+    matchKind: KeywordMatchKind;
+    embeddingRef?: DigestRef;
+    embeddingModel?: string;
+    similarityThreshold?: number;
+  }
+>;
 
 export type MutedThreadEntry = Readonly<ExpiringEntry & { since: string }>;
 
 export type HiddenPostEntry = Readonly<ExpiringEntry & { since: string }>;
 
-export type LabelPreferenceEntry = Readonly<ExpiringEntry & {
-  since: string;
-  preference: LabelPreferenceAction;
-}>;
+export type LabelPreferenceEntry = Readonly<
+  ExpiringEntry & {
+    since: string;
+    preference: LabelPreferenceAction;
+  }
+>;
 
-export type PolicyListSubscriptionEntry = Readonly<ExpiringEntry & {
-  since: string;
-  issuerActorId: string;
-  allowedKinds: ReadonlyArray<PolicyListKind>;
-  trustLevel: PolicyListTrustLevel;
-}>;
+export type PolicyListSubscriptionEntry = Readonly<
+  ExpiringEntry & {
+    since: string;
+    issuerActorId: string;
+    allowedKinds: ReadonlyArray<PolicyListKind>;
+    trustLevel: PolicyListTrustLevel;
+  }
+>;
 
-export type NotificationPreferenceEntry = Readonly<ExpiringEntry & {
-  since: string;
-  preference: NotificationPreference;
-}>;
+export type NotificationPreferenceEntry = Readonly<
+  ExpiringEntry & {
+    since: string;
+    preference: NotificationPreference;
+  }
+>;
 
 // --- State ---------------------------------------------------------------
 
@@ -166,11 +182,7 @@ export function applyLocalControlEvent(
   event: LocalControlEvent | unknown,
   label = 'applyLocalControlEvent'
 ): LocalControlState {
-  if (
-    event === null ||
-    typeof event !== 'object' ||
-    Array.isArray(event)
-  ) {
+  if (event === null || typeof event !== 'object' || Array.isArray(event)) {
     throw tsError('TS_INVALID_INPUT', `${label}: event must be a plain object`);
   }
   const e = validateLocalControlEvent(event, label);
@@ -325,10 +337,7 @@ export function applyLocalControlEvent(
       // action is explicit and a sync-ordering revert cannot bring it back.
       return Object.freeze({
         ...state,
-        policyListSubscriptions: withRecordDelete(
-          state.policyListSubscriptions,
-          e.policyListId
-        ),
+        policyListSubscriptions: withRecordDelete(state.policyListSubscriptions, e.policyListId),
         appliedEventIds: nextAppliedEventIds
       });
     }
@@ -341,9 +350,10 @@ export function applyLocalControlEvent(
       const current = state.notificationPreferences as Readonly<
         Record<string, NotificationPreferenceEntry>
       >;
-      const next = e.action === 'apply'
-        ? withRecordSet(current, e.channel, entry)
-        : withRecordDelete(current, e.channel);
+      const next =
+        e.action === 'apply'
+          ? withRecordSet(current, e.channel, entry)
+          : withRecordDelete(current, e.channel);
       return Object.freeze({
         ...state,
         notificationPreferences: next as Readonly<

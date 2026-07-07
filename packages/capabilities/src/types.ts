@@ -170,7 +170,10 @@ export const CAPABILITY_REASON_CODES = [
 export type CapabilityReasonCode = (typeof CAPABILITY_REASON_CODES)[number];
 
 export type CapabilityJsonScalar = string | number | boolean | null;
-export type CapabilityJsonValue = CapabilityJsonScalar | readonly CapabilityJsonValue[] | { readonly [key: string]: CapabilityJsonValue };
+export type CapabilityJsonValue =
+  | CapabilityJsonScalar
+  | readonly CapabilityJsonValue[]
+  | { readonly [key: string]: CapabilityJsonValue };
 
 export type CapabilityPartyRef = Readonly<{
   kind: CapabilityPartyKind;

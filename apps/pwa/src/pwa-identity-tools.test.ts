@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { formatIdentityVerificationStatus, identityVerificationBadgeColor } from './pwa-identity-tools.js';
+import {
+  formatIdentityVerificationStatus,
+  identityVerificationBadgeColor
+} from './pwa-identity-tools.js';
 
 describe('PWA identity tools', () => {
   it('formats identity verification statuses for user-facing text', () => {

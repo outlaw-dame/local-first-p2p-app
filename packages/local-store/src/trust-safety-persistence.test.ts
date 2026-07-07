@@ -21,10 +21,7 @@ import {
 } from '@lfp2p/trust-safety';
 import { createLocalFirstStore } from './index.js';
 
-function controlEvent(
-  eventId: string,
-  body: Record<string, unknown>
-): LocalControlEvent {
+function controlEvent(eventId: string, body: Record<string, unknown>): LocalControlEvent {
   return validateLocalControlEvent({
     version: 'lfp2p.local-control-event.v1',
     eventId,

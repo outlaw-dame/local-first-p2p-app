@@ -1,0 +1,15 @@
+{
+  "name": "checkpoint.advanced payload missing cursor is rejected",
+  "identityId": "identity:bob",
+  "event": {
+    "kind": "mailbox.checkpoint.advanced",
+    "eventId": "c",
+    "createdAt": "2026-07-04T00:00:01.000Z",
+    "payload": {
+      "mailboxId": "mb-1",
+      "checkpointId": "ckpt-1",
+      "advancedAt": "2026-07-04T00:00:01.000Z"
+    }
+  },
+  "errorCode": "MAILBOX_INVALID_PAYLOAD"
+}

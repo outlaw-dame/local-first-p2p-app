@@ -4,7 +4,9 @@ import { createLocalFirstStore, SyncCheckpointRejectedError } from './index.js';
 
 describe('sync checkpoint storage invariants', () => {
   it('rejects same-sequence cursor mismatches inside the checkpoint transaction', async () => {
-    const store = createLocalFirstStore(`checkpoint-cursor-mismatch-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `checkpoint-cursor-mismatch-${globalThis.crypto.randomUUID()}`
+    );
     try {
       await store.advanceSyncCheckpoint({
         sourceId: 'bridge:primary',
@@ -39,7 +41,9 @@ describe('sync checkpoint storage invariants', () => {
   });
 
   it('allows same-sequence cursor replacement only for explicit controlled rewinds', async () => {
-    const store = createLocalFirstStore(`checkpoint-cursor-replace-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `checkpoint-cursor-replace-${globalThis.crypto.randomUUID()}`
+    );
     try {
       await store.advanceSyncCheckpoint({
         sourceId: 'bridge:primary',

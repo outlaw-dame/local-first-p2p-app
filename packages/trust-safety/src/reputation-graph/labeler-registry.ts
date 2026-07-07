@@ -48,14 +48,8 @@
  *      can show provenance without leaking scoring math.
  */
 import { tsError } from '../errors.js';
-import {
-  REPUTATION_ALGORITHMS,
-  type ReputationAlgorithm
-} from './constants.js';
-import {
-  LOCAL_REPUTATION_SOURCE,
-  type AggregatorSubscription
-} from './aggregator-runtime.js';
+import { REPUTATION_ALGORITHMS, type ReputationAlgorithm } from './constants.js';
+import { LOCAL_REPUTATION_SOURCE, type AggregatorSubscription } from './aggregator-runtime.js';
 
 export const LABELER_REGISTRY_VERSION = 'lfp2p.labeler-registry.v1' as const;
 export type LabelerRegistryVersion = typeof LABELER_REGISTRY_VERSION;
@@ -176,7 +170,8 @@ export function resolveActiveLabelerSet(
   if (!Array.isArray(userSubscriptions)) {
     throw tsError('TS_INVALID_INPUT', 'input.userSubscriptions must be an array');
   }
-  const mutedLabelerIds = input.mutedLabelerIds === undefined ? new Set<string>() : input.mutedLabelerIds;
+  const mutedLabelerIds =
+    input.mutedLabelerIds === undefined ? new Set<string>() : input.mutedLabelerIds;
   if (!(mutedLabelerIds instanceof Set)) {
     throw tsError('TS_INVALID_INPUT', 'input.mutedLabelerIds must be a Set when supplied');
   }
@@ -211,11 +206,7 @@ export function resolveActiveLabelerSet(
       );
       return;
     }
-    if (
-      !Number.isFinite(raw.priority) ||
-      !Number.isInteger(raw.priority) ||
-      raw.priority <= 0
-    ) {
+    if (!Number.isFinite(raw.priority) || !Number.isInteger(raw.priority) || raw.priority <= 0) {
       // Priority 0 (and below) is reserved for the local source. We
       // reject rather than silently bump so a distributor cannot
       // smuggle an entry into the local slot by claiming priority 0.

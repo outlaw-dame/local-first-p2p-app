@@ -1,0 +1,24 @@
+{
+  "name": "checkpoint.advanced tracks the latest cursor per mailboxId",
+  "identityId": "identity:bob",
+  "log": [
+    {
+      "kind": "mailbox.checkpoint.advanced",
+      "eventId": "c",
+      "createdAt": "2026-07-04T00:00:01.000Z",
+      "payload": {
+        "mailboxId": "mb-1",
+        "checkpointId": "ckpt-1",
+        "cursor": "42",
+        "advancedAt": "2026-07-04T00:00:01.000Z"
+      }
+    }
+  ],
+  "assert": {
+    "checkpoint": {
+      "key": "mb-1",
+      "cursor": "42",
+      "checkpointId": "ckpt-1"
+    }
+  }
+}

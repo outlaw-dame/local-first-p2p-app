@@ -41,7 +41,7 @@ Excluded scope:
   recovery path itself does not exist today and is treated as
   future work, not as a defended surface).
 - Capability proof-on-the-wire (capabilities exist in the
-  identity log; capability *proofs* attached to regular events
+  identity log; capability _proofs_ attached to regular events
   are not yet specified).
 - Multi-controller accounts (v1 is single-controller).
 - MLS group key schedule — Class D events are out of scope for
@@ -82,8 +82,8 @@ Excluded scope:
 
 - Honest local user.
 - Honest peer / honest controller of another account.
-- Attacker holding a *stolen device key* but not the controller key.
-- Attacker holding a *stolen controller key* (worst-case).
+- Attacker holding a _stolen device key_ but not the controller key.
+- Attacker holding a _stolen controller key_ (worst-case).
 - Attacker controlling a bridge but not any account key.
 - Attacker controlling a peer but no key (replay-only attacker).
 
@@ -104,7 +104,7 @@ identity rolls back to the old key, allowing the attacker
 - Phase 2.1 `applyDeviceRotated` requires
   `event.payload.previousPublicKey === state.devices[deviceId].publicKey`.
   A stale rotation event whose `previousPublicKey` references
-  a *now-stale* publicKey is rejected with
+  a _now-stale_ publicKey is rejected with
   `IDENTITY_AUTHORITY_MISMATCH`.
 - Monotonic-epoch enforcement
   (`event.payload.epoch > state.epoch`) also rejects stale
@@ -113,7 +113,7 @@ identity rolls back to the old key, allowing the attacker
   is committed.
 
 **Residual risk.** None at the protocol layer. A device that
-has not yet replayed the *latest* rotation may temporarily
+has not yet replayed the _latest_ rotation may temporarily
 hold a stale `state.devices[deviceId].publicKey`; once it
 syncs the canonical chain it converges.
 
@@ -144,7 +144,7 @@ capability, publish a contact card).
 
 **Residual risk.** Today, a payload event signed by a revoked
 device's key passes signature verification (the key is still
-mathematically valid). The verifier *currently does not* reject
+mathematically valid). The verifier _currently does not_ reject
 a signature-valid event from a revoked device on the inbound
 path. Downstream selectors and bridge admission may catch it
 (Phase 4.1 deferral).
@@ -181,8 +181,8 @@ revoked device.
 
 **Defense.**
 
-- Revocation events are signed; the bridge cannot *forge*
-  one. It can only *withhold*.
+- Revocation events are signed; the bridge cannot _forge_
+  one. It can only _withhold_.
 - Sync checkpoints are monotonic per `(sourceId, streamId, scope)`.
   A peer whose checkpoint cursor advances without seeing the
   revocation will be unaware of it; that's the attack's foothold.
@@ -259,15 +259,15 @@ publication digest" rolls back to the old digest.
 - Idempotency on `eventId`: a re-played event is a silent
   no-op at the store-append boundary.
 - Projection logic: `applyContactCardPublished` always sets
-  the publication to the *current* event's values. If the
-  event is replayed in-order (older one *first* on a new
+  the publication to the _current_ event's values. If the
+  event is replayed in-order (older one _first_ on a new
   device), the latest one still wins because it lands last.
 - `seedIdentityControlProjection` sorts events by Lamport
   clock, `createdAt`, and `eventId` before reduce. A replayed
   older event lands in its correct sort position and is
   overridden by the newer event in the same replay.
 
-**Residual risk.** Low. A device that has *only* the old event
+**Residual risk.** Low. A device that has _only_ the old event
 (never received the new one) does see the stale publication
 digest. This is fundamental to local-first sync, not a bug.
 
@@ -305,7 +305,7 @@ the event's claimed capability ID before honoring the action.
 
 **Defense gap.** Today, **no protocol event carries a
 capability proof on the wire**. Capabilities exist only in the
-identity log; their *use* by payload events is unspecified.
+identity log; their _use_ by payload events is unspecified.
 
 **Mitigation status.** Documented future work. A capability-on-the-wire
 ADR is needed before chat (Phase 5), moderation tools (future),
@@ -324,13 +324,13 @@ canonical log.
 
 - Phase 2.2 introduces `listLocalIdentityEvents(identityId)` +
   caller-side `seedIdentityControlProjection` as the
-  rebuild-from-log path. The snapshot is a *cache*; the log is
+  rebuild-from-log path. The snapshot is a _cache_; the log is
   the source of truth.
 - Phase 2.1 added defense-in-depth re-validation in
   `applyIdentityControlEvent`: every identity event is
   validated through `validateIdentityEvent` before mutation.
   A corrupted snapshot whose `epoch` is too low gets
-  *replayed-and-corrected* on next reseed.
+  _replayed-and-corrected_ on next reseed.
 
 **Residual risk.** The window between a corrupted snapshot and
 the next reseed produces a temporarily-wrong projection. A
@@ -342,14 +342,14 @@ shipped today.
 
 ## Gaps and deferrals (consolidated)
 
-| Gap                                                       | Target                                                 | Status |
-|-----------------------------------------------------------|--------------------------------------------------------|--------|
-| Verifier hard-fail on signer-device-revoked for payload events | Phase 4.1 (transport admission) + verifier check #10  | Documented |
-| Controller-key recovery / supersession                    | Phase 2.3 (future, new ADR required)                   | Documented |
-| Capability proof-on-the-wire                              | Future capability ADR + verifier check #11             | Documented |
-| Multi-controller accounts                                 | Future ADR                                             | Documented |
-| Periodic snapshot-vs-log integrity check                  | Phase 2.2 follow-on                                     | Documented |
-| Multi-bridge redundancy for revocation propagation        | Phase 4+                                                | Documented |
+| Gap                                                            | Target                                               | Status     |
+| -------------------------------------------------------------- | ---------------------------------------------------- | ---------- |
+| Verifier hard-fail on signer-device-revoked for payload events | Phase 4.1 (transport admission) + verifier check #10 | Documented |
+| Controller-key recovery / supersession                         | Phase 2.3 (future, new ADR required)                 | Documented |
+| Capability proof-on-the-wire                                   | Future capability ADR + verifier check #11           | Documented |
+| Multi-controller accounts                                      | Future ADR                                           | Documented |
+| Periodic snapshot-vs-log integrity check                       | Phase 2.2 follow-on                                  | Documented |
+| Multi-bridge redundancy for revocation propagation             | Phase 4+                                             | Documented |
 
 ## Acceptance for this threat model
 

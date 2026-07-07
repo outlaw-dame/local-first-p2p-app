@@ -86,22 +86,39 @@ describe('@lfp2p/capabilities validation', () => {
   });
 
   it('rejects unknown versions', () => {
-    expect(() => validateCapabilityGrant({ ...baseGrant(), version: 'lfp2p.capability.grant.v2' })).toThrow('CAP_UNKNOWN_VERSION');
+    expect(() =>
+      validateCapabilityGrant({ ...baseGrant(), version: 'lfp2p.capability.grant.v2' })
+    ).toThrow('CAP_UNKNOWN_VERSION');
   });
 
   it('rejects duplicate and wildcard actions', () => {
-    expect(() => validateCapabilityGrant({ ...baseGrant(), actions: ['room.moderate', 'room.moderate'] })).toThrow('CAP_DUPLICATE_VALUE');
-    expect(() => validateCapabilityGrant({ ...baseGrant(), actions: ['*'] })).toThrow('CAP_INVALID_ACTION');
+    expect(() =>
+      validateCapabilityGrant({ ...baseGrant(), actions: ['room.moderate', 'room.moderate'] })
+    ).toThrow('CAP_DUPLICATE_VALUE');
+    expect(() => validateCapabilityGrant({ ...baseGrant(), actions: ['*'] })).toThrow(
+      'CAP_INVALID_ACTION'
+    );
   });
 
   it('rejects invalid time windows', () => {
-    expect(() => validateCapabilityGrant({ ...baseGrant(), notBefore: FUTURE, expiresAt: NOW })).toThrow('CAP_INVALID_TIMESTAMP');
-    expect(() => validateCapabilityInvocation({ ...baseInvocation(), expiresAt: PAST })).toThrow('CAP_INVALID_TIMESTAMP');
+    expect(() =>
+      validateCapabilityGrant({ ...baseGrant(), notBefore: FUTURE, expiresAt: NOW })
+    ).toThrow('CAP_INVALID_TIMESTAMP');
+    expect(() => validateCapabilityInvocation({ ...baseInvocation(), expiresAt: PAST })).toThrow(
+      'CAP_INVALID_TIMESTAMP'
+    );
   });
 
   it('rejects prototype-pollution keys and values', () => {
-    expect(() => validateCapabilityGrant({ ...baseGrant(), capabilityId: '__proto__' })).toThrow('CAP_FORBIDDEN_KEY');
-    expect(() => validateCapabilityGrant({ ...baseGrant(), caveats: [{ kind: 'resource-is', value: { constructor: 'x' } }] })).toThrow('CAP_FORBIDDEN_KEY');
+    expect(() => validateCapabilityGrant({ ...baseGrant(), capabilityId: '__proto__' })).toThrow(
+      'CAP_FORBIDDEN_KEY'
+    );
+    expect(() =>
+      validateCapabilityGrant({
+        ...baseGrant(),
+        caveats: [{ kind: 'resource-is', value: { constructor: 'x' } }]
+      })
+    ).toThrow('CAP_FORBIDDEN_KEY');
   });
 });
 
@@ -120,10 +137,40 @@ describe('@lfp2p/capabilities evaluation', () => {
   });
 
   it('denies expired, revoked, wrong audience, and replayed invocations', () => {
-    expect(evaluateCapabilityInvocation({ grant: baseGrant({ expiresAt: PAST }), invocation: baseInvocation(), now: NOW, authorityContext: 'moderation' }).reasonCodes).toContain('capability.expired');
-    expect(evaluateCapabilityInvocation({ grant: baseGrant(), invocation: baseInvocation(), revocations: [baseRevocation()], now: NOW, authorityContext: 'moderation' }).reasonCodes).toContain('capability.revoked');
-    expect(evaluateCapabilityInvocation({ grant: baseGrant(), invocation: baseInvocation({ invoker: { kind: 'device', id: 'device:other' } }), now: NOW, authorityContext: 'moderation' }).reasonCodes).toContain('capability.wrong-audience');
-    expect(evaluateCapabilityInvocation({ grant: baseGrant(), invocation: baseInvocation(), now: NOW, replayedInvocationIds: new Set(['invoke:moderate-room:1']), authorityContext: 'moderation' }).reasonCodes).toContain('capability.replayed-invocation');
+    expect(
+      evaluateCapabilityInvocation({
+        grant: baseGrant({ expiresAt: PAST }),
+        invocation: baseInvocation(),
+        now: NOW,
+        authorityContext: 'moderation'
+      }).reasonCodes
+    ).toContain('capability.expired');
+    expect(
+      evaluateCapabilityInvocation({
+        grant: baseGrant(),
+        invocation: baseInvocation(),
+        revocations: [baseRevocation()],
+        now: NOW,
+        authorityContext: 'moderation'
+      }).reasonCodes
+    ).toContain('capability.revoked');
+    expect(
+      evaluateCapabilityInvocation({
+        grant: baseGrant(),
+        invocation: baseInvocation({ invoker: { kind: 'device', id: 'device:other' } }),
+        now: NOW,
+        authorityContext: 'moderation'
+      }).reasonCodes
+    ).toContain('capability.wrong-audience');
+    expect(
+      evaluateCapabilityInvocation({
+        grant: baseGrant(),
+        invocation: baseInvocation(),
+        now: NOW,
+        replayedInvocationIds: new Set(['invoke:moderate-room:1']),
+        authorityContext: 'moderation'
+      }).reasonCodes
+    ).toContain('capability.replayed-invocation');
   });
 
   it('denies untrusted issuers and unverified proofs', () => {
@@ -213,7 +260,9 @@ describe('@lfp2p/capabilities projection', () => {
 
     projection = applyCapabilityRevocation(projection, baseRevocation());
     expect(isCapabilityRevoked(projection, 'cap:moderate-room:1')).toBe(true);
-    expect(projection.grants['cap:moderate-room:1']?.revocationIds).toEqual(['revoke:moderate-room:1']);
+    expect(projection.grants['cap:moderate-room:1']?.revocationIds).toEqual([
+      'revoke:moderate-room:1'
+    ]);
   });
 
   it('prevents out-of-order revocation resurrection', () => {

@@ -18,9 +18,9 @@ describe('validateObjectRef — content-backed kinds', () => {
   );
 
   it('rejects a content-backed kind missing digest', () => {
-    expect(() =>
-      validateObjectRef({ type: 'object-ref', kind: 'event' })
-    ).toThrow(/CA_INVALID_INPUT/);
+    expect(() => validateObjectRef({ type: 'object-ref', kind: 'event' })).toThrow(
+      /CA_INVALID_INPUT/
+    );
   });
 
   it('rejects negative schemaVersion', () => {
@@ -42,7 +42,10 @@ describe('validateObjectRef — media', () => {
       kind: 'media',
       block: {
         type: 'block-ref',
-        source: { kind: 'content-link', link: { type: 'content-link', cid: SAMPLE_CIDV1, codec: 'raw' } },
+        source: {
+          kind: 'content-link',
+          link: { type: 'content-link', cid: SAMPLE_CIDV1, codec: 'raw' }
+        },
         byteLength: 8192,
         privacy: 'public'
       }
@@ -115,9 +118,9 @@ describe('validateObjectRef — url', () => {
   });
 
   it('rejects a malformed URL string', () => {
-    expect(() =>
-      validateObjectRef({ type: 'object-ref', kind: 'url', url: 'not a url' })
-    ).toThrow(/CA_INVALID_URL/);
+    expect(() => validateObjectRef({ type: 'object-ref', kind: 'url', url: 'not a url' })).toThrow(
+      /CA_INVALID_URL/
+    );
   });
 });
 
@@ -152,9 +155,9 @@ describe('validateObjectRef — domain', () => {
   });
 
   it('rejects an empty-label domain', () => {
-    expect(() =>
-      validateObjectRef({ type: 'object-ref', kind: 'domain', domain: 'a..b' })
-    ).toThrow(/CA_INVALID_OBJECT_REF/);
+    expect(() => validateObjectRef({ type: 'object-ref', kind: 'domain', domain: 'a..b' })).toThrow(
+      /CA_INVALID_OBJECT_REF/
+    );
   });
 });
 
@@ -182,17 +185,17 @@ describe('validateObjectRef — identity kinds (actor, community, infrastructure
   });
 
   it('rejects empty identityRef', () => {
-    expect(() =>
-      validateObjectRef({ type: 'object-ref', kind: 'actor', identityRef: '' })
-    ).toThrow(/CA_INVALID_INPUT/);
+    expect(() => validateObjectRef({ type: 'object-ref', kind: 'actor', identityRef: '' })).toThrow(
+      /CA_INVALID_INPUT/
+    );
   });
 });
 
 describe('validateObjectRef — input shape', () => {
   it('rejects unknown kind', () => {
-    expect(() =>
-      validateObjectRef({ type: 'object-ref', kind: 'unicorn' })
-    ).toThrow(/CA_INVALID_OBJECT_REF/);
+    expect(() => validateObjectRef({ type: 'object-ref', kind: 'unicorn' })).toThrow(
+      /CA_INVALID_OBJECT_REF/
+    );
   });
 
   it('rejects wrong type tag', () => {

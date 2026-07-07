@@ -19,7 +19,7 @@ Phase 1.8 introduces a **graph-aware per-user reputation score** that
 augments the existing per-peer / per-author trust signals (Phase 1.64
 `PeerReputation`, Phase 1.66 labelers, Phase 1.65 curation). It
 addresses the one remaining gap in our trust-safety stack: we have
-high-quality *local-observation* signals but no way to ask "is this
+high-quality _local-observation_ signals but no way to ask "is this
 stranger reachable through a high-quality trust path from me?"
 
 This is the signal that systems like
@@ -51,7 +51,7 @@ ways an on-chain reputation marketplace structurally cannot.
    no slashing economy. Verifiability comes from local replay
    determinism (Phase 3.2): the user holds the inputs (their event
    log + signed observations) and can re-derive any score at any
-   time. A third-party score *can* be consumed via the labeler
+   time. A third-party score _can_ be consumed via the labeler
    surface but it is one signal among many, never the system's
    source of truth.
 4. **No global authority on the seed set.** The pre-trusted-peer
@@ -80,33 +80,33 @@ ways an on-chain reputation marketplace structurally cannot.
 
 ## Threat model
 
-| Adversary capability | Mitigation |
-|---|---|
-| Sybil cluster around a target (vanilla EigenTrust attack) | Personalized seed vector breaks symmetric-reputation-function premise; sybils unreachable from the user's contact graph score ≈ 0 |
-| Feedback clique (closed group rating each other up) | Clustering-coefficient + inbound/outbound asymmetry penalty; clique with no outbound trust pays a multiplicative damping factor |
-| Community-structure / eigenvector-centrality attack (positioning near pre-trusted peers) | Path-quality damping per hop α^n means inflated centrality decays geometrically; fingerprint-attested edges cap inflation |
-| Compromised pre-trusted peer | Per-user seed set means compromise affects only that user; per-edge time-decay drops the malicious endorsement; explicit revocation via Phase 2.3 fingerprint-compare flow removes it permanently |
-| Algorithmic complexity DoS (huge graph submitted by attacker) | Hard caps (`maxNodes`, `maxEdgesPerNode`, `maxIterations`); excess truncated deterministically (alphabetical by stable id) — replayable, not undefined |
-| Forged observation event | Phase 1.61 signature verification; observation events are signed envelopes per Phase 2.1 |
-| Replay of stale observations | Phase 1.64 replay cache (already in admission); per-observation `createdAt` + time-decayed weight in EigenTrust |
-| Privacy leak via graph publication | Default `device-local` privacy; no protocol-level publication; aggregator labeler is opt-in |
-| Hostile aggregator labeler publishing biased scores | Phase 1.66 multi-labeler stacking; user can subscribe to N aggregators and the composed view applies their explicit priority; unsubscribe is one event |
-| Quorum-of-strangers sybil (many fake accounts collectively endorsing a target) | The eigenvector computation gives all such mutually-endorsing strangers near-zero weight unless they connect back to the user's seed set; the attacker must compromise at least one real contact to seed influence |
-| Persistent "trust laundering" via short-lived high-rep accounts | Time-decay + observation-window aggregation: a burst of high ratings from a single window is damped relative to consistent ratings over time |
-| Operator-bridge attempts to inject scores | Bridges don't compute or publish scores — they're a transport surface (Phase 4 doctrine). Reputation events are signed by user devices and travel through bridges like any other signed event |
-| Reputation-state divergence between devices of the same user | Phase 3.2 replay determinism + Phase 2.2 identity persistence: each device re-runs the same computation from the same event log and produces the same state |
+| Adversary capability                                                                     | Mitigation                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sybil cluster around a target (vanilla EigenTrust attack)                                | Personalized seed vector breaks symmetric-reputation-function premise; sybils unreachable from the user's contact graph score ≈ 0                                                                                  |
+| Feedback clique (closed group rating each other up)                                      | Clustering-coefficient + inbound/outbound asymmetry penalty; clique with no outbound trust pays a multiplicative damping factor                                                                                    |
+| Community-structure / eigenvector-centrality attack (positioning near pre-trusted peers) | Path-quality damping per hop α^n means inflated centrality decays geometrically; fingerprint-attested edges cap inflation                                                                                          |
+| Compromised pre-trusted peer                                                             | Per-user seed set means compromise affects only that user; per-edge time-decay drops the malicious endorsement; explicit revocation via Phase 2.3 fingerprint-compare flow removes it permanently                  |
+| Algorithmic complexity DoS (huge graph submitted by attacker)                            | Hard caps (`maxNodes`, `maxEdgesPerNode`, `maxIterations`); excess truncated deterministically (alphabetical by stable id) — replayable, not undefined                                                             |
+| Forged observation event                                                                 | Phase 1.61 signature verification; observation events are signed envelopes per Phase 2.1                                                                                                                           |
+| Replay of stale observations                                                             | Phase 1.64 replay cache (already in admission); per-observation `createdAt` + time-decayed weight in EigenTrust                                                                                                    |
+| Privacy leak via graph publication                                                       | Default `device-local` privacy; no protocol-level publication; aggregator labeler is opt-in                                                                                                                        |
+| Hostile aggregator labeler publishing biased scores                                      | Phase 1.66 multi-labeler stacking; user can subscribe to N aggregators and the composed view applies their explicit priority; unsubscribe is one event                                                             |
+| Quorum-of-strangers sybil (many fake accounts collectively endorsing a target)           | The eigenvector computation gives all such mutually-endorsing strangers near-zero weight unless they connect back to the user's seed set; the attacker must compromise at least one real contact to seed influence |
+| Persistent "trust laundering" via short-lived high-rep accounts                          | Time-decay + observation-window aggregation: a burst of high ratings from a single window is damped relative to consistent ratings over time                                                                       |
+| Operator-bridge attempts to inject scores                                                | Bridges don't compute or publish scores — they're a transport surface (Phase 4 doctrine). Reputation events are signed by user devices and travel through bridges like any other signed event                      |
+| Reputation-state divergence between devices of the same user                             | Phase 3.2 replay determinism + Phase 2.2 identity persistence: each device re-runs the same computation from the same event log and produces the same state                                                        |
 
 ## Wire model
 
 ### Event kinds
 
-| Kind | Authoritative | Privacy default | Carries |
-|---|---|---|---|
-| `reputation.observation.recorded` | author device | `device-local` | `subject` (identity ref), `kind` (stable enum), `satCount`, `unsatCount`, `windowStart`, `windowEnd` |
-| `reputation.attestation.published` | author device | `device-local` | `subject`, `valence` (`positive` \| `negative` \| `dispute`), `contextTag`, `strength` (bounded 0–1), optional `expiresAt` |
-| `reputation.attestation.revoked` | author device | `device-local` | `attestationId` (the earlier event's id), `revokedAt` |
-| `reputation.aggregator.published` | labeler (Phase 1.66 surface) | `public` | `subjects`: list of `{ subject, score, confidence, observationCount, algorithm, computedAt }`. Subjects are identities, not posts. |
-| `reputation.aggregator.score.removed` | labeler | `public` | `subject`, `reason` (stable code) |
+| Kind                                  | Authoritative                | Privacy default | Carries                                                                                                                            |
+| ------------------------------------- | ---------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `reputation.observation.recorded`     | author device                | `device-local`  | `subject` (identity ref), `kind` (stable enum), `satCount`, `unsatCount`, `windowStart`, `windowEnd`                               |
+| `reputation.attestation.published`    | author device                | `device-local`  | `subject`, `valence` (`positive` \| `negative` \| `dispute`), `contextTag`, `strength` (bounded 0–1), optional `expiresAt`         |
+| `reputation.attestation.revoked`      | author device                | `device-local`  | `attestationId` (the earlier event's id), `revokedAt`                                                                              |
+| `reputation.aggregator.published`     | labeler (Phase 1.66 surface) | `public`        | `subjects`: list of `{ subject, score, confidence, observationCount, algorithm, computedAt }`. Subjects are identities, not posts. |
+| `reputation.aggregator.score.removed` | labeler                      | `public`        | `subject`, `reason` (stable code)                                                                                                  |
 
 **Notes:**
 
@@ -120,7 +120,7 @@ ways an on-chain reputation marketplace structurally cannot.
   deterministically (no error, no partial inclusion).
 - The aggregator event carries scores for many subjects in one
   signed batch — this is how a third-party (e.g., an
-  OpenRank-derived labeler) publishes their global view *into* the
+  OpenRank-derived labeler) publishes their global view _into_ the
   user's local labeler stack.
 
 ### Aggregator labeler kind
@@ -264,16 +264,16 @@ doesn't change the eigenvector).
 Per-peer rate-limit-bucket parameters are modulated by the score of
 the peer's authoritative identity:
 
-| Score band | Bucket capacity | Refill rate | Cooldown growth |
-|---|---|---|---|
-| `≥ 0.5` (high) | 2× baseline | 2× baseline | 0.5× exponent |
-| `[0.1, 0.5)` (mid) | 1× baseline | 1× baseline | 1× exponent |
-| `[0.01, 0.1)` (low) | 0.5× baseline | 0.5× baseline | 1.5× exponent |
-| `< 0.01` or unknown | 0.25× baseline | 0.25× baseline | 2× exponent |
+| Score band          | Bucket capacity | Refill rate    | Cooldown growth |
+| ------------------- | --------------- | -------------- | --------------- |
+| `≥ 0.5` (high)      | 2× baseline     | 2× baseline    | 0.5× exponent   |
+| `[0.1, 0.5)` (mid)  | 1× baseline     | 1× baseline    | 1× exponent     |
+| `[0.01, 0.1)` (low) | 0.5× baseline   | 0.5× baseline  | 1.5× exponent   |
+| `< 0.01` or unknown | 0.25× baseline  | 0.25× baseline | 2× exponent     |
 
 Engine math is unchanged — only the parameter is dialed. Reputation
 state advance and persistence ride the Phase 4.2 fail-closed save
-path. Decision audit log records the *band* (privacy-safe) but not
+path. Decision audit log records the _band_ (privacy-safe) but not
 the raw score (which is recoverable by recomputation if needed).
 
 ### Curation surface (Phase 1.65)
@@ -307,73 +307,73 @@ require explicit user opt-in to fetch (defaults configurable).
 
 ## Why this is structurally better than adopting OpenRank
 
-| Axis | OpenRank | Phase 8 |
-|---|---|---|
-| Trust root | Pre-trusted-peer seed set chosen by aggregator | Per-user fingerprint-attested contact graph (Phase 2.3) |
-| Sybil resistance | Symmetric reputation function — provably not sybil-proof | Personalized PageRank form — closes the proven attack |
-| Privacy | Reputation graph published to DA layer | Reputation graph stays on the device |
-| Verifiability | EigenLayer restake + slashing + on-chain commitments | Local replay determinism (Phase 3.2) — user has the inputs |
-| Composability | One algorithm per context | Phase 1.66 labeler stack — N algorithms simultaneously, user-prioritized |
-| Phase numbering note | n/a | Phase 1.8 sits in the 1.x trust-safety family alongside 1.61–1.71; the existing Phase 8 in the top-level plan (Ephemeral presence plane) is unrelated |
-| Out-of-band attestation | Not modelled | Phase 2.3 fingerprint-compare amplifies trust paths permanently |
-| Personalization | Limited (context selection) | Every user gets a different ranking |
-| Revocation | Algorithm-bound | Phase 1.66 labeler unsubscribe + Phase 2.3 contact revocation; both event-level |
-| Dependency surface | EigenLayer AVS + DA layer + Karma3Labs early-stage stack | Pure compute over our existing event log |
-| OpenRank-style scores still available | n/a | Yes — as a `reputation-aggregator` labeler, optional and revocable |
+| Axis                                  | OpenRank                                                 | Phase 8                                                                                                                                               |
+| ------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trust root                            | Pre-trusted-peer seed set chosen by aggregator           | Per-user fingerprint-attested contact graph (Phase 2.3)                                                                                               |
+| Sybil resistance                      | Symmetric reputation function — provably not sybil-proof | Personalized PageRank form — closes the proven attack                                                                                                 |
+| Privacy                               | Reputation graph published to DA layer                   | Reputation graph stays on the device                                                                                                                  |
+| Verifiability                         | EigenLayer restake + slashing + on-chain commitments     | Local replay determinism (Phase 3.2) — user has the inputs                                                                                            |
+| Composability                         | One algorithm per context                                | Phase 1.66 labeler stack — N algorithms simultaneously, user-prioritized                                                                              |
+| Phase numbering note                  | n/a                                                      | Phase 1.8 sits in the 1.x trust-safety family alongside 1.61–1.71; the existing Phase 8 in the top-level plan (Ephemeral presence plane) is unrelated |
+| Out-of-band attestation               | Not modelled                                             | Phase 2.3 fingerprint-compare amplifies trust paths permanently                                                                                       |
+| Personalization                       | Limited (context selection)                              | Every user gets a different ranking                                                                                                                   |
+| Revocation                            | Algorithm-bound                                          | Phase 1.66 labeler unsubscribe + Phase 2.3 contact revocation; both event-level                                                                       |
+| Dependency surface                    | EigenLayer AVS + DA layer + Karma3Labs early-stage stack | Pure compute over our existing event log                                                                                                              |
+| OpenRank-style scores still available | n/a                                                      | Yes — as a `reputation-aggregator` labeler, optional and revocable                                                                                    |
 
 ## Acceptance criteria (per planned phase)
 
 ### Phase 1.8.1 — Reputation observation events (protocol)
 
-| Criterion |
-|---|
-| New event kinds added with bounded enums for `kind` / `contextTag` / `valence` |
+| Criterion                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New event kinds added with bounded enums for `kind` / `contextTag` / `valence`                                                                                                            |
 | Validation rejects free-form text, unknown enums (forward-compatible: ignored deterministically, not partial), windows that violate `windowStart ≤ windowEnd`, strengths outside `[0, 1]` |
-| Default privacy = `device-local` for observation + attestation; `public` only for aggregator-labeler kind |
-| Phase 3.2 frozen-walk + replay-equivalence tests pinned |
-| Fixtures: 4 valid + 2 invalid per kind |
+| Default privacy = `device-local` for observation + attestation; `public` only for aggregator-labeler kind                                                                                 |
+| Phase 3.2 frozen-walk + replay-equivalence tests pinned                                                                                                                                   |
+| Fixtures: 4 valid + 2 invalid per kind                                                                                                                                                    |
 
 ### Phase 1.8.2 — Local personalized EigenTrust computer
 
-| Criterion |
-|---|
-| `packages/trust-safety/reputation-graph` package created |
-| Pure function `computeReputation(inputs) -> LocalReputationState` with all defaults from doctrine |
-| Personalized seed vector seeded from Phase 2.3 contacts with documented strength bands |
-| Hard caps enforced (`maxNodes`, `maxEdgesPerNode`, `maxIterations`); truncation is deterministic by stable id sort |
-| Convergence threshold + iteration cap + graceful failure when not converged (`convergedWithinIterations: false`) |
-| Deep-freeze on construction per Phase 3.2 |
+| Criterion                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------- |
+| `packages/trust-safety/reputation-graph` package created                                                                    |
+| Pure function `computeReputation(inputs) -> LocalReputationState` with all defaults from doctrine                           |
+| Personalized seed vector seeded from Phase 2.3 contacts with documented strength bands                                      |
+| Hard caps enforced (`maxNodes`, `maxEdgesPerNode`, `maxIterations`); truncation is deterministic by stable id sort          |
+| Convergence threshold + iteration cap + graceful failure when not converged (`convergedWithinIterations: false`)            |
+| Deep-freeze on construction per Phase 3.2                                                                                   |
 | Adversarial tests: replay equivalence, byte-identical across runs, NaN / Infinity rejection, empty graph, single-seed graph |
 
 ### Phase 1.8.3 — Surface integration
 
-| Criterion |
-|---|
+| Criterion                                                                         |
+| --------------------------------------------------------------------------------- |
 | Admission engine rate-limit bucket parameter table wired and unit-tested per band |
-| Curation surface input documented + integration test |
-| Spam gate emits `spam.likely` label via Phase 1.66 path |
-| Audit log records band, NOT raw score (privacy-safe per Phase 3.1) |
+| Curation surface input documented + integration test                              |
+| Spam gate emits `spam.likely` label via Phase 1.66 path                           |
+| Audit log records band, NOT raw score (privacy-safe per Phase 3.1)                |
 | User-overrides (explicit subscribe/mute) beat algorithmic signal — pinned by test |
 
 ### Phase 1.8.4 — Aggregator labeler kind (OpenRank integration point)
 
-| Criterion |
-|---|
-| `labeler.kind: reputation-aggregator` declared (extends Phase 1.66 capabilities) |
+| Criterion                                                                                                             |
+| --------------------------------------------------------------------------------------------------------------------- |
+| `labeler.kind: reputation-aggregator` declared (extends Phase 1.66 capabilities)                                      |
 | `reputation.aggregator.published` event validated; subjects bounded; per-event subject cap enforced deterministically |
-| Optional external adapter package (NOT in protocol core) demonstrates fetch-OpenRank-republish-as-labeler-events |
-| Adapter is opt-in via Phase 1.66 subscribe flow; revocation is one event |
-| Local-personalized score is always labeler #0; external aggregators stack below |
+| Optional external adapter package (NOT in protocol core) demonstrates fetch-OpenRank-republish-as-labeler-events      |
+| Adapter is opt-in via Phase 1.66 subscribe flow; revocation is one event                                              |
+| Local-personalized score is always labeler #0; external aggregators stack below                                       |
 
 ### Phase 1.8.5 — Sybil hardening
 
-| Criterion |
-|---|
+| Criterion                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------- |
 | Clique-detection penalty implemented; test pinned with N=10 closed-clique scenario showing rank suppression |
-| Path-quality damping implemented; test pinned with attested-vs-unattested path scenario |
-| Time-windowed aggregation pinned with burst-vs-spread test |
-| Fingerprint amplifier verified against Phase 2.3 contact-verification events |
-| Threat-model row from `threat-model.md` updated with each mitigation citing the test |
+| Path-quality damping implemented; test pinned with attested-vs-unattested path scenario                     |
+| Time-windowed aggregation pinned with burst-vs-spread test                                                  |
+| Fingerprint amplifier verified against Phase 2.3 contact-verification events                                |
+| Threat-model row from `threat-model.md` updated with each mitigation citing the test                        |
 
 ## Default labeler registry (Phase 1.8.15)
 
@@ -391,7 +391,7 @@ authority that every user inherits. A test
 smuggles a mandatory external labeler into the shipped default fails
 CI.
 
-What the registry *mechanism* provides is an explicit, opt-out-able
+What the registry _mechanism_ provides is an explicit, opt-out-able
 way to add external labelers:
 
 - A **distributor** (e.g. a fork that wants to ship a curated bundle)
@@ -441,20 +441,20 @@ an explicit product decision rather than a hidden one.
 
 ## References
 
-- Kamvar, Schlosser, Garcia-Molina. *The EigenTrust Algorithm for
-  Reputation Management in P2P Networks.* WWW 2003.
-- Cheng, Friedman. *Sybilproof Reputation Mechanisms.* P2PECON 2005
+- Kamvar, Schlosser, Garcia-Molina. _The EigenTrust Algorithm for
+  Reputation Management in P2P Networks._ WWW 2003.
+- Cheng, Friedman. _Sybilproof Reputation Mechanisms._ P2PECON 2005
   (the formal result that symmetric reputation functions are not
   sybil-proof).
-- Page, Brin, Motwani, Winograd. *The PageRank Citation Ranking.*
+- Page, Brin, Motwani, Winograd. _The PageRank Citation Ranking._
   Stanford 1998 (personalization vector form).
 - Karma3Labs OpenRank documentation:
   https://docs.openrank.com/the-reputation-stack/openrank-protocol
 - EigenCloud OpenRank verifiable-compute writeup:
   https://blog.eigencloud.xyz/unlocking-verifiable-reputation-with-openrank-and-eigencloud/
-- *The Effects of Pre-trusted Peers Misbehaviour on EigenTrust*
+- _The Effects of Pre-trusted Peers Misbehaviour on EigenTrust_
   (Springer IFIPTM 2012).
-- *Personalizing EigenTrust in the Face of Communities and Centrality
-  Attack* (2007).
-- *HonestPeer: An Enhanced EigenTrust Algorithm for Reputation
-  Management in P2P Systems* (2014).
+- _Personalizing EigenTrust in the Face of Communities and Centrality
+  Attack_ (2007).
+- _HonestPeer: An Enhanced EigenTrust Algorithm for Reputation
+  Management in P2P Systems_ (2014).

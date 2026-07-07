@@ -168,7 +168,13 @@ describe('chat.message.sent', () => {
     );
     s = applyChatEvent(
       s,
-      { threadId: T_THREAD, messageId: 'msg:2', body: 'reply', sentAt: T2, replyToMessageId: 'msg:1' },
+      {
+        threadId: T_THREAD,
+        messageId: 'msg:2',
+        body: 'reply',
+        sentAt: T2,
+        replyToMessageId: 'msg:1'
+      },
       meta('evt:msg2', 'chat.message.sent', T_BOB, T2)
     );
     expect(s.messages.get('msg:2')?.replyToMessageId).toBe('msg:1');
@@ -513,7 +519,7 @@ describe('ChatProjectionError', () => {
       'CHAT_INVALID_KIND'
     ];
     for (const code of codes) {
-      expect((CHAT_ERROR_CODES as ReadonlyArray<string>)).toContain(code);
+      expect(CHAT_ERROR_CODES as ReadonlyArray<string>).toContain(code);
     }
   });
 });

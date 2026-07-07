@@ -32,15 +32,15 @@ authority chain by construction:
 
 ## Event kinds (v1)
 
-| Kind                                | Payload fields                                                       | Effect on projection |
-|------------------------------------|----------------------------------------------------------------------|----------------------|
-| `identity.controller.created`       | `controllerPublicKey`, `initialDeviceId`                             | Sets the controller key once. Subsequent re-emits fail closed. The initial device is recorded as `active` and signs the event with the controller key. |
-| `identity.device.authorized`        | `authorizedDeviceId`, `authorizedPublicKey`, `epoch`                  | Adds an `active` device row. Monotonic-epoch enforced. |
-| `identity.device.revoked`           | `revokedDeviceId`, `epoch`                                            | Flips the device to `revoked`. Idempotent on a device already revoked. |
-| `identity.device.rotated`           | `deviceId`, `previousPublicKey`, `newPublicKey`, `epoch`              | Swaps the device's public key in place. `previousPublicKey` MUST match the stored key. `newPublicKey` MUST differ. Cannot rotate a revoked device. |
-| `identity.capability.granted`       | `capabilityId`, `delegateDeviceId`, `scope`, `expiresAt`              | Adds a `granted` capability row. |
-| `identity.capability.revoked`       | `capabilityId`, `delegateDeviceId`                                    | Flips the capability to `revoked`. Idempotent on already-revoked. `delegateDeviceId` MUST match the granted row. |
-| `identity.contact-card.published`   | `contactCardDigest`, `capturedAt`                                     | Records the most recent contact-card publication. Older publications remain in the signed-event log for audit; the projection retains only the latest. |
+| Kind                              | Payload fields                                           | Effect on projection                                                                                                                                   |
+| --------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `identity.controller.created`     | `controllerPublicKey`, `initialDeviceId`                 | Sets the controller key once. Subsequent re-emits fail closed. The initial device is recorded as `active` and signs the event with the controller key. |
+| `identity.device.authorized`      | `authorizedDeviceId`, `authorizedPublicKey`, `epoch`     | Adds an `active` device row. Monotonic-epoch enforced.                                                                                                 |
+| `identity.device.revoked`         | `revokedDeviceId`, `epoch`                               | Flips the device to `revoked`. Idempotent on a device already revoked.                                                                                 |
+| `identity.device.rotated`         | `deviceId`, `previousPublicKey`, `newPublicKey`, `epoch` | Swaps the device's public key in place. `previousPublicKey` MUST match the stored key. `newPublicKey` MUST differ. Cannot rotate a revoked device.     |
+| `identity.capability.granted`     | `capabilityId`, `delegateDeviceId`, `scope`, `expiresAt` | Adds a `granted` capability row.                                                                                                                       |
+| `identity.capability.revoked`     | `capabilityId`, `delegateDeviceId`                       | Flips the capability to `revoked`. Idempotent on already-revoked. `delegateDeviceId` MUST match the granted row.                                       |
+| `identity.contact-card.published` | `contactCardDigest`, `capturedAt`                        | Records the most recent contact-card publication. Older publications remain in the signed-event log for audit; the projection retains only the latest. |
 
 ## Pure-shape validator
 
@@ -106,7 +106,7 @@ super-peers MUST NOT decrypt identity events; identity-state mirroring
 is the user's account-local sync only, end-to-end encrypted.
 
 The contact-card digest is published as a public reference for the
-account; the *contents* of the contact card live in
+account; the _contents_ of the contact card live in
 `@lfp2p/local-store`'s `contactProfiles` table and a downstream
 contact-card document signed separately. The digest is the
 audit-trail commitment, not the content.

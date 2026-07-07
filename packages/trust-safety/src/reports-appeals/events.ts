@@ -53,12 +53,7 @@ export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
  * because an appeal targets a specific decision and either succeeds
  * (the decision is overturned) or fails.
  */
-export const APPEAL_RESOLUTIONS = [
-  'overturned',
-  'upheld',
-  'dismissed',
-  'invalid'
-] as const;
+export const APPEAL_RESOLUTIONS = ['overturned', 'upheld', 'dismissed', 'invalid'] as const;
 export type AppealResolution = (typeof APPEAL_RESOLUTIONS)[number];
 
 const MAX_RESOLUTION_NOTES_LENGTH = 4096;
@@ -70,58 +65,68 @@ type CommonFields = Readonly<{
 }>;
 
 export type ReportAppealEvent =
-  | Readonly<CommonFields & {
-      kind: 'safety.report.created';
-      report: SafetyReport;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.report.acknowledged';
-      reportId: string;
-      acknowledgedBy: SafetyAuthority;
-      acknowledgedAt: string;
-      ackReasonCode?: SafetyReasonCode;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.report.resolved';
-      reportId: string;
-      resolvedBy: SafetyAuthority;
-      resolvedAt: string;
-      resolution: ReportResolution;
-      resolutionReasonCode: SafetyReasonCode;
-      /**
-       * If a SafetyPolicyDecision was produced as a consequence of this
-       * report, its decisionId. Lets a caller cross-reference an upheld
-       * report with the decision row.
-       */
-      resolutionDecisionId?: string;
-      /**
-       * Optional escalation target. Only meaningful when
-       * `resolution === 'escalated'`. The new authority that has
-       * accepted the escalation.
-       */
-      escalatedTo?: SafetyAuthority;
-      /** Optional human-readable resolution notes (bounded). */
-      resolutionNotes?: string;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.appeal.created';
-      appeal: SafetyAppeal;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.appeal.resolved';
-      appealId: string;
-      resolvedBy: SafetyAuthority;
-      resolvedAt: string;
-      resolution: AppealResolution;
-      resolutionReasonCode: SafetyReasonCode;
-      /**
-       * If the appeal overturned a decision, the new SafetyPolicyDecision
-       * id that supersedes the original. The original decision's id
-       * lives on `SafetyAppeal.decisionId`.
-       */
-      newDecisionId?: string;
-      resolutionNotes?: string;
-    }>;
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.report.created';
+        report: SafetyReport;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.report.acknowledged';
+        reportId: string;
+        acknowledgedBy: SafetyAuthority;
+        acknowledgedAt: string;
+        ackReasonCode?: SafetyReasonCode;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.report.resolved';
+        reportId: string;
+        resolvedBy: SafetyAuthority;
+        resolvedAt: string;
+        resolution: ReportResolution;
+        resolutionReasonCode: SafetyReasonCode;
+        /**
+         * If a SafetyPolicyDecision was produced as a consequence of this
+         * report, its decisionId. Lets a caller cross-reference an upheld
+         * report with the decision row.
+         */
+        resolutionDecisionId?: string;
+        /**
+         * Optional escalation target. Only meaningful when
+         * `resolution === 'escalated'`. The new authority that has
+         * accepted the escalation.
+         */
+        escalatedTo?: SafetyAuthority;
+        /** Optional human-readable resolution notes (bounded). */
+        resolutionNotes?: string;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.appeal.created';
+        appeal: SafetyAppeal;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.appeal.resolved';
+        appealId: string;
+        resolvedBy: SafetyAuthority;
+        resolvedAt: string;
+        resolution: AppealResolution;
+        resolutionReasonCode: SafetyReasonCode;
+        /**
+         * If the appeal overturned a decision, the new SafetyPolicyDecision
+         * id that supersedes the original. The original decision's id
+         * lives on `SafetyAppeal.decisionId`.
+         */
+        newDecisionId?: string;
+        resolutionNotes?: string;
+      }
+    >;
 
 function commonFields(record: Record<string, unknown>, label: string): CommonFields {
   assertExactVersion(record.version, REPORT_APPEAL_EVENT_VERSION, `${label}.version`);
@@ -140,10 +145,7 @@ export function validateReportAppealEvent(
 ): ReportAppealEvent {
   const record = assertPlainObject(value, label);
   const kind = record.kind;
-  if (
-    typeof kind !== 'string' ||
-    !(REPORT_APPEAL_KINDS as readonly string[]).includes(kind)
-  ) {
+  if (typeof kind !== 'string' || !(REPORT_APPEAL_KINDS as readonly string[]).includes(kind)) {
     throw tsError(
       'TS_INVALID_ENUM',
       `${label}.kind must be one of ${REPORT_APPEAL_KINDS.join(', ')} (got: ${String(kind)})`
@@ -168,8 +170,10 @@ export function validateReportAppealEvent(
       );
       const acknowledgedAt = assertIso8601(record.acknowledgedAt, `${label}.acknowledgedAt`);
       const out: {
-        -readonly [K in keyof Extract<ReportAppealEvent, { kind: 'safety.report.acknowledged' }>]:
-          Extract<ReportAppealEvent, { kind: 'safety.report.acknowledged' }>[K];
+        -readonly [K in keyof Extract<
+          ReportAppealEvent,
+          { kind: 'safety.report.acknowledged' }
+        >]: Extract<ReportAppealEvent, { kind: 'safety.report.acknowledged' }>[K];
       } = {
         ...common,
         kind: 'safety.report.acknowledged',
@@ -209,8 +213,10 @@ export function validateReportAppealEvent(
         );
       }
       const out: {
-        -readonly [K in keyof Extract<ReportAppealEvent, { kind: 'safety.report.resolved' }>]:
-          Extract<ReportAppealEvent, { kind: 'safety.report.resolved' }>[K];
+        -readonly [K in keyof Extract<
+          ReportAppealEvent,
+          { kind: 'safety.report.resolved' }
+        >]: Extract<ReportAppealEvent, { kind: 'safety.report.resolved' }>[K];
       } = {
         ...common,
         kind: 'safety.report.resolved',
@@ -227,10 +233,7 @@ export function validateReportAppealEvent(
         );
       }
       if (record.escalatedTo !== undefined) {
-        out.escalatedTo = validateSafetyAuthority(
-          record.escalatedTo,
-          `${label}.escalatedTo`
-        );
+        out.escalatedTo = validateSafetyAuthority(record.escalatedTo, `${label}.escalatedTo`);
       }
       if (record.resolutionNotes !== undefined) {
         out.resolutionNotes = assertId(
@@ -271,8 +274,10 @@ export function validateReportAppealEvent(
         );
       }
       const out: {
-        -readonly [K in keyof Extract<ReportAppealEvent, { kind: 'safety.appeal.resolved' }>]:
-          Extract<ReportAppealEvent, { kind: 'safety.appeal.resolved' }>[K];
+        -readonly [K in keyof Extract<
+          ReportAppealEvent,
+          { kind: 'safety.appeal.resolved' }
+        >]: Extract<ReportAppealEvent, { kind: 'safety.appeal.resolved' }>[K];
       } = {
         ...common,
         kind: 'safety.appeal.resolved',

@@ -97,8 +97,8 @@ describe('validateSafetyPolicyDecision', () => {
   });
 
   it('rejects appealable=non-boolean', () => {
-    expect(() =>
-      validateSafetyPolicyDecision({ ...DECISION_BASE, appealable: 'yes' })
-    ).toThrow(/TS_INVALID_DECISION/);
+    expect(() => validateSafetyPolicyDecision({ ...DECISION_BASE, appealable: 'yes' })).toThrow(
+      /TS_INVALID_DECISION/
+    );
   });
 });

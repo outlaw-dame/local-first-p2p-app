@@ -1,6 +1,11 @@
 import type { CurationRule, CurationExplanation, CurationSurface } from '../curation.js';
 import type { CurationActionKind } from '../curation.js';
-import { CURATION_ACTION_KINDS, CURATION_SURFACES, validateCurationExplanation, validateCurationRule } from '../curation.js';
+import {
+  CURATION_ACTION_KINDS,
+  CURATION_SURFACES,
+  validateCurationExplanation,
+  validateCurationRule
+} from '../curation.js';
 import type { SafetyAuthority } from '../authorities.js';
 import { validateSafetyAuthority } from '../authorities.js';
 import { tsError } from '../errors.js';
@@ -58,45 +63,57 @@ type CommonFields = Readonly<{
 }>;
 
 export type CurationEvent =
-  | Readonly<CommonFields & {
-      kind: 'curation.rule.created';
-      rule: CurationRule;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'curation.rule.disabled';
-      ruleId: string;
-      disabledBy: SafetyAuthority;
-      disabledAt: string;
-      reasonCode: SafetyReasonCode;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'curation.item.boosted';
-      itemSubject: SafetySubjectRef;
-      surface: CurationSurface;
-      sourceRuleId: string;
-      scoreDelta: number;
-      reasonCode: SafetyReasonCode;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'curation.item.downranked';
-      itemSubject: SafetySubjectRef;
-      surface: CurationSurface;
-      sourceRuleId: string;
-      scoreDelta: number;
-      reasonCode: SafetyReasonCode;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'curation.item.excluded';
-      itemSubject: SafetySubjectRef;
-      surface: CurationSurface;
-      sourceRuleId: string;
-      reasonCode: SafetyReasonCode;
-      excludeFrom: ExcludeFrom;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'curation.explanation.recorded';
-      explanation: CurationExplanation;
-    }>;
+  | Readonly<
+      CommonFields & {
+        kind: 'curation.rule.created';
+        rule: CurationRule;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'curation.rule.disabled';
+        ruleId: string;
+        disabledBy: SafetyAuthority;
+        disabledAt: string;
+        reasonCode: SafetyReasonCode;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'curation.item.boosted';
+        itemSubject: SafetySubjectRef;
+        surface: CurationSurface;
+        sourceRuleId: string;
+        scoreDelta: number;
+        reasonCode: SafetyReasonCode;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'curation.item.downranked';
+        itemSubject: SafetySubjectRef;
+        surface: CurationSurface;
+        sourceRuleId: string;
+        scoreDelta: number;
+        reasonCode: SafetyReasonCode;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'curation.item.excluded';
+        itemSubject: SafetySubjectRef;
+        surface: CurationSurface;
+        sourceRuleId: string;
+        reasonCode: SafetyReasonCode;
+        excludeFrom: ExcludeFrom;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'curation.explanation.recorded';
+        explanation: CurationExplanation;
+      }
+    >;
 
 function commonFields(record: Record<string, unknown>, label: string): CommonFields {
   assertExactVersion(record.version, CURATION_EVENT_VERSION, `${label}.version`);
@@ -108,10 +125,7 @@ function commonFields(record: Record<string, unknown>, label: string): CommonFie
 export function validateCurationEvent(value: unknown, label = 'CurationEvent'): CurationEvent {
   const record = assertPlainObject(value, label);
   const kind = record.kind;
-  if (
-    typeof kind !== 'string' ||
-    !(CURATION_EVENT_KINDS as readonly string[]).includes(kind)
-  ) {
+  if (typeof kind !== 'string' || !(CURATION_EVENT_KINDS as readonly string[]).includes(kind)) {
     throw tsError(
       'TS_INVALID_ENUM',
       `${label}.kind must be one of ${CURATION_EVENT_KINDS.join(', ')} (got: ${String(kind)})`
@@ -129,11 +143,7 @@ export function validateCurationEvent(value: unknown, label = 'CurationEvent'): 
       const ruleId = assertId(record.ruleId, `${label}.ruleId`);
       const disabledBy = validateSafetyAuthority(record.disabledBy, `${label}.disabledBy`);
       const disabledAt = assertIso8601(record.disabledAt, `${label}.disabledAt`);
-      const reasonCode = assertOneOf(
-        record.reasonCode,
-        SAFETY_REASON_CODES,
-        `${label}.reasonCode`
-      );
+      const reasonCode = assertOneOf(record.reasonCode, SAFETY_REASON_CODES, `${label}.reasonCode`);
       return Object.freeze({
         ...common,
         kind: 'curation.rule.disabled',
@@ -188,10 +198,7 @@ export function validateCurationEvent(value: unknown, label = 'CurationEvent'): 
       });
     }
     case 'curation.explanation.recorded': {
-      const explanation = validateCurationExplanation(
-        record.explanation,
-        `${label}.explanation`
-      );
+      const explanation = validateCurationExplanation(record.explanation, `${label}.explanation`);
       return Object.freeze({
         ...common,
         kind: 'curation.explanation.recorded',

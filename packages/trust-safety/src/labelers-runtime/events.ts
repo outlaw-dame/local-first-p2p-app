@@ -1,19 +1,10 @@
 import type { SafetyAuthority } from '../authorities.js';
 import { validateSafetyAuthority } from '../authorities.js';
 import { tsError } from '../errors.js';
-import type {
-  SafetyLabel,
-  SafetyLabelDefinition
-} from '../labels.js';
+import type { SafetyLabel, SafetyLabelDefinition } from '../labels.js';
 import { validateSafetyLabel, validateSafetyLabelDefinition } from '../labels.js';
-import type {
-  SafetyLabelerProfile,
-  SafetyLabelerSubscription
-} from '../labelers.js';
-import {
-  validateSafetyLabelerProfile,
-  validateSafetyLabelerSubscription
-} from '../labelers.js';
+import type { SafetyLabelerProfile, SafetyLabelerSubscription } from '../labelers.js';
+import { validateSafetyLabelerProfile, validateSafetyLabelerSubscription } from '../labelers.js';
 import type { SafetyAnnotation } from '../annotations.js';
 import { validateSafetyAnnotation } from '../annotations.js';
 import type { SafetyReasonCode } from '../reason-codes.js';
@@ -71,39 +62,53 @@ type CommonFields = Readonly<{
 }>;
 
 export type LabelerEvent =
-  | Readonly<CommonFields & {
-      kind: 'safety.labeler.profile.published';
-      profile: SafetyLabelerProfile;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.label-definition.published';
-      definition: SafetyLabelDefinition;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.labeler.subscribed';
-      subscription: SafetyLabelerSubscription;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.labeler.unsubscribed';
-      subscriptionId: string;
-      unsubscribedAt: string;
-      reasonCode?: SafetyReasonCode;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.label.applied';
-      label: SafetyLabel;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.label.revoked';
-      labelId: string;
-      revokedBy: SafetyAuthority;
-      revokedAt: string;
-      reasonCode: SafetyReasonCode;
-    }>
-  | Readonly<CommonFields & {
-      kind: 'safety.annotation.created';
-      annotation: SafetyAnnotation;
-    }>;
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.labeler.profile.published';
+        profile: SafetyLabelerProfile;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.label-definition.published';
+        definition: SafetyLabelDefinition;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.labeler.subscribed';
+        subscription: SafetyLabelerSubscription;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.labeler.unsubscribed';
+        subscriptionId: string;
+        unsubscribedAt: string;
+        reasonCode?: SafetyReasonCode;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.label.applied';
+        label: SafetyLabel;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.label.revoked';
+        labelId: string;
+        revokedBy: SafetyAuthority;
+        revokedAt: string;
+        reasonCode: SafetyReasonCode;
+      }
+    >
+  | Readonly<
+      CommonFields & {
+        kind: 'safety.annotation.created';
+        annotation: SafetyAnnotation;
+      }
+    >;
 
 function commonFields(record: Record<string, unknown>, label: string): CommonFields {
   assertExactVersion(record.version, LABELER_EVENT_VERSION, `${label}.version`);
@@ -115,10 +120,7 @@ function commonFields(record: Record<string, unknown>, label: string): CommonFie
 export function validateLabelerEvent(value: unknown, label = 'LabelerEvent'): LabelerEvent {
   const record = assertPlainObject(value, label);
   const kind = record.kind;
-  if (
-    typeof kind !== 'string' ||
-    !(LABELER_EVENT_KINDS as readonly string[]).includes(kind)
-  ) {
+  if (typeof kind !== 'string' || !(LABELER_EVENT_KINDS as readonly string[]).includes(kind)) {
     throw tsError(
       'TS_INVALID_ENUM',
       `${label}.kind must be one of ${LABELER_EVENT_KINDS.join(', ')} (got: ${String(kind)})`
@@ -133,10 +135,7 @@ export function validateLabelerEvent(value: unknown, label = 'LabelerEvent'): La
       return Object.freeze({ ...common, kind: 'safety.labeler.profile.published', profile });
     }
     case 'safety.label-definition.published': {
-      const definition = validateSafetyLabelDefinition(
-        record.definition,
-        `${label}.definition`
-      );
+      const definition = validateSafetyLabelDefinition(record.definition, `${label}.definition`);
       return Object.freeze({
         ...common,
         kind: 'safety.label-definition.published',
@@ -154,8 +153,10 @@ export function validateLabelerEvent(value: unknown, label = 'LabelerEvent'): La
       const subscriptionId = assertId(record.subscriptionId, `${label}.subscriptionId`);
       const unsubscribedAt = assertIso8601(record.unsubscribedAt, `${label}.unsubscribedAt`);
       const out: {
-        -readonly [K in keyof Extract<LabelerEvent, { kind: 'safety.labeler.unsubscribed' }>]:
-          Extract<LabelerEvent, { kind: 'safety.labeler.unsubscribed' }>[K];
+        -readonly [K in keyof Extract<
+          LabelerEvent,
+          { kind: 'safety.labeler.unsubscribed' }
+        >]: Extract<LabelerEvent, { kind: 'safety.labeler.unsubscribed' }>[K];
       } = {
         ...common,
         kind: 'safety.labeler.unsubscribed',
@@ -163,11 +164,7 @@ export function validateLabelerEvent(value: unknown, label = 'LabelerEvent'): La
         unsubscribedAt
       };
       if (record.reasonCode !== undefined) {
-        out.reasonCode = assertOneOf(
-          record.reasonCode,
-          SAFETY_REASON_CODES,
-          `${label}.reasonCode`
-        );
+        out.reasonCode = assertOneOf(record.reasonCode, SAFETY_REASON_CODES, `${label}.reasonCode`);
       }
       return Object.freeze(out);
     }

@@ -14,23 +14,23 @@ Define Space and Channel protocol event kinds, `SpacePolicy`, role/membership sc
 
 Space event kinds:
 
-| Kind | Privacy | Consistency class |
-|---|---|---|
-| `space.created` | `group` | B |
-| `space.policy.updated` | `group` | B |
-| `space.member.invited` | `group` | D |
-| `space.member.joined` | `group` | D |
-| `space.member.role-changed` | `group` | B |
-| `space.member.removed` | `group` | B |
-| `space.dissolved` | `group` | B |
+| Kind                        | Privacy | Consistency class |
+| --------------------------- | ------- | ----------------- |
+| `space.created`             | `group` | B                 |
+| `space.policy.updated`      | `group` | B                 |
+| `space.member.invited`      | `group` | D                 |
+| `space.member.joined`       | `group` | D                 |
+| `space.member.role-changed` | `group` | B                 |
+| `space.member.removed`      | `group` | B                 |
+| `space.dissolved`           | `group` | B                 |
 
 Channel event kinds:
 
-| Kind | Privacy | Consistency class |
-|---|---|---|
-| `channel.created` | `group` | B |
-| `channel.policy.updated` | `group` | B |
-| `channel.archived` | `group` | B |
+| Kind                     | Privacy | Consistency class |
+| ------------------------ | ------- | ----------------- |
+| `channel.created`        | `group` | B                 |
+| `channel.policy.updated` | `group` | B                 |
+| `channel.archived`       | `group` | B                 |
 
 All `group`-scoped: carry `PrivatePayloadEnvelopeV1`. Bridge MUST NOT decrypt.
 

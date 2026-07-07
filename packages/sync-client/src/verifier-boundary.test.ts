@@ -35,11 +35,7 @@ function freshStore(): ReturnType<typeof createLocalFirstStore> {
   return createLocalFirstStore(`verifier-boundary-${globalThis.crypto.randomUUID()}`);
 }
 
-function wellFormedRecord(
-  eventId: string,
-  sequence: number,
-  cursor: string
-): InboundSyncRecord {
+function wellFormedRecord(eventId: string, sequence: number, cursor: string): InboundSyncRecord {
   return {
     sourceId: 'bridge:primary',
     streamId: 'durable-stream:inbox',
@@ -210,15 +206,10 @@ describe('Verifier boundary — Check #7 (identity-event defense-in-depth, Phase
       // shape (string is non-empty) and signature verification (we sign
       // it), so the rejection must come from the identity validator's
       // defense-in-depth check at apply time.
-      const bad = identityRecord(
-        'evt_vb_id_1',
-        1,
-        'cursor-1',
-        {
-          controllerPublicKey: 'has spaces and forbidden +=',
-          initialDeviceId: 'device:alice-phone'
-        }
-      );
+      const bad = identityRecord('evt_vb_id_1', 1, 'cursor-1', {
+        controllerPublicKey: 'has spaces and forbidden +=',
+        initialDeviceId: 'device:alice-phone'
+      });
       const result = await processInboundSyncBatch({ store, records: [bad] });
       expect(result.rejected).toBe(1);
       // Either the envelope's per-kind payload check or the identity

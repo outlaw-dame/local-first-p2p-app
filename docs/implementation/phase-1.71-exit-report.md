@@ -114,6 +114,7 @@ unambiguously. Pinned by a new test.
 
 `docs/protocol/block-evasion-resilience.md` — canonical doctrine
 covering:
+
 - The full normalization pipeline (step-by-step + trade-offs).
 - The defeat matrix (what does and doesn't match after the
   hardening).
@@ -138,17 +139,17 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Keyword matchers resist leet, zero-width, Cyrillic, full-width, combining-diacritic evasions | ✓ | 21 substring/word/hashtag/phrase tests |
-| Normalization is linear-time and pinned by adversarial timing tests | ✓ | sub-second on 20 000-char inputs |
-| No regex compiled against attacker text | ✓ | all patterns are module-level constants |
-| Prototype-pollution defense holds at the confusables map and the rate-cap index | ✓ | `Map` for confusables; `assertId` upstream validation |
-| Report rate cap fires per (reporter, subject, UTC day) | ✓ | 4 default-behavior + 3 partitioning tests |
-| Cap composes with idempotency + replay without double-charging | ✓ | replay test + dedup test |
-| Cap key cannot be collided by an adversarial reporter id | ✓ | JSON-encoded composite + dedicated hardening test |
-| New `TS_REPORT_RATE_LIMITED` error code stable + exported | ✓ | `errors.ts` |
-| Doctrine doc covers defeat matrix + non-defenses + composition | ✓ | `block-evasion-resilience.md` |
+| Criterion                                                                                    | Status | Evidence                                              |
+| -------------------------------------------------------------------------------------------- | :----: | ----------------------------------------------------- |
+| Keyword matchers resist leet, zero-width, Cyrillic, full-width, combining-diacritic evasions |   ✓    | 21 substring/word/hashtag/phrase tests                |
+| Normalization is linear-time and pinned by adversarial timing tests                          |   ✓    | sub-second on 20 000-char inputs                      |
+| No regex compiled against attacker text                                                      |   ✓    | all patterns are module-level constants               |
+| Prototype-pollution defense holds at the confusables map and the rate-cap index              |   ✓    | `Map` for confusables; `assertId` upstream validation |
+| Report rate cap fires per (reporter, subject, UTC day)                                       |   ✓    | 4 default-behavior + 3 partitioning tests             |
+| Cap composes with idempotency + replay without double-charging                               |   ✓    | replay test + dedup test                              |
+| Cap key cannot be collided by an adversarial reporter id                                     |   ✓    | JSON-encoded composite + dedicated hardening test     |
+| New `TS_REPORT_RATE_LIMITED` error code stable + exported                                    |   ✓    | `errors.ts`                                           |
+| Doctrine doc covers defeat matrix + non-defenses + composition                               |   ✓    | `block-evasion-resilience.md`                         |
 
 ## Deferred work
 

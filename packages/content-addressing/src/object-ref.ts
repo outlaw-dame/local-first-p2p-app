@@ -36,12 +36,7 @@ export type ObjectRefKind = (typeof OBJECT_REF_KINDS)[number];
  * over `kind` work cleanly — every `kind` value belongs to exactly one
  * variant.
  */
-export type ContentBackedKind =
-  | 'event'
-  | 'record'
-  | 'safety-label'
-  | 'report'
-  | 'policy-decision';
+export type ContentBackedKind = 'event' | 'record' | 'safety-label' | 'report' | 'policy-decision';
 
 const CONTENT_BACKED_KINDS: ReadonlySet<ContentBackedKind> = new Set([
   'event',
@@ -106,9 +101,7 @@ export type ObjectRef =
   | IdentityObjectRef;
 
 export function isObjectRefKind(value: unknown): value is ObjectRefKind {
-  return (
-    typeof value === 'string' && OBJECT_REF_KINDS.includes(value as ObjectRefKind)
-  );
+  return typeof value === 'string' && OBJECT_REF_KINDS.includes(value as ObjectRefKind);
 }
 
 function validateDomain(value: unknown): string {

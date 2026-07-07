@@ -22,11 +22,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import nacl from 'tweetnacl';
-import {
-  canonicalizeJcs,
-  sha256,
-  toBase64Url
-} from '@lfp2p/crypto';
+import { canonicalizeJcs, sha256, toBase64Url } from '@lfp2p/crypto';
 import type { CapabilityProofRecord } from '@lfp2p/capabilities';
 import { createVcVerifier } from './index.js';
 
@@ -36,8 +32,7 @@ import { createVcVerifier } from './index.js';
 
 const ED25519_MULTICODEC = new Uint8Array([0xed, 0x01]);
 
-const BASE58_BTC_ALPHABET =
-  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const BASE58_BTC_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
 function encodeBase58Btc(input: Uint8Array): string {
   if (input.length === 0) return '';
@@ -90,13 +85,7 @@ const SUBJECT_DID = 'did:example:subject-1';
 /*                       eddsa-jcs-2022 credential minter                     */
 /* -------------------------------------------------------------------------- */
 
-type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | Json[]
-  | { [k: string]: Json | undefined };
+type Json = string | number | boolean | null | Json[] | { [k: string]: Json | undefined };
 
 type MintOptions = Readonly<{
   issuerKp?: nacl.SignKeyPair;
@@ -153,11 +142,9 @@ function mintVc(opts: MintOptions = {}): Record<string, unknown> {
   };
 
   const proofConfigBytes =
-    opts.signProofConfigOverride ??
-    new TextEncoder().encode(canonicalizeJcs(proofOptions));
+    opts.signProofConfigOverride ?? new TextEncoder().encode(canonicalizeJcs(proofOptions));
   const unsecuredDocBytes =
-    opts.signDocOverride ??
-    new TextEncoder().encode(canonicalizeJcs(credential));
+    opts.signDocOverride ?? new TextEncoder().encode(canonicalizeJcs(credential));
 
   const proofConfigHash = sha256(proofConfigBytes);
   const docHash = sha256(unsecuredDocBytes);
@@ -165,20 +152,15 @@ function mintVc(opts: MintOptions = {}): Record<string, unknown> {
   hashData.set(proofConfigHash, 0);
   hashData.set(docHash, proofConfigHash.byteLength);
   const signature = nacl.sign.detached(hashData, kp.secretKey);
-  const proofValue =
-    opts.proofValueOverride ?? 'z' + encodeBase58Btc(signature);
+  const proofValue = opts.proofValueOverride ?? 'z' + encodeBase58Btc(signature);
 
   const fullProof: Record<string, Json> =
-    opts.omitProofValue === true
-      ? proofOptions
-      : { ...proofOptions, proofValue };
+    opts.omitProofValue === true ? proofOptions : { ...proofOptions, proofValue };
 
   return { ...credential, proof: fullProof };
 }
 
-function makeRecord(
-  overrides: Partial<CapabilityProofRecord> = {}
-): CapabilityProofRecord {
+function makeRecord(overrides: Partial<CapabilityProofRecord> = {}): CapabilityProofRecord {
   return {
     proofId: 'proof-1',
     scheme: 'vc',
@@ -213,12 +195,8 @@ describe('createVcVerifier: input guards', () => {
   });
 
   it('throws if resolveCredential is not a function', () => {
-    expect(() =>
-      createVcVerifier({ resolveCredential: 'oops' as never })
-    ).toThrow(TypeError);
-    expect(() =>
-      createVcVerifier({ resolveCredential: undefined as never })
-    ).toThrow(TypeError);
+    expect(() => createVcVerifier({ resolveCredential: 'oops' as never })).toThrow(TypeError);
+    expect(() => createVcVerifier({ resolveCredential: undefined as never })).toThrow(TypeError);
   });
 
   it('throws if now is provided but not a function', () => {
@@ -247,16 +225,13 @@ describe('createVcVerifier: scheme dispatch', () => {
     expect(verify('proof' as never)).toBeUndefined();
   });
 
-  it.each([
-    'ucan',
-    'native-signed-event',
-    'zcap-ld',
-    'bearcap',
-    'manual-local-policy'
-  ] as const)('abstains for scheme === %s', (scheme) => {
-    const record = makeRecord({ scheme: scheme as never });
-    expect(verify(record)).toBeUndefined();
-  });
+  it.each(['ucan', 'native-signed-event', 'zcap-ld', 'bearcap', 'manual-local-policy'] as const)(
+    'abstains for scheme === %s',
+    (scheme) => {
+      const record = makeRecord({ scheme: scheme as never });
+      expect(verify(record)).toBeUndefined();
+    }
+  );
 
   it('accepts scheme === "vc" (does NOT abstain)', () => {
     expect(verify(makeRecord())).not.toBeUndefined();
@@ -571,9 +546,8 @@ describe('createVcVerifier: signature integrity', () => {
   it('rejects when the credential document is tampered after signing', () => {
     const cred = mintVc();
     // Mutate a field that is part of the signed document.
-    (
-      (cred as Record<string, unknown>).credentialSubject as Record<string, unknown>
-    ).name = 'Mallory';
+    ((cred as Record<string, unknown>).credentialSubject as Record<string, unknown>).name =
+      'Mallory';
     expect(vcVerifier(cred, { now: FIXED_NOW })(makeRecord())).toBe('invalid');
   });
 
@@ -595,9 +569,8 @@ describe('createVcVerifier: signature integrity', () => {
     // Sign the credential with one body, then replace credentialSubject
     // with a different-but-shaped body that has the same subject id.
     const cred = mintVc();
-    (
-      (cred as Record<string, unknown>).credentialSubject as Record<string, unknown>
-    ).extraField = 'sneaked-in';
+    ((cred as Record<string, unknown>).credentialSubject as Record<string, unknown>).extraField =
+      'sneaked-in';
     expect(vcVerifier(cred, { now: FIXED_NOW })(makeRecord())).toBe('invalid');
   });
 });

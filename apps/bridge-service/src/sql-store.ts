@@ -54,7 +54,10 @@ export class PgliteBridgeStore implements BridgeStore {
 
   constructor(options: PgliteBridgeStoreOptions = {}) {
     this.#db = options.dataDir === undefined ? new PGlite() : new PGlite(options.dataDir);
-    this.maxRecords = requirePositiveInteger(options.maxRecords ?? DEFAULT_MAX_RECORDS, 'maxRecords');
+    this.maxRecords = requirePositiveInteger(
+      options.maxRecords ?? DEFAULT_MAX_RECORDS,
+      'maxRecords'
+    );
     this.ttlMs = requirePositiveInteger(options.ttlMs ?? DEFAULT_TTL_MS, 'ttlMs');
     this.#initialSequence = requireSafeNonNegativeInteger(
       options.initialSequence ?? Math.min(Date.now() * 1000, Number.MAX_SAFE_INTEGER - 1),
@@ -104,7 +107,10 @@ export class PgliteBridgeStore implements BridgeStore {
     });
   }
 
-  async listAfter(input: BridgeStoreListInput, nowMs: number): Promise<readonly StoredBridgeRecord[]> {
+  async listAfter(
+    input: BridgeStoreListInput,
+    nowMs: number
+  ): Promise<readonly StoredBridgeRecord[]> {
     const target = requireNonEmpty(input.target, 'target');
     const afterSequence = requireSafeNonNegativeInteger(input.afterSequence, 'afterSequence');
     const limit = requirePositiveInteger(input.limit, 'limit');
@@ -134,7 +140,9 @@ export class PgliteBridgeStore implements BridgeStore {
     return this.#withLock(async () => {
       await this.#init();
       await this.#pruneExpired(nowMs);
-      const countResult = await this.#db.query<CountRow>('SELECT COUNT(*) AS count FROM bridge_records;');
+      const countResult = await this.#db.query<CountRow>(
+        'SELECT COUNT(*) AS count FROM bridge_records;'
+      );
       const sequenceResult = await this.#db.query<SequenceRow>(
         'SELECT latest_sequence FROM bridge_sequence WHERE id = $1;',
         [SEQUENCE_ROW_ID]
@@ -182,9 +190,15 @@ export class PgliteBridgeStore implements BridgeStore {
       );
     `);
     await this.#db.query('ALTER TABLE bridge_records ADD COLUMN IF NOT EXISTS event_json TEXT;');
-    await this.#db.query('CREATE INDEX IF NOT EXISTS bridge_records_expires_at_idx ON bridge_records (expires_at);');
-    await this.#db.query('CREATE INDEX IF NOT EXISTS bridge_records_sequence_idx ON bridge_records (sequence);');
-    await this.#db.query('CREATE INDEX IF NOT EXISTS bridge_records_target_sequence_idx ON bridge_records (target, sequence);');
+    await this.#db.query(
+      'CREATE INDEX IF NOT EXISTS bridge_records_expires_at_idx ON bridge_records (expires_at);'
+    );
+    await this.#db.query(
+      'CREATE INDEX IF NOT EXISTS bridge_records_sequence_idx ON bridge_records (sequence);'
+    );
+    await this.#db.query(
+      'CREATE INDEX IF NOT EXISTS bridge_records_target_sequence_idx ON bridge_records (target, sequence);'
+    );
     await this.#db.query(
       `INSERT INTO bridge_sequence (id, latest_sequence)
        VALUES ($1, $2)
@@ -211,11 +225,15 @@ export class PgliteBridgeStore implements BridgeStore {
   }
 
   async #pruneExpired(nowMs: number, executor: BridgeSqlExecutor = this.#db): Promise<void> {
-    await executor.query('DELETE FROM bridge_records WHERE expires_at <= $1;', [new Date(nowMs).toISOString()]);
+    await executor.query('DELETE FROM bridge_records WHERE expires_at <= $1;', [
+      new Date(nowMs).toISOString()
+    ]);
   }
 
   async #evictToCapacity(executor: BridgeSqlExecutor = this.#db): Promise<void> {
-    const countResult = await executor.query<CountRow>('SELECT COUNT(*) AS count FROM bridge_records;');
+    const countResult = await executor.query<CountRow>(
+      'SELECT COUNT(*) AS count FROM bridge_records;'
+    );
     const count = Number(countResult.rows[0]?.count ?? 0);
     const deleteCount = count - (this.maxRecords - 1);
     if (deleteCount <= 0) return;
@@ -241,7 +259,10 @@ export class PgliteBridgeStore implements BridgeStore {
       'latestSequence'
     );
     const sequence = nextSequence(current, nowMs);
-    await executor.query('UPDATE bridge_sequence SET latest_sequence = $2 WHERE id = $1;', [SEQUENCE_ROW_ID, sequence]);
+    await executor.query('UPDATE bridge_sequence SET latest_sequence = $2 WHERE id = $1;', [
+      SEQUENCE_ROW_ID,
+      sequence
+    ]);
     return sequence;
   }
 }

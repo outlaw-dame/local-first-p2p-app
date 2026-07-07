@@ -1,11 +1,15 @@
 export const DEFAULT_JITTER_RATIO = 0.35;
 
 export function requireJitterRatio(value: number, name = 'jitterRatio'): number {
-  if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error(`${name} must be between 0 and 1`);
+  if (!Number.isFinite(value) || value < 0 || value > 1)
+    throw new Error(`${name} must be between 0 and 1`);
   return value;
 }
 
-export function requireOptionalJitterRatio(value: number | null | undefined, name = 'jitterRatio'): number | undefined {
+export function requireOptionalJitterRatio(
+  value: number | null | undefined,
+  name = 'jitterRatio'
+): number | undefined {
   if (value === undefined || value === null) return undefined;
   return requireJitterRatio(value, name);
 }

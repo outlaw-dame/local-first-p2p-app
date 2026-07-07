@@ -8,11 +8,7 @@
 export const TRUST_SAFETY_VERSION = 'lfp2p.trust-safety.v1' as const;
 export type TrustSafetyVersion = typeof TRUST_SAFETY_VERSION;
 
-export {
-  TS_ERROR_CODES,
-  TrustSafetyError,
-  tsError
-} from './errors.js';
+export { TS_ERROR_CODES, TrustSafetyError, tsError } from './errors.js';
 export type { TSErrorCode } from './errors.js';
 
 export {
@@ -125,23 +121,13 @@ export type {
 export { SAFETY_REASON_CODES } from './reason-codes.js';
 export type { SafetyReasonCode } from './reason-codes.js';
 
-export {
-  SAFETY_POLICY_VERSION,
-  validateSafetyPolicy
-} from './policies.js';
+export { SAFETY_POLICY_VERSION, validateSafetyPolicy } from './policies.js';
 export type { SafetyPolicy } from './policies.js';
 
-export {
-  REPORTER_PRIVACY_LEVELS,
-  SAFETY_REPORT_VERSION,
-  validateSafetyReport
-} from './reports.js';
+export { REPORTER_PRIVACY_LEVELS, SAFETY_REPORT_VERSION, validateSafetyReport } from './reports.js';
 export type { ReporterPrivacyLevel, SafetyReport } from './reports.js';
 
-export {
-  SAFETY_APPEAL_VERSION,
-  validateSafetyAppeal
-} from './appeals.js';
+export { SAFETY_APPEAL_VERSION, validateSafetyAppeal } from './appeals.js';
 export type { SafetyAppeal } from './appeals.js';
 
 export {

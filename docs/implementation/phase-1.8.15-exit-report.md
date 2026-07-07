@@ -57,8 +57,8 @@ PWA's `buildAggregatorSubscriptionList` input sanitizer.
 22 adversarial tests:
 
 - **THE doctrine pin**: `DEFAULT_LABELER_REGISTRY.entries.length === 0`
-  + frozen + version sentinel + local-only resolution yields an empty
-  active set.
+  - frozen + version sentinel + local-only resolution yields an empty
+    active set.
 - Local-source protection: `__local__` rejected from both registry
   and user entries; local never appears in produced subscriptions.
 - Priority-0-reserved: rejects 0 / negative / non-integer; accepts ≥ 1.
@@ -94,17 +94,17 @@ pnpm test        # 1654 passing (master baseline + 22 new)
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Shipped default registry has ZERO external entries | ✓ | `DEFAULT_LABELER_REGISTRY.entries.length === 0` pinned by test |
-| Local source is structural, never a registry subscription | ✓ | `__local__` rejection tests (registry + user) |
-| Priority 0 reserved (rejected, not bumped) | ✓ | dedicated tests |
-| Opt-out (mute) always wins | ✓ | mute-over-default + mute-over-user tests |
-| User intent overrides distributor default | ✓ | dedicated test + origin provenance test |
-| Deterministic + deep-frozen output | ✓ | sort + reorder + frozen-walk tests |
-| Malformed rows dropped, structural-invalid input throws | ✓ | dedicated tests |
-| Local-always-#0 preserved through the registry → runtime path | ✓ | end-to-end test with `computeAggregatedReputation` |
-| Doctrine documents the local-only decision + rationale | ✓ | doctrine "Default labeler registry" section |
+| Criterion                                                     | Status | Evidence                                                       |
+| ------------------------------------------------------------- | :----: | -------------------------------------------------------------- |
+| Shipped default registry has ZERO external entries            |   ✓    | `DEFAULT_LABELER_REGISTRY.entries.length === 0` pinned by test |
+| Local source is structural, never a registry subscription     |   ✓    | `__local__` rejection tests (registry + user)                  |
+| Priority 0 reserved (rejected, not bumped)                    |   ✓    | dedicated tests                                                |
+| Opt-out (mute) always wins                                    |   ✓    | mute-over-default + mute-over-user tests                       |
+| User intent overrides distributor default                     |   ✓    | dedicated test + origin provenance test                        |
+| Deterministic + deep-frozen output                            |   ✓    | sort + reorder + frozen-walk tests                             |
+| Malformed rows dropped, structural-invalid input throws       |   ✓    | dedicated tests                                                |
+| Local-always-#0 preserved through the registry → runtime path |   ✓    | end-to-end test with `computeAggregatedReputation`             |
+| Doctrine documents the local-only decision + rationale        |   ✓    | doctrine "Default labeler registry" section                    |
 
 ## What remains conditionally deferred
 

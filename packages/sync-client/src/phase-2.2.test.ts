@@ -90,7 +90,9 @@ const projectionUpdate: IdentityControlProjectionUpdate = (current, event, updat
     epoch: next.epoch,
     devices: next.devices,
     capabilities: next.capabilities,
-    ...(next.controllerPublicKey === undefined ? {} : { controllerPublicKey: next.controllerPublicKey }),
+    ...(next.controllerPublicKey === undefined
+      ? {}
+      : { controllerPublicKey: next.controllerPublicKey }),
     ...(next.contactCardPublication === undefined
       ? {}
       : { contactCardPublication: next.contactCardPublication }),
@@ -220,10 +222,7 @@ describe('Phase 2.2 — listLocalIdentityEvents replay path', () => {
       await store.putSignedEvent(note);
 
       const events = await store.listLocalIdentityEvents(ACTOR);
-      expect(events.map((e) => e.eventId)).toEqual([
-        'evt_p22_list_1',
-        'evt_p22_list_2'
-      ]);
+      expect(events.map((e) => e.eventId)).toEqual(['evt_p22_list_1', 'evt_p22_list_2']);
 
       // Caller-side reseed (the canonical replay path) reproduces the
       // snapshot exactly.
@@ -254,8 +253,7 @@ describe('Phase 2.2 — contactCardPublication propagation onto the stored snaps
         '2026-06-03T00:00:00.000Z'
       );
       await store.appendLocalIdentityEvent(ctl, projectionUpdate);
-      const digest =
-        'sha-256:AAAA1111BBBB2222CCCC3333DDDD4444EEEE5555FFFF6666GGGG7777HHHH8888';
+      const digest = 'sha-256:AAAA1111BBBB2222CCCC3333DDDD4444EEEE5555FFFF6666GGGG7777HHHH8888';
       const cc = signIdentity(
         'evt_p22_cc_pub',
         'identity.contact-card.published',
@@ -264,9 +262,7 @@ describe('Phase 2.2 — contactCardPublication propagation onto the stored snaps
       );
       const result = await store.appendLocalIdentityEvent(cc, projectionUpdate);
       expect(result.contactCardPublication?.contactCardDigest).toBe(digest);
-      expect(result.contactCardPublication?.capturedAt).toBe(
-        '2026-06-03T00:01:00.000Z'
-      );
+      expect(result.contactCardPublication?.capturedAt).toBe('2026-06-03T00:01:00.000Z');
 
       const reread = await store.getIdentityControlProjection(ACTOR);
       expect(reread?.contactCardPublication?.contactCardDigest).toBe(digest);
@@ -336,9 +332,7 @@ describe('Phase 2.2 — inbound dispatch regression: rotated + contact-card.publ
       const projection = await store.getIdentityControlProjection(ACTOR);
       // Before Phase 2.2, this assertion would fail: the event would
       // be stored but the projection wouldn't reflect the new key.
-      expect(projection?.devices[INITIAL_DEVICE]?.publicKey).toBe(
-        NEW_KEY.publicKey
-      );
+      expect(projection?.devices[INITIAL_DEVICE]?.publicKey).toBe(NEW_KEY.publicKey);
       expect(projection?.epoch).toBe(2);
     } finally {
       await store.delete();
@@ -359,8 +353,7 @@ describe('Phase 2.2 — inbound dispatch regression: rotated + contact-card.publ
         records: [inboundRecord(ctl, 'cursor-1', 1)]
       });
 
-      const digest =
-        'sha-256:BBBB1111CCCC2222DDDD3333EEEE4444FFFF5555AAAA6666BBBB7777CCCC8888';
+      const digest = 'sha-256:BBBB1111CCCC2222DDDD3333EEEE4444FFFF5555AAAA6666BBBB7777CCCC8888';
       const cc = signIdentity(
         'evt_p22_in_cc',
         'identity.contact-card.published',

@@ -11,9 +11,7 @@
  *  - All pre-4.6 admission outputs are byte-identical when options omitted
  */
 import { describe, it, expect } from 'vitest';
-import {
-  createEmptyLabelersState
-} from '@lfp2p/trust-safety';
+import { createEmptyLabelersState } from '@lfp2p/trust-safety';
 
 import {
   BridgeAdmissionGateway,
@@ -21,9 +19,7 @@ import {
   type AdvisoryReputationEntry,
   type AppealHook
 } from './admission-gateway.js';
-import {
-  PolicySubscriptionRuntime
-} from './policy-subscription.js';
+import { PolicySubscriptionRuntime } from './policy-subscription.js';
 import {
   OperatorSurfaceWidenError,
   validateOperatorSurfaceConfig,
@@ -194,7 +190,7 @@ describe('PolicySubscriptionRuntime — check #8.5', () => {
 
   it('returns undefined for unlisted labeler even with quarantine label', () => {
     const runtime = new PolicySubscriptionRuntime({
-      subscriptions: [],  // unlisted
+      subscriptions: [], // unlisted
       subscriberActorId: SUBSCRIBER_ACTOR
     });
     // Even if we inject state, no subscriptions means no enforcement
@@ -255,28 +251,46 @@ describe('Advisory reputation — ingestAdvisoryFeed', () => {
   it('drops positive advisory scores (advisory can only lower)', () => {
     const gw = makeGateway();
     // Positive advisory score is discarded — it cannot raise reputation
-    gw.ingestAdvisoryFeed([{
-      peerId: 'peer_x',
-      score: 5.0,
-      updatedAt: new Date(T0).toISOString(),
-      sourceId: 'bridge-B'
-    }], T0);
+    gw.ingestAdvisoryFeed(
+      [
+        {
+          peerId: 'peer_x',
+          score: 5.0,
+          updatedAt: new Date(T0).toISOString(),
+          sourceId: 'bridge-B'
+        }
+      ],
+      T0
+    );
     // With no advisory effect, peer admits normally
-    const req = makeRequest({ idempotencyKey: 'idem_adv1', event: makeEnvelope({ deviceId: 'peer_x' }), peerId: 'peer_x' });
+    const req = makeRequest({
+      idempotencyKey: 'idem_adv1',
+      event: makeEnvelope({ deviceId: 'peer_x' }),
+      peerId: 'peer_x'
+    });
     const decision = gw.admit(req, T0);
     expect(decision.result.admitted).toBe(true);
   });
 
   it('clamps advisory score below -1 to -1', () => {
     const gw = makeGateway();
-    gw.ingestAdvisoryFeed([{
-      peerId: 'peer_y',
-      score: -9999,
-      updatedAt: new Date(T0).toISOString(),
-      sourceId: 'bridge-C'
-    }], T0);
+    gw.ingestAdvisoryFeed(
+      [
+        {
+          peerId: 'peer_y',
+          score: -9999,
+          updatedAt: new Date(T0).toISOString(),
+          sourceId: 'bridge-C'
+        }
+      ],
+      T0
+    );
     // Score clamped to -1 but not at quarantine threshold (-500) — peer should still admit
-    const req = makeRequest({ idempotencyKey: 'idem_adv2', event: makeEnvelope({ deviceId: 'peer_y' }), peerId: 'peer_y' });
+    const req = makeRequest({
+      idempotencyKey: 'idem_adv2',
+      event: makeEnvelope({ deviceId: 'peer_y' }),
+      peerId: 'peer_y'
+    });
     const decision = gw.admit(req, T0);
     // Advisory score -1 is below 0 but above quarantine threshold → admitted (with lower band)
     expect(decision.result.admitted).toBe(true);
@@ -285,12 +299,17 @@ describe('Advisory reputation — ingestAdvisoryFeed', () => {
   it('drops non-numeric score entries', () => {
     const gw = makeGateway();
     expect(() =>
-      gw.ingestAdvisoryFeed([{
-        peerId: 'peer_nan',
-        score: NaN,
-        updatedAt: new Date(T0).toISOString(),
-        sourceId: 'bridge-D'
-      }], T0)
+      gw.ingestAdvisoryFeed(
+        [
+          {
+            peerId: 'peer_nan',
+            score: NaN,
+            updatedAt: new Date(T0).toISOString(),
+            sourceId: 'bridge-D'
+          }
+        ],
+        T0
+      )
     ).not.toThrow();
     // No crash — entry silently dropped
   });
@@ -299,40 +318,73 @@ describe('Advisory reputation — ingestAdvisoryFeed', () => {
     const TTL = 60 * 60 * 1_000; // 1 h
     const gw = makeGateway({ advisoryTtlMs: TTL });
     const staleTs = new Date(T0 - TTL - 1).toISOString();
-    gw.ingestAdvisoryFeed([{
-      peerId: 'peer_stale',
-      score: -1,
-      updatedAt: staleTs,
-      sourceId: 'bridge-E'
-    }], T0);
+    gw.ingestAdvisoryFeed(
+      [
+        {
+          peerId: 'peer_stale',
+          score: -1,
+          updatedAt: staleTs,
+          sourceId: 'bridge-E'
+        }
+      ],
+      T0
+    );
     // Entry was dropped — peer has no advisory score, admits normally
-    const req = makeRequest({ event: makeEnvelope({ deviceId: 'peer_stale', idempotencyKey: 'idem_stale' }), peerId: 'peer_stale' });
+    const req = makeRequest({
+      event: makeEnvelope({ deviceId: 'peer_stale', idempotencyKey: 'idem_stale' }),
+      peerId: 'peer_stale'
+    });
     expect(gw.admit(req, T0).result.admitted).toBe(true);
   });
 
   it('multi-source merge uses minimum score', () => {
     const gw = makeGateway();
     // Source 1 reports -0.2, source 2 reports -0.8
-    gw.ingestAdvisoryFeed([
-      { peerId: 'peer_multi', score: -0.2, updatedAt: new Date(T0).toISOString(), sourceId: 'bridge-F' },
-      { peerId: 'peer_multi', score: -0.8, updatedAt: new Date(T0).toISOString(), sourceId: 'bridge-G' }
-    ], T0);
+    gw.ingestAdvisoryFeed(
+      [
+        {
+          peerId: 'peer_multi',
+          score: -0.2,
+          updatedAt: new Date(T0).toISOString(),
+          sourceId: 'bridge-F'
+        },
+        {
+          peerId: 'peer_multi',
+          score: -0.8,
+          updatedAt: new Date(T0).toISOString(),
+          sourceId: 'bridge-G'
+        }
+      ],
+      T0
+    );
     // Minimum is -0.8; peer is still above quarantine threshold — admitted
-    const req = makeRequest({ event: makeEnvelope({ deviceId: 'peer_multi', idempotencyKey: 'idem_multi' }), peerId: 'peer_multi' });
+    const req = makeRequest({
+      event: makeEnvelope({ deviceId: 'peer_multi', idempotencyKey: 'idem_multi' }),
+      peerId: 'peer_multi'
+    });
     expect(gw.admit(req, T0).result.admitted).toBe(true);
   });
 
   it('advisory cannot raise a locally-observed score above its current value', () => {
     const gw = makeGateway();
     // Positive advisory score is silently dropped at ingest — cannot boost reputation
-    gw.ingestAdvisoryFeed([{
-      peerId: 'peer_raise',
-      score: 1,
-      updatedAt: new Date(T0).toISOString(),
-      sourceId: 'bridge-H'
-    }], T0);
+    gw.ingestAdvisoryFeed(
+      [
+        {
+          peerId: 'peer_raise',
+          score: 1,
+          updatedAt: new Date(T0).toISOString(),
+          sourceId: 'bridge-H'
+        }
+      ],
+      T0
+    );
     // Peer admits normally — positive advisory has no effect
-    const req = makeRequest({ idempotencyKey: 'idem_raise', event: makeEnvelope({ deviceId: 'peer_raise' }), peerId: 'peer_raise' });
+    const req = makeRequest({
+      idempotencyKey: 'idem_raise',
+      event: makeEnvelope({ deviceId: 'peer_raise' }),
+      peerId: 'peer_raise'
+    });
     const decision = gw.admit(req, T0);
     expect(decision.result.admitted).toBe(true);
   });
@@ -341,33 +393,60 @@ describe('Advisory reputation — ingestAdvisoryFeed', () => {
     const gw = makeGateway();
     const PEER = 'peer_retract';
     // Source A reports -0.5, source B reports -0.8 → effective min = -0.8
-    gw.ingestAdvisoryFeed([
-      { peerId: PEER, score: -0.5, updatedAt: new Date(T0).toISOString(), sourceId: 'src-A' },
-      { peerId: PEER, score: -0.8, updatedAt: new Date(T0).toISOString(), sourceId: 'src-B' }
-    ], T0);
+    gw.ingestAdvisoryFeed(
+      [
+        { peerId: PEER, score: -0.5, updatedAt: new Date(T0).toISOString(), sourceId: 'src-A' },
+        { peerId: PEER, score: -0.8, updatedAt: new Date(T0).toISOString(), sourceId: 'src-B' }
+      ],
+      T0
+    );
 
     // Source B retracts (positive → 0, treated as retraction) at T0 + 1 h
-    gw.ingestAdvisoryFeed([
-      { peerId: PEER, score: 0.2, updatedAt: new Date(T0 + 3_600_000).toISOString(), sourceId: 'src-B' }
-    ], T0 + 3_600_000);
+    gw.ingestAdvisoryFeed(
+      [
+        {
+          peerId: PEER,
+          score: 0.2,
+          updatedAt: new Date(T0 + 3_600_000).toISOString(),
+          sourceId: 'src-B'
+        }
+      ],
+      T0 + 3_600_000
+    );
 
     // Effective score should now only reflect src-A's -0.5, not the retracted -0.8
     // Peer still admits (both -0.5 and the new single-source score are above quarantine)
-    const req = makeRequest({ idempotencyKey: 'idem_retract', event: makeEnvelope({ deviceId: PEER }), peerId: PEER });
+    const req = makeRequest({
+      idempotencyKey: 'idem_retract',
+      event: makeEnvelope({ deviceId: PEER }),
+      peerId: PEER
+    });
     expect(gw.admit(req, T0 + 3_600_000).result.admitted).toBe(true);
   });
 
   it('drops entries with missing or non-string peerId', () => {
     const gw = makeGateway();
     expect(() =>
-      gw.ingestAdvisoryFeed([
-        { peerId: '', score: -0.5, updatedAt: new Date(T0).toISOString(), sourceId: 'src-X' },
-        null as unknown as AdvisoryReputationEntry,
-        { peerId: 'valid-peer', score: -0.3, updatedAt: new Date(T0).toISOString(), sourceId: 'src-Y' }
-      ], T0)
+      gw.ingestAdvisoryFeed(
+        [
+          { peerId: '', score: -0.5, updatedAt: new Date(T0).toISOString(), sourceId: 'src-X' },
+          null as unknown as AdvisoryReputationEntry,
+          {
+            peerId: 'valid-peer',
+            score: -0.3,
+            updatedAt: new Date(T0).toISOString(),
+            sourceId: 'src-Y'
+          }
+        ],
+        T0
+      )
     ).not.toThrow();
     // The valid entry was processed; invalid entries were skipped
-    const req = makeRequest({ idempotencyKey: 'idem_null', event: makeEnvelope({ deviceId: 'valid-peer' }), peerId: 'valid-peer' });
+    const req = makeRequest({
+      idempotencyKey: 'idem_null',
+      event: makeEnvelope({ deviceId: 'valid-peer' }),
+      peerId: 'valid-peer'
+    });
     expect(gw.admit(req, T0).result.admitted).toBe(true);
   });
 });
@@ -491,7 +570,9 @@ describe('Appeal hooks — registerAppealHook', () => {
     });
     gw.registerAppealHook(hook);
 
-    const req = makeRequest({ event: makeEnvelope({ kind: 'note.created', idempotencyKey: 'idem_appeal2' }) });
+    const req = makeRequest({
+      event: makeEnvelope({ kind: 'note.created', idempotencyKey: 'idem_appeal2' })
+    });
     gw.admit(req, T0);
 
     await new Promise((r) => setTimeout(r, 0));
@@ -520,7 +601,9 @@ describe('Appeal hooks — registerAppealHook', () => {
 
   it('hook receives TransportAdmissionDecision, not envelope bytes', async () => {
     let capturedDecision: unknown;
-    const hook: AppealHook = async (d) => { capturedDecision = d; };
+    const hook: AppealHook = async (d) => {
+      capturedDecision = d;
+    };
     const gw = new BridgeAdmissionGateway({
       config: Object.freeze({ ...GATEWAY_CONFIG, maxBytes: 1 }),
       appealableKinds: new Set(['note.created'])
@@ -577,7 +660,9 @@ describe('Backward compatibility — pre-4.6 options omitted', () => {
     const gw = new BridgeAdmissionGateway({
       config: Object.freeze({ ...GATEWAY_CONFIG, surface: 'relay' as const })
     });
-    const req = makeRequest({ event: makeEnvelope({ privacy: 'dm', idempotencyKey: 'idem_relay_dm' }) });
+    const req = makeRequest({
+      event: makeEnvelope({ privacy: 'dm', idempotencyKey: 'idem_relay_dm' })
+    });
     expect(gw.admit(req, T0).result.admitted).toBe(true);
   });
 
@@ -585,7 +670,9 @@ describe('Backward compatibility — pre-4.6 options omitted', () => {
     const gw = new BridgeAdmissionGateway({
       config: Object.freeze({ ...GATEWAY_CONFIG, surface: 'super-peer' as const })
     });
-    const req = makeRequest({ event: makeEnvelope({ privacy: 'dm', idempotencyKey: 'idem_sp_dm' }) });
+    const req = makeRequest({
+      event: makeEnvelope({ privacy: 'dm', idempotencyKey: 'idem_sp_dm' })
+    });
     expect(gw.admit(req, T0).result.admitted).toBe(false);
   });
 

@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.0.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
   "scripts": {
     "dev": "pnpm --filter @lfp2p/pwa dev",
     "build": "pnpm -r --sort run build",
@@ -13,7 +18,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "ci": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@eslint/js": "latest",
@@ -26,7 +31,7 @@
     "eslint-plugin-react-refresh": "latest",
     "fake-indexeddb": "latest",
     "globals": "latest",
-    "prettier": "latest",
+    "prettier": "3.8.4",
     "typescript": "latest",
     "typescript-eslint": "latest",
     "vite": "latest",

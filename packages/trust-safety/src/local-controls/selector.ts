@@ -37,9 +37,7 @@ function mostRestrictive(a: VisibilityDecision, b: VisibilityDecision): Visibili
   return DECISION_RANK[a] >= DECISION_RANK[b] ? a : b;
 }
 
-function labelPreferenceToDecision(
-  preference: LabelPreferenceAction
-): VisibilityDecision {
+function labelPreferenceToDecision(preference: LabelPreferenceAction): VisibilityDecision {
   switch (preference) {
     case 'allow':
       return 'show';
@@ -77,10 +75,7 @@ export type SelectorLabelHit = Readonly<{
  * Returning `true` indicates the candidate is similar enough to the
  * stored embedding to count as a match.
  */
-export type SemanticKeywordMatcher = (
-  entry: MutedKeywordEntry,
-  candidateText: string
-) => boolean;
+export type SemanticKeywordMatcher = (entry: MutedKeywordEntry, candidateText: string) => boolean;
 
 export type SelectorContext = Readonly<{
   actorId?: string;
@@ -196,15 +191,38 @@ const COMBINING_MARK_PATTERN = /\p{M}/gu;
  */
 const KEYWORD_CONFUSABLES: ReadonlyMap<string, string> = new Map([
   // Cyrillic small letters that look like Latin letters
-  ['а', 'a'], ['е', 'e'], ['і', 'i'], ['ј', 'j'], ['о', 'o'],
-  ['р', 'p'], ['с', 'c'], ['у', 'y'], ['х', 'x'], ['ѕ', 's'],
-  ['ԁ', 'd'], ['һ', 'h'], ['ӏ', 'l'],
+  ['а', 'a'],
+  ['е', 'e'],
+  ['і', 'i'],
+  ['ј', 'j'],
+  ['о', 'o'],
+  ['р', 'p'],
+  ['с', 'c'],
+  ['у', 'y'],
+  ['х', 'x'],
+  ['ѕ', 's'],
+  ['ԁ', 'd'],
+  ['һ', 'h'],
+  ['ӏ', 'l'],
   // Greek small letters that look like Latin letters
-  ['α', 'a'], ['ε', 'e'], ['ι', 'i'], ['ν', 'v'], ['ο', 'o'],
-  ['ρ', 'p'], ['τ', 't'], ['μ', 'u'],
+  ['α', 'a'],
+  ['ε', 'e'],
+  ['ι', 'i'],
+  ['ν', 'v'],
+  ['ο', 'o'],
+  ['ρ', 'p'],
+  ['τ', 't'],
+  ['μ', 'u'],
   // Common leet-speak intentional evasions
-  ['0', 'o'], ['1', 'l'], ['3', 'e'], ['4', 'a'], ['5', 's'],
-  ['7', 't'], ['8', 'b'], ['@', 'a'], ['$', 's']
+  ['0', 'o'],
+  ['1', 'l'],
+  ['3', 'e'],
+  ['4', 'a'],
+  ['5', 's'],
+  ['7', 't'],
+  ['8', 'b'],
+  ['@', 'a'],
+  ['$', 's']
 ]);
 
 /**
@@ -223,9 +241,7 @@ function normalizeForKeywordMatch(input: string): string {
   const lower = nfkd.toLowerCase();
   // Step 3: strip zero-width / format code points + every combining
   // mark in one pass each. Both patterns are constants.
-  const stripped = lower
-    .replace(ZERO_WIDTH_PATTERN, '')
-    .replace(COMBINING_MARK_PATTERN, '');
+  const stripped = lower.replace(ZERO_WIDTH_PATTERN, '').replace(COMBINING_MARK_PATTERN, '');
   // Step 4: confusables mapping. Iterate by code-point chunk so a
   // surrogate pair lookup does not split mid-character.
   let out = '';
@@ -306,9 +322,7 @@ function matchesKeyword(
     if (idx === -1) return false;
     const before = idx === 0 ? -1 : haystackN.charCodeAt(idx - 1);
     const after =
-      idx + needleN.length >= haystackN.length
-        ? -1
-        : haystackN.charCodeAt(idx + needleN.length);
+      idx + needleN.length >= haystackN.length ? -1 : haystackN.charCodeAt(idx + needleN.length);
     const leftBoundary = before === -1 || !isAsciiWordChar(before);
     const rightBoundary = after === -1 || !isAsciiWordChar(after);
     if (leftBoundary && rightBoundary) return true;
@@ -317,9 +331,7 @@ function matchesKeyword(
   return false;
 }
 
-function notificationPreferenceToDecision(
-  preference: NotificationPreference
-): VisibilityDecision {
+function notificationPreferenceToDecision(preference: NotificationPreference): VisibilityDecision {
   switch (preference) {
     case 'allow':
       return 'show';
@@ -383,8 +395,7 @@ export function decideVisibility(
   if (context.actorId !== undefined) {
     const mute = state.mutedActors[context.actorId];
     if (mute !== undefined && !isExpired(mute, now)) {
-      const muteDecision: VisibilityDecision =
-        mute.muteScope === 'all' ? 'collapse' : 'downrank';
+      const muteDecision: VisibilityDecision = mute.muteScope === 'all' ? 'collapse' : 'downrank';
       decision = mostRestrictive(decision, muteDecision);
     }
   }
@@ -405,11 +416,8 @@ export function decideVisibility(
   // Labels — suppressed for allowlisted actors UNLESS hardSafety.
   if (context.labels !== undefined && context.labels.length > 0) {
     const allowlistEntry =
-      context.actorId !== undefined
-        ? state.allowlistedActors[context.actorId]
-        : undefined;
-    const actorAllowlisted =
-      allowlistEntry !== undefined && !isExpired(allowlistEntry, now);
+      context.actorId !== undefined ? state.allowlistedActors[context.actorId] : undefined;
+    const actorAllowlisted = allowlistEntry !== undefined && !isExpired(allowlistEntry, now);
 
     for (const hit of context.labels) {
       if (actorAllowlisted && hit.hardSafety !== true) continue;
@@ -428,10 +436,7 @@ export function decideVisibility(
     >;
     const npref = map[context.notificationChannel];
     if (npref !== undefined && !isExpired(npref, now)) {
-      decision = mostRestrictive(
-        decision,
-        notificationPreferenceToDecision(npref.preference)
-      );
+      decision = mostRestrictive(decision, notificationPreferenceToDecision(npref.preference));
     }
   }
 

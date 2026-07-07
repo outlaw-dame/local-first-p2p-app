@@ -39,7 +39,7 @@
    feeds but MUST NOT treat them as authoritative.
 5. **Operator self-protection ≠ moderation authority.** The admission
    engine produces `accept | accept-limited | reject | quarantine |
-   rate-limit | drop-duplicate` decisions for the operator's own
+rate-limit | drop-duplicate` decisions for the operator's own
    surface. Producing a `SafetyPolicyDecision` (moderation) requires
    the appropriate moderator/admin authority scope; it is NOT what
    the admission engine does.
@@ -68,7 +68,7 @@ The rate limiter is a token bucket with these rules:
   exploit fractional-token rounding.
 - On admission, one token is consumed.
 - A refusal at `now` sets `cooldownUntil = now + baseBackoffMs *
-  2^(consecutiveRefusals - 1)`, capped at `maxBackoffMs`.
+2^(consecutiveRefusals - 1)`, capped at `maxBackoffMs`.
 - Requests during `cooldownUntil` are refused without altering the
   bucket — they do not escalate the backoff further.
 - The next request after the cooldown elapses either admits (if
@@ -109,8 +109,8 @@ peer's reputation; others (user-block) do not.
    - `super-peer`: `{group, public}`
    - `public-index`: `{public}`
    - `device-local` and `self` never traverse a surface.
-   Failure → `reject` / `system.disallowed-scope`. Reputation
-   penalty: -10.
+     Failure → `reject` / `system.disallowed-scope`. Reputation
+     penalty: -10.
 4. **Event kind allowlist.** If the operator has restricted kinds at
    this surface, anything outside → `reject` /
    `system.malformed-object`. Reputation penalty: -5.
@@ -423,18 +423,18 @@ cursor and the store backfill is authoritative.
 
 **Hardening (matches the project's adversarial-mindset bar)**:
 
-| Surface | Mitigation |
-|---|---|
-| Memory exhaustion via big frame | 64 KiB default inbound frame cap |
-| CPU DoS via JSON-parse spinning | 120 frames/min rolling inbound rate limit |
-| Slow consumer fills outbound | `socket.bufferedAmount` checked before each send; close 1013 over 8 MiB default |
-| Half-open TCP | Application-level heartbeat ping; close 1001 on timeout |
-| Hostile binary frames | Rejected with policy-violation 1008 |
-| Hostile JSON / unknown frame | Closed with protocol-error 1002 |
-| Hostile cursor / fields | Validated; close reasons NEVER echo input |
-| Subscribed once per socket | Re-subscribe closes with protocol-error |
-| Subscriber throws inside callback | Isolated per the broker contract; other subs unaffected |
-| Broker buffer flood | `onOverflow` fires once; adapter closes 1013 |
+| Surface                           | Mitigation                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------- |
+| Memory exhaustion via big frame   | 64 KiB default inbound frame cap                                                |
+| CPU DoS via JSON-parse spinning   | 120 frames/min rolling inbound rate limit                                       |
+| Slow consumer fills outbound      | `socket.bufferedAmount` checked before each send; close 1013 over 8 MiB default |
+| Half-open TCP                     | Application-level heartbeat ping; close 1001 on timeout                         |
+| Hostile binary frames             | Rejected with policy-violation 1008                                             |
+| Hostile JSON / unknown frame      | Closed with protocol-error 1002                                                 |
+| Hostile cursor / fields           | Validated; close reasons NEVER echo input                                       |
+| Subscribed once per socket        | Re-subscribe closes with protocol-error                                         |
+| Subscriber throws inside callback | Isolated per the broker contract; other subs unaffected                         |
+| Broker buffer flood               | `onOverflow` fires once; adapter closes 1013                                    |
 
 **Authentication**. The runtime layer authenticates the WebSocket
 upgrade using the same Phase 4.3 `authorizeRequest` against the

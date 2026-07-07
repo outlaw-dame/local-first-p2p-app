@@ -102,9 +102,9 @@ describe('hardening — local-controls projection rejects forbidden ids', () => 
       kind: 'safety.account.blocked',
       targetActorId: badId
     };
-    expect(() =>
-      applyLocalControlEvent(createEmptyLocalControlState(), event)
-    ).toThrow(/TS_FORBIDDEN_KEY/);
+    expect(() => applyLocalControlEvent(createEmptyLocalControlState(), event)).toThrow(
+      /TS_FORBIDDEN_KEY/
+    );
   });
 });
 
@@ -139,9 +139,9 @@ describe('hardening — reports-appeals projection rejects forbidden ids', () =>
       kind: 'safety.report.created',
       report: makeReport(badId, `idem_${badId}`)
     } as unknown as ReportAppealEvent;
-    expect(() =>
-      applyReportAppealEvent(createEmptyReportsAppealsState(), event)
-    ).toThrow(/TS_FORBIDDEN_KEY/);
+    expect(() => applyReportAppealEvent(createEmptyReportsAppealsState(), event)).toThrow(
+      /TS_FORBIDDEN_KEY/
+    );
   });
 });
 

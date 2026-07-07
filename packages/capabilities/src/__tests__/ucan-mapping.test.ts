@@ -23,16 +23,18 @@ describe('ucan-like mapping contract', () => {
   });
 
   it('fails closed through native validation for invalid actions', () => {
-    expect(() => mapUcanLikeGrantToCapabilityGrant({
-      capabilityId: 'cap:bad:1',
-      issuer: { kind: 'controller', id: 'controller:damon' },
-      audience: { kind: 'device', id: 'device:1' },
-      resource: { kind: 'sync-stream', id: 'sync:main' },
-      scope: { kind: 'self', id: 'self' },
-      capability: { with: 'sync:main', can: 'admin.everything' as never },
-      expiresAt: '2026-06-09T12:00:00.000Z',
-      createdAt: '2026-06-08T12:00:00.000Z',
-      nonce: 'nonce:bad:1'
-    })).toThrow('CAP_INVALID_ACTION');
+    expect(() =>
+      mapUcanLikeGrantToCapabilityGrant({
+        capabilityId: 'cap:bad:1',
+        issuer: { kind: 'controller', id: 'controller:damon' },
+        audience: { kind: 'device', id: 'device:1' },
+        resource: { kind: 'sync-stream', id: 'sync:main' },
+        scope: { kind: 'self', id: 'self' },
+        capability: { with: 'sync:main', can: 'admin.everything' as never },
+        expiresAt: '2026-06-09T12:00:00.000Z',
+        createdAt: '2026-06-08T12:00:00.000Z',
+        nonce: 'nonce:bad:1'
+      })
+    ).toThrow('CAP_INVALID_ACTION');
   });
 });

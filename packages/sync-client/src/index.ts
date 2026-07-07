@@ -36,7 +36,9 @@ export type OutboxTransportResult =
   | Readonly<{ status: 'conflicted'; reason: string; sequence?: number }>;
 
 export type OutboxTransport = Readonly<{
-  send(input: Readonly<{ entry: MutationOutboxEntry; event: SignedEventEnvelope }>): Promise<OutboxTransportResult>;
+  send(
+    input: Readonly<{ entry: MutationOutboxEntry; event: SignedEventEnvelope }>
+  ): Promise<OutboxTransportResult>;
 }>;
 
 export type HttpBridgeTransportOptions = Readonly<{
@@ -79,7 +81,12 @@ export class InboundSyncIdentityMismatchError extends Error {
   readonly recordIndex: number;
   readonly mismatchFields: readonly InboundSyncIdentityMismatchField[];
 
-  constructor(input: Readonly<{ recordIndex: number; mismatchFields: readonly InboundSyncIdentityMismatchField[] }>) {
+  constructor(
+    input: Readonly<{
+      recordIndex: number;
+      mismatchFields: readonly InboundSyncIdentityMismatchField[];
+    }>
+  ) {
     super(`Inbound sync record ${input.recordIndex} checkpoint identity mismatch`);
     this.name = 'InboundSyncIdentityMismatchError';
     this.recordIndex = input.recordIndex;
@@ -93,7 +100,9 @@ export class InboundSyncLimitExceededError extends Error {
   readonly returned: number;
 
   constructor(input: Readonly<{ limit: number; returned: number }>) {
-    super(`Inbound sync transport returned ${input.returned} records, exceeding limit ${input.limit}`);
+    super(
+      `Inbound sync transport returned ${input.returned} records, exceeding limit ${input.limit}`
+    );
     this.name = 'InboundSyncLimitExceededError';
     this.limit = input.limit;
     this.returned = input.returned;
@@ -138,10 +147,12 @@ export type ProcessInboundSyncInput = Readonly<{
    * single hostile event. Default `undefined` so existing callers
    * see no change in the result shape.
    */
-  mlsGroupControlOptions?: Readonly<{
-    localDeviceId?: string | undefined;
-    allowAutomatedForkRecovery?: boolean | undefined;
-  }> | undefined;
+  mlsGroupControlOptions?:
+    | Readonly<{
+        localDeviceId?: string | undefined;
+        allowAutomatedForkRecovery?: boolean | undefined;
+      }>
+    | undefined;
   /**
    * Step 3b of the post-#84 follow-up — opt-in capability-proof
    * auto-registration. When `true`, every `identity.capability.granted`
@@ -166,6 +177,34 @@ export type ProcessInboundSyncInput = Readonly<{
    * arrive.
    */
   registerIdentityCapabilityProofs?: boolean;
+  /**
+   * Phase 5.11 Step 6 — opt-in mailbox delivery projection dispatch.
+   * When set, every `mailbox.*` envelope that lands FRESH (i.e.,
+   * `putSignedEventWithSyncCheckpoint` returned `'stored'`, not
+   * `'skipped'`) is folded into the mailbox projection via
+   * `store.appendMailboxEvent`, keyed by `ownerIdentityId`.
+   *
+   * `resolveKeyMaterial(event)` returns the per-event conversation key
+   * (`dm`/`group` events each carry their own `PrivatePayloadEnvelopeV1`),
+   * or `undefined` when the key is not yet resolvable. In the latter
+   * case the event is still recorded in the durable mailbox event log
+   * as `undecryptable` and self-heals on a later
+   * `loadMailboxInboxState` once the key is available — nothing is lost.
+   *
+   * The decrypt-to-party gate inside `appendMailboxEvent` is the
+   * authorization boundary: an event `ownerIdentityId` is not a party to
+   * (recipient-mismatch), or that decrypts to an invalid payload, is
+   * rejected and NOT projected. Failures surface in the `mailbox`
+   * summary, NOT the outer batch result — the inbound stream MUST keep
+   * advancing the checkpoint. Default `undefined` so existing callers
+   * see no change in the result shape.
+   */
+  mailboxRouting?:
+    | Readonly<{
+        ownerIdentityId: string;
+        resolveKeyMaterial: (event: SignedEventEnvelope) => string | undefined;
+      }>
+    | undefined;
 }>;
 
 export type InboundSyncError = Readonly<{
@@ -250,6 +289,28 @@ export type InboundMlsGroupControlDispatchSummary = Readonly<{
   errors: ReadonlyArray<Readonly<{ index: number; eventId?: string; reason: string }>>;
 }>;
 
+/**
+ * Phase 5.11 Step 6 — per-batch mailbox delivery dispatch summary.
+ * Surfaced only when the caller supplies `mailboxRouting`. Privacy-safe
+ * (no raw payload bytes, no envelope ids beyond the signed event id).
+ */
+export type InboundMailboxDispatchSummary = Readonly<{
+  /** Envelopes decrypted, validated, and folded into the projection. */
+  applied: number;
+  /**
+   * Envelopes stored durably but not yet projected — no key was
+   * resolvable, or the wrong key was supplied. They self-heal on a later
+   * `loadMailboxInboxState` once the key is available.
+   */
+  undecryptable: number;
+  /**
+   * Rejected by the decrypt-to-party gate (owner is not a party to the
+   * envelope) or an invalid decrypted payload. Not projected.
+   */
+  rejected: number;
+  errors: ReadonlyArray<Readonly<{ index: number; eventId?: string; reason: string }>>;
+}>;
+
 export type ProcessInboundSyncResult = Readonly<{
   received: number;
   applied: number;
@@ -263,6 +324,8 @@ export type ProcessInboundSyncResult = Readonly<{
   capabilityProofs?: InboundCapabilityProofDispatchSummary;
   /** Present only when `mlsGroupControlOptions` was passed in. */
   mlsGroupControl?: InboundMlsGroupControlDispatchSummary;
+  /** Present only when `mailboxRouting` was passed in. */
+  mailbox?: InboundMailboxDispatchSummary;
 }>;
 
 export type PullAndProcessInboundSyncInput = SyncCheckpointKey &
@@ -356,11 +419,15 @@ export async function acceptSyncCheckpoint(input: AcceptSyncCheckpointInput): Pr
   }
 }
 
-export async function processInboundSyncBatch(input: ProcessInboundSyncInput): Promise<ProcessInboundSyncResult> {
+export async function processInboundSyncBatch(
+  input: ProcessInboundSyncInput
+): Promise<ProcessInboundSyncResult> {
   const nowIso = (input.now ?? new Date()).toISOString();
   const result = mutableInboundProcessResult();
   const expectedCheckpointKey =
-    input.expectedCheckpointKey === undefined ? undefined : normalizeSyncCheckpointKey(input.expectedCheckpointKey);
+    input.expectedCheckpointKey === undefined
+      ? undefined
+      : normalizeSyncCheckpointKey(input.expectedCheckpointKey);
   let checkpointAfter: StoredSyncCheckpoint | undefined;
 
   // Phase 1.8.14 — reputation routing is optional. We materialise
@@ -391,6 +458,11 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
   const mlsGroupControlRouting =
     input.mlsGroupControlOptions !== undefined
       ? { options: input.mlsGroupControlOptions, summary: mutableMlsGroupControlSummary() }
+      : undefined;
+
+  const mailboxRouting =
+    input.mailboxRouting !== undefined
+      ? { options: input.mailboxRouting, summary: mutableMailboxSummary() }
       : undefined;
 
   if (expectedCheckpointKey !== undefined) {
@@ -462,6 +534,15 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
             summary: mlsGroupControlRouting.summary
           });
         }
+        if (mailboxRouting !== undefined && isMailboxEvent(record.event)) {
+          await dispatchInboundMailboxEnvelope({
+            store: input.store,
+            event: record.event,
+            index,
+            options: mailboxRouting.options,
+            summary: mailboxRouting.summary
+          });
+        }
       } else {
         result.skipped += 1;
       }
@@ -492,6 +573,8 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
     mlsGroupControlRouting === undefined
       ? undefined
       : freezeMlsGroupControlSummary(mlsGroupControlRouting.summary);
+  const mailboxField =
+    mailboxRouting === undefined ? undefined : freezeMailboxSummary(mailboxRouting.summary);
 
   return {
     ...result,
@@ -499,10 +582,9 @@ export async function processInboundSyncBatch(input: ProcessInboundSyncInput): P
       ? { checkpointAfter }
       : {}),
     ...(reputationField === undefined ? {} : { reputation: reputationField }),
-    ...(capabilityProofField === undefined
-      ? {}
-      : { capabilityProofs: capabilityProofField }),
-    ...(mlsGroupControlField === undefined ? {} : { mlsGroupControl: mlsGroupControlField })
+    ...(capabilityProofField === undefined ? {} : { capabilityProofs: capabilityProofField }),
+    ...(mlsGroupControlField === undefined ? {} : { mlsGroupControl: mlsGroupControlField }),
+    ...(mailboxField === undefined ? {} : { mailbox: mailboxField })
   };
 }
 
@@ -510,7 +592,8 @@ export async function pullAndProcessInboundSyncBatch(
   input: PullAndProcessInboundSyncInput
 ): Promise<PullAndProcessInboundSyncResult> {
   const checkpointKey = normalizeSyncCheckpointKey(input);
-  const limit = input.limit === undefined ? undefined : requirePositiveInteger(input.limit, 'limit');
+  const limit =
+    input.limit === undefined ? undefined : requirePositiveInteger(input.limit, 'limit');
   const checkpointBefore = await input.store.getSyncCheckpoint(checkpointKey);
   const records = await input.transport.pull({
     ...checkpointKey,
@@ -581,7 +664,10 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
   const nowIso = now.toISOString();
   const batchSize = requirePositiveInteger(input.batchSize ?? 10, 'batchSize');
   const maxAttempts = requirePositiveInteger(input.maxAttempts ?? 5, 'maxAttempts');
-  const claimTimeoutMs = requireNonNegativeInteger(input.claimTimeoutMs ?? 30_000, 'claimTimeoutMs');
+  const claimTimeoutMs = requireNonNegativeInteger(
+    input.claimTimeoutMs ?? 30_000,
+    'claimTimeoutMs'
+  );
   const result = mutableProcessResult();
   await input.store.recoverStaleOutboxClaims({
     staleBefore: new Date(now.getTime() - claimTimeoutMs).toISOString(),
@@ -600,7 +686,11 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
 
     if (claimed.retryCount >= maxAttempts) {
       result.failed += 1;
-      await input.store.markOutboxFailed(claimed.idempotencyKey, 'Outbox retry budget exhausted', nowIso);
+      await input.store.markOutboxFailed(
+        claimed.idempotencyKey,
+        'Outbox retry budget exhausted',
+        nowIso
+      );
       continue;
     }
 
@@ -653,7 +743,11 @@ export async function processOutboxBatch(input: ProcessOutboxInput): Promise<Pro
       await input.store.markOutboxConfirmed(claimed.idempotencyKey, nowIso);
       result.confirmed += 1;
     } else {
-      await input.store.markOutboxConflicted(claimed.idempotencyKey, transportResult.reason, nowIso);
+      await input.store.markOutboxConflicted(
+        claimed.idempotencyKey,
+        transportResult.reason,
+        nowIso
+      );
       result.conflicted += 1;
     }
   }
@@ -691,9 +785,12 @@ async function mapBridgeHttpResponse(response: Response): Promise<OutboxTranspor
   const validBody = parsed.parseStatus === 'valid' ? parsed.body : undefined;
   if (!response.ok) {
     const bodyReason =
-      validBody && (validBody.status === 'conflicted' || validBody.status === 'rejected') ? validBody.reason : undefined;
+      validBody && (validBody.status === 'conflicted' || validBody.status === 'rejected')
+        ? validBody.reason
+        : undefined;
     const statusReason = response.statusText.trim();
-    const reason = bodyReason ?? (statusReason.length > 0 ? statusReason : `Bridge HTTP ${response.status}`);
+    const reason =
+      bodyReason ?? (statusReason.length > 0 ? statusReason : `Bridge HTTP ${response.status}`);
     if (response.status === 409) return { status: 'conflicted', reason };
     if (isNonRetryableHttpStatus(response.status)) throw new NonRetryableOutboxError(reason);
     throw new Error(reason);
@@ -771,7 +868,10 @@ function parseReasonedBridgeResponse(
 function parseOptionalBridgeSequence(value: unknown): ParsedBridgeSequence {
   if (value === undefined) return { parseStatus: 'valid' };
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    return { parseStatus: 'invalid', reason: 'Bridge response sequence must be a non-negative integer' };
+    return {
+      parseStatus: 'invalid',
+      reason: 'Bridge response sequence must be a non-negative integer'
+    };
   }
   return { parseStatus: 'valid', value };
 }
@@ -927,6 +1027,89 @@ async function dispatchInboundMlsGroupControlEnvelope(input: {
   }
 }
 
+type MutableMailboxSummary = {
+  applied: number;
+  undecryptable: number;
+  rejected: number;
+  errors: Array<{ index: number; eventId?: string; reason: string }>;
+};
+
+function mutableMailboxSummary(): MutableMailboxSummary {
+  return { applied: 0, undecryptable: 0, rejected: 0, errors: [] };
+}
+
+function freezeMailboxSummary(summary: MutableMailboxSummary): InboundMailboxDispatchSummary {
+  return Object.freeze({
+    applied: summary.applied,
+    undecryptable: summary.undecryptable,
+    rejected: summary.rejected,
+    errors: Object.freeze(summary.errors.map((e) => Object.freeze({ ...e })))
+  });
+}
+
+function isMailboxEvent(event: unknown): event is SignedEventEnvelope {
+  if (!isRecord(event) || typeof event.kind !== 'string') return false;
+  return event.kind.startsWith('mailbox.');
+}
+
+/**
+ * Phase 5.11 Step 6 — fold a freshly stored inbound mailbox envelope
+ * into the mailbox projection. The per-event conversation key is
+ * resolved by the caller; `undefined` means "not yet available", in
+ * which case `appendMailboxEvent` stores the event durably as
+ * `undecryptable` for later self-heal. The decrypt-to-party gate inside
+ * the store is the authorization boundary (recipient-mismatch → not
+ * projected). Failures surface in the summary, NOT the outer batch
+ * result — the checkpoint MUST keep advancing even when a single
+ * envelope is hostile or malformed.
+ *
+ * Privacy-safe: the only surfaced error text is the store/validator
+ * exception message, never raw payload bytes (Phase 3.1 doctrine).
+ */
+async function dispatchInboundMailboxEnvelope(input: {
+  store: DexieLocalFirstStore;
+  event: SignedEventEnvelope;
+  index: number;
+  options: Readonly<{
+    ownerIdentityId: string;
+    resolveKeyMaterial: (event: SignedEventEnvelope) => string | undefined;
+  }>;
+  summary: MutableMailboxSummary;
+}): Promise<void> {
+  const { store, event, index, options, summary } = input;
+  try {
+    const keyMaterial = options.resolveKeyMaterial(event);
+    const dispatch = await store.appendMailboxEvent(event, {
+      ownerIdentityId: options.ownerIdentityId,
+      ...(keyMaterial === undefined ? {} : { keyMaterial })
+    });
+    if (dispatch.status === 'applied') {
+      summary.applied += 1;
+    } else if (dispatch.status === 'undecryptable') {
+      summary.undecryptable += 1;
+    } else if (dispatch.status === 'rejected') {
+      summary.rejected += 1;
+      summary.errors.push({
+        index,
+        ...(typeof event.eventId === 'string' && event.eventId.length > 0
+          ? { eventId: event.eventId }
+          : {}),
+        reason: 'mailbox envelope rejected (recipient-mismatch or invalid payload)'
+      });
+    }
+    // `skipped` (already projected — idempotent re-delivery) is not counted.
+  } catch (error) {
+    summary.rejected += 1;
+    summary.errors.push({
+      index,
+      ...(typeof event.eventId === 'string' && event.eventId.length > 0
+        ? { eventId: event.eventId }
+        : {}),
+      reason: error instanceof Error ? error.message : 'unknown'
+    });
+  }
+}
+
 /**
  * Step 3b — apply the opt-in capability-proof gate AFTER the
  * envelope has been stored. Failures here surface in the
@@ -1046,7 +1229,10 @@ function safeInboundEventId(record: unknown): { eventId: string } | Record<strin
   return typeof event.eventId === 'string' ? { eventId: event.eventId } : {};
 }
 
-function preflightInboundRecordsMatchCheckpointKey(records: readonly InboundSyncRecord[], key: SyncCheckpointKey): void {
+function preflightInboundRecordsMatchCheckpointKey(
+  records: readonly InboundSyncRecord[],
+  key: SyncCheckpointKey
+): void {
   for (const [index, record] of records.entries()) {
     const mismatchFields = checkpointKeyMismatchFields(record, key);
     if (mismatchFields.length > 0) {
@@ -1055,7 +1241,10 @@ function preflightInboundRecordsMatchCheckpointKey(records: readonly InboundSync
   }
 }
 
-function checkpointKeyMismatchFields(record: SyncCheckpointKey, key: SyncCheckpointKey): InboundSyncIdentityMismatchField[] {
+function checkpointKeyMismatchFields(
+  record: SyncCheckpointKey,
+  key: SyncCheckpointKey
+): InboundSyncIdentityMismatchField[] {
   const mismatchFields: InboundSyncIdentityMismatchField[] = [];
   if (record.sourceId !== key.sourceId) mismatchFields.push('sourceId');
   if (record.streamId !== key.streamId) mismatchFields.push('streamId');
@@ -1106,14 +1295,17 @@ function applyIdentityControlProjectionUpdate(
   event: SignedEventEnvelope,
   updatedAt: string
 ): StoredIdentityControlProjection {
-  const state = current === undefined ? createEmptyIdentityControlState() : toIdentityControlState(current);
+  const state =
+    current === undefined ? createEmptyIdentityControlState() : toIdentityControlState(current);
   const nextState = applyIdentityControlEvent(state, event);
   return {
     identityId: event.author,
     epoch: nextState.epoch,
     devices: nextState.devices,
     capabilities: nextState.capabilities,
-    ...(nextState.controllerPublicKey === undefined ? {} : { controllerPublicKey: nextState.controllerPublicKey }),
+    ...(nextState.controllerPublicKey === undefined
+      ? {}
+      : { controllerPublicKey: nextState.controllerPublicKey }),
     ...(nextState.contactCardPublication === undefined
       ? {}
       : { contactCardPublication: nextState.contactCardPublication }),
@@ -1127,7 +1319,9 @@ function toIdentityControlState(current: StoredIdentityControlProjection) {
     epoch: current.epoch,
     devices: current.devices,
     capabilities: current.capabilities,
-    ...(current.controllerPublicKey === undefined ? {} : { controllerPublicKey: current.controllerPublicKey }),
+    ...(current.controllerPublicKey === undefined
+      ? {}
+      : { controllerPublicKey: current.controllerPublicKey }),
     ...(current.contactCardPublication === undefined
       ? {}
       : { contactCardPublication: current.contactCardPublication }),
@@ -1137,10 +1331,7 @@ function toIdentityControlState(current: StoredIdentityControlProjection) {
 
 // Phase 1.8.12 — re-export the reputation inbound pipeline so
 // callers receive the full sync-client surface from a single import.
-export {
-  REPUTATION_DROP_REASONS,
-  processInboundReputationBatch
-} from './inbound-reputation.js';
+export { REPUTATION_DROP_REASONS, processInboundReputationBatch } from './inbound-reputation.js';
 export type {
   InboundReputationRecord,
   ProcessInboundReputationInput,

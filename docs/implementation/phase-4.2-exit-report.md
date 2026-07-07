@@ -129,18 +129,18 @@ async `admitAndPersist` path. Backward compat preserved.
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Snapshot persistence interface (`AdmissionStateStore`) shipped | ✓ | `admission-state-store.ts` |
-| In-memory + JSON-file implementations | ✓ | both classes |
-| Round-trip serialize/deserialize preserves every field | ✓ | 3 round-trip tests |
-| Rehydrated state passes the Phase 3.2 deep-freeze invariant | ✓ | dedicated test |
-| Corrupted snapshots rejected with typed error, never silently discarded | ✓ | 5 corruption-rejection tests |
-| Atomic on-disk writes (temp + rename) | ✓ | atomic-rename test |
-| Cold-load factory pre-loads persisted state | ✓ | 3 factory tests |
-| Fail-closed: a save failure does NOT advance in-memory state | ✓ | dedicated test |
-| BridgeService surfaces persistence failures as privacy-safe rejections | ✓ | end-to-end test pins reason format |
-| Doctrine documents the persistence layer | ✓ | new section in `bridge-admission-doctrine.md` |
+| Criterion                                                               | Status | Evidence                                      |
+| ----------------------------------------------------------------------- | :----: | --------------------------------------------- |
+| Snapshot persistence interface (`AdmissionStateStore`) shipped          |   ✓    | `admission-state-store.ts`                    |
+| In-memory + JSON-file implementations                                   |   ✓    | both classes                                  |
+| Round-trip serialize/deserialize preserves every field                  |   ✓    | 3 round-trip tests                            |
+| Rehydrated state passes the Phase 3.2 deep-freeze invariant             |   ✓    | dedicated test                                |
+| Corrupted snapshots rejected with typed error, never silently discarded |   ✓    | 5 corruption-rejection tests                  |
+| Atomic on-disk writes (temp + rename)                                   |   ✓    | atomic-rename test                            |
+| Cold-load factory pre-loads persisted state                             |   ✓    | 3 factory tests                               |
+| Fail-closed: a save failure does NOT advance in-memory state            |   ✓    | dedicated test                                |
+| BridgeService surfaces persistence failures as privacy-safe rejections  |   ✓    | end-to-end test pins reason format            |
+| Doctrine documents the persistence layer                                |   ✓    | new section in `bridge-admission-doctrine.md` |
 
 ## Deferred work
 

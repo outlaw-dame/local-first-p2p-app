@@ -84,7 +84,10 @@ export function verifySignedEventEnvelope(event: SignedEventEnvelope): boolean {
   }
 }
 
-export function signDetachedJson(payload: JsonValue, keypair: SigningKeypair): DetachedJsonSignature {
+export function signDetachedJson(
+  payload: JsonValue,
+  keypair: SigningKeypair
+): DetachedJsonSignature {
   const secretKey = fromBase64Url(keypair.privateKey);
   if (secretKey.byteLength !== nacl.sign.secretKeyLength) {
     throw new Error('Invalid Ed25519 private key length');
@@ -98,7 +101,10 @@ export function signDetachedJson(payload: JsonValue, keypair: SigningKeypair): D
   };
 }
 
-export function verifyDetachedJsonSignature(payload: JsonValue, signature: DetachedJsonSignature): boolean {
+export function verifyDetachedJsonSignature(
+  payload: JsonValue,
+  signature: DetachedJsonSignature
+): boolean {
   try {
     if (signature.algorithm !== 'ed25519-detached-json') return false;
     const publicKey = fromBase64Url(signature.publicKey);
@@ -283,13 +289,8 @@ function canonicalizeJcsImpl(value: unknown): string {
   // Safe in this codebase's verifier path because callers JSON
   // round-trip untrusted inputs first; here we only invoke toJSON
   // on objects the caller chose to pass to us directly.
-  if (
-    typeof value === 'object' &&
-    typeof (value as { toJSON?: unknown }).toJSON === 'function'
-  ) {
-    return canonicalizeJcsImpl(
-      (value as { toJSON: () => unknown }).toJSON()
-    );
+  if (typeof value === 'object' && typeof (value as { toJSON?: unknown }).toJSON === 'function') {
+    return canonicalizeJcsImpl((value as { toJSON: () => unknown }).toJSON());
   }
   if (Array.isArray(value)) {
     const parts = new Array<string>(value.length);
@@ -312,9 +313,7 @@ function canonicalizeJcsImpl(value: unknown): string {
     }
     return '{' + parts.join(',') + '}';
   }
-  throw new TypeError(
-    `canonicalizeJcs: unsupported value type '${typeof value}'`
-  );
+  throw new TypeError(`canonicalizeJcs: unsupported value type '${typeof value}'`);
 }
 
 export async function generateNonExtractableAesGcmKey(): Promise<CryptoKey> {
@@ -366,9 +365,7 @@ export async function encryptPayloadEnvelope(
   recipientWraps?: readonly PayloadKeyRecipientWrap[]
 ): Promise<PrivatePayloadEnvelopeV1> {
   const serialized =
-    typeof plaintext === 'string'
-      ? plaintext
-      : canonicalizeJson(plaintext as JsonValue);
+    typeof plaintext === 'string' ? plaintext : canonicalizeJson(plaintext as JsonValue);
 
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(serialized);
@@ -392,7 +389,9 @@ export async function encryptPayloadEnvelope(
     ciphertext: toBase64Url(new Uint8Array(ciphertext)),
     nonce: toBase64Url(iv),
     keyId: keyId.trim(),
-    ...(recipientWraps === undefined ? {} : { recipientWraps: validateRecipientWrapsStructure(recipientWraps) })
+    ...(recipientWraps === undefined
+      ? {}
+      : { recipientWraps: validateRecipientWrapsStructure(recipientWraps) })
   };
 
   return envelope;
@@ -407,7 +406,9 @@ export async function decryptPayloadEnvelope(
     throw new Error(`Unsupported private payload envelope version: ${String(envelope.version)}`);
   }
   if (envelope.algorithm !== 'aes-gcm-256') {
-    throw new Error(`Unsupported private payload envelope algorithm: ${String(envelope.algorithm)}`);
+    throw new Error(
+      `Unsupported private payload envelope algorithm: ${String(envelope.algorithm)}`
+    );
   }
 
   const iv = fromBase64Url(envelope.nonce);
@@ -433,7 +434,10 @@ function validateRecipientWrapsStructure(
     if (wrap === null || typeof wrap !== 'object') {
       throw new Error(`recipientWraps[${index}] must be an object`);
     }
-    if (typeof wrap.recipientIdentityId !== 'string' || wrap.recipientIdentityId.trim().length === 0) {
+    if (
+      typeof wrap.recipientIdentityId !== 'string' ||
+      wrap.recipientIdentityId.trim().length === 0
+    ) {
       throw new Error(`recipientWraps[${index}].recipientIdentityId must be a non-empty string`);
     }
     if (typeof wrap.recipientDeviceId !== 'string' || wrap.recipientDeviceId.trim().length === 0) {
@@ -443,7 +447,9 @@ function validateRecipientWrapsStructure(
       throw new Error(`recipientWraps[${index}].keyAgreement must be a non-empty string`);
     }
     if (wrap.keyAgreement !== 'x25519-v1') {
-      throw new Error(`recipientWraps[${index}].keyAgreement must be 'x25519-v1', got '${wrap.keyAgreement}'`);
+      throw new Error(
+        `recipientWraps[${index}].keyAgreement must be 'x25519-v1', got '${wrap.keyAgreement}'`
+      );
     }
     if (typeof wrap.wrappedKey !== 'string' || wrap.wrappedKey.trim().length === 0) {
       throw new Error(`recipientWraps[${index}].wrappedKey must be a non-empty string`);
@@ -553,7 +559,10 @@ export function unwrapPayloadKeyWithX25519(
   }
 
   const ephemeralPublicKey = wrappedKeyBytes.slice(0, ephemeralPublicKeyLength);
-  const nonce = wrappedKeyBytes.slice(ephemeralPublicKeyLength, ephemeralPublicKeyLength + nonceLength);
+  const nonce = wrappedKeyBytes.slice(
+    ephemeralPublicKeyLength,
+    ephemeralPublicKeyLength + nonceLength
+  );
   const encrypted = wrappedKeyBytes.slice(ephemeralPublicKeyLength + nonceLength);
 
   const decrypted = nacl.box.open(encrypted, nonce, ephemeralPublicKey, recipientPrivateKey);

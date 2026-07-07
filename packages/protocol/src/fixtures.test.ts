@@ -32,7 +32,9 @@ describe('protocol event fixtures', () => {
   });
 
   it('accepts the valid identity controller created fixture', () => {
-    expect(() => validateSignedEvent(validIdentityControllerCreatedFixture as SignedEventEnvelope)).not.toThrow();
+    expect(() =>
+      validateSignedEvent(validIdentityControllerCreatedFixture as SignedEventEnvelope)
+    ).not.toThrow();
   });
 
   it.each(invalidSignedEventFixtures)('rejects the %s fixture', (_name, fixture, errorPattern) => {

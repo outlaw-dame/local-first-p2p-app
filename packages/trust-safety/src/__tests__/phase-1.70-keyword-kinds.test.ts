@@ -34,7 +34,7 @@ describe('Phase 1.70.A — KEYWORD_MATCH_KINDS includes hashtag and phrase', () 
   });
 
   it('still does NOT include regex (deliberate ReDoS guard)', () => {
-    expect((KEYWORD_MATCH_KINDS as readonly string[])).not.toContain('regex');
+    expect(KEYWORD_MATCH_KINDS as readonly string[]).not.toContain('regex');
   });
 });
 
@@ -215,9 +215,9 @@ describe('Phase 1.70.A — phrase selector matching', () => {
       createEmptyLocalControlState(),
       muteEvent('e_p1', 'election fraud', 'phrase')
     );
-    expect(
-      decideVisibility(s, { text: 'I think the Election    Fraud claims are bogus.' })
-    ).toBe('collapse');
+    expect(decideVisibility(s, { text: 'I think the Election    Fraud claims are bogus.' })).toBe(
+      'collapse'
+    );
   });
 
   it('does not match a partial token (this is a phrase, not a substring of one word)', () => {
@@ -241,9 +241,7 @@ describe('Phase 1.70.A — phrase selector matching', () => {
       createEmptyLocalControlState(),
       muteEvent('e_p3', 'spoiler alert', 'phrase')
     );
-    expect(
-      decideVisibility(s, { text: 'WARNING\nspoiler\talert\nbelow' })
-    ).toBe('collapse');
+    expect(decideVisibility(s, { text: 'WARNING\nspoiler\talert\nbelow' })).toBe('collapse');
   });
 });
 
@@ -253,9 +251,7 @@ describe('Phase 1.70.A — hashtag selector matching', () => {
       createEmptyLocalControlState(),
       muteEvent('e_h1', '#Spoilers', 'hashtag')
     );
-    expect(decideVisibility(s, { text: 'check this out #SPOILERS yo' })).toBe(
-      'collapse'
-    );
+    expect(decideVisibility(s, { text: 'check this out #SPOILERS yo' })).toBe('collapse');
   });
 
   it('matches the tag at end of text (no trailing boundary)', () => {
@@ -263,9 +259,7 @@ describe('Phase 1.70.A — hashtag selector matching', () => {
       createEmptyLocalControlState(),
       muteEvent('e_h2', 'spoilers', 'hashtag')
     );
-    expect(decideVisibility(s, { text: 'check this out #spoilers' })).toBe(
-      'collapse'
-    );
+    expect(decideVisibility(s, { text: 'check this out #spoilers' })).toBe('collapse');
   });
 
   it('does not match a longer tag that contains the needle as a prefix', () => {
@@ -273,9 +267,7 @@ describe('Phase 1.70.A — hashtag selector matching', () => {
       createEmptyLocalControlState(),
       muteEvent('e_h3', 'spoil', 'hashtag')
     );
-    expect(decideVisibility(s, { text: 'tag here #spoilers below' })).toBe(
-      'show'
-    );
+    expect(decideVisibility(s, { text: 'tag here #spoilers below' })).toBe('show');
   });
 
   it('matches a Unicode-letter tag (#café)', () => {
@@ -283,9 +275,7 @@ describe('Phase 1.70.A — hashtag selector matching', () => {
       createEmptyLocalControlState(),
       muteEvent('e_h4', '#café', 'hashtag')
     );
-    expect(decideVisibility(s, { text: 'morning ☕ #café time' })).toBe(
-      'collapse'
-    );
+    expect(decideVisibility(s, { text: 'morning ☕ #café time' })).toBe('collapse');
   });
 
   it('does not match the same letters appearing without the # prefix', () => {
@@ -293,9 +283,7 @@ describe('Phase 1.70.A — hashtag selector matching', () => {
       createEmptyLocalControlState(),
       muteEvent('e_h5', 'spoilers', 'hashtag')
     );
-    expect(decideVisibility(s, { text: 'no spoilers here, promise' })).toBe(
-      'show'
-    );
+    expect(decideVisibility(s, { text: 'no spoilers here, promise' })).toBe('show');
   });
 });
 

@@ -90,14 +90,14 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Doctrine band table multipliers applied verbatim | ✓ | 4 dedicated tests |
-| Engine math UNCHANGED (no duplication, no drift) | ✓ | 60+ existing tests pass; integration is parameter-only |
-| Default behavior (no lookup) byte-identical to pre-1.8.6 | ✓ | regression test |
-| Unknown peer collapses to `'untrusted'` band (fail-closed) | ✓ | dedicated test |
-| Audit-safe band string on outputs (no raw score) | ✓ | type pins `'high' \| 'mid' \| 'low' \| 'untrusted'` |
-| Defense-in-depth on bad baseline / modulator drift | ✓ | bad-baseline throws + modulated config re-validated |
+| Criterion                                                  | Status | Evidence                                               |
+| ---------------------------------------------------------- | :----: | ------------------------------------------------------ |
+| Doctrine band table multipliers applied verbatim           |   ✓    | 4 dedicated tests                                      |
+| Engine math UNCHANGED (no duplication, no drift)           |   ✓    | 60+ existing tests pass; integration is parameter-only |
+| Default behavior (no lookup) byte-identical to pre-1.8.6   |   ✓    | regression test                                        |
+| Unknown peer collapses to `'untrusted'` band (fail-closed) |   ✓    | dedicated test                                         |
+| Audit-safe band string on outputs (no raw score)           |   ✓    | type pins `'high' \| 'mid' \| 'low' \| 'untrusted'`    |
+| Defense-in-depth on bad baseline / modulator drift         |   ✓    | bad-baseline throws + modulated config re-validated    |
 
 ## Deferred
 

@@ -20,14 +20,10 @@ function digestOf(bytes: Uint8Array): string {
   return 'sha-256:' + toBase64Url(sha256(bytes));
 }
 
-const HAPPY_BYTES = new TextEncoder().encode(
-  'bearer-token-content-that-exceeds-eight-chars'
-);
+const HAPPY_BYTES = new TextEncoder().encode('bearer-token-content-that-exceeds-eight-chars');
 const HAPPY_DIGEST = digestOf(HAPPY_BYTES);
 
-function makeRecord(
-  overrides: Partial<CapabilityProofRecord> = {}
-): CapabilityProofRecord {
+function makeRecord(overrides: Partial<CapabilityProofRecord> = {}): CapabilityProofRecord {
   return {
     proofId: 'bearcap-1',
     scheme: 'bearcap',
@@ -42,8 +38,7 @@ function makeRecord(
 }
 
 function vfor(bytes: Uint8Array | undefined | (() => Uint8Array | undefined)) {
-  const resolver =
-    typeof bytes === 'function' ? bytes : () => bytes;
+  const resolver = typeof bytes === 'function' ? bytes : () => bytes;
   return createBearcapVerifier({ resolveBearcap: resolver });
 }
 
@@ -56,9 +51,7 @@ describe('createBearcapVerifier: input guards', () => {
     expect(() => createBearcapVerifier(null as never)).toThrow(TypeError);
   });
   it('throws if resolveBearcap is not a function', () => {
-    expect(() =>
-      createBearcapVerifier({ resolveBearcap: 'oops' as never })
-    ).toThrow(TypeError);
+    expect(() => createBearcapVerifier({ resolveBearcap: 'oops' as never })).toThrow(TypeError);
   });
 });
 
@@ -74,15 +67,12 @@ describe('createBearcapVerifier: scheme dispatch', () => {
     expect(v(42 as never)).toBeUndefined();
   });
 
-  it.each([
-    'ucan',
-    'vc',
-    'zcap-ld',
-    'native-signed-event',
-    'manual-local-policy'
-  ] as const)('abstains for scheme === %s', (s) => {
-    expect(v(makeRecord({ scheme: s as never }))).toBeUndefined();
-  });
+  it.each(['ucan', 'vc', 'zcap-ld', 'native-signed-event', 'manual-local-policy'] as const)(
+    'abstains for scheme === %s',
+    (s) => {
+      expect(v(makeRecord({ scheme: s as never }))).toBeUndefined();
+    }
+  );
 
   it('owns the verdict for scheme === "bearcap"', () => {
     expect(v(makeRecord())).toBe('possession-confirmed');
@@ -111,14 +101,12 @@ describe('createBearcapVerifier: structural soundness when scheme is bearcap', (
 
 describe('createBearcapVerifier: digest format gating', () => {
   it('invalid when digest uses sha-512 prefix (out of v1 scope)', () => {
-    const digest =
-      'sha-512:' + toBase64Url(new Uint8Array(64).fill(0x42));
+    const digest = 'sha-512:' + toBase64Url(new Uint8Array(64).fill(0x42));
     expect(vfor(HAPPY_BYTES)(makeRecord({ digest }))).toBe('invalid');
   });
 
   it('invalid when digest uses blake3 prefix (out of v1 scope)', () => {
-    const digest =
-      'blake3:' + toBase64Url(new Uint8Array(32).fill(0x42));
+    const digest = 'blake3:' + toBase64Url(new Uint8Array(32).fill(0x42));
     expect(vfor(HAPPY_BYTES)(makeRecord({ digest }))).toBe('invalid');
   });
 
@@ -127,9 +115,7 @@ describe('createBearcapVerifier: digest format gating', () => {
     // registration, but we still fail-closed here as defense-in-
     // depth against a record that bypassed validation (e.g.,
     // serialized from a future schema version).
-    expect(vfor(HAPPY_BYTES)(makeRecord({ digest: 'sha-256:' as never }))).toBe(
-      'invalid'
-    );
+    expect(vfor(HAPPY_BYTES)(makeRecord({ digest: 'sha-256:' as never }))).toBe('invalid');
   });
 });
 
@@ -149,9 +135,7 @@ describe('createBearcapVerifier: happy path', () => {
 
   it('possession-confirmed for a different but matching byte sequence', () => {
     const other = new TextEncoder().encode('different-token-but-also-long-1234');
-    expect(vfor(other)(makeRecord({ digest: digestOf(other) }))).toBe(
-      'possession-confirmed'
-    );
+    expect(vfor(other)(makeRecord({ digest: digestOf(other) }))).toBe('possession-confirmed');
   });
 });
 

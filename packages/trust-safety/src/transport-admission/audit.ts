@@ -19,11 +19,7 @@ import { redactDigestRef } from '@lfp2p/content-addressing';
 import type { BlockRef, DigestRef } from '@lfp2p/content-addressing';
 import { tsError } from '../errors.js';
 import type { SafetyReasonCode } from '../reason-codes.js';
-import {
-  assertFiniteNumberInRange,
-  assertId,
-  assertOneOf
-} from '../validation.js';
+import { assertFiniteNumberInRange, assertId, assertOneOf } from '../validation.js';
 
 /** Maximum number of entries retained in an in-memory audit log. */
 export const DEFAULT_AUDIT_LOG_CAPACITY = 1_000;

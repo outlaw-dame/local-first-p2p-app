@@ -1,10 +1,7 @@
 import type { ObjectRef } from '@lfp2p/content-addressing';
 import { validateObjectRef } from '@lfp2p/content-addressing';
 import type { CapabilityProofRef, CredentialRef } from './refs.js';
-import {
-  validateCapabilityProofRef,
-  validateCredentialRef
-} from './refs.js';
+import { validateCapabilityProofRef, validateCredentialRef } from './refs.js';
 import {
   assertExactVersion,
   assertId,

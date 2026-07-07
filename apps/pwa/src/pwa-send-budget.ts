@@ -71,7 +71,10 @@ export class PwaSendBudget {
 
     const windowStartMs = this.#windowStartedAtMs!;
     const retryAfterMs = Math.max(1, windowStartMs + this.#options.windowMs - nowMs);
-    if (this.#runs + 1 > this.#options.maxRuns || this.#entries + entries > this.#options.maxEntries) {
+    if (
+      this.#runs + 1 > this.#options.maxRuns ||
+      this.#entries + entries > this.#options.maxEntries
+    ) {
       return deferred('window-limit', retryAfterMs);
     }
 
@@ -88,10 +91,13 @@ export class PwaSendBudget {
 
   refund(input: PwaSendBudgetRefundInput): void {
     const runs = input.runs === undefined ? 0 : nonNegativeInteger(input.runs, 'refund.runs');
-    const entries = input.entries === undefined ? 0 : nonNegativeInteger(input.entries, 'refund.entries');
+    const entries =
+      input.entries === undefined ? 0 : nonNegativeInteger(input.entries, 'refund.entries');
     if (runs === 0 && entries === 0) return;
-    if (runs > this.#runs) throw new RangeError('send budget refund.runs exceeds current reserved runs.');
-    if (entries > this.#entries) throw new RangeError('send budget refund.entries exceeds current reserved entries.');
+    if (runs > this.#runs)
+      throw new RangeError('send budget refund.runs exceeds current reserved runs.');
+    if (entries > this.#entries)
+      throw new RangeError('send budget refund.entries exceeds current reserved entries.');
 
     this.#runs -= runs;
     this.#entries -= entries;
@@ -151,7 +157,10 @@ function normalizeOptions(options: PwaSendBudgetOptions): Required<PwaSendBudget
     windowMs: positiveInteger(options.windowMs ?? DEFAULT_WINDOW_MS, 'windowMs'),
     maxRuns: positiveInteger(options.maxRuns ?? DEFAULT_MAX_RUNS, 'maxRuns'),
     maxEntries: positiveInteger(options.maxEntries ?? DEFAULT_MAX_ENTRIES, 'maxEntries'),
-    minIntervalMs: nonNegativeInteger(options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS, 'minIntervalMs')
+    minIntervalMs: nonNegativeInteger(
+      options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS,
+      'minIntervalMs'
+    )
   };
 }
 
@@ -162,12 +171,14 @@ function normalizeNowMs(now: Date | undefined): number {
 }
 
 function positiveInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError(`send budget ${label} must be a positive safe integer.`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new TypeError(`send budget ${label} must be a positive safe integer.`);
   return value;
 }
 
 function nonNegativeInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(`send budget ${label} must be a non-negative safe integer.`);
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new TypeError(`send budget ${label} must be a non-negative safe integer.`);
   return value;
 }
 
@@ -176,7 +187,10 @@ function deferred(reason: PwaSendBudgetReason, retryAfterMs: number): PwaSendBud
     status: 'deferred',
     reason,
     retryAfterMs: Math.max(1, Math.ceil(retryAfterMs)),
-    message: reason === 'minimum-interval' ? 'Send budget minimum interval is active.' : 'Send budget window limit is active.'
+    message:
+      reason === 'minimum-interval'
+        ? 'Send budget minimum interval is active.'
+        : 'Send budget window limit is active.'
   };
 }
 

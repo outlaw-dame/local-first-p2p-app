@@ -10,10 +10,10 @@ Phase 2.3 was originally a grab-bag of identity follow-ups. We
 intentionally split out the two parts that are shippable right
 now from the parts that require new ADRs:
 
-| Sub-slice | Status | What it covers |
-|---|---|---|
-| **Phase 2.3a** | Shipped | Identity-specific threat-model document (`docs/threat-model/identity-control.md`) |
-| **Phase 2.3b** | Shipped | PWA identity-audit view-model + React surface + rotation affordance |
+| Sub-slice               | Status               | What it covers                                                                                                                 |
+| ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Phase 2.3a**          | Shipped              | Identity-specific threat-model document (`docs/threat-model/identity-control.md`)                                              |
+| **Phase 2.3b**          | Shipped              | PWA identity-audit view-model + React surface + rotation affordance                                                            |
 | **Phase 2.3 remainder** | Deferred behind ADRs | Controller-key recovery / supersession; capability delegation chains; multi-controller accounts; cross-app identity-event sync |
 
 The deferred items each require a dedicated ADR before code can
@@ -94,8 +94,8 @@ Three new files:
      in-memory controller keypair, persisted atomically through
      `appendLocalIdentityEvent`.
   5. Status line shows the new fingerprint; the audit refreshes.
-  Controller-device rows show an explicit explanation that
-  controller-key supersession is a separate (deferred) flow.
+     Controller-device rows show an explicit explanation that
+     controller-key supersession is a separate (deferred) flow.
 
 ### Wiring
 
@@ -113,15 +113,15 @@ pnpm build       # clean; PWA bundle 1,196 KB → 1,214 KB (≈ +18 KB)
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Identity-specific threat-model doc exists and maps every gap to a future phase | ✓ | `docs/threat-model/identity-control.md` (10 threat scenarios + consolidated gap table) |
-| PWA exposes the identity-control projection as an audit surface | ✓ | `IdentityAudit` mounted in `root-app.tsx` |
-| Controller-key rotation is explicitly NOT available; the UI says why | ✓ | `isRotatable` rule + controller-row footer message + `prepareRotationIntent` refusal |
-| Non-controller rotation works end-to-end | ✓ | `onRotate` → `prepareRotationIntent` → confirm → `emitDeviceRotatedEvent` → projection refresh |
-| Rotation confirmation surfaces both OLD and NEW fingerprints | ✓ | `globalThis.confirm` text in `pwa-identity-audit.tsx` |
-| Phase 2.3 remainder explicitly deferred with ADR markers | ✓ | This exit report + phase-map row |
-| No regressions: existing 1034 tests still pass | ✓ | sweep clean |
+| Criterion                                                                      | Status | Evidence                                                                                       |
+| ------------------------------------------------------------------------------ | :----: | ---------------------------------------------------------------------------------------------- |
+| Identity-specific threat-model doc exists and maps every gap to a future phase |   ✓    | `docs/threat-model/identity-control.md` (10 threat scenarios + consolidated gap table)         |
+| PWA exposes the identity-control projection as an audit surface                |   ✓    | `IdentityAudit` mounted in `root-app.tsx`                                                      |
+| Controller-key rotation is explicitly NOT available; the UI says why           |   ✓    | `isRotatable` rule + controller-row footer message + `prepareRotationIntent` refusal           |
+| Non-controller rotation works end-to-end                                       |   ✓    | `onRotate` → `prepareRotationIntent` → confirm → `emitDeviceRotatedEvent` → projection refresh |
+| Rotation confirmation surfaces both OLD and NEW fingerprints                   |   ✓    | `globalThis.confirm` text in `pwa-identity-audit.tsx`                                          |
+| Phase 2.3 remainder explicitly deferred with ADR markers                       |   ✓    | This exit report + phase-map row                                                               |
+| No regressions: existing 1034 tests still pass                                 |   ✓    | sweep clean                                                                                    |
 
 ## Deferred work (Phase 2.3 remainder)
 

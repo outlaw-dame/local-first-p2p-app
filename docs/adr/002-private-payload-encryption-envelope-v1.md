@@ -18,20 +18,24 @@ The project currently signs durable events and encrypts local private key materi
 Adopt a private payload encryption envelope for private scopes.
 
 1. Scope policy:
+
 - self, dm, and group payload content must be encrypted.
 - public payload content remains plaintext by design.
 - device-local payload content may remain local plaintext unless future policy tightens this.
 
 2. Envelope policy:
+
 - encrypted payloads use an explicit envelope object with algorithm and key reference metadata.
 - the plaintext payload field is replaced by ciphertext plus authenticated metadata fields.
 - envelope versioning follows protocol versioning policy and fixture discipline.
 
 3. Metadata policy:
+
 - minimal routing metadata remains visible (event id, kind, author/device ids, timestamps, refs, privacy scope, envelope headers).
 - private content fields are never logged in plaintext.
 
 4. Key wrapping policy before MLS:
+
 - dm/group payload keys are wrapped per recipient device capability using controller-authorized device keys.
 - this pre-MLS wrapping strategy is transitional and must compose with future MLS by treating MLS-managed keys as the payload-key source.
 

@@ -1,9 +1,11 @@
 # MLS Group Keying Doctrine
 
-- Status: Draft
+- Status: Superseded — retained as design history
 - Date: 2026-06-27
 - Related ADR: `docs/adr/012-mls-dependency-and-group-keying-v1.md`
 - Roadmap phase: Phase 3
+
+> **Normative home:** this design doctrine has been promoted into the specification tree. The current normative documents are `docs/specification/08-security/mls-group-keying.md`, `docs/specification/08-security/mls-virtual-delivery-service.md`, and `docs/specification/08-security/mls-fork-detection-and-recovery.md`. Read those for MUST/SHOULD requirements; this file is preserved for design rationale only. See `docs/implementation/mls-group-control-spec-promotion.md` for the mapping.
 
 ## Purpose
 

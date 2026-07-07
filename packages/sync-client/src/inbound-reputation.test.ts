@@ -4,10 +4,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { createLocalFirstStore } from '@lfp2p/local-store';
-import {
-  REPUTATION_EVENT_VERSION,
-  type ReputationEvent
-} from '@lfp2p/trust-safety';
+import { REPUTATION_EVENT_VERSION, type ReputationEvent } from '@lfp2p/trust-safety';
 import {
   REPUTATION_DROP_REASONS,
   processInboundReputationBatch,
@@ -113,9 +110,7 @@ describe('processInboundReputationBatch — aggregator publish flow', () => {
     const store = freshStore('not-sub');
     const result = await processInboundReputationBatch({
       store,
-      records: [
-        { publisherLabelerId: 'hostile', event: aggregatorEvent('evt_x', 'mallory') }
-      ],
+      records: [{ publisherLabelerId: 'hostile', event: aggregatorEvent('evt_x', 'mallory') }],
       subscribedLabelers: new Set(['openrank'])
     });
     expect(result.dropped).toBe(1);
@@ -167,9 +162,7 @@ describe('processInboundReputationBatch — aggregator score.removed flow', () =
     const store = freshStore('rm-sub');
     const result = await processInboundReputationBatch({
       store,
-      records: [
-        { publisherLabelerId: 'openrank', event: removedEvent('evt_rm_1', 'actor_alice') }
-      ],
+      records: [{ publisherLabelerId: 'openrank', event: removedEvent('evt_rm_1', 'actor_alice') }],
       subscribedLabelers: new Set(['openrank'])
     });
     expect(result.applied).toBe(1);

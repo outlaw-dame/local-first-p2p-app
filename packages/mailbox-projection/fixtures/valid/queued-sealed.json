@@ -1,0 +1,28 @@
+{
+  "name": "queued with sealed addressing pins recipientDeviceId",
+  "identityId": "identity:bob",
+  "log": [
+    {
+      "kind": "mailbox.envelope.queued",
+      "eventId": "q",
+      "createdAt": "2026-07-04T00:00:01.000Z",
+      "payload": {
+        "envelopeId": "e1",
+        "recipientIdentityId": "identity:bob",
+        "senderIdentityId": "identity:alice",
+        "contentRef": "sha-256:abc123",
+        "expiresAt": "2026-08-01T00:00:00.000Z",
+        "recipientDeviceId": "device:bob-1"
+      }
+    }
+  ],
+  "assert": {
+    "inbox": {
+      "key": "e1",
+      "status": "queued",
+      "envelope": {
+        "recipientDeviceId": "device:bob-1"
+      }
+    }
+  }
+}

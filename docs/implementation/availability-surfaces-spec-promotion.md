@@ -29,17 +29,17 @@ This document promotes those surfaces into the newer availability-provider model
 
 ## Specification mapping
 
-| Existing area | Specification owner | Promotion rule |
-|---|---|---|
-| Bridge service | `07-availability/bridges.md` | Bridge is a transport and availability surface, not identity or state authority. |
-| Relay surface | `07-availability/relays.md` | Relay improves reach and fanout but does not grant validity or recipient acceptance. |
-| Super-peer surface | `07-availability/super-peers.md` | Super-peer may assist caching, routing, indexing, or sync, but remains capability-bounded infrastructure. |
-| Public index | `07-availability/public-indexes.md` | Public indexing is discovery infrastructure and must respect visibility and local policy. |
-| Provider descriptor | `07-availability/provider-descriptors.md` | Describes service capabilities and limits without creating protocol authority. |
-| Admission policy | `07-availability/admission-policy.md` | Provider-local admission must not be represented as global validity. |
-| Advisory reputation | `07-availability/advisory-reputation.md` | Reputation input can inform local or provider decisions but must not create global authority. |
-| Mailbox route | `05-mailbox/mailbox.md` | Mailbox/provider acceptance is delivery state, not durable recipient acceptance. |
-| Sync adapter | `04-sync/selective-replica-sync.md` | Availability providers can assist sync but cannot bypass validation or apply rules. |
+| Existing area       | Specification owner                       | Promotion rule                                                                                            |
+| ------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Bridge service      | `07-availability/bridges.md`              | Bridge is a transport and availability surface, not identity or state authority.                          |
+| Relay surface       | `07-availability/relays.md`               | Relay improves reach and fanout but does not grant validity or recipient acceptance.                      |
+| Super-peer surface  | `07-availability/super-peers.md`          | Super-peer may assist caching, routing, indexing, or sync, but remains capability-bounded infrastructure. |
+| Public index        | `07-availability/public-indexes.md`       | Public indexing is discovery infrastructure and must respect visibility and local policy.                 |
+| Provider descriptor | `07-availability/provider-descriptors.md` | Describes service capabilities and limits without creating protocol authority.                            |
+| Admission policy    | `07-availability/admission-policy.md`     | Provider-local admission must not be represented as global validity.                                      |
+| Advisory reputation | `07-availability/advisory-reputation.md`  | Reputation input can inform local or provider decisions but must not create global authority.             |
+| Mailbox route       | `05-mailbox/mailbox.md`                   | Mailbox/provider acceptance is delivery state, not durable recipient acceptance.                          |
+| Sync adapter        | `04-sync/selective-replica-sync.md`       | Availability providers can assist sync but cannot bypass validation or apply rules.                       |
 
 ## Required boundaries
 

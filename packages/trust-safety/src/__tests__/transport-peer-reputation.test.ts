@@ -85,13 +85,7 @@ describe('peer reputation — quarantine transitions', () => {
     let rep = createReputation(0);
     rep = applyReputationDelta(rep, -150, 0, 'attack', FAST_DECAY);
     expect(rep.quarantineUntil).toBeDefined();
-    const lifted = applyReputationDelta(
-      rep,
-      0,
-      FAST_DECAY.maxQuarantineMs + 1,
-      'tick',
-      FAST_DECAY
-    );
+    const lifted = applyReputationDelta(rep, 0, FAST_DECAY.maxQuarantineMs + 1, 'tick', FAST_DECAY);
     expect(lifted.quarantineUntil).toBeUndefined();
   });
 });

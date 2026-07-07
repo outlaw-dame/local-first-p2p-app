@@ -51,21 +51,26 @@ export type OperatorSurfaceConfig = Readonly<{
 // ---------------------------------------------------------------------------
 
 export class OperatorSurfaceWidenError extends Error {
-  constructor(surface: OperatorSurface, scope: EnvelopePrivacyScope, defaults: ReadonlySet<EnvelopePrivacyScope>) {
+  constructor(
+    surface: OperatorSurface,
+    scope: EnvelopePrivacyScope,
+    defaults: ReadonlySet<EnvelopePrivacyScope>
+  ) {
     super(
       `OperatorSurfaceConfig: scope "${scope}" widens beyond the "${surface}" surface default ` +
-      `(allowed: ${[...defaults].join(', ')})`
+        `(allowed: ${[...defaults].join(', ')})`
     );
     this.name = 'OperatorSurfaceWidenError';
   }
 }
 
-const SURFACE_DEFAULT_SCOPES: Readonly<Record<OperatorSurface, ReadonlySet<EnvelopePrivacyScope>>> = {
-  bridge: BRIDGE_SAFE_PRIVACY_SCOPES,
-  relay: RELAY_SAFE_PRIVACY_SCOPES,
-  'super-peer': SUPER_PEER_SAFE_PRIVACY_SCOPES,
-  'public-index': PUBLIC_INDEX_SAFE_PRIVACY_SCOPES
-};
+const SURFACE_DEFAULT_SCOPES: Readonly<Record<OperatorSurface, ReadonlySet<EnvelopePrivacyScope>>> =
+  {
+    bridge: BRIDGE_SAFE_PRIVACY_SCOPES,
+    relay: RELAY_SAFE_PRIVACY_SCOPES,
+    'super-peer': SUPER_PEER_SAFE_PRIVACY_SCOPES,
+    'public-index': PUBLIC_INDEX_SAFE_PRIVACY_SCOPES
+  };
 
 /**
  * Validate that the config only narrows (never widens) the surface's
@@ -85,7 +90,7 @@ export function validateOperatorSurfaceConfig(
   if (defaults === undefined) {
     throw new Error(
       `validateOperatorSurfaceConfig: unknown surface "${String(config.surface)}" — ` +
-      `must be one of: ${Object.keys(SURFACE_DEFAULT_SCOPES).join(', ')}`
+        `must be one of: ${Object.keys(SURFACE_DEFAULT_SCOPES).join(', ')}`
     );
   }
   for (const scope of config.allowedPrivacyScopes) {

@@ -25,16 +25,14 @@ export const OPERATION_CONSISTENCY_CLASS_METADATA = Object.freeze({
     name: 'eventually-consistent-projection',
     crdtAllowed: true,
     lwwAllowed: true,
-    summary:
-      'Pure projection events where idempotent replay and commutative apply are acceptable.'
+    summary: 'Pure projection events where idempotent replay and commutative apply are acceptable.'
   }),
   B: Object.freeze({
     class: 'B',
     name: 'append-only-lifecycle-state-machine',
     crdtAllowed: false,
     lwwAllowed: false,
-    summary:
-      'Lifecycle events with explicit legal transitions and terminal states.'
+    summary: 'Lifecycle events with explicit legal transitions and terminal states.'
   }),
   C: Object.freeze({
     class: 'C',
@@ -96,7 +94,32 @@ const EVENT_KIND_CONSISTENCY_CLASS_VALUES = {
   'chat.message.sent': 'D',
   'chat.message.edited': 'D',
   'chat.message.deleted': 'D',
-  'chat.thread.accepted': 'D'
+  'chat.thread.accepted': 'D',
+  // Phase 5.11 — User Data Root lifecycle events. Append-only
+  // claim/release / add/remove / join/leave / bind state machine with
+  // explicit legal transitions; not CRDT/LWW-mergeable. The payload
+  // ciphertext is `self`-scoped, but the *event* is a Class B lifecycle
+  // record, not Class D message content.
+  'udr.partition.claimed': 'B',
+  'udr.partition.released': 'B',
+  'udr.feed-subscription.added': 'B',
+  'udr.feed-subscription.removed': 'B',
+  'udr.sync-interest.added': 'B',
+  'udr.sync-interest.removed': 'B',
+  'udr.mailbox.bound': 'B',
+  'udr.space.joined': 'B',
+  'udr.space.left': 'B',
+  // Phase 5.11 — mailbox delivery events. Delivery-plane records carry
+  // encrypted payloads (Class D). `mailbox.envelope.expired` is a
+  // lifecycle transition that destroys availability, not an encrypted
+  // key/payload transition, so it is Class B (append-only lifecycle).
+  'mailbox.envelope.queued': 'D',
+  'mailbox.envelope.delivered': 'D',
+  'mailbox.envelope.expired': 'B',
+  'mailbox.envelope.fetched': 'D',
+  'mailbox.receipt.issued': 'D',
+  'mailbox.ack.sent': 'D',
+  'mailbox.checkpoint.advanced': 'D'
 } as const satisfies Readonly<Record<EventKind, OperationConsistencyClass>>;
 
 /**
@@ -106,22 +129,16 @@ const EVENT_KIND_CONSISTENCY_CLASS_VALUES = {
  * typecheck failure. This intentionally converts the draft taxonomy from a
  * read-only audit lens into an enforceable protocol package guardrail.
  */
-export const EVENT_KIND_CONSISTENCY_CLASS = Object.freeze(
-  EVENT_KIND_CONSISTENCY_CLASS_VALUES
-);
+export const EVENT_KIND_CONSISTENCY_CLASS = Object.freeze(EVENT_KIND_CONSISTENCY_CLASS_VALUES);
 
-export function isOperationConsistencyClass(
-  value: unknown
-): value is OperationConsistencyClass {
+export function isOperationConsistencyClass(value: unknown): value is OperationConsistencyClass {
   return (
     typeof value === 'string' &&
     OPERATION_CONSISTENCY_CLASSES.includes(value as OperationConsistencyClass)
   );
 }
 
-export function consistencyClassForEventKind(
-  kind: EventKind
-): OperationConsistencyClass {
+export function consistencyClassForEventKind(kind: EventKind): OperationConsistencyClass {
   const consistencyClass = EVENT_KIND_CONSISTENCY_CLASS[kind];
   if (consistencyClass === undefined) {
     throw new Error('Unknown event kind: ' + kind);
@@ -153,10 +170,7 @@ export function assertCrdtPayloadAllowedForEventKind(
   }
 }
 
-export function assertLwwAllowedForEventKind(
-  kind: EventKind,
-  label = 'LWW boundary'
-): void {
+export function assertLwwAllowedForEventKind(kind: EventKind, label = 'LWW boundary'): void {
   const consistencyClass = consistencyClassForEventKind(kind);
   const metadata = OPERATION_CONSISTENCY_CLASS_METADATA[consistencyClass];
   if (!metadata.lwwAllowed) {

@@ -151,10 +151,7 @@ export function applyLabelerEvent(
         // Re-subscribing an existing id is rejected — the subscriber
         // should issue an unsubscribe first or use a new id. This
         // keeps the audit chain unambiguous.
-        throw tsError(
-          'TS_LIFECYCLE_TRANSITION',
-          `${label}: subscription "${id}" already exists`
-        );
+        throw tsError('TS_LIFECYCLE_TRANSITION', `${label}: subscription "${id}" already exists`);
       }
       const record: SubscriptionRecord = Object.freeze({
         subscription: e.subscription,
@@ -197,10 +194,7 @@ export function applyLabelerEvent(
         // Re-applying a label under the same labelId is rejected —
         // a labeler that wants to "refresh" a label must revoke and
         // issue a new labelId. Keeps audit history unambiguous.
-        throw tsError(
-          'TS_LIFECYCLE_TRANSITION',
-          `${label}: label "${id}" already applied`
-        );
+        throw tsError('TS_LIFECYCLE_TRANSITION', `${label}: label "${id}" already applied`);
       }
       const sKey = subjectKey(e.label.subject);
       const record: LabelRecord = Object.freeze({
@@ -223,10 +217,7 @@ export function applyLabelerEvent(
         );
       }
       if (existing.status === 'revoked') {
-        throw tsError(
-          'TS_LIFECYCLE_TRANSITION',
-          `${label}: label "${e.labelId}" already revoked`
-        );
+        throw tsError('TS_LIFECYCLE_TRANSITION', `${label}: label "${e.labelId}" already revoked`);
       }
       // **Cross-labeler revoke guard**: a label may only be revoked
       // by an authority whose actor matches the original label's
@@ -346,13 +337,8 @@ function applyActionOverride(
   return undefined;
 }
 
-function defaultActionForLabel(
-  state: LabelersState,
-  label: SafetyLabel
-): StackedAction {
-  const def = state.labelDefinitionsByKey[
-    `${label.namespace}::${label.labelKey}`
-  ];
+function defaultActionForLabel(state: LabelersState, label: SafetyLabel): StackedAction {
+  const def = state.labelDefinitionsByKey[`${label.namespace}::${label.labelKey}`];
   if (def !== undefined) {
     // SafetyLabelDefinition.defaultAction is from the full SafetyAction
     // enum; narrow to the stacked-action set.
@@ -420,10 +406,7 @@ export function effectiveLabelsForSubject(
     const record = state.labelsByLabelId[labelId];
     if (record === undefined || record.status !== 'active') continue;
     const labelObj = record.label;
-    if (
-      namespaceFilter !== undefined &&
-      !namespaceFilter.includes(labelObj.namespace)
-    ) {
+    if (namespaceFilter !== undefined && !namespaceFilter.includes(labelObj.namespace)) {
       continue;
     }
     const issuerLabelerId = labelObj.issuer.authorityId;
@@ -441,8 +424,7 @@ export function effectiveLabelsForSubject(
       labelObj.labelKey,
       labelObj.namespace
     );
-    const effectiveAction: StackedAction =
-      override ?? defaultActionForLabel(state, labelObj);
+    const effectiveAction: StackedAction = override ?? defaultActionForLabel(state, labelObj);
     const profile = state.labelerProfilesById[issuerLabelerId];
     const out: { -readonly [K in keyof ResolvedLabel]: ResolvedLabel[K] } = {
       labelId: labelObj.labelId,

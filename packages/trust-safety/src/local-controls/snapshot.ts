@@ -1,10 +1,5 @@
 import { tsError } from '../errors.js';
-import {
-  assertExactVersion,
-  assertId,
-  assertIso8601,
-  assertPlainObject
-} from '../validation.js';
+import { assertExactVersion, assertId, assertIso8601, assertPlainObject } from '../validation.js';
 import type { LocalControlState } from './projection.js';
 import { createEmptyLocalControlState } from './projection.js';
 
@@ -173,8 +168,7 @@ export function importPreferencesSnapshot(
   label = 'importPreferencesSnapshot'
 ): LocalControlState {
   const validated = validateLocalControlSnapshot(snapshot, label);
-  const strategy: 'union' | 'replace' | 'merge-newer-wins' =
-    options?.mergeStrategy ?? 'union';
+  const strategy: 'union' | 'replace' | 'merge-newer-wins' = options?.mergeStrategy ?? 'union';
   const preserveAppliedEventIds = options?.preserveAppliedEventIds ?? true;
 
   const base = strategy === 'replace' ? createEmptyLocalControlState() : state;
@@ -182,21 +176,13 @@ export function importPreferencesSnapshot(
   return Object.freeze({
     ...base,
     blockedActors: mergeRecord(base.blockedActors, validated.blockedActors, strategy),
-    allowlistedActors: mergeRecord(
-      base.allowlistedActors,
-      validated.allowlistedActors,
-      strategy
-    ),
+    allowlistedActors: mergeRecord(base.allowlistedActors, validated.allowlistedActors, strategy),
     mutedActors: mergeRecord(base.mutedActors, validated.mutedActors, strategy),
     blockedDomains: mergeRecord(base.blockedDomains, validated.blockedDomains, strategy),
     mutedKeywords: mergeRecord(base.mutedKeywords, validated.mutedKeywords, strategy),
     mutedThreads: mergeRecord(base.mutedThreads, validated.mutedThreads, strategy),
     hiddenPosts: mergeRecord(base.hiddenPosts, validated.hiddenPosts, strategy),
-    labelPreferences: mergeRecord(
-      base.labelPreferences,
-      validated.labelPreferences,
-      strategy
-    ),
+    labelPreferences: mergeRecord(base.labelPreferences, validated.labelPreferences, strategy),
     policyListSubscriptions: mergeRecord(
       base.policyListSubscriptions,
       validated.policyListSubscriptions,

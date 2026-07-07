@@ -87,7 +87,9 @@ describe('OpenRankAdapter — happy path mapping', () => {
   it('output events are deep-frozen (Phase 3.2)', async () => {
     const adapter = createOpenRankAdapter({
       labelerId: 'openrank',
-      fetcher: mockFetcher({ rows: [{ actorId: 'a', score: 0.5, confidence: 0.5, observationCount: 1 }] }),
+      fetcher: mockFetcher({
+        rows: [{ actorId: 'a', score: 0.5, confidence: 0.5, observationCount: 1 }]
+      }),
       now: () => FIXED_NOW
     });
     const events = await adapter.fetchAggregatorEvents();
@@ -123,7 +125,12 @@ describe('OpenRankAdapter — hardening (per-row + per-batch)', () => {
       fetcher: mockFetcher({
         rows: [
           { actorId: 'high', score: 99, confidence: -5, observationCount: -1 },
-          { actorId: 'nan', score: Number.NaN, confidence: Number.POSITIVE_INFINITY, observationCount: 5 }
+          {
+            actorId: 'nan',
+            score: Number.NaN,
+            confidence: Number.POSITIVE_INFINITY,
+            observationCount: 5
+          }
         ]
       }),
       now: () => FIXED_NOW
@@ -217,9 +224,7 @@ describe('OpenRankAdapter — end-to-end with the Phase 1.8.4 runtime', () => {
     const adapter = createOpenRankAdapter({
       labelerId: 'openrank',
       fetcher: mockFetcher({
-        rows: [
-          { actorId: 'bob', score: 0.7, confidence: 0.8, observationCount: 12 }
-        ]
+        rows: [{ actorId: 'bob', score: 0.7, confidence: 0.8, observationCount: 12 }]
       }),
       now: () => FIXED_NOW
     });

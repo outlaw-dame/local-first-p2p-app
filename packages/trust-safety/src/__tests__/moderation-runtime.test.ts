@@ -123,7 +123,11 @@ function queueResolved(
   return out as unknown as ModerationEvent;
 }
 
-function decisionRecorded(decisionId: string, evId: string, sourceQueueItemId?: string): ModerationEvent {
+function decisionRecorded(
+  decisionId: string,
+  evId: string,
+  sourceQueueItemId?: string
+): ModerationEvent {
   const out: Record<string, unknown> = {
     version: 'lfp2p.moderation-event.v1',
     eventId: evId,
@@ -154,16 +158,16 @@ describe('moderation runtime — policy lifecycle', () => {
   });
 
   it('rejects safety.policy.created when policyVersionNumber is not 1', () => {
-    expect(() =>
-      applyModerationEvent(createEmptyModerationState(), policyCreated(2))
-    ).toThrow(/policyVersionNumber === 1/);
+    expect(() => applyModerationEvent(createEmptyModerationState(), policyCreated(2))).toThrow(
+      /policyVersionNumber === 1/
+    );
   });
 
   it('rejects safety.policy.created when the policyId already exists', () => {
     const s = applyModerationEvent(createEmptyModerationState(), policyCreated());
-    expect(() =>
-      applyModerationEvent(s, policyCreated(1, 'evt_pol_create_2'))
-    ).toThrow(/already exists/);
+    expect(() => applyModerationEvent(s, policyCreated(1, 'evt_pol_create_2'))).toThrow(
+      /already exists/
+    );
   });
 
   it('updates v1 -> v2 with matching supersedes pointer', () => {
@@ -200,9 +204,7 @@ describe('moderation runtime — policy lifecycle', () => {
     s = applyModerationEvent(s, decisionRecorded('decision_1', 'evt_dec1'));
     s = applyModerationEvent(s, policyDeprecated('evt_pol_dep'));
     expect(s.decisionsById['decision_1']).toBeDefined();
-    expect(
-      s.decisionsByPolicyId['community.policy.v1']?.includes('decision_1')
-    ).toBe(true);
+    expect(s.decisionsByPolicyId['community.policy.v1']?.includes('decision_1')).toBe(true);
   });
 
   it('rejects deprecation of unknown / already-deprecated policy', () => {
@@ -237,7 +239,10 @@ describe('moderation runtime — queue lifecycle', () => {
   });
 
   it('open -> resolved (skip assignment) for clear-cut cases', () => {
-    let s = applyModerationEvent(createEmptyModerationState(), queueCreated('q1', 'report_1', 'e1'));
+    let s = applyModerationEvent(
+      createEmptyModerationState(),
+      queueCreated('q1', 'report_1', 'e1')
+    );
     s = applyModerationEvent(s, queueResolved('q1', 'duplicate', 'e2'));
     expect(s.queueItemsById['q1']?.status).toBe('resolved');
   });
@@ -248,9 +253,7 @@ describe('moderation runtime — queue lifecycle', () => {
     ).toThrow(/unknown queue item/);
     let s = applyModerationEvent(createEmptyModerationState(), queueCreated('q1', 'r1', 'e1'));
     s = applyModerationEvent(s, queueAssigned('q1', 'e2'));
-    expect(() => applyModerationEvent(s, queueAssigned('q1', 'e3'))).toThrow(
-      /already assigned/
-    );
+    expect(() => applyModerationEvent(s, queueAssigned('q1', 'e3'))).toThrow(/already assigned/);
     s = applyModerationEvent(s, queueResolved('q1', 'acted', 'e4'));
     expect(() => applyModerationEvent(s, queueAssigned('q1', 'e5'))).toThrow(/already resolved/);
   });
@@ -268,9 +271,7 @@ describe('moderation runtime — queue lifecycle', () => {
 
   it('rejects creating a queue item under an existing id', () => {
     const s = applyModerationEvent(createEmptyModerationState(), queueCreated('q1', 'r1', 'e1'));
-    expect(() => applyModerationEvent(s, queueCreated('q1', 'r1', 'e2'))).toThrow(
-      /already exists/
-    );
+    expect(() => applyModerationEvent(s, queueCreated('q1', 'r1', 'e2'))).toThrow(/already exists/);
   });
 });
 
@@ -302,7 +303,10 @@ describe('moderation runtime — decision recording', () => {
 
 describe('moderation runtime — cross-reference (Phase 1.63 integration)', () => {
   it('queueItemsForSource returns items spawned from a given reportId', () => {
-    let s = applyModerationEvent(createEmptyModerationState(), queueCreated('q1', 'report_42', 'e1'));
+    let s = applyModerationEvent(
+      createEmptyModerationState(),
+      queueCreated('q1', 'report_42', 'e1')
+    );
     s = applyModerationEvent(s, queueCreated('q2', 'report_42', 'e2'));
     s = applyModerationEvent(s, queueCreated('q3', 'report_99', 'e3'));
     expect(queueItemsForSource(s, 'report', 'report_42').slice().sort()).toEqual(['q1', 'q2']);

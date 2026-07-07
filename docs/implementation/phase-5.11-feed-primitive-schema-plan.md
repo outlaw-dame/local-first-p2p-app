@@ -10,7 +10,7 @@
 
 Define the protocol event kinds and local projection for FeedCollection, FeedGenerator, FeedSubscription, and FeedCursor. Deliver a pure `@lfp2p/feed-projection` package and Dexie schema additions in `@lfp2p/local-store`.
 
-Feed *content* delivery (ranking, curation, bridge feed relay) is out of scope. This plan covers only the schema, event kinds, and local projection.
+Feed _content_ delivery (ranking, curation, bridge feed relay) is out of scope. This plan covers only the schema, event kinds, and local projection.
 
 Feed subscriptions are UDR-owned state. This plan may expose a feed subscription view, but it MUST derive from `udr.feed-subscription.*` events rather than introducing a second authoritative feed subscription event family.
 
@@ -18,13 +18,13 @@ Feed subscriptions are UDR-owned state. This plan may expose a feed subscription
 
 New event kinds:
 
-| Kind | Privacy | Consistency class |
-|---|---|---|
-| `feed.collection.created` | `self` or `public` | B |
-| `feed.collection.updated` | `self` or `public` | B |
-| `feed.collection.deleted` | `self` or `public` | B |
-| `feed.generator.published` | `public` | B |
-| `feed.cursor.advanced` | `self` | D |
+| Kind                       | Privacy            | Consistency class |
+| -------------------------- | ------------------ | ----------------- |
+| `feed.collection.created`  | `self` or `public` | B                 |
+| `feed.collection.updated`  | `self` or `public` | B                 |
+| `feed.collection.deleted`  | `self` or `public` | B                 |
+| `feed.generator.published` | `public`           | B                 |
+| `feed.cursor.advanced`     | `self`             | D                 |
 
 `self`-scoped kinds carry `PrivatePayloadEnvelopeV1`; bridge passes them opaque.
 `public`-scoped kinds carry plaintext payloads.

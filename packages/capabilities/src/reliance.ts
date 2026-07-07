@@ -40,7 +40,8 @@ const BEARCAP_FORBIDDEN_ACTION_PREFIXES = [
 
 export function evaluateCapabilityReliance(input: CapabilityRelianceInput): CapabilityDecision {
   const createdAt = normalizeDecisionTime(input.now);
-  const credentialOnly = input.capabilityDecision === undefined && (input.credentialEvidence?.length ?? 0) > 0;
+  const credentialOnly =
+    input.capabilityDecision === undefined && (input.credentialEvidence?.length ?? 0) > 0;
   if (credentialOnly) {
     return deny('unknown', undefined, ['capability.vc-only-authority-denied'], createdAt);
   }
@@ -49,7 +50,10 @@ export function evaluateCapabilityReliance(input: CapabilityRelianceInput): Capa
     return deny('unknown', undefined, ['capability.unverified-proof'], createdAt);
   }
 
-  if (input.capabilityProofs?.some((proof) => proof.scheme === 'bearcap') === true && isBearcapForbiddenAction(input.action)) {
+  if (
+    input.capabilityProofs?.some((proof) => proof.scheme === 'bearcap') === true &&
+    isBearcapForbiddenAction(input.action)
+  ) {
     return deny(
       input.capabilityDecision.capabilityId,
       input.capabilityDecision.invocationId,

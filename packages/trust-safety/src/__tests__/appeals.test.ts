@@ -33,9 +33,7 @@ describe('validateSafetyAppeal', () => {
   });
 
   it('rejects empty appellant.actorId', () => {
-    expect(() =>
-      validateSafetyAppeal({ ...APPEAL_BASE, appellant: { actorId: '' } })
-    ).toThrow();
+    expect(() => validateSafetyAppeal({ ...APPEAL_BASE, appellant: { actorId: '' } })).toThrow();
   });
 
   it('rejects missing idempotencyKey', () => {

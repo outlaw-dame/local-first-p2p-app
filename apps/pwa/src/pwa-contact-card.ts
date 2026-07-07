@@ -28,12 +28,14 @@ export type ComparedIdentityCode = Readonly<{
   candidateFingerprint?: string;
 }>;
 
-export async function createContactCardDocument(input: Readonly<{
-  identityId: string;
-  profile: StoredContactProfile;
-  trustSnapshot: IdentityTrustSnapshot;
-  exportedAt?: string;
-}>): Promise<ContactCardDocument> {
+export async function createContactCardDocument(
+  input: Readonly<{
+    identityId: string;
+    profile: StoredContactProfile;
+    trustSnapshot: IdentityTrustSnapshot;
+    exportedAt?: string;
+  }>
+): Promise<ContactCardDocument> {
   const exportedAt = input.exportedAt ?? new Date().toISOString();
   requireIsoDate(exportedAt, 'exportedAt');
   return {
@@ -47,8 +49,12 @@ export async function createContactCardDocument(input: Readonly<{
     ...(input.trustSnapshot.controllerPublicKey === undefined
       ? {}
       : { controllerPublicKey: input.trustSnapshot.controllerPublicKey }),
-    ...(input.trustSnapshot.primaryDeviceId === undefined ? {} : { primaryDeviceId: input.trustSnapshot.primaryDeviceId }),
-    ...(input.trustSnapshot.shortFingerprint === undefined ? {} : { shortFingerprint: input.trustSnapshot.shortFingerprint })
+    ...(input.trustSnapshot.primaryDeviceId === undefined
+      ? {}
+      : { primaryDeviceId: input.trustSnapshot.primaryDeviceId }),
+    ...(input.trustSnapshot.shortFingerprint === undefined
+      ? {}
+      : { shortFingerprint: input.trustSnapshot.shortFingerprint })
   };
 }
 
@@ -57,7 +63,10 @@ export function serializeContactCardDocument(card: ContactCardDocument): string 
   return JSON.stringify(card, null, 2);
 }
 
-export function signContactCardDocument(card: ContactCardDocument, keypair: SigningKeypair): ContactCardDocument {
+export function signContactCardDocument(
+  card: ContactCardDocument,
+  keypair: SigningKeypair
+): ContactCardDocument {
   validateContactCardDocument(card);
   const signature = signDetachedJson(unsignedContactCardDocument(card), keypair);
   return {
@@ -79,31 +88,47 @@ export function parseContactCardDocument(raw: string): ContactCardDocument {
     version: requireLiteralVersion(parsed.version),
     exportedAt: requireIsoDate(parsed.exportedAt, 'exportedAt'),
     identityId: requireNonEmptyString(parsed.identityId, 'identityId'),
-    ...(parsed.displayName === undefined ? {} : { displayName: requireOptionalText(parsed.displayName, 'displayName', 96) }),
-    ...(parsed.avatarUrl === undefined ? {} : { avatarUrl: requireOptionalUrl(parsed.avatarUrl, 'avatarUrl') }),
-    ...(parsed.websiteUrl === undefined ? {} : { websiteUrl: requireOptionalUrl(parsed.websiteUrl, 'websiteUrl') }),
+    ...(parsed.displayName === undefined
+      ? {}
+      : { displayName: requireOptionalText(parsed.displayName, 'displayName', 96) }),
+    ...(parsed.avatarUrl === undefined
+      ? {}
+      : { avatarUrl: requireOptionalUrl(parsed.avatarUrl, 'avatarUrl') }),
+    ...(parsed.websiteUrl === undefined
+      ? {}
+      : { websiteUrl: requireOptionalUrl(parsed.websiteUrl, 'websiteUrl') }),
     ...(parsed.note === undefined ? {} : { note: requireOptionalText(parsed.note, 'note', 280) }),
     ...(parsed.controllerPublicKey === undefined
       ? {}
-      : { controllerPublicKey: requireOptionalText(parsed.controllerPublicKey, 'controllerPublicKey', 2048) }),
+      : {
+          controllerPublicKey: requireOptionalText(
+            parsed.controllerPublicKey,
+            'controllerPublicKey',
+            2048
+          )
+        }),
     ...(parsed.primaryDeviceId === undefined
       ? {}
       : { primaryDeviceId: requireOptionalText(parsed.primaryDeviceId, 'primaryDeviceId', 128) }),
     ...(parsed.shortFingerprint === undefined
       ? {}
       : { shortFingerprint: requireOptionalText(parsed.shortFingerprint, 'shortFingerprint', 64) }),
-    ...(parsed.signature === undefined ? {} : { signature: requireDetachedJsonSignature(parsed.signature) })
+    ...(parsed.signature === undefined
+      ? {}
+      : { signature: requireDetachedJsonSignature(parsed.signature) })
   };
   validateContactCardDocument(card);
   return card;
 }
 
-export async function createImportedContactProfileInput(input: Readonly<{
-  card: ContactCardDocument;
-  existingProfile?: StoredContactProfile;
-  trustedControllerPublicKey?: string;
-  requireSignature?: boolean;
-}>): Promise<PutContactProfileInput> {
+export async function createImportedContactProfileInput(
+  input: Readonly<{
+    card: ContactCardDocument;
+    existingProfile?: StoredContactProfile;
+    trustedControllerPublicKey?: string;
+    requireSignature?: boolean;
+  }>
+): Promise<PutContactProfileInput> {
   validateContactCardDocument(input.card);
   const requireSignature = input.requireSignature ?? true;
   if (requireSignature && input.card.signature === undefined) {
@@ -119,40 +144,59 @@ export async function createImportedContactProfileInput(input: Readonly<{
     input.card.controllerPublicKey !== undefined &&
     trustedControllerPublicKey !== input.card.controllerPublicKey
   ) {
-    throw new Error('Imported contact card controller key does not match the trusted controller key.');
+    throw new Error(
+      'Imported contact card controller key does not match the trusted controller key.'
+    );
   }
 
   if (input.card.controllerPublicKey !== undefined && input.card.shortFingerprint !== undefined) {
     const expectedFingerprint = await createShortFingerprint(input.card.controllerPublicKey);
-    if (normalizeIdentityCode(expectedFingerprint) !== normalizeIdentityCode(input.card.shortFingerprint)) {
-      throw new Error('Imported contact card fingerprint does not match its controller public key.');
+    if (
+      normalizeIdentityCode(expectedFingerprint) !==
+      normalizeIdentityCode(input.card.shortFingerprint)
+    ) {
+      throw new Error(
+        'Imported contact card fingerprint does not match its controller public key.'
+      );
     }
   }
 
   const importedShortFingerprint =
     input.card.shortFingerprint ??
-    (input.card.controllerPublicKey === undefined ? undefined : await createShortFingerprint(input.card.controllerPublicKey));
+    (input.card.controllerPublicKey === undefined
+      ? undefined
+      : await createShortFingerprint(input.card.controllerPublicKey));
 
   return {
     identityId: input.card.identityId,
-    ...(input.existingProfile?.petname === undefined ? {} : { petname: input.existingProfile.petname }),
+    ...(input.existingProfile?.petname === undefined
+      ? {}
+      : { petname: input.existingProfile.petname }),
     ...(input.card.displayName === undefined ? {} : { displayName: input.card.displayName }),
     ...(input.card.avatarUrl === undefined ? {} : { avatarUrl: input.card.avatarUrl }),
     ...(input.card.websiteUrl === undefined ? {} : { websiteUrl: input.card.websiteUrl }),
     ...(input.card.note === undefined ? {} : { note: input.card.note }),
-    ...(input.card.primaryDeviceId === undefined ? {} : { primaryDeviceId: input.card.primaryDeviceId }),
-    ...(input.card.controllerPublicKey === undefined ? {} : { controllerPublicKey: input.card.controllerPublicKey }),
-    ...(importedShortFingerprint === undefined ? {} : { shortFingerprint: importedShortFingerprint }),
+    ...(input.card.primaryDeviceId === undefined
+      ? {}
+      : { primaryDeviceId: input.card.primaryDeviceId }),
+    ...(input.card.controllerPublicKey === undefined
+      ? {}
+      : { controllerPublicKey: input.card.controllerPublicKey }),
+    ...(importedShortFingerprint === undefined
+      ? {}
+      : { shortFingerprint: importedShortFingerprint }),
     verificationStatus: input.existingProfile?.verificationStatus ?? 'unknown',
     updatedAt: new Date().toISOString()
   };
 }
 
-export async function compareIdentityCode(input: Readonly<{
-  expectedFingerprint?: string;
-  controllerPublicKey?: string;
-  candidate: string;
-}>): Promise<ComparedIdentityCode> {
+export async function compareIdentityCode(
+  input: Readonly<{
+    expectedFingerprint?: string;
+    controllerPublicKey?: string;
+    candidate: string;
+  }>
+): Promise<ComparedIdentityCode> {
   const expectedFingerprint = input.expectedFingerprint;
   if (expectedFingerprint === undefined) {
     const normalizedCandidate = normalizeIdentityCode(input.candidate);
@@ -168,7 +212,10 @@ export async function compareIdentityCode(input: Readonly<{
   if (normalizedCandidate === normalizedExpected) {
     return { matches: true, expectedFingerprint, candidateFingerprint: input.candidate };
   }
-  if (input.controllerPublicKey !== undefined && input.candidate.trim() === input.controllerPublicKey) {
+  if (
+    input.controllerPublicKey !== undefined &&
+    input.candidate.trim() === input.controllerPublicKey
+  ) {
     return { matches: true, expectedFingerprint, candidateFingerprint: expectedFingerprint };
   }
   if (input.candidate.trim().length > 32) {
@@ -187,16 +234,20 @@ export async function compareIdentityCode(input: Readonly<{
 }
 
 function validateContactCardDocument(card: ContactCardDocument): void {
-  if (card.version !== 'lfp2p.contact-card.v1') throw new Error('Unsupported contact card version.');
+  if (card.version !== 'lfp2p.contact-card.v1')
+    throw new Error('Unsupported contact card version.');
   requireIsoDate(card.exportedAt, 'exportedAt');
   requireNonEmptyString(card.identityId, 'identityId');
   if (card.displayName !== undefined) requireTextLength(card.displayName, 'displayName', 96);
   if (card.avatarUrl !== undefined) validateUrl(card.avatarUrl, 'avatarUrl');
   if (card.websiteUrl !== undefined) validateUrl(card.websiteUrl, 'websiteUrl');
   if (card.note !== undefined) requireTextLength(card.note, 'note', 280);
-  if (card.controllerPublicKey !== undefined) requireTextLength(card.controllerPublicKey, 'controllerPublicKey', 2048);
-  if (card.primaryDeviceId !== undefined) requireTextLength(card.primaryDeviceId, 'primaryDeviceId', 128);
-  if (card.shortFingerprint !== undefined) requireTextLength(card.shortFingerprint, 'shortFingerprint', 64);
+  if (card.controllerPublicKey !== undefined)
+    requireTextLength(card.controllerPublicKey, 'controllerPublicKey', 2048);
+  if (card.primaryDeviceId !== undefined)
+    requireTextLength(card.primaryDeviceId, 'primaryDeviceId', 128);
+  if (card.shortFingerprint !== undefined)
+    requireTextLength(card.shortFingerprint, 'shortFingerprint', 64);
   if (card.signature !== undefined) {
     requireTextLength(card.signature.publicKey, 'signature.publicKey', 2048);
     requireTextLength(card.signature.value, 'signature.value', 2048);
@@ -257,7 +308,8 @@ function requireNonEmptyString(value: unknown, label: string): string {
 
 function requireIsoDate(value: unknown, label: string): string {
   const normalized = requireNonEmptyString(value, label);
-  if (!Number.isFinite(Date.parse(normalized))) throw new Error(`${label} must be an ISO date string.`);
+  if (!Number.isFinite(Date.parse(normalized)))
+    throw new Error(`${label} must be an ISO date string.`);
   return normalized;
 }
 
@@ -272,7 +324,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function unsignedContactCardDocument(card: ContactCardDocument): Omit<ContactCardDocument, 'signature'> {
+function unsignedContactCardDocument(
+  card: ContactCardDocument
+): Omit<ContactCardDocument, 'signature'> {
   const { signature, ...unsigned } = card;
   void signature;
   return unsigned;

@@ -11,11 +11,7 @@ import type { SafetyReasonCode } from '../reason-codes.js';
 import type { ReporterRef } from '../refs.js';
 import type { SafetyReport } from '../reports.js';
 import type { SafetySubjectRef } from '../subjects.js';
-import type {
-  AppealResolution,
-  ReportAppealEvent,
-  ReportResolution
-} from './events.js';
+import type { AppealResolution, ReportAppealEvent, ReportResolution } from './events.js';
 import { validateReportAppealEvent } from './events.js';
 import { assertPrivateEvidenceOnPrivateSubject } from './privacy.js';
 
@@ -161,11 +157,7 @@ function reporterSubjectDayKey(
   // containing literal `::` cannot land in another reporter's
   // bucket and consume their budget — every component is
   // independently quoted by `JSON.stringify`.
-  return JSON.stringify([
-    reporterRateKey(reporter),
-    utcDayKey(createdAt),
-    subjectKey(subject)
-  ]);
+  return JSON.stringify([reporterRateKey(reporter), utcDayKey(createdAt), subjectKey(subject)]);
 }
 
 export type ApplyReportAppealEventOptions = Readonly<{
@@ -246,8 +238,7 @@ export function applyReportAppealEvent(
       const rsdKey = reporterSubjectDayKey(report.reporter, report.subject, report.createdAt);
       const existingBucket = state.reportsByReporterSubjectDay[rsdKey] ?? [];
       const cap =
-        options?.maxReportsPerReporterSubjectDay ??
-        DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY;
+        options?.maxReportsPerReporterSubjectDay ?? DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY;
       if (existingBucket.length >= cap) {
         throw tsError(
           'TS_REPORT_RATE_LIMITED',

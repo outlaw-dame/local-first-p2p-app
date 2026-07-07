@@ -67,7 +67,10 @@ const CAPABILITY_ID = 'cap:sync:device:laptop';
 const FAR_FUTURE = '2030-01-01T00:00:00.000Z';
 const PAST = '2025-01-01T00:00:00.000Z';
 
-function signWith(kp: { publicKey: string; privateKey: string }, unsigned: UnsignedEventEnvelope): SignedEventEnvelope {
+function signWith(
+  kp: { publicKey: string; privateKey: string },
+  unsigned: UnsignedEventEnvelope
+): SignedEventEnvelope {
   return signEventEnvelope(unsigned, kp);
 }
 
@@ -89,11 +92,13 @@ function unsigned(
   });
 }
 
-function buildHappyChain(opts: {
-  expiresAt?: string;
-  withDeviceRevoked?: boolean;
-  withCapabilityRevoked?: boolean;
-} = {}): { events: SignedEventEnvelope[]; grantedEvent: SignedEventEnvelope } {
+function buildHappyChain(
+  opts: {
+    expiresAt?: string;
+    withDeviceRevoked?: boolean;
+    withCapabilityRevoked?: boolean;
+  } = {}
+): { events: SignedEventEnvelope[]; grantedEvent: SignedEventEnvelope } {
   const expires = opts.expiresAt ?? FAR_FUTURE;
   const events: SignedEventEnvelope[] = [];
 
@@ -195,11 +200,13 @@ function makeRecord(
 const FIXED_NOW = Date.parse('2026-06-01T00:00:00.000Z');
 
 function vfor(
-  events: readonly SignedEventEnvelope[] | undefined | (() => readonly SignedEventEnvelope[] | undefined),
+  events:
+    | readonly SignedEventEnvelope[]
+    | undefined
+    | (() => readonly SignedEventEnvelope[] | undefined),
   options: { now?: number } = {}
 ) {
-  const resolver =
-    typeof events === 'function' ? events : () => events;
+  const resolver = typeof events === 'function' ? events : () => events;
   return createIdentityControlLogVerifier({
     resolveIdentityControlLog: resolver,
     ...(options.now !== undefined ? { now: () => options.now as number } : {})
@@ -278,10 +285,14 @@ describe('createIdentityControlLogVerifier: structural soundness', () => {
     expect(v(makeRecord(grantedEvent, { proofId: '' }))).toBe('invalid');
   });
   it('invalid on missing issuer.id', () => {
-    expect(v(makeRecord(grantedEvent, { issuer: { id: '', kind: 'controller' } as never }))).toBe('invalid');
+    expect(v(makeRecord(grantedEvent, { issuer: { id: '', kind: 'controller' } as never }))).toBe(
+      'invalid'
+    );
   });
   it('invalid on missing subject.id', () => {
-    expect(v(makeRecord(grantedEvent, { subject: { id: '', kind: 'device' } as never }))).toBe('invalid');
+    expect(v(makeRecord(grantedEvent, { subject: { id: '', kind: 'device' } as never }))).toBe(
+      'invalid'
+    );
   });
   it('invalid on missing digest', () => {
     expect(v(makeRecord(grantedEvent, { digest: '' as never }))).toBe('invalid');
@@ -303,9 +314,12 @@ describe('createIdentityControlLogVerifier: resolveIdentityControlLog', () => {
   });
   it('invalid when resolver throws', () => {
     expect(
-      vfor(() => {
-        throw new Error('boom');
-      }, { now: FIXED_NOW })(makeRecord(grantedEvent))
+      vfor(
+        () => {
+          throw new Error('boom');
+        },
+        { now: FIXED_NOW }
+      )(makeRecord(grantedEvent))
     ).toBe('invalid');
   });
 });
@@ -323,7 +337,11 @@ describe('createIdentityControlLogVerifier: happy path', () => {
   it('returns "verified" when issuer publicKeyRef matches controllerPublicKey', () => {
     const { events, grantedEvent } = buildHappyChain();
     const record = makeRecord(grantedEvent, {
-      issuer: { id: 'identity:test-account', publicKeyRef: CONTROLLER_PK, kind: 'controller' } as never
+      issuer: {
+        id: 'identity:test-account',
+        publicKeyRef: CONTROLLER_PK,
+        kind: 'controller'
+      } as never
     });
     expect(vfor(events, { now: FIXED_NOW })(record)).toBe('verified');
   });
@@ -427,33 +445,41 @@ describe('createIdentityControlLogVerifier: issuer / subject pinning', () => {
 
   it('invalid when issuer.kind !== "controller"', () => {
     expect(
-      v(makeRecord(grantedEvent, {
-        issuer: { id: CONTROLLER_PK, kind: 'device' } as never
-      }))
+      v(
+        makeRecord(grantedEvent, {
+          issuer: { id: CONTROLLER_PK, kind: 'device' } as never
+        })
+      )
     ).toBe('invalid');
   });
 
   it('invalid when issuer.id is a foreign public key', () => {
     expect(
-      v(makeRecord(grantedEvent, {
-        issuer: { id: STRANGER_PK, kind: 'controller' } as never
-      }))
+      v(
+        makeRecord(grantedEvent, {
+          issuer: { id: STRANGER_PK, kind: 'controller' } as never
+        })
+      )
     ).toBe('invalid');
   });
 
   it('invalid when subject.kind !== "device"', () => {
     expect(
-      v(makeRecord(grantedEvent, {
-        subject: { id: DEVICE_ID, kind: 'controller' } as never
-      }))
+      v(
+        makeRecord(grantedEvent, {
+          subject: { id: DEVICE_ID, kind: 'controller' } as never
+        })
+      )
     ).toBe('invalid');
   });
 
   it('invalid when subject.id !== payload.delegateDeviceId', () => {
     expect(
-      v(makeRecord(grantedEvent, {
-        subject: { id: 'device:other', kind: 'device' } as never
-      }))
+      v(
+        makeRecord(grantedEvent, {
+          subject: { id: 'device:other', kind: 'device' } as never
+        })
+      )
     ).toBe('invalid');
   });
 });
@@ -469,17 +495,21 @@ describe('createIdentityControlLogVerifier: digest match', () => {
   it('invalid when record.digest is a sha-256 of the wrong event', () => {
     const otherEvent = events[0] as SignedEventEnvelope;
     expect(
-      v(makeRecord(grantedEvent, {
-        digest: identityControlLogProofDigest(otherEvent)
-      }))
+      v(
+        makeRecord(grantedEvent, {
+          digest: identityControlLogProofDigest(otherEvent)
+        })
+      )
     ).toBe('invalid');
   });
 
   it('invalid when record.digest uses a non-sha-256 prefix', () => {
     expect(
-      v(makeRecord(grantedEvent, {
-        digest: 'sha-512:' + identityControlLogProofDigest(grantedEvent).slice('sha-256:'.length)
-      }))
+      v(
+        makeRecord(grantedEvent, {
+          digest: 'sha-512:' + identityControlLogProofDigest(grantedEvent).slice('sha-256:'.length)
+        })
+      )
     ).toBe('invalid');
   });
 });
@@ -563,8 +593,12 @@ describe('deriveProofFromIdentityCapabilityGranted', () => {
   it('returns undefined for events of other kinds (clean dispatch)', () => {
     const { events } = buildHappyChain();
     // events[0] is identity.controller.created, events[1] is identity.device.authorized.
-    expect(deriveProofFromIdentityCapabilityGranted(events[0] as SignedEventEnvelope)).toBeUndefined();
-    expect(deriveProofFromIdentityCapabilityGranted(events[1] as SignedEventEnvelope)).toBeUndefined();
+    expect(
+      deriveProofFromIdentityCapabilityGranted(events[0] as SignedEventEnvelope)
+    ).toBeUndefined();
+    expect(
+      deriveProofFromIdentityCapabilityGranted(events[1] as SignedEventEnvelope)
+    ).toBeUndefined();
   });
 
   it.each(['capabilityId', 'delegateDeviceId', 'expiresAt'] as const)(
@@ -576,7 +610,9 @@ describe('deriveProofFromIdentityCapabilityGranted', () => {
         payload: { ...(grantedEvent.payload as Record<string, unknown>) }
       };
       delete (mutated.payload as Record<string, unknown>)[field];
-      expect(deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)).toBeUndefined();
+      expect(
+        deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)
+      ).toBeUndefined();
     }
   );
 
@@ -588,7 +624,9 @@ describe('deriveProofFromIdentityCapabilityGranted', () => {
         ...grantedEvent,
         payload: { ...(grantedEvent.payload as Record<string, unknown>), [field]: '' }
       };
-      expect(deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)).toBeUndefined();
+      expect(
+        deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)
+      ).toBeUndefined();
     }
   );
 
@@ -596,7 +634,9 @@ describe('deriveProofFromIdentityCapabilityGranted', () => {
     const { grantedEvent } = buildHappyChain();
     const mutated = { ...grantedEvent };
     delete (mutated as Record<string, unknown>).payload;
-    expect(deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)).toBeUndefined();
+    expect(
+      deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)
+    ).toBeUndefined();
   });
 
   it('returns undefined when payload is not an object (array)', () => {
@@ -612,14 +652,20 @@ describe('deriveProofFromIdentityCapabilityGranted', () => {
   it('returns undefined when eventId is missing or empty', () => {
     const { grantedEvent } = buildHappyChain();
     expect(
-      deriveProofFromIdentityCapabilityGranted({ ...grantedEvent, eventId: '' } as SignedEventEnvelope)
+      deriveProofFromIdentityCapabilityGranted({
+        ...grantedEvent,
+        eventId: ''
+      } as SignedEventEnvelope)
     ).toBeUndefined();
   });
 
   it('returns undefined when createdAt is missing or empty', () => {
     const { grantedEvent } = buildHappyChain();
     expect(
-      deriveProofFromIdentityCapabilityGranted({ ...grantedEvent, createdAt: '' } as SignedEventEnvelope)
+      deriveProofFromIdentityCapabilityGranted({
+        ...grantedEvent,
+        createdAt: ''
+      } as SignedEventEnvelope)
     ).toBeUndefined();
   });
 
@@ -630,7 +676,9 @@ describe('deriveProofFromIdentityCapabilityGranted', () => {
       signature: { ...grantedEvent.signature }
     };
     delete (mutated.signature as Record<string, unknown>).publicKey;
-    expect(deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)).toBeUndefined();
+    expect(
+      deriveProofFromIdentityCapabilityGranted(mutated as SignedEventEnvelope)
+    ).toBeUndefined();
   });
 
   it('returns undefined when signature is null', () => {
@@ -712,12 +760,12 @@ describe('registerIdentityCapabilityProof', () => {
 
   it('throws if store does not expose putCapabilityProofRecord', async () => {
     const { grantedEvent } = buildHappyChain();
-    await expect(
-      registerIdentityCapabilityProof({} as never, grantedEvent)
-    ).rejects.toThrow(TypeError);
-    await expect(
-      registerIdentityCapabilityProof(null as never, grantedEvent)
-    ).rejects.toThrow(TypeError);
+    await expect(registerIdentityCapabilityProof({} as never, grantedEvent)).rejects.toThrow(
+      TypeError
+    );
+    await expect(registerIdentityCapabilityProof(null as never, grantedEvent)).rejects.toThrow(
+      TypeError
+    );
   });
 
   it('propagates store errors instead of swallowing them (fail-closed)', async () => {

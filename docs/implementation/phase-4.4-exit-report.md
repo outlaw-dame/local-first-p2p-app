@@ -150,23 +150,23 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Broker never caches record bodies | ✓ | Implementation; no field for records, only sub bucket |
-| Subscribe-vs-backlog race delivers exactly once | ✓ | End-to-end race-fix test |
-| Buffer overflow signals once, no silent drops | ✓ | 3 broker tests |
-| Subscriber callback isolation | ✓ | 2 broker tests |
-| WebSocket auth delegated to Phase 4.3 | ✓ | Adapter takes pre-authorized `tokenId` |
-| Inbound frame size cap | ✓ | Test pinned with 64-byte cap |
-| Inbound frame rate limit | ✓ | Test pinned with 3-frame/min cap |
-| Backpressure via `bufferedAmount` | ✓ | Test pinned with 100-byte cap |
-| Heartbeat ping + timeout close | ✓ | Test pinned with fake-timer drive |
-| Binary frame rejected | ✓ | Dedicated test |
-| Single subscription per socket | ✓ | Re-subscribe close test |
-| Privacy-safe close reasons (no input echo) | ✓ | Dedicated test |
-| Broker failure does not crash delivery | ✓ | Try/catch in `acceptDelivery` publish call |
-| Duplicates and rejections NOT published | ✓ | Implementation — publish only on `inserted` |
-| Doctrine documents architecture + hardening | ✓ | New 90-line section |
+| Criterion                                       | Status | Evidence                                              |
+| ----------------------------------------------- | :----: | ----------------------------------------------------- |
+| Broker never caches record bodies               |   ✓    | Implementation; no field for records, only sub bucket |
+| Subscribe-vs-backlog race delivers exactly once |   ✓    | End-to-end race-fix test                              |
+| Buffer overflow signals once, no silent drops   |   ✓    | 3 broker tests                                        |
+| Subscriber callback isolation                   |   ✓    | 2 broker tests                                        |
+| WebSocket auth delegated to Phase 4.3           |   ✓    | Adapter takes pre-authorized `tokenId`                |
+| Inbound frame size cap                          |   ✓    | Test pinned with 64-byte cap                          |
+| Inbound frame rate limit                        |   ✓    | Test pinned with 3-frame/min cap                      |
+| Backpressure via `bufferedAmount`               |   ✓    | Test pinned with 100-byte cap                         |
+| Heartbeat ping + timeout close                  |   ✓    | Test pinned with fake-timer drive                     |
+| Binary frame rejected                           |   ✓    | Dedicated test                                        |
+| Single subscription per socket                  |   ✓    | Re-subscribe close test                               |
+| Privacy-safe close reasons (no input echo)      |   ✓    | Dedicated test                                        |
+| Broker failure does not crash delivery          |   ✓    | Try/catch in `acceptDelivery` publish call            |
+| Duplicates and rejections NOT published         |   ✓    | Implementation — publish only on `inserted`           |
+| Doctrine documents architecture + hardening     |   ✓    | New 90-line section                                   |
 
 ## Deferred work
 

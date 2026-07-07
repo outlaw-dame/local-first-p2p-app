@@ -32,7 +32,9 @@ function readJson(path: string): unknown {
 function listFixtures(subdir: 'valid' | 'invalid'): string[] {
   const dir = join(FIXTURES_ROOT, subdir);
   if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter((n) => n.endsWith('.json')).sort();
+  return readdirSync(dir)
+    .filter((n) => n.endsWith('.json'))
+    .sort();
 }
 
 // ---------------------------------------------------------------------------
@@ -347,9 +349,7 @@ describe('Phase 2.1 — identity.device.rotated projection', () => {
         }
       })
     );
-    expect(state.devices['device:alice-phone']?.publicKey).toBe(
-      SECONDARY_KEYPAIR.publicKey
-    );
+    expect(state.devices['device:alice-phone']?.publicKey).toBe(SECONDARY_KEYPAIR.publicKey);
     expect(state.devices['device:alice-phone']?.status).toBe('active');
     expect(state.epoch).toBe(2);
   });

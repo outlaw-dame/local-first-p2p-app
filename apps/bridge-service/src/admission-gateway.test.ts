@@ -25,10 +25,7 @@ import {
   placeholderPrivatePayloadEnvelope,
   type SignedEventEnvelope
 } from '@lfp2p/protocol';
-import {
-  BridgeAdmissionGateway,
-  estimateEnvelopeByteSize
-} from './admission-gateway.js';
+import { BridgeAdmissionGateway, estimateEnvelopeByteSize } from './admission-gateway.js';
 import { InMemoryBridgeService } from './service.js';
 import type { BridgeDeliveryRequest, BridgeDeliveryResponse } from './types.js';
 
@@ -87,9 +84,7 @@ function makeServiceWithGateway(
       operatorAuthority: OPERATOR_AUTHORITY,
       policyVersion: 'bridge.policy.v1',
       ...(overrides.maxBytes === undefined ? {} : { maxBytes: overrides.maxBytes }),
-      ...(overrides.allowedKinds === undefined
-        ? {}
-        : { allowedKinds: overrides.allowedKinds })
+      ...(overrides.allowedKinds === undefined ? {} : { allowedKinds: overrides.allowedKinds })
     }
   });
   const service = new InMemoryBridgeService({ admission: gateway });
@@ -119,12 +114,8 @@ describe('Phase 4.1 — happy path: admitted envelope lands as confirmed', () =>
     expect(response.status).toBe('confirmed');
     // The admission state moved forward: the producer's bucket and
     // reputation got initialised.
-    expect(Object.keys(gateway.state.rateLimitState)).toContain(
-      'device:alice-phone'
-    );
-    expect(Object.keys(gateway.state.peerReputation)).toContain(
-      'device:alice-phone'
-    );
+    expect(Object.keys(gateway.state.rateLimitState)).toContain('device:alice-phone');
+    expect(Object.keys(gateway.state.peerReputation)).toContain('device:alice-phone');
   });
 
   it('the audit log gains a redacted entry per delivery', async () => {
@@ -152,9 +143,7 @@ describe('Phase 4.1 — byte cap rejects oversized envelopes', () => {
     expect(estimateEnvelopeByteSize(probe)).toBeGreaterThan(50);
 
     const { service } = makeServiceWithGateway({ maxBytes: 50 });
-    const response: BridgeDeliveryResponse = await service.acceptDelivery(
-      request('evt_p41_big_1')
-    );
+    const response: BridgeDeliveryResponse = await service.acceptDelivery(request('evt_p41_big_1'));
     expect(response.status).toBe('rejected');
     if (response.status === 'rejected') {
       expect(response.reason).toMatch(/^rejected:|^rate-limited:/);
@@ -198,7 +187,7 @@ describe('Phase 4.1 — replay cache drop-duplicate', () => {
 // ---------------------------------------------------------------------------
 
 describe('Phase 4.1 — per-peer rate limiting exhausts independently per peerId', () => {
-  it('exhausting one peer\'s bucket does not affect another peer\'s budget', async () => {
+  it("exhausting one peer's bucket does not affect another peer's budget", async () => {
     const { service } = makeServiceWithGateway();
     // Send many deliveries from peer-A. We do not know the engine's
     // exact default rate-limit numbers, but at minimum we can prove
@@ -206,9 +195,7 @@ describe('Phase 4.1 — per-peer rate limiting exhausts independently per peerId
     const peerAResults: BridgeDeliveryResponse[] = [];
     for (let i = 0; i < 20; i += 1) {
       peerAResults.push(
-        await service.acceptDelivery(
-          request(`evt_p41_rate_a_${i}`, { peerId: 'transport-peer-A' })
-        )
+        await service.acceptDelivery(request(`evt_p41_rate_a_${i}`, { peerId: 'transport-peer-A' }))
       );
     }
     // At least the first delivery succeeded; that proves the
@@ -235,9 +222,7 @@ describe('Phase 4.1 — peerId fallback to deviceId', () => {
     // No peerId was supplied; the gateway falls back to
     // `event.deviceId`, which is `device:alice-phone` for our
     // signedNote helper.
-    expect(Object.keys(gateway.state.rateLimitState)).toEqual([
-      'device:alice-phone'
-    ]);
+    expect(Object.keys(gateway.state.rateLimitState)).toEqual(['device:alice-phone']);
   });
 
   it('a request WITH peerId uses that peer key', async () => {
@@ -245,20 +230,14 @@ describe('Phase 4.1 — peerId fallback to deviceId', () => {
     await service.acceptDelivery(
       request('evt_p41_explicit_1', { peerId: 'transport-peer-explicit' })
     );
-    expect(Object.keys(gateway.state.rateLimitState)).toContain(
-      'transport-peer-explicit'
-    );
-    expect(Object.keys(gateway.state.rateLimitState)).not.toContain(
-      'device:alice-phone'
-    );
+    expect(Object.keys(gateway.state.rateLimitState)).toContain('transport-peer-explicit');
+    expect(Object.keys(gateway.state.rateLimitState)).not.toContain('device:alice-phone');
   });
 
   it('an empty-string peerId is treated as omitted (falls back to deviceId)', async () => {
     const { service, gateway } = makeServiceWithGateway();
     await service.acceptDelivery(request('evt_p41_empty_1', { peerId: '' }));
-    expect(Object.keys(gateway.state.rateLimitState)).toEqual([
-      'device:alice-phone'
-    ]);
+    expect(Object.keys(gateway.state.rateLimitState)).toEqual(['device:alice-phone']);
   });
 });
 

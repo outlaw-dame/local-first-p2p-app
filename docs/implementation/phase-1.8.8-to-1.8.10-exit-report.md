@@ -111,18 +111,18 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Aggregator score.removed consumed; opt-in discipline preserved | ✓ | 8 dedicated tests |
-| LOCAL-ALWAYS-#0 preserved across removal | ✓ | dedicated test |
-| Stale removals fail open (no throw) | ✓ | dedicated test |
-| Backward compat — omitted `removalEvents` byte-identical to empty | ✓ | dedicated test |
-| PWA panel runs `computeReputation` over local Dexie log | ✓ | view-model test surface |
-| Privacy-safe band on every view row (Phase 3.1) | ✓ | every row carries `band` stable string |
-| Default seed = observer at strength 1.0 | ✓ | dedicated test |
-| Subject-key canonicalization shares the Phase 1.8.2 helper (no duplication) | ✓ | view-model + aggregator runtime both delegate to `subjectRefToKey` |
-| Root settings integration | ✓ | PwaReputationSettings + PwaReputationView mounted in root-app.tsx |
-| Threat-model rows cite each new sybil-hardening test by name | ✓ | 12 mitigation rows w/ test-file citations |
+| Criterion                                                                   | Status | Evidence                                                           |
+| --------------------------------------------------------------------------- | :----: | ------------------------------------------------------------------ |
+| Aggregator score.removed consumed; opt-in discipline preserved              |   ✓    | 8 dedicated tests                                                  |
+| LOCAL-ALWAYS-#0 preserved across removal                                    |   ✓    | dedicated test                                                     |
+| Stale removals fail open (no throw)                                         |   ✓    | dedicated test                                                     |
+| Backward compat — omitted `removalEvents` byte-identical to empty           |   ✓    | dedicated test                                                     |
+| PWA panel runs `computeReputation` over local Dexie log                     |   ✓    | view-model test surface                                            |
+| Privacy-safe band on every view row (Phase 3.1)                             |   ✓    | every row carries `band` stable string                             |
+| Default seed = observer at strength 1.0                                     |   ✓    | dedicated test                                                     |
+| Subject-key canonicalization shares the Phase 1.8.2 helper (no duplication) |   ✓    | view-model + aggregator runtime both delegate to `subjectRefToKey` |
+| Root settings integration                                                   |   ✓    | PwaReputationSettings + PwaReputationView mounted in root-app.tsx  |
+| Threat-model rows cite each new sybil-hardening test by name                |   ✓    | 12 mitigation rows w/ test-file citations                          |
 
 ## Remaining deferred (post-1.8.10)
 

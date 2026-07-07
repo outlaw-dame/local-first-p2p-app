@@ -7,10 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import nacl from 'tweetnacl';
-import {
-  canonicalizeJcs,
-  sha256
-} from '@lfp2p/crypto';
+import { canonicalizeJcs, sha256 } from '@lfp2p/crypto';
 import type { CapabilityProofRecord } from '@lfp2p/capabilities';
 import { createZcapLdVerifier, DEFAULT_MAX_CHAIN_DEPTH } from './index.js';
 
@@ -19,8 +16,7 @@ import { createZcapLdVerifier, DEFAULT_MAX_CHAIN_DEPTH } from './index.js';
 /* -------------------------------------------------------------------------- */
 
 const ED25519_MULTICODEC = new Uint8Array([0xed, 0x01]);
-const BASE58_BTC_ALPHABET =
-  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const BASE58_BTC_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
 function encodeBase58Btc(input: Uint8Array): string {
   if (input.length === 0) return '';
@@ -78,13 +74,7 @@ const RESOURCE = 'https://api.example.com/resource';
 /*                            zcap-ld minter                                   */
 /* -------------------------------------------------------------------------- */
 
-type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | Json[]
-  | { [k: string]: Json | undefined };
+type Json = string | number | boolean | null | Json[] | { [k: string]: Json | undefined };
 
 type MintZcapOptions = Readonly<{
   id?: string;
@@ -143,12 +133,9 @@ function mintZcap(opts: MintZcapOptions): Record<string, unknown> {
   hashData.set(docHash, cfgHash.length);
   const signature = nacl.sign.detached(hashData, opts.signerKp.secretKey);
 
-  const proofValue =
-    opts.proofValueOverride ?? 'z' + encodeBase58Btc(signature);
+  const proofValue = opts.proofValueOverride ?? 'z' + encodeBase58Btc(signature);
   const fullProof: Record<string, Json> =
-    opts.omitProofValue === true
-      ? proofOptions
-      : { ...proofOptions, proofValue };
+    opts.omitProofValue === true ? proofOptions : { ...proofOptions, proofValue };
 
   return { ...zcap, proof: fullProof };
 }
@@ -173,9 +160,7 @@ function mintHappyChain(): Record<string, unknown> {
   });
 }
 
-function makeRecord(
-  overrides: Partial<CapabilityProofRecord> = {}
-): CapabilityProofRecord {
+function makeRecord(overrides: Partial<CapabilityProofRecord> = {}): CapabilityProofRecord {
   return {
     proofId: 'zcap-1',
     scheme: 'zcap-ld',
@@ -208,9 +193,7 @@ describe('createZcapLdVerifier: input guards', () => {
     expect(() => createZcapLdVerifier(null as never)).toThrow(TypeError);
   });
   it('throws if resolveCapability is not a function', () => {
-    expect(() =>
-      createZcapLdVerifier({ resolveCapability: 'oops' as never })
-    ).toThrow(TypeError);
+    expect(() => createZcapLdVerifier({ resolveCapability: 'oops' as never })).toThrow(TypeError);
   });
   it('throws if maxChainDepth is negative or non-integer', () => {
     expect(() =>
@@ -243,15 +226,12 @@ describe('createZcapLdVerifier: scheme dispatch', () => {
     expect(v(null as never)).toBeUndefined();
     expect(v(42 as never)).toBeUndefined();
   });
-  it.each([
-    'ucan',
-    'vc',
-    'native-signed-event',
-    'bearcap',
-    'manual-local-policy'
-  ] as const)('abstains for scheme === %s', (s) => {
-    expect(v(makeRecord({ scheme: s as never }))).toBeUndefined();
-  });
+  it.each(['ucan', 'vc', 'native-signed-event', 'bearcap', 'manual-local-policy'] as const)(
+    'abstains for scheme === %s',
+    (s) => {
+      expect(v(makeRecord({ scheme: s as never }))).toBeUndefined();
+    }
+  );
   it('owns the verdict for scheme === "zcap-ld"', () => {
     expect(v(makeRecord())).toBe('verified');
   });
@@ -421,9 +401,11 @@ describe('createZcapLdVerifier: proof type / cryptosuite', () => {
       signerKp: ROOT_KP,
       proofType: 'Ed25519Signature2020'
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 
   it('invalid when cryptosuite is eddsa-rdfc-2022', () => {
@@ -433,9 +415,11 @@ describe('createZcapLdVerifier: proof type / cryptosuite', () => {
       signerKp: ROOT_KP,
       cryptosuite: 'eddsa-rdfc-2022'
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 
   it('invalid when proofPurpose is capabilityInvocation (not delegation)', () => {
@@ -445,9 +429,11 @@ describe('createZcapLdVerifier: proof type / cryptosuite', () => {
       signerKp: ROOT_KP,
       proofPurpose: 'capabilityInvocation'
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 
   it('invalid when proof is missing', () => {
@@ -470,9 +456,11 @@ describe('createZcapLdVerifier: proof type / cryptosuite', () => {
       signerKp: ROOT_KP,
       omitProofValue: true
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 });
 
@@ -488,9 +476,11 @@ describe('createZcapLdVerifier: @context', () => {
       signerKp: ROOT_KP,
       context: ['https://www.w3.org/ns/credentials/v2'] // wrong context
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
   it('invalid when @context is absent', () => {
     const z = mintHappyChain();
@@ -546,9 +536,11 @@ describe('createZcapLdVerifier: leaf + root controller pins', () => {
       signerKp: STRANGER_KP,
       signerDid: STRANGER_DID
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 });
 
@@ -691,9 +683,11 @@ describe('createZcapLdVerifier: delegation link integrity', () => {
       signerKp: ROOT_KP,
       expires: '2026-06-01T00:00:00Z'
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 });
 
@@ -878,9 +872,11 @@ describe('createZcapLdVerifier: signature integrity', () => {
       signerKp: ROOT_KP,
       proofValueOverride: 'uAAAAAA'
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 
   it('invalid when decoded signature is wrong length', () => {
@@ -891,9 +887,11 @@ describe('createZcapLdVerifier: signature integrity', () => {
       signerKp: ROOT_KP,
       proofValueOverride: 'z' + encodeBase58Btc(short)
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 });
 
@@ -909,9 +907,11 @@ describe('createZcapLdVerifier: did:key verificationMethod', () => {
       signerKp: ROOT_KP,
       signerDid: 'did:web:example.com'
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 
   it('invalid when controller is empty', () => {
@@ -920,9 +920,9 @@ describe('createZcapLdVerifier: did:key verificationMethod', () => {
       controller: '',
       signerKp: ROOT_KP
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: '', kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(makeRecord({ subject: { id: '', kind: 'identity' } as never }))
+    ).toBe('invalid');
   });
 
   it('invalid when invocationTarget is empty', () => {
@@ -932,8 +932,10 @@ describe('createZcapLdVerifier: did:key verificationMethod', () => {
       signerKp: ROOT_KP,
       invocationTarget: ''
     });
-    expect(vfor(root, { now: FIXED_NOW })(
-      makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
-    )).toBe('invalid');
+    expect(
+      vfor(root, { now: FIXED_NOW })(
+        makeRecord({ subject: { id: ROOT_DID, kind: 'identity' } as never })
+      )
+    ).toBe('invalid');
   });
 });

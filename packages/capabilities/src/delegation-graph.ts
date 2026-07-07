@@ -1,10 +1,6 @@
 import { capabilityError } from './errors.js';
-import type {
-  CapabilityGrantV1
-} from './types.js';
-import {
-  validateCapabilityGrant
-} from './validation.js';
+import type { CapabilityGrantV1 } from './types.js';
+import { validateCapabilityGrant } from './validation.js';
 
 export type CapabilityDelegationEdge = Readonly<{
   from: string;
@@ -103,11 +99,7 @@ export function buildCapabilityProofGraph(
 ): CapabilityDelegationPath[] {
   const paths: CapabilityDelegationPath[] = [];
 
-  function traverse(
-    currentId: string,
-    currentGrants: CapabilityGrantV1[],
-    visited: Set<string>
-  ) {
+  function traverse(currentId: string, currentGrants: CapabilityGrantV1[], visited: Set<string>) {
     const grant = graph.grants.get(currentId);
     if (!grant) {
       if (currentGrants.length > 0) {
@@ -123,7 +115,7 @@ export function buildCapabilityProofGraph(
     const newVisited = new Set(visited).add(currentId);
     const newGrants = [grant, ...currentGrants];
 
-    const parents = grant.proofRefs.filter(proof => graph.grants.has(proof.proofId));
+    const parents = grant.proofRefs.filter((proof) => graph.grants.has(proof.proofId));
     if (parents.length === 0) {
       if (grant.proofRefs.length === 0) {
         paths.push(createPath(newGrants));
@@ -158,15 +150,24 @@ function createPath(grants: CapabilityGrantV1[]): CapabilityDelegationPath {
   });
 }
 
-export function validateDelegationStep(parent: CapabilityGrantV1, child: CapabilityGrantV1): boolean {
+export function validateDelegationStep(
+  parent: CapabilityGrantV1,
+  child: CapabilityGrantV1
+): boolean {
   const validParent = validateCapabilityGrant(parent);
   const validChild = validateCapabilityGrant(child);
 
-  if (validChild.issuer.kind !== validParent.audience.kind || validChild.issuer.id !== validParent.audience.id) {
+  if (
+    validChild.issuer.kind !== validParent.audience.kind ||
+    validChild.issuer.id !== validParent.audience.id
+  ) {
     return false;
   }
 
-  if (validChild.resource.kind !== validParent.resource.kind || validChild.resource.id !== validParent.resource.id) {
+  if (
+    validChild.resource.kind !== validParent.resource.kind ||
+    validChild.resource.id !== validParent.resource.id
+  ) {
     return false;
   }
 
@@ -177,13 +178,20 @@ export function validateDelegationStep(parent: CapabilityGrantV1, child: Capabil
     }
   }
 
-  if (validChild.scope.kind !== validParent.scope.kind || validChild.scope.id !== validParent.scope.id) {
+  if (
+    validChild.scope.kind !== validParent.scope.kind ||
+    validChild.scope.id !== validParent.scope.id
+  ) {
     return false;
   }
 
   const parentExpiry = Date.parse(validParent.expiresAt);
   const childExpiry = Date.parse(validChild.expiresAt);
-  if (!Number.isFinite(parentExpiry) || !Number.isFinite(childExpiry) || childExpiry > parentExpiry) {
+  if (
+    !Number.isFinite(parentExpiry) ||
+    !Number.isFinite(childExpiry) ||
+    childExpiry > parentExpiry
+  ) {
     return false;
   }
 
@@ -193,12 +201,19 @@ export function validateDelegationStep(parent: CapabilityGrantV1, child: Capabil
     }
     const parentNotBefore = Date.parse(validParent.notBefore);
     const childNotBefore = Date.parse(validChild.notBefore);
-    if (!Number.isFinite(parentNotBefore) || !Number.isFinite(childNotBefore) || childNotBefore < parentNotBefore) {
+    if (
+      !Number.isFinite(parentNotBefore) ||
+      !Number.isFinite(childNotBefore) ||
+      childNotBefore < parentNotBefore
+    ) {
       return false;
     }
   }
 
-  if (validParent.delegationDepth <= 0 || validChild.delegationDepth >= validParent.delegationDepth) {
+  if (
+    validParent.delegationDepth <= 0 ||
+    validChild.delegationDepth >= validParent.delegationDepth
+  ) {
     return false;
   }
 
@@ -270,7 +285,7 @@ export function isCapabilityAuthorized(
   if (paths.length === 0) {
     return false;
   }
-  return paths.some(path => isDelegationPathValid(graph, path, now));
+  return paths.some((path) => isDelegationPathValid(graph, path, now));
 }
 
 function assertPlainObject(value: unknown, label: string): Record<string, unknown> {

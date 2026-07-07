@@ -81,7 +81,11 @@ describe('createHttpBridgeInboundTransport', () => {
     });
 
     await expect(
-      transport.pull({ sourceId: 'bridge:primary', streamId: 'durable-stream:inbox', scope: 'identity:alice' })
+      transport.pull({
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice'
+      })
     ).rejects.toThrow(/must not override checkpoint identity/);
   });
 
@@ -92,7 +96,11 @@ describe('createHttpBridgeInboundTransport', () => {
     });
 
     await expect(
-      transport.pull({ sourceId: 'bridge:primary', streamId: 'durable-stream:inbox', scope: 'identity:alice' })
+      transport.pull({
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice'
+      })
     ).rejects.toThrow('Bridge returned malformed JSON inbound response');
   });
 
@@ -109,18 +117,31 @@ describe('createHttpBridgeInboundTransport', () => {
     });
 
     await expect(
-      transport.pull({ sourceId: 'bridge:primary', streamId: 'durable-stream:inbox', scope: 'identity:alice', limit: 1 })
+      transport.pull({
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice',
+        limit: 1
+      })
     ).rejects.toThrow('Bridge returned more inbound records than requested');
   });
 
   it('treats non-retryable HTTP statuses as terminal inbound sync errors', async () => {
     const transport = createHttpBridgeInboundTransport({
       endpoint: 'https://bridge.test/inbound',
-      fetch: async () => new Response(JSON.stringify({ records: 'bad-shape' }), { status: 422, statusText: 'Unprocessable Content' })
+      fetch: async () =>
+        new Response(JSON.stringify({ records: 'bad-shape' }), {
+          status: 422,
+          statusText: 'Unprocessable Content'
+        })
     });
 
     await expect(
-      transport.pull({ sourceId: 'bridge:primary', streamId: 'durable-stream:inbox', scope: 'identity:alice' })
+      transport.pull({
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice'
+      })
     ).rejects.toBeInstanceOf(NonRetryableInboundSyncError);
   });
 
@@ -135,14 +156,18 @@ describe('createHttpBridgeInboundTransport', () => {
     });
 
     await expect(
-      transport.pull({ sourceId: 'bridge:primary', streamId: 'durable-stream:inbox', scope: 'identity:alice' })
+      transport.pull({
+        sourceId: 'bridge:primary',
+        streamId: 'durable-stream:inbox',
+        scope: 'identity:alice'
+      })
     ).rejects.toThrow('Bridge inbound request timed out after 1ms');
   });
 
   it('rejects endpoints with embedded credentials', () => {
-    expect(() => createHttpBridgeInboundTransport({ endpoint: 'https://user:pass@bridge.test/inbound' })).toThrow(
-      'Bridge endpoint must not include credentials'
-    );
+    expect(() =>
+      createHttpBridgeInboundTransport({ endpoint: 'https://user:pass@bridge.test/inbound' })
+    ).toThrow('Bridge endpoint must not include credentials');
   });
 });
 

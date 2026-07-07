@@ -28,11 +28,7 @@ import {
   decideVisibility,
   validateLocalControlEvent
 } from '../index.js';
-import type {
-  LocalControlEvent,
-  LocalControlState,
-  ReportAppealEvent
-} from '../index.js';
+import type { LocalControlEvent, LocalControlState, ReportAppealEvent } from '../index.js';
 
 // ---------------------------------------------------------------------------
 // 1) Phase 1.71.A — Unicode normalization on the match path
@@ -76,15 +72,11 @@ describe('Phase 1.71.A — substring matcher: Unicode-evasion resistance', () =>
   });
 
   it('matches zero-width space insertion (sp\\u200Boiler)', () => {
-    expect(decideVisibility(s, { text: 'careful: sp​oiler ahead' })).toBe(
-      'collapse'
-    );
+    expect(decideVisibility(s, { text: 'careful: sp​oiler ahead' })).toBe('collapse');
   });
 
   it('matches zero-width joiner insertion', () => {
-    expect(decideVisibility(s, { text: 'careful: sp‍oiler ahead' })).toBe(
-      'collapse'
-    );
+    expect(decideVisibility(s, { text: 'careful: sp‍oiler ahead' })).toBe('collapse');
   });
 
   it('matches Cyrillic homoglyph substitution (ѕpoiler — Cyrillic ѕ)', () => {
@@ -92,17 +84,13 @@ describe('Phase 1.71.A — substring matcher: Unicode-evasion resistance', () =>
   });
 
   it('matches full-width Unicode (ＳＰＯＩＬＥＲ)', () => {
-    expect(decideVisibility(s, { text: 'careful: ＳＰＯＩＬＥＲ ahead' })).toBe(
-      'collapse'
-    );
+    expect(decideVisibility(s, { text: 'careful: ＳＰＯＩＬＥＲ ahead' })).toBe('collapse');
   });
 
   it('matches mixed evasions stacked (sp\\u200B0îler with combining mark)', () => {
     // NFKC composes the combining mark; zero-width is stripped; the
     // confusables map turns 0→o.
-    expect(decideVisibility(s, { text: 'careful: sp​0îler ahead' })).toBe(
-      'collapse'
-    );
+    expect(decideVisibility(s, { text: 'careful: sp​0îler ahead' })).toBe('collapse');
   });
 
   it('does NOT match unrelated content with similar substrings', () => {
@@ -151,27 +139,19 @@ describe('Phase 1.71.A — phrase matcher: whitespace + Unicode evasion', () => 
   const s = stateWithMute('election fraud', 'phrase');
 
   it('matches the literal phrase', () => {
-    expect(decideVisibility(s, { text: 'they claim election fraud again' })).toBe(
-      'collapse'
-    );
+    expect(decideVisibility(s, { text: 'they claim election fraud again' })).toBe('collapse');
   });
 
   it('matches a leet/zero-width-spaced variant', () => {
-    expect(
-      decideVisibility(s, { text: 'they claim el3ction fr​aud again' })
-    ).toBe('collapse');
+    expect(decideVisibility(s, { text: 'they claim el3ction fr​aud again' })).toBe('collapse');
   });
 
   it('matches whitespace-collapsed runs', () => {
-    expect(decideVisibility(s, { text: 'election    fraud claims' })).toBe(
-      'collapse'
-    );
+    expect(decideVisibility(s, { text: 'election    fraud claims' })).toBe('collapse');
   });
 
   it('does NOT match when only a subset appears', () => {
-    expect(decideVisibility(s, { text: 'the election was uneventful' })).toBe(
-      'show'
-    );
+    expect(decideVisibility(s, { text: 'the election was uneventful' })).toBe('show');
   });
 });
 
@@ -277,9 +257,7 @@ describe('Phase 1.71.B — report-rate cap default behavior', () => {
         })
       );
     }
-    expect(Object.keys(state.byReportId).length).toBe(
-      DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY
-    );
+    expect(Object.keys(state.byReportId).length).toBe(DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY);
   });
 
   it('throws TS_REPORT_RATE_LIMITED on the one over the cap', () => {
@@ -335,9 +313,7 @@ describe('Phase 1.71.B — report-rate cap default behavior', () => {
         })
       );
     }
-    expect(Object.keys(state.byReportId).length).toBe(
-      DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY
-    );
+    expect(Object.keys(state.byReportId).length).toBe(DEFAULT_MAX_REPORTS_PER_REPORTER_SUBJECT_DAY);
   });
 
   it('replay of the SAME eventId does not consume budget either', () => {
@@ -372,12 +348,8 @@ describe('Phase 1.71.B — report-rate cap: cap key partitioning', () => {
           reportId: `report_${args.prefix}_${i}`,
           idempotencyKey: `idem_${args.prefix}_${i}`,
           createdAt: args.createdAt,
-          ...(args.reporterActorId === undefined
-            ? {}
-            : { reporterActorId: args.reporterActorId }),
-          ...(args.subjectEventId === undefined
-            ? {}
-            : { subjectEventId: args.subjectEventId })
+          ...(args.reporterActorId === undefined ? {} : { reporterActorId: args.reporterActorId }),
+          ...(args.subjectEventId === undefined ? {} : { subjectEventId: args.subjectEventId })
         })
       );
     }

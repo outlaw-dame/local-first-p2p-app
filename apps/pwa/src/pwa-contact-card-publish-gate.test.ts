@@ -119,7 +119,8 @@ describe('gatedEmitContactCardPublished — capability-proof gate', () => {
         capabilityGate: { localDeviceId: LOCAL_DEVICE_ID }
       });
       expect(result).toMatchObject({ status: 'blocked', reason: 'capability-proof-denied' });
-      if (result.status === 'blocked') expect(result.message).toMatch(/no identity-control-log proof registered/i);
+      if (result.status === 'blocked')
+        expect(result.message).toMatch(/no identity-control-log proof registered/i);
     } finally {
       await store.delete();
     }
@@ -135,7 +136,8 @@ describe('gatedEmitContactCardPublished — capability-proof gate', () => {
         capabilityGate: { localDeviceId: LOCAL_DEVICE_ID }
       });
       expect(result).toMatchObject({ status: 'blocked', reason: 'capability-proof-denied' });
-      if (result.status === 'blocked') expect(result.message).toMatch(/capability\.unverified-proof/);
+      if (result.status === 'blocked')
+        expect(result.message).toMatch(/capability\.unverified-proof/);
     } finally {
       await store.delete();
     }
@@ -213,7 +215,8 @@ describe('gatedEmitContactCardPublished — capability-proof gate', () => {
         capabilityGate: { localDeviceId: LOCAL_DEVICE_ID }
       });
       expect(result).toMatchObject({ status: 'blocked', reason: 'capability-proof-denied' });
-      if (result.status === 'blocked') expect(result.message).toMatch(/no identity-control-log proof registered/i);
+      if (result.status === 'blocked')
+        expect(result.message).toMatch(/no identity-control-log proof registered/i);
     } finally {
       await store.delete();
     }
@@ -234,7 +237,8 @@ describe('gatedEmitContactCardPublished — capability-proof gate', () => {
         capabilityGate: { localDeviceId: LOCAL_DEVICE_ID }
       });
       expect(result).toMatchObject({ status: 'blocked', reason: 'capability-proof-denied' });
-      if (result.status === 'blocked') expect(result.message).toMatch(/identity\.contact-card\.publish/);
+      if (result.status === 'blocked')
+        expect(result.message).toMatch(/identity\.contact-card\.publish/);
     } finally {
       await store.delete();
     }
@@ -284,7 +288,7 @@ describe('gatedEmitContactCardPublished — capability-proof gate', () => {
     }
   });
 
-  it('SECURITY (codex #104 P1): a grant from a DIFFERENT identity\'s controller does not unlock this identity', async () => {
+  it("SECURITY (codex #104 P1): a grant from a DIFFERENT identity's controller does not unlock this identity", async () => {
     // The registry is store-wide. A verified, correctly-scoped grant whose
     // author is a different identity's controller must NOT authorize
     // contact-card publication for the current identity.

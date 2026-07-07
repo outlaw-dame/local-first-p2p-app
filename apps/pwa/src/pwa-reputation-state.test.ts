@@ -49,9 +49,7 @@ describe('clampSpamGateInput — clamping discipline', () => {
 
   it('resets NaN threshold to default with a warning', () => {
     const out = clampSpamGateInput({ spamScoreThreshold: NaN, spamSeedDistanceMax: 3 });
-    expect(out.config.spamScoreThreshold).toBe(
-      DEFAULT_SPAM_GATE_CONFIG.spamScoreThreshold
-    );
+    expect(out.config.spamScoreThreshold).toBe(DEFAULT_SPAM_GATE_CONFIG.spamScoreThreshold);
     expect(out.warnings.some((w) => w.includes('reset to default'))).toBe(true);
   });
 
@@ -75,9 +73,7 @@ describe('clampSpamGateInput — clamping discipline', () => {
       spamScoreThreshold: 0.05,
       spamSeedDistanceMax: 1.5
     });
-    expect(out.config.spamSeedDistanceMax).toBe(
-      DEFAULT_SPAM_GATE_CONFIG.spamSeedDistanceMax
-    );
+    expect(out.config.spamSeedDistanceMax).toBe(DEFAULT_SPAM_GATE_CONFIG.spamSeedDistanceMax);
     expect(out.warnings.some((w) => w.includes('reset to default'))).toBe(true);
   });
 
@@ -86,9 +82,7 @@ describe('clampSpamGateInput — clamping discipline', () => {
       spamScoreThreshold: -0.1,
       spamSeedDistanceMax: 3
     });
-    expect(out.config.spamScoreThreshold).toBe(
-      DEFAULT_SPAM_GATE_CONFIG.spamScoreThreshold
-    );
+    expect(out.config.spamScoreThreshold).toBe(DEFAULT_SPAM_GATE_CONFIG.spamScoreThreshold);
     expect(out.warnings.some((w) => w.includes('reset to default'))).toBe(true);
   });
 
@@ -124,9 +118,7 @@ describe('form defaults — bounded enums frozen for UI binding', () => {
   it('OBSERVATION_FORM_DEFAULTS contains every observation kind', () => {
     expect(Object.isFrozen(OBSERVATION_FORM_DEFAULTS)).toBe(true);
     expect(OBSERVATION_FORM_DEFAULTS.kinds.length).toBeGreaterThan(0);
-    expect(OBSERVATION_FORM_DEFAULTS.maxCount).toBe(
-      REPUTATION_LIMITS.maxObservationCount
-    );
+    expect(OBSERVATION_FORM_DEFAULTS.maxCount).toBe(REPUTATION_LIMITS.maxObservationCount);
   });
 
   it('ATTESTATION_FORM_DEFAULTS exposes both valences and tags frozen', () => {

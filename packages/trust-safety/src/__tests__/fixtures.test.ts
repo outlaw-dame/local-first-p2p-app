@@ -119,23 +119,26 @@ describe('fixtures — invalid', () => {
     expect(files).toContain('safety-annotation-unknown-motivation.json');
   });
 
-  it.each(files)('invalid: %s is rejected with a TrustSafetyError or upstream validation error', (name) => {
-    const value = readJson(join(FIXTURES_ROOT, 'invalid', name));
-    const validator = validatorForFile(name);
-    let thrown: unknown;
-    try {
-      validator(value);
-    } catch (e) {
-      thrown = e;
+  it.each(files)(
+    'invalid: %s is rejected with a TrustSafetyError or upstream validation error',
+    (name) => {
+      const value = readJson(join(FIXTURES_ROOT, 'invalid', name));
+      const validator = validatorForFile(name);
+      let thrown: unknown;
+      try {
+        validator(value);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(Error);
+      // Trust-safety errors are TrustSafetyError; ObjectRef/BlockRef/DigestRef
+      // upstream errors from @lfp2p/content-addressing are also acceptable.
+      const err = thrown as Error & { code?: string };
+      if (err instanceof TrustSafetyError) {
+        expect(err.code).toMatch(/^TS_/);
+      } else {
+        expect(err.message).toMatch(/^\[CA_/);
+      }
     }
-    expect(thrown).toBeInstanceOf(Error);
-    // Trust-safety errors are TrustSafetyError; ObjectRef/BlockRef/DigestRef
-    // upstream errors from @lfp2p/content-addressing are also acceptable.
-    const err = thrown as Error & { code?: string };
-    if (err instanceof TrustSafetyError) {
-      expect(err.code).toMatch(/^TS_/);
-    } else {
-      expect(err.message).toMatch(/^\[CA_/);
-    }
-  });
+  );
 });

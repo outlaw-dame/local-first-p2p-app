@@ -260,12 +260,7 @@ packages/trust-policy/
 ## Initial public API sketch
 
 ```ts
-export type TrustDecisionStatus =
-  | 'allow'
-  | 'warn'
-  | 'require-confirmation'
-  | 'quarantine'
-  | 'deny';
+export type TrustDecisionStatus = 'allow' | 'warn' | 'require-confirmation' | 'quarantine' | 'deny';
 
 export type TrustDecision = Readonly<{
   version: 'lfp2p.trust-decision.v1';

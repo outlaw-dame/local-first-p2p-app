@@ -26,10 +26,7 @@ export const CONTENT_LINK_CODECS = [
 export type ContentLinkCodec = (typeof CONTENT_LINK_CODECS)[number];
 
 export function isContentLinkCodec(value: unknown): value is ContentLinkCodec {
-  return (
-    typeof value === 'string' &&
-    CONTENT_LINK_CODECS.includes(value as ContentLinkCodec)
-  );
+  return typeof value === 'string' && CONTENT_LINK_CODECS.includes(value as ContentLinkCodec);
 }
 
 export type ContentLink = Readonly<{
@@ -98,10 +95,7 @@ export function validateCidV1String(value: unknown, label: string): string {
   const body = raw.slice(1);
   const alphabet = MULTIBASE_ALPHABETS[prefix];
   if (alphabet === undefined) {
-    throw caError(
-      'CA_INVALID_CID',
-      `${label}: unknown multibase prefix "${prefix}"`
-    );
+    throw caError('CA_INVALID_CID', `${label}: unknown multibase prefix "${prefix}"`);
   }
   if (body.length < CID_MIN_BODY_LENGTH || body.length > CID_MAX_BODY_LENGTH) {
     throw caError(

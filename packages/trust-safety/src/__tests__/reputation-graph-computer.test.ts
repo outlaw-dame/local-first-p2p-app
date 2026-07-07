@@ -240,9 +240,16 @@ describe('computeReputation — sybil-zero baseline', () => {
     const state = computeReputation(
       inputs({
         seedContacts: [seed({ subject: 'actor:alice' })],
-        attestations: [attestation({ observer: 'actor:alice', subject: 'actor:bob', strength: 1.0 })],
+        attestations: [
+          attestation({ observer: 'actor:alice', subject: 'actor:bob', strength: 1.0 })
+        ],
         observations: [
-          observation({ observer: 'actor:alice', subject: 'actor:mallory_1', satCount: 1, unsatCount: 0 }),
+          observation({
+            observer: 'actor:alice',
+            subject: 'actor:mallory_1',
+            satCount: 1,
+            unsatCount: 0
+          }),
           observation({ observer: 'actor:mallory_1', subject: 'actor:mallory_2', satCount: 9999 }),
           observation({ observer: 'actor:mallory_2', subject: 'actor:mallory_3', satCount: 9999 })
         ],
@@ -438,8 +445,12 @@ describe('computeReputation — replay equivalence (Phase 3.2)', () => {
       observation({ observer: 'actor:bob', subject: 'actor:dave', satCount: 3 })
     ];
     const obsB = [obsA[2]!, obsA[0]!, obsA[1]!];
-    const stateA = computeReputation(inputs({ seedContacts: seeds, observations: obsA, nowIso: FIXED_NOW_ISO }));
-    const stateB = computeReputation(inputs({ seedContacts: seeds, observations: obsB, nowIso: FIXED_NOW_ISO }));
+    const stateA = computeReputation(
+      inputs({ seedContacts: seeds, observations: obsA, nowIso: FIXED_NOW_ISO })
+    );
+    const stateB = computeReputation(
+      inputs({ seedContacts: seeds, observations: obsB, nowIso: FIXED_NOW_ISO })
+    );
     expect(serialize(stateA)).toBe(serialize(stateB));
   });
 });
@@ -479,13 +490,21 @@ describe('computeReputation — hard cap discipline', () => {
     expect(() => resolveReputationGraphConfig({ maxNodes: -1 })).toThrowError(/maxNodes/);
     expect(() => resolveReputationGraphConfig({ maxNodes: 1.5 })).toThrowError(/maxNodes/);
     expect(() => resolveReputationGraphConfig({ maxIterations: 0 })).toThrowError(/maxIterations/);
-    expect(() => resolveReputationGraphConfig({ convergenceThreshold: NaN })).toThrowError(/convergenceThreshold/);
-    expect(() => resolveReputationGraphConfig({ observationWindowMs: 0 })).toThrowError(/observationWindowMs/);
+    expect(() => resolveReputationGraphConfig({ convergenceThreshold: NaN })).toThrowError(
+      /convergenceThreshold/
+    );
+    expect(() => resolveReputationGraphConfig({ observationWindowMs: 0 })).toThrowError(
+      /observationWindowMs/
+    );
     expect(() =>
       resolveReputationGraphConfig({ timeDecayHalfLifeMs: 365 * 24 * 60 * 60 * 1_000 + 1 })
     ).toThrowError(/timeDecayHalfLifeMs/);
-    expect(() => resolveReputationGraphConfig({ cliquePenaltyExponent: -1 })).toThrowError(/cliquePenaltyExponent/);
-    expect(() => resolveReputationGraphConfig({ pathQualityDamping: 0 })).toThrowError(/pathQualityDamping/);
+    expect(() => resolveReputationGraphConfig({ cliquePenaltyExponent: -1 })).toThrowError(
+      /cliquePenaltyExponent/
+    );
+    expect(() => resolveReputationGraphConfig({ pathQualityDamping: 0 })).toThrowError(
+      /pathQualityDamping/
+    );
   });
 
   it('out-of-range Infinity/NaN config throws', () => {

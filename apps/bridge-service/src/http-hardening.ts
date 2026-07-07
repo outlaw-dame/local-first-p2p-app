@@ -91,9 +91,7 @@ export type AuthorizationOutcome =
  * Throws on misconfiguration (caller surfaces a 500); does NOT
  * throw on a request-time auth failure (those are 401).
  */
-export function normalizeAuthConfig(
-  auth: BridgeHttpAuthConfig
-): BridgeHttpAuthConfigMulti {
+export function normalizeAuthConfig(auth: BridgeHttpAuthConfig): BridgeHttpAuthConfigMulti {
   if (auth.scheme !== 'bearer') {
     throw new TypeError(`Unsupported auth scheme: ${String(auth.scheme)}`);
   }
@@ -104,9 +102,7 @@ export function normalizeAuthConfig(
     }
     return Object.freeze({
       scheme: 'bearer',
-      tokens: Object.freeze([
-        Object.freeze({ id: '__legacy__', token: auth.token })
-      ])
+      tokens: Object.freeze([Object.freeze({ id: '__legacy__', token: auth.token })])
     });
   }
   // Multi-token shape: validate every entry.
@@ -151,8 +147,7 @@ export function authorizeRequest(
   const header = request.headers.get(AUTHORIZATION_HEADER);
   if (
     header === null ||
-    header.slice(0, BEARER_AUTH_PREFIX.length).toLowerCase() !==
-      BEARER_AUTH_PREFIX.toLowerCase()
+    header.slice(0, BEARER_AUTH_PREFIX.length).toLowerCase() !== BEARER_AUTH_PREFIX.toLowerCase()
   ) {
     return Object.freeze({ status: 'unauthorized' });
   }
@@ -168,8 +163,7 @@ export function authorizeRequest(
   let matchedTokenId: string | undefined;
   for (const t of auth.tokens) {
     const isMatch = constantTimeEqual(presented, t.token);
-    const notExpired =
-      t.expiresAt === undefined || Date.parse(t.expiresAt) > nowMs;
+    const notExpired = t.expiresAt === undefined || Date.parse(t.expiresAt) > nowMs;
     if (isMatch && notExpired && matchedTokenId === undefined) {
       matchedTokenId = t.id;
     }
@@ -221,10 +215,7 @@ export type SizeCheckOutcome =
  * a client may omit Content-Length entirely on a chunked-encoded
  * upload, or lie about it.
  */
-export function checkDeclaredContentLength(
-  request: Request,
-  maxBytes: number
-): SizeCheckOutcome {
+export function checkDeclaredContentLength(request: Request, maxBytes: number): SizeCheckOutcome {
   const raw = request.headers.get('content-length');
   if (raw === null) return Object.freeze({ status: 'ok' });
   if (raw.length === 0 || raw.length > 20) {
@@ -251,9 +242,7 @@ export function checkDeclaredContentLength(
 export async function readRequestBodyWithCap(
   request: Request,
   maxBytes: number
-): Promise<
-  Readonly<{ status: 'ok'; text: string } | { status: 'too-large' }>
-> {
+): Promise<Readonly<{ status: 'ok'; text: string } | { status: 'too-large' }>> {
   if (request.body === null) {
     // Request bodies that are null on the platform are treated as
     // empty — JSON.parse will fail and the upstream handler returns
@@ -302,30 +291,27 @@ const JSON_HEADERS: Readonly<Record<string, string>> = Object.freeze({
 });
 
 export function unauthorizedResponse(): Response {
-  return new Response(
-    JSON.stringify({ status: 'rejected', reason: 'Unauthorized' }),
-    {
-      status: 401,
-      headers: {
-        ...JSON_HEADERS,
-        [WWW_AUTHENTICATE_HEADER]: WWW_AUTHENTICATE_VALUE
-      }
+  return new Response(JSON.stringify({ status: 'rejected', reason: 'Unauthorized' }), {
+    status: 401,
+    headers: {
+      ...JSON_HEADERS,
+      [WWW_AUTHENTICATE_HEADER]: WWW_AUTHENTICATE_VALUE
     }
-  );
+  });
 }
 
 export function tooLargeResponse(): Response {
-  return new Response(
-    JSON.stringify({ status: 'rejected', reason: 'Payload Too Large' }),
-    { status: 413, headers: JSON_HEADERS }
-  );
+  return new Response(JSON.stringify({ status: 'rejected', reason: 'Payload Too Large' }), {
+    status: 413,
+    headers: JSON_HEADERS
+  });
 }
 
 export function badRequestSizeHeaderResponse(): Response {
-  return new Response(
-    JSON.stringify({ status: 'rejected', reason: 'Invalid Content-Length' }),
-    { status: 400, headers: JSON_HEADERS }
-  );
+  return new Response(JSON.stringify({ status: 'rejected', reason: 'Invalid Content-Length' }), {
+    status: 400,
+    headers: JSON_HEADERS
+  });
 }
 
 export function tooManyRequestsResponse(retryAfterMs: number): Response {
@@ -333,16 +319,13 @@ export function tooManyRequestsResponse(retryAfterMs: number): Response {
   // and clamped to a sensible range so we never advise a client to
   // sleep for years on a tiny cooldown bug.
   const seconds = Math.max(1, Math.min(3_600, Math.ceil(retryAfterMs / 1000)));
-  return new Response(
-    JSON.stringify({ status: 'rejected', reason: 'Too Many Requests' }),
-    {
-      status: 429,
-      headers: {
-        ...JSON_HEADERS,
-        [RETRY_AFTER_HEADER]: String(seconds)
-      }
+  return new Response(JSON.stringify({ status: 'rejected', reason: 'Too Many Requests' }), {
+    status: 429,
+    headers: {
+      ...JSON_HEADERS,
+      [RETRY_AFTER_HEADER]: String(seconds)
     }
-  );
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -364,8 +347,7 @@ export type RateLimitBucketState = Readonly<{
   cooldownUntil: number;
 }>;
 
-const HTTP_RATE_LIMIT_SNAPSHOT_VERSION =
-  'lfp2p.http-rate-limit-snapshot.v1' as const;
+const HTTP_RATE_LIMIT_SNAPSHOT_VERSION = 'lfp2p.http-rate-limit-snapshot.v1' as const;
 
 type SerializedHttpRateLimitSnapshot = Readonly<{
   version: typeof HTTP_RATE_LIMIT_SNAPSHOT_VERSION;
@@ -379,9 +361,7 @@ export class HttpRateLimitStoreCorruptError extends Error {
   }
 }
 
-function deserializeRateLimitSnapshot(
-  raw: unknown
-): Map<string, RateLimitBucketState> {
+function deserializeRateLimitSnapshot(raw: unknown): Map<string, RateLimitBucketState> {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new HttpRateLimitStoreCorruptError('snapshot is not a plain object');
   }
@@ -402,16 +382,17 @@ function deserializeRateLimitSnapshot(
       typeof b.consecutiveRefusals !== 'number' ||
       typeof b.cooldownUntil !== 'number'
     ) {
-      throw new HttpRateLimitStoreCorruptError(
-        `bucket "${tokenId}" has invalid fields`
-      );
+      throw new HttpRateLimitStoreCorruptError(`bucket "${tokenId}" has invalid fields`);
     }
-    out.set(tokenId, Object.freeze({
-      tokens: b.tokens,
-      lastRefillAt: b.lastRefillAt,
-      consecutiveRefusals: b.consecutiveRefusals,
-      cooldownUntil: b.cooldownUntil
-    }));
+    out.set(
+      tokenId,
+      Object.freeze({
+        tokens: b.tokens,
+        lastRefillAt: b.lastRefillAt,
+        consecutiveRefusals: b.consecutiveRefusals,
+        cooldownUntil: b.cooldownUntil
+      })
+    );
   }
   return out;
 }
@@ -455,8 +436,7 @@ export class JsonFileHttpRateLimitStore implements HttpRateLimitStore {
       throw new TypeError('JsonFileHttpRateLimitStore: filePath is required');
     }
     this.#filePath = options.filePath;
-    this.#tempSuffix =
-      options.tempSuffix ?? Math.random().toString(16).slice(2, 10);
+    this.#tempSuffix = options.tempSuffix ?? Math.random().toString(16).slice(2, 10);
   }
 
   async load(): Promise<Map<string, RateLimitBucketState>> {
@@ -471,9 +451,7 @@ export class JsonFileHttpRateLimitStore implements HttpRateLimitStore {
     try {
       parsed = JSON.parse(text);
     } catch (err) {
-      throw new HttpRateLimitStoreCorruptError(
-        `invalid JSON (${(err as Error).message})`
-      );
+      throw new HttpRateLimitStoreCorruptError(`invalid JSON (${(err as Error).message})`);
     }
     return deserializeRateLimitSnapshot(parsed);
   }
@@ -558,9 +536,7 @@ export class BridgeHttpRateLimiter implements BridgeHttpRateLimiterHandle {
    * Fail-closed: throws on corrupt state so the operator decides
    * whether to delete the bad snapshot.
    */
-  static async create(
-    options: BridgeHttpRateLimiterOptions = {}
-  ): Promise<BridgeHttpRateLimiter> {
+  static async create(options: BridgeHttpRateLimiterOptions = {}): Promise<BridgeHttpRateLimiter> {
     const limiter = new BridgeHttpRateLimiter(options);
     if (options.store !== undefined) {
       const loaded = await options.store.load();
@@ -572,10 +548,7 @@ export class BridgeHttpRateLimiter implements BridgeHttpRateLimiterHandle {
     return limiter;
   }
 
-  consume(
-    tokenId: string,
-    nowMs: number
-  ): Readonly<{ allowed: boolean; retryAfterMs: number }> {
+  consume(tokenId: string, nowMs: number): Readonly<{ allowed: boolean; retryAfterMs: number }> {
     const existing = this.#buckets.get(tokenId);
     const bucket =
       existing ??
@@ -590,9 +563,7 @@ export class BridgeHttpRateLimiter implements BridgeHttpRateLimiterHandle {
     this.#dirty = true;
     return Object.freeze({
       allowed: decision.allowed,
-      retryAfterMs: decision.allowed
-        ? 0
-        : Math.max(0, decision.retryAfter - nowMs)
+      retryAfterMs: decision.allowed ? 0 : Math.max(0, decision.retryAfter - nowMs)
     });
   }
 

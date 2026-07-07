@@ -45,8 +45,55 @@ const EVENT_KINDS = [
   'chat.message.sent',
   'chat.message.edited',
   'chat.message.deleted',
-  'chat.thread.accepted'
+  'chat.thread.accepted',
+  // Phase 5.11 — User Data Root (UDR) lifecycle event kinds (Class B).
+  // ALL udr.* kinds are `self`-scoped: they describe what one identity
+  // owns/subscribes to across its own devices and MUST carry a
+  // PrivatePayloadEnvelopeV1. The bridge transports them as opaque
+  // ciphertext and MUST NOT inspect the payload. Inner-payload
+  // validation lives in @lfp2p/udr-projection after local decrypt.
+  'udr.partition.claimed',
+  'udr.partition.released',
+  'udr.feed-subscription.added',
+  'udr.feed-subscription.removed',
+  'udr.sync-interest.added',
+  'udr.sync-interest.removed',
+  'udr.mailbox.bound',
+  'udr.space.joined',
+  'udr.space.left',
+  // Phase 5.11 — mailbox delivery event kinds. All carry a
+  // PrivatePayloadEnvelopeV1 (every kind is dm/group/self scoped), so
+  // the bridge transports them as opaque ciphertext and MUST NOT
+  // decrypt. Per-kind privacy is pinned by MAILBOX_KIND_ALLOWED_PRIVACY;
+  // decrypted-payload validation lives in @lfp2p/mailbox-projection.
+  'mailbox.envelope.queued',
+  'mailbox.envelope.delivered',
+  'mailbox.envelope.expired',
+  'mailbox.envelope.fetched',
+  'mailbox.receipt.issued',
+  'mailbox.ack.sent',
+  'mailbox.checkpoint.advanced'
 ] as const;
+
+/**
+ * Phase 5.11 — per-kind privacy allowlist for mailbox events. Delivery-
+ * plane events (queued/delivered/expired) are `dm` or `group` (visible
+ * to sender+recipient/group); recipient-local lifecycle (fetched,
+ * receipt, checkpoint) is `self`; the applied/rejected acknowledgement
+ * back to the sender is `dm`. Every scope here requires a
+ * PrivatePayloadEnvelopeV1, enforced by validatePayloadPrivacyScope.
+ */
+const MAILBOX_KIND_ALLOWED_PRIVACY = Object.freeze<
+  Readonly<Record<string, ReadonlyArray<PrivacyScope>>>
+>({
+  'mailbox.envelope.queued': ['dm', 'group'],
+  'mailbox.envelope.delivered': ['dm', 'group'],
+  'mailbox.envelope.expired': ['dm', 'group'],
+  'mailbox.envelope.fetched': ['self'],
+  'mailbox.receipt.issued': ['self'],
+  'mailbox.ack.sent': ['dm'],
+  'mailbox.checkpoint.advanced': ['self']
+});
 
 /**
  * Phase 1.8.14 — Doctrine-bound privacy rules for reputation kinds.
@@ -403,12 +450,7 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
       // malformed payload here must NOT crash the bridge admission
       // engine — `validateReputationEnvelopeConsistency` re-asserts
       // the cross-field pinning after this.
-      requireObjectExactString(
-        payload,
-        'version',
-        REPUTATION_EVENT_PAYLOAD_VERSION,
-        kind
-      );
+      requireObjectExactString(payload, 'version', REPUTATION_EVENT_PAYLOAD_VERSION, kind);
       requireObjectString(payload, 'eventId', kind);
       requireObjectString(payload, 'kind', kind);
       requireObjectIsoDate(payload, 'createdAt', kind);
@@ -440,13 +482,57 @@ function validatePayloadForKind(kind: EventKind, payload: JsonObject, privacy: P
       // MLS-shaped payload here — fail fast at admission instead of
       // producing an event that is unprojectable downstream.
       if (!looksLikePrivatePayloadEnvelope(payload)) {
-        throw new Error(`${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for chat events)`);
+        throw new Error(
+          `${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for chat events)`
+        );
       }
       // Structural validation of the decrypted content lives in
       // @lfp2p/chat-projection. The protocol layer only enforces the
       // privacy scope and envelope presence (done by
       // validatePayloadPrivacyScope before this switch, and the
       // PrivatePayloadEnvelopeV1 shape check above).
+      break;
+    }
+    case 'udr.partition.claimed':
+    case 'udr.partition.released':
+    case 'udr.feed-subscription.added':
+    case 'udr.feed-subscription.removed':
+    case 'udr.sync-interest.added':
+    case 'udr.sync-interest.removed':
+    case 'udr.mailbox.bound':
+    case 'udr.space.joined':
+    case 'udr.space.left': {
+      requirePrivacyForUdrEvent(privacy, kind);
+      // UDR events are `self`-scoped encrypted lifecycle records. The
+      // decrypt path (@lfp2p/udr-projection) only understands
+      // PrivatePayloadEnvelopeV1, so reject an MLS-shaped payload here —
+      // fail fast at admission rather than producing an unprojectable
+      // event. Inner-payload validation happens after local decrypt.
+      if (!looksLikePrivatePayloadEnvelope(payload)) {
+        throw new Error(
+          `${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for UDR events)`
+        );
+      }
+      break;
+    }
+    case 'mailbox.envelope.queued':
+    case 'mailbox.envelope.delivered':
+    case 'mailbox.envelope.expired':
+    case 'mailbox.envelope.fetched':
+    case 'mailbox.receipt.issued':
+    case 'mailbox.ack.sent':
+    case 'mailbox.checkpoint.advanced': {
+      requirePrivacyForMailboxEvent(privacy, kind);
+      // Every mailbox kind is dm/group/self scoped and MUST carry a
+      // PrivatePayloadEnvelopeV1. Reject MLS-shaped payloads (the
+      // mailbox decrypt path only understands the private-payload
+      // envelope); decrypted-payload validation lives in
+      // @lfp2p/mailbox-projection.
+      if (!looksLikePrivatePayloadEnvelope(payload)) {
+        throw new Error(
+          `${kind} must contain a PrivatePayloadEnvelopeV1 (MLS application-message envelopes are not valid for mailbox events)`
+        );
+      }
       break;
     }
     default:
@@ -479,13 +565,21 @@ function validateReputationEnvelopeConsistency(event: UnsignedEventEnvelope): vo
   }
 }
 
-function validatePayloadPrivacyScope(privacy: PrivacyScope, kind: EventKind, payload: JsonObject): void {
+function validatePayloadPrivacyScope(
+  privacy: PrivacyScope,
+  kind: EventKind,
+  payload: JsonObject
+): void {
   if (privacy === 'device-local' || privacy === 'public') {
     if (looksLikePrivatePayloadEnvelope(payload)) {
-      throw new Error(`${kind} with privacy ${privacy} must not contain a private payload envelope`);
+      throw new Error(
+        `${kind} with privacy ${privacy} must not contain a private payload envelope`
+      );
     }
     if (looksLikeMlsApplicationMessageEnvelope(payload)) {
-      throw new Error(`${kind} with privacy ${privacy} must not contain an MLS application-message envelope`);
+      throw new Error(
+        `${kind} with privacy ${privacy} must not contain an MLS application-message envelope`
+      );
     }
     return;
   }
@@ -528,7 +622,14 @@ function validatePayloadPrivacyScope(privacy: PrivacyScope, kind: EventKind, pay
 
 function validatePrivatePayloadEnvelope(value: JsonObject): PrivatePayloadEnvelopeV1 {
   const envelope = assertJsonObject(value, 'payload');
-  const allowedKeys = new Set(['version', 'algorithm', 'ciphertext', 'nonce', 'keyId', 'recipientWraps']);
+  const allowedKeys = new Set([
+    'version',
+    'algorithm',
+    'ciphertext',
+    'nonce',
+    'keyId',
+    'recipientWraps'
+  ]);
   Object.keys(envelope).forEach((key) => {
     if (!allowedKeys.has(key)) {
       throw new Error(`payload contains unsupported private payload envelope field: ${key}`);
@@ -581,7 +682,9 @@ function validatePrivatePayloadEnvelope(value: JsonObject): PrivatePayloadEnvelo
       );
 
       if (seenDeviceIds.has(recipientDeviceId)) {
-        throw new Error(`payload.recipientWraps contains duplicate recipientDeviceId: ${recipientDeviceId}`);
+        throw new Error(
+          `payload.recipientWraps contains duplicate recipientDeviceId: ${recipientDeviceId}`
+        );
       }
       seenDeviceIds.add(recipientDeviceId);
 
@@ -615,9 +718,7 @@ function validatePrivatePayloadEnvelope(value: JsonObject): PrivatePayloadEnvelo
           'wrappingKeyRef'
         ]);
         if (!allowedWrapKeys.has(key)) {
-          throw new Error(
-            `payload.recipientWraps[${index}] contains unsupported field: ${key}`
-          );
+          throw new Error(`payload.recipientWraps[${index}] contains unsupported field: ${key}`);
         }
       });
 
@@ -669,7 +770,9 @@ const MLS_APP_MESSAGE_ALLOWED_KEYS = new Set([
 function validateMlsApplicationMessageEnvelope(payload: JsonObject, kind: EventKind): void {
   for (const key of Object.keys(payload)) {
     if (!MLS_APP_MESSAGE_ALLOWED_KEYS.has(key)) {
-      throw new Error(`${kind} MLS application-message envelope contains unsupported field: ${key}`);
+      throw new Error(
+        `${kind} MLS application-message envelope contains unsupported field: ${key}`
+      );
     }
   }
   requireNonEmptyString(payload.groupId, `${kind} MLS envelope groupId`);
@@ -788,8 +891,9 @@ function decodeBase64Url(value: string, label: string): Uint8Array {
     // fall through to Buffer fallback
   }
 
-  const globalBuffer = (globalThis as unknown as { Buffer?: { from(input: string, encoding: string): Uint8Array } })
-    .Buffer;
+  const globalBuffer = (
+    globalThis as unknown as { Buffer?: { from(input: string, encoding: string): Uint8Array } }
+  ).Buffer;
   if (typeof globalBuffer === 'object' || typeof globalBuffer === 'function') {
     return Uint8Array.from(globalBuffer!.from(padded, 'base64'));
   }
@@ -816,6 +920,24 @@ function requirePrivacyForChatEvent(privacy: PrivacyScope, kind: EventKind): voi
   }
 }
 
+function requirePrivacyForUdrEvent(privacy: PrivacyScope, kind: EventKind): void {
+  if (privacy !== 'self') {
+    throw new Error(`${kind} must use privacy scope self (got: ${privacy})`);
+  }
+}
+
+function requirePrivacyForMailboxEvent(privacy: PrivacyScope, kind: EventKind): void {
+  const allowed = MAILBOX_KIND_ALLOWED_PRIVACY[kind];
+  if (allowed === undefined) {
+    // Unreachable — the caller pinned `kind` to a mailbox kind via the
+    // switch. Defense-in-depth only.
+    throw new Error(`${kind} has no mailbox privacy policy registered`);
+  }
+  if (!allowed.includes(privacy)) {
+    throw new Error(`${kind} must use privacy scope ${allowed.join(' or ')} (got: ${privacy})`);
+  }
+}
+
 function requirePrivacyForReputationEvent(privacy: PrivacyScope, kind: EventKind): void {
   const allowed = REPUTATION_KIND_ALLOWED_PRIVACY[kind];
   if (allowed === undefined) {
@@ -824,9 +946,7 @@ function requirePrivacyForReputationEvent(privacy: PrivacyScope, kind: EventKind
     throw new Error(`${kind} has no privacy policy registered`);
   }
   if (!allowed.includes(privacy)) {
-    throw new Error(
-      `${kind} must use privacy scope ${allowed.join(' or ')} (got: ${privacy})`
-    );
+    throw new Error(`${kind} must use privacy scope ${allowed.join(' or ')} (got: ${privacy})`);
   }
 }
 
@@ -851,7 +971,11 @@ function requireObjectString(payload: JsonObject, field: string, kind: EventKind
   return value;
 }
 
-function requireObjectSafePositiveInteger(payload: JsonObject, field: string, kind: EventKind): number {
+function requireObjectSafePositiveInteger(
+  payload: JsonObject,
+  field: string,
+  kind: EventKind
+): number {
   const value = payload[field];
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${kind} payload.${field} must be a safe positive integer`);
@@ -861,7 +985,11 @@ function requireObjectSafePositiveInteger(payload: JsonObject, field: string, ki
 
 function requireObjectIsoDate(payload: JsonObject, field: string, kind: EventKind): string {
   const value = payload[field];
-  if (typeof value !== 'string' || value.trim().length === 0 || !Number.isFinite(Date.parse(value))) {
+  if (
+    typeof value !== 'string' ||
+    value.trim().length === 0 ||
+    !Number.isFinite(Date.parse(value))
+  ) {
     throw new Error(`${kind} payload.${field} must be an ISO date string`);
   }
   return value;

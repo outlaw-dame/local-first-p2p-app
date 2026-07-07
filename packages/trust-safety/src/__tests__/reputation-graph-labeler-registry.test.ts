@@ -213,11 +213,7 @@ describe('resolveActiveLabelerSet — user overrides distributor default', () =>
 describe('resolveActiveLabelerSet — determinism + integrity', () => {
   it('sorts ascending by priority, ties broken by ascending labelerId', () => {
     const result = resolveActiveLabelerSet({
-      userSubscriptions: [
-        userSub('labeler:z', 2),
-        userSub('labeler:a', 2),
-        userSub('labeler:m', 1)
-      ]
+      userSubscriptions: [userSub('labeler:z', 2), userSub('labeler:a', 2), userSub('labeler:m', 1)]
     });
     expect(result.active.map((e) => e.labelerId)).toEqual(['labeler:m', 'labeler:a', 'labeler:z']);
     expect(result.subscriptions.map((s) => s.priority)).toEqual([1, 2, 2]);
@@ -246,7 +242,12 @@ describe('resolveActiveLabelerSet — determinism + integrity', () => {
   it('drops malformed entries without throwing', () => {
     const result = resolveActiveLabelerSet({
       // @ts-expect-error: testing runtime guard against malformed rows
-      userSubscriptions: [{ labelerId: 'labeler:ok', priority: 1, algorithm: 'openrank.v1' }, null, 42, { nope: true }]
+      userSubscriptions: [
+        { labelerId: 'labeler:ok', priority: 1, algorithm: 'openrank.v1' },
+        null,
+        42,
+        { nope: true }
+      ]
     });
     expect(result.active.map((e) => e.labelerId)).toEqual(['labeler:ok']);
     expect(result.warnings.some((w) => w.includes('malformed'))).toBe(true);

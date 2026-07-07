@@ -62,10 +62,10 @@ end-to-end.
   - `payload.eventId === envelope.eventId`,
   - `payload.kind === envelope.kind`,
   - `payload.createdAt === envelope.createdAt`.
-  An envelope whose inner payload drifts from the outer envelope
-  fails at the protocol boundary — BEFORE bridge admission, BEFORE
-  any persistence layer, BEFORE the semantic
-  `@lfp2p/trust-safety::validateReputationEvent`.
+    An envelope whose inner payload drifts from the outer envelope
+    fails at the protocol boundary — BEFORE bridge admission, BEFORE
+    any persistence layer, BEFORE the semantic
+    `@lfp2p/trust-safety::validateReputationEvent`.
 - New `requireObjectExactString` helper used by the
   `version` sentinel check.
 
@@ -177,21 +177,21 @@ pnpm build       # clean
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Five reputation kinds in protocol `EVENT_KINDS` | ✓ | `EVENT_KINDS` tuple + `isReputationEventKind` predicate |
-| Aggregator events MUST use `public` privacy | ✓ | dedicated test in `index.test.ts` |
-| Observation / attestation / revocation MUST use `device-local` or `self` | ✓ | dedicated tests in `index.test.ts` |
-| Cross-pin envelope vs payload identity fields (eventId / kind / createdAt) | ✓ | 3 dedicated drift-rejection tests |
-| Inner payload `version` sentinel enforced | ✓ | dedicated test |
-| `processInboundSyncBatch` routes aggregator envelopes to reputation log on opt-in | ✓ | E2E test + 11 unit tests |
-| Subscription gate prevents unsubscribed-labeler injection | ✓ | E2E test "not-subscribed" |
-| `labelerIdForAuthor` mapper composable | ✓ | dedicated test + undefined-fall-through test |
-| Idempotency-aware counting (`applied` reflects only NEW state) | ✓ | dedicated replay test |
-| Bridge inbound stream continues forward on hostile reputation event | ✓ | dedicated test (batch does NOT abort on semantic failure) |
-| `appendTrustSafetyReputationEvent` returns `'stored' / 'skipped'` | ✓ | `AppendTrustSafetyReputationEventResult` exported |
-| Backward compat: callers without `subscribedLabelers` see no `reputation` field | ✓ | dedicated test |
-| Privacy-safe error messages (no payload bytes in reputation errors) | ✓ | structural review + dispatch implementation pin |
+| Criterion                                                                         | Status | Evidence                                                  |
+| --------------------------------------------------------------------------------- | :----: | --------------------------------------------------------- |
+| Five reputation kinds in protocol `EVENT_KINDS`                                   |   ✓    | `EVENT_KINDS` tuple + `isReputationEventKind` predicate   |
+| Aggregator events MUST use `public` privacy                                       |   ✓    | dedicated test in `index.test.ts`                         |
+| Observation / attestation / revocation MUST use `device-local` or `self`          |   ✓    | dedicated tests in `index.test.ts`                        |
+| Cross-pin envelope vs payload identity fields (eventId / kind / createdAt)        |   ✓    | 3 dedicated drift-rejection tests                         |
+| Inner payload `version` sentinel enforced                                         |   ✓    | dedicated test                                            |
+| `processInboundSyncBatch` routes aggregator envelopes to reputation log on opt-in |   ✓    | E2E test + 11 unit tests                                  |
+| Subscription gate prevents unsubscribed-labeler injection                         |   ✓    | E2E test "not-subscribed"                                 |
+| `labelerIdForAuthor` mapper composable                                            |   ✓    | dedicated test + undefined-fall-through test              |
+| Idempotency-aware counting (`applied` reflects only NEW state)                    |   ✓    | dedicated replay test                                     |
+| Bridge inbound stream continues forward on hostile reputation event               |   ✓    | dedicated test (batch does NOT abort on semantic failure) |
+| `appendTrustSafetyReputationEvent` returns `'stored' / 'skipped'`                 |   ✓    | `AppendTrustSafetyReputationEventResult` exported         |
+| Backward compat: callers without `subscribedLabelers` see no `reputation` field   |   ✓    | dedicated test                                            |
+| Privacy-safe error messages (no payload bytes in reputation errors)               |   ✓    | structural review + dispatch implementation pin           |
 
 ## What remains conditionally deferred
 

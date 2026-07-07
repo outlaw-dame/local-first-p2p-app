@@ -45,9 +45,7 @@ describe('DEFAULT_REPUTATION_SYNC_POLICY — doctrine non-negotiable #2', () => 
 
   it('carries the documented version sentinel', () => {
     expect(DEFAULT_REPUTATION_SYNC_POLICY.version).toBe(REPUTATION_SYNC_POLICY_VERSION);
-    expect(DEFAULT_REPUTATION_SYNC_POLICY.version).toBe(
-      'lfp2p.reputation-sync-policy.v1'
-    );
+    expect(DEFAULT_REPUTATION_SYNC_POLICY.version).toBe('lfp2p.reputation-sync-policy.v1');
   });
 });
 
@@ -64,11 +62,7 @@ describe('REPUTATION_SYNC_SCOPES / REPUTATION_USER_EMIT_KINDS — frozen enums',
   });
 
   it('user-emit kinds include observation/attestation/revocation (NOT aggregator)', () => {
-    expect(REPUTATION_USER_EMIT_KINDS).toEqual([
-      'observation',
-      'attestation',
-      'revocation'
-    ]);
+    expect(REPUTATION_USER_EMIT_KINDS).toEqual(['observation', 'attestation', 'revocation']);
   });
 });
 
@@ -76,9 +70,7 @@ describe('resolveReputationPrivacy', () => {
   it('override > policy > default', () => {
     const policy = { ...DEFAULT_REPUTATION_SYNC_POLICY, observation: 'account-local' as const };
     expect(resolveReputationPrivacy(policy, 'observation')).toBe('account-local');
-    expect(resolveReputationPrivacy(policy, 'observation', 'device-local')).toBe(
-      'device-local'
-    );
+    expect(resolveReputationPrivacy(policy, 'observation', 'device-local')).toBe('device-local');
   });
 
   it('unknown override falls through to policy (does NOT crash)', () => {

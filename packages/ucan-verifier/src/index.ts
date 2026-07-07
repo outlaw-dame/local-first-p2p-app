@@ -59,9 +59,7 @@
  *         - child.att ⊆ parent.att (no capability expansion)
  *     for every link.
  */
-import type {
-  CapabilityProofRecord
-} from '@lfp2p/capabilities';
+import type { CapabilityProofRecord } from '@lfp2p/capabilities';
 import { didKeyToEd25519PublicKey, verifyEd25519 } from '@lfp2p/crypto';
 
 export type CapabilityProofCryptoVerdict = 'verified' | 'invalid';
@@ -93,9 +91,7 @@ export type CreateUcanVerifierOptions = Readonly<{
   now?: () => number;
 }>;
 
-export function createUcanVerifier(
-  options: CreateUcanVerifierOptions
-): CapabilityProofVerifier {
+export function createUcanVerifier(options: CreateUcanVerifierOptions): CapabilityProofVerifier {
   if (options === null || typeof options !== 'object') {
     throw new TypeError('createUcanVerifier: options must be an object');
   }
@@ -181,10 +177,7 @@ type ChainContext = Readonly<{
   childPayload: UcanPayload | undefined;
 }>;
 
-function verifyChain(
-  token: string,
-  ctx: ChainContext
-): CapabilityProofCryptoVerdict {
+function verifyChain(token: string, ctx: ChainContext): CapabilityProofCryptoVerdict {
   if (ctx.depthRemaining < 0) return 'invalid';
 
   const parsed = parseUcanToken(token);

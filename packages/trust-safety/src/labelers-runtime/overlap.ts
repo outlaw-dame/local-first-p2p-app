@@ -167,10 +167,7 @@ export function detectRedundantSubscription(
     if (existing === undefined) continue;
     const existingCaps = (existing.capabilities ?? []).map((c) => c.capabilityId);
     const capOverlap = intersection(candidateCaps, existingCaps);
-    const labelOverlap = intersection(
-      candidate.supportedLabels,
-      existing.supportedLabels
-    );
+    const labelOverlap = intersection(candidate.supportedLabels, existing.supportedLabels);
     if (capOverlap.length === 0 && labelOverlap.length === 0) continue;
     const isRedundant =
       capOverlap.length > 0 &&

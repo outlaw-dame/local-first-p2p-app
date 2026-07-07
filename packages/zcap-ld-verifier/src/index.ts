@@ -135,9 +135,7 @@ export function createZcapLdVerifier(
     options.maxChainDepth !== undefined &&
     (!Number.isInteger(options.maxChainDepth) || options.maxChainDepth < 0)
   ) {
-    throw new TypeError(
-      'createZcapLdVerifier: maxChainDepth must be a non-negative integer'
-    );
+    throw new TypeError('createZcapLdVerifier: maxChainDepth must be a non-negative integer');
   }
   if (options.now !== undefined && typeof options.now !== 'function') {
     throw new TypeError('createZcapLdVerifier: now must be a function');
@@ -222,10 +220,7 @@ type ChainContext = Readonly<{
   childVerificationMethodBase: string | undefined;
 }>;
 
-function verifyZcapChain(
-  zcap: unknown,
-  ctx: ChainContext
-): CapabilityProofCryptoVerdict {
+function verifyZcapChain(zcap: unknown, ctx: ChainContext): CapabilityProofCryptoVerdict {
   if (ctx.depthRemaining < 0) return 'invalid';
   if (zcap === null || typeof zcap !== 'object' || Array.isArray(zcap)) {
     return 'invalid';
@@ -266,10 +261,7 @@ function verifyZcapChain(
   if (typeof proof.proofValue !== 'string' || proof.proofValue.length === 0) {
     return 'invalid';
   }
-  if (
-    typeof proof.verificationMethod !== 'string' ||
-    proof.verificationMethod.length === 0
-  ) {
+  if (typeof proof.verificationMethod !== 'string' || proof.verificationMethod.length === 0) {
     return 'invalid';
   }
 
@@ -387,9 +379,7 @@ function containsZcapContext(ctx: unknown): boolean {
  *                       `'*'` token meaning "all actions")
  *   - `'invalid'`     — field present but malformed
  */
-function parseAllowedAction(
-  value: unknown
-): ReadonlySet<string> | undefined | 'invalid' {
+function parseAllowedAction(value: unknown): ReadonlySet<string> | undefined | 'invalid' {
   if (value === undefined) return undefined;
   if (typeof value === 'string') {
     if (value.length === 0) return 'invalid';
@@ -470,10 +460,7 @@ function stripFragment(uri: string): string {
   return hashIdx === -1 ? uri : uri.slice(0, hashIdx);
 }
 
-function stripField(
-  obj: Record<string, unknown>,
-  field: string
-): Record<string, unknown> {
+function stripField(obj: Record<string, unknown>, field: string): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const k of Object.keys(obj)) {
     if (k === field) continue;

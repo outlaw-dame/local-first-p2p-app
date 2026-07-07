@@ -32,7 +32,9 @@ function readJson(path: string): unknown {
 function listFixtures(subdir: 'valid' | 'invalid'): string[] {
   const dir = join(FIXTURES_ROOT, subdir);
   if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter((n) => n.endsWith('.json')).sort();
+  return readdirSync(dir)
+    .filter((n) => n.endsWith('.json'))
+    .sort();
 }
 
 /**
@@ -211,25 +213,19 @@ describe('forward-compat — unknown enums fail closed (no partial accept)', () 
 /* ------------------------------------------------------------------ */
 
 describe('numeric range hardening', () => {
-  it.each([-0.0001, 1.0001, NaN, Infinity, -Infinity])(
-    'strength %s is rejected',
-    (bad) => {
-      const ev = { ...validAttestation(), strength: bad };
-      expect(() => validateReputationEvent(ev)).toThrowError(/TS_INVALID_NUMBER/);
-    }
-  );
+  it.each([-0.0001, 1.0001, NaN, Infinity, -Infinity])('strength %s is rejected', (bad) => {
+    const ev = { ...validAttestation(), strength: bad };
+    expect(() => validateReputationEvent(ev)).toThrowError(/TS_INVALID_NUMBER/);
+  });
 
-  it.each([-0.0001, 1.0001, NaN, Infinity])(
-    'aggregator subject.score %s is rejected',
-    (bad) => {
-      const base = validAggregatorPublished();
-      const ev = {
-        ...base,
-        subjects: [{ ...(base.subjects as Array<Record<string, unknown>>)[0], score: bad }]
-      };
-      expect(() => validateReputationEvent(ev)).toThrowError(/TS_INVALID_NUMBER/);
-    }
-  );
+  it.each([-0.0001, 1.0001, NaN, Infinity])('aggregator subject.score %s is rejected', (bad) => {
+    const base = validAggregatorPublished();
+    const ev = {
+      ...base,
+      subjects: [{ ...(base.subjects as Array<Record<string, unknown>>)[0], score: bad }]
+    };
+    expect(() => validateReputationEvent(ev)).toThrowError(/TS_INVALID_NUMBER/);
+  });
 
   it.each([-1, 1.5, NaN, REPUTATION_LIMITS.maxObservationCount + 1])(
     'observation satCount %s is rejected',
@@ -248,9 +244,7 @@ describe('numeric range hardening', () => {
     const base = validAggregatorPublished();
     const ev = {
       ...base,
-      subjects: [
-        { ...(base.subjects as Array<Record<string, unknown>>)[0], observationCount: -1 }
-      ]
+      subjects: [{ ...(base.subjects as Array<Record<string, unknown>>)[0], observationCount: -1 }]
     };
     expect(() => validateReputationEvent(ev)).toThrowError(/TS_INVALID_NUMBER/);
   });
@@ -395,10 +389,13 @@ describe('aggregator subject-list cap', () => {
   it('exactly maxSubjectsPerAggregatorBatch is accepted', () => {
     const base = validAggregatorPublished();
     const proto = (base.subjects as Array<Record<string, unknown>>)[0]!;
-    const subjects = Array.from({ length: REPUTATION_LIMITS.maxSubjectsPerAggregatorBatch }, (_, i) => ({
-      ...proto,
-      subject: { type: 'actor', actorId: `actor_${i}` }
-    }));
+    const subjects = Array.from(
+      { length: REPUTATION_LIMITS.maxSubjectsPerAggregatorBatch },
+      (_, i) => ({
+        ...proto,
+        subject: { type: 'actor', actorId: `actor_${i}` }
+      })
+    );
     const ev = { ...base, subjects };
     expect(() => validateReputationEvent(ev)).not.toThrow();
   });

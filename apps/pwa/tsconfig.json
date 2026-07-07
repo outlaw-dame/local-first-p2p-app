@@ -10,11 +10,15 @@
     { "path": "../../packages/capabilities" },
     { "path": "../../packages/crypto" },
     { "path": "../../packages/design-tokens" },
+    { "path": "../../packages/envelope" },
     { "path": "../../packages/platform" },
     { "path": "../../packages/local-store" },
+    { "path": "../../packages/mailbox-projection" },
     { "path": "../../packages/mls-group-projection" },
     { "path": "../../packages/identity" },
+    { "path": "../../packages/private-payload" },
     { "path": "../../packages/sync-client" },
+    { "path": "../../packages/udr-projection" },
     { "path": "../../packages/ui" }
   ],
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]

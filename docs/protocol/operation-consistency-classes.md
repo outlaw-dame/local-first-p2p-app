@@ -28,7 +28,7 @@ event kind is introduced, its doctrine document (or exit report) MUST
 declare the class it belongs to. Code review SHOULD treat a class
 mismatch as a blocker.
 
-This is a *taxonomy*, not a runtime contract. The runtime contracts
+This is a _taxonomy_, not a runtime contract. The runtime contracts
 live in the per-kind validators and projections. The taxonomy is the
 audit lens.
 
@@ -46,6 +46,7 @@ devices and later merge is safe.
 eventId. No "previous-state-required" check.
 
 **Examples.**
+
 - Local-control entry installations (block/mute/keyword/preference) —
   these are commutative and TTL-bound.
 - Curation signals (boost/downrank/exclude) — bounded score deltas
@@ -66,6 +67,7 @@ projection's current sub-state for the subject. Stable
 `*_LIFECYCLE_TRANSITION` error codes.
 
 **Examples.**
+
 - Reports / appeals lifecycle (`submitted → acknowledged → resolved`).
 - Moderation queue lifecycle (`open → assigned → resolved`).
 - Labeler profile re-publish supersession.
@@ -89,6 +91,7 @@ delegate with a valid capability); apply-time check that any
 `previousPublicKey` discipline for rotation).
 
 **Examples.**
+
 - `identity.controller.created`.
 - `identity.device.authorized`.
 - `identity.device.revoked`.
@@ -112,6 +115,7 @@ encryption-envelope runtime (ADR-002, deferred) verifies that the
 ciphertext was encrypted under the declared epoch.
 
 **Status today.** No Class D events have shipped yet. Reserved for:
+
 - Private payload envelope (ADR-002).
 - MLS group key schedule (Phase 6).
 - Room key-epoch rotation.
@@ -119,7 +123,7 @@ ciphertext was encrypted under the declared epoch.
 
 ### Class E — Non-authoritative bridge / admission observations
 
-**Definition.** Events that record *observations* by infrastructure
+**Definition.** Events that record _observations_ by infrastructure
 nodes (bridges, relays, super-peers). They never carry account
 authority; they describe what a piece of infrastructure decided to
 do (admit, quarantine, rate-limit, audit). They MAY be advisory
@@ -131,59 +135,60 @@ treats these as read-only audit data. No state-machine progression
 on user-facing subjects.
 
 **Examples.**
+
 - `transport.event.accepted | rejected | quarantined`.
 - `transport.peer.rate_limited | quarantined`.
 - `transport.media.rejected`.
 
 ## Master event-kind → class index
 
-| Event kind                                       | Class | Notes |
-|--------------------------------------------------|:-----:|------|
-| `identity.controller.created`                    |   C   | Controller-signed; once per state. |
-| `identity.device.authorized`                     |   C   | Monotonic epoch. |
-| `identity.device.revoked`                        |   C   | Monotonic epoch; idempotent on double-revoke. |
-| `identity.device.rotated`                        |   C   | `previousPublicKey` must match stored key. |
-| `identity.capability.granted`                    |   C   | Controller-signed; capability becomes Class B-able. |
-| `identity.capability.revoked`                    |   B   | `granted → revoked` lifecycle on the capability. |
-| `identity.contact-card.published`                |   A   | Projection retains latest by event order. |
-| `contact.petname.set`                            |   A   | Last-write-wins per identityId by `createdAt`. |
-| `note.created`                                   |   A   | Append-only authored content. |
-| `outbox.test.created`                            |   A   | Test fixture. |
-| `safety.account.blocked`                         |   A   | Entry installation; TTL-bound. |
-| `safety.account.muted`                           |   A   | |
-| `safety.account.allowlisted`                     |   A   | |
-| `safety.domain.blocked`                          |   A   | |
-| `safety.keyword.muted`                           |   A   | |
-| `safety.thread.muted`                            |   A   | |
-| `safety.post.hidden`                             |   A   | |
-| `safety.label.preference.set`                    |   A   | |
-| `safety.policy-list.subscribed | unsubscribed`   |   A   | |
-| `safety.notification-preference.set`             |   A   | |
-| `safety.preferences.snapshot`                    |   A   | Bootstrap; replaces prior state under strategy. |
-| `safety.adult-content.gate.set`                  |   A   | |
-| `safety.report.created`                          |   B   | Enters `submitted` state. |
-| `safety.report.acknowledged`                     |   B   | `submitted → acknowledged`. |
-| `safety.report.resolved`                         |   B   | Terminal. Skip-ack permitted. |
-| `safety.appeal.created`                          |   B   | Enters `submitted`. |
-| `safety.appeal.resolved`                         |   B   | Terminal. |
-| `safety.labeler.profile.published`               |   B   | Re-publish supersedes per labelerId. |
-| `safety.label-definition.published`              |   B   | Append-only by (namespace, labelKey). |
-| `safety.labeler.subscribed`                      |   B   | `active → unsubscribed`. |
-| `safety.labeler.unsubscribed`                    |   B   | Terminal. |
-| `safety.label.applied`                           |   B   | `active → revoked` per (subject, issuer). |
-| `safety.label.revoked`                           |   B   | Terminal; cross-labeler revoke rejected. |
-| `safety.annotation.created`                      |   A   | |
-| `safety.policy.created | updated | deprecated`   |   B   | Versioned chain; monotonic version. |
-| `safety.policy.decision.recorded`                |   B   | Append-only by decisionId. |
-| `moderation.queue.item.created`                  |   B   | Enters `open`. |
-| `moderation.queue.item.assigned`                 |   B   | `open → assigned`. |
-| `moderation.queue.item.resolved`                 |   B   | Terminal; skip-assignment permitted. |
-| `curation.rule.created | disabled`               |   B   | `active → disabled`. |
-| `curation.item.boosted | downranked | excluded`  |   A   | Bounded delta per event; commutative. |
-| `curation.explanation.recorded`                  |   A   | |
-| `transport.event.accepted | rejected | quarantined` |   E   | Bridge audit. |
-| `transport.peer.rate_limited | quarantined`      |   E   | |
-| `transport.media.rejected`                       |   E   | |
+| Event kind                           |     Class     | Notes                                               |
+| ------------------------------------ | :-----------: | --------------------------------------------------- | -------------------- | ------------------------------------- |
+| `identity.controller.created`        |       C       | Controller-signed; once per state.                  |
+| `identity.device.authorized`         |       C       | Monotonic epoch.                                    |
+| `identity.device.revoked`            |       C       | Monotonic epoch; idempotent on double-revoke.       |
+| `identity.device.rotated`            |       C       | `previousPublicKey` must match stored key.          |
+| `identity.capability.granted`        |       C       | Controller-signed; capability becomes Class B-able. |
+| `identity.capability.revoked`        |       B       | `granted → revoked` lifecycle on the capability.    |
+| `identity.contact-card.published`    |       A       | Projection retains latest by event order.           |
+| `contact.petname.set`                |       A       | Last-write-wins per identityId by `createdAt`.      |
+| `note.created`                       |       A       | Append-only authored content.                       |
+| `outbox.test.created`                |       A       | Test fixture.                                       |
+| `safety.account.blocked`             |       A       | Entry installation; TTL-bound.                      |
+| `safety.account.muted`               |       A       |                                                     |
+| `safety.account.allowlisted`         |       A       |                                                     |
+| `safety.domain.blocked`              |       A       |                                                     |
+| `safety.keyword.muted`               |       A       |                                                     |
+| `safety.thread.muted`                |       A       |                                                     |
+| `safety.post.hidden`                 |       A       |                                                     |
+| `safety.label.preference.set`        |       A       |                                                     |
+| `safety.policy-list.subscribed       | unsubscribed` | A                                                   |                      |
+| `safety.notification-preference.set` |       A       |                                                     |
+| `safety.preferences.snapshot`        |       A       | Bootstrap; replaces prior state under strategy.     |
+| `safety.adult-content.gate.set`      |       A       |                                                     |
+| `safety.report.created`              |       B       | Enters `submitted` state.                           |
+| `safety.report.acknowledged`         |       B       | `submitted → acknowledged`.                         |
+| `safety.report.resolved`             |       B       | Terminal. Skip-ack permitted.                       |
+| `safety.appeal.created`              |       B       | Enters `submitted`.                                 |
+| `safety.appeal.resolved`             |       B       | Terminal.                                           |
+| `safety.labeler.profile.published`   |       B       | Re-publish supersedes per labelerId.                |
+| `safety.label-definition.published`  |       B       | Append-only by (namespace, labelKey).               |
+| `safety.labeler.subscribed`          |       B       | `active → unsubscribed`.                            |
+| `safety.labeler.unsubscribed`        |       B       | Terminal.                                           |
+| `safety.label.applied`               |       B       | `active → revoked` per (subject, issuer).           |
+| `safety.label.revoked`               |       B       | Terminal; cross-labeler revoke rejected.            |
+| `safety.annotation.created`          |       A       |                                                     |
+| `safety.policy.created               |    updated    | deprecated`                                         | B                    | Versioned chain; monotonic version.   |
+| `safety.policy.decision.recorded`    |       B       | Append-only by decisionId.                          |
+| `moderation.queue.item.created`      |       B       | Enters `open`.                                      |
+| `moderation.queue.item.assigned`     |       B       | `open → assigned`.                                  |
+| `moderation.queue.item.resolved`     |       B       | Terminal; skip-assignment permitted.                |
+| `curation.rule.created               |   disabled`   | B                                                   | `active → disabled`. |
+| `curation.item.boosted               |  downranked   | excluded`                                           | A                    | Bounded delta per event; commutative. |
+| `curation.explanation.recorded`      |       A       |                                                     |
+| `transport.event.accepted            |   rejected    | quarantined`                                        | E                    | Bridge audit.                         |
+| `transport.peer.rate_limited         | quarantined`  | E                                                   |                      |
+| `transport.media.rejected`           |       E       |                                                     |
 
 (Class D row is intentionally empty today — see Phase 5/6 future
 work.)

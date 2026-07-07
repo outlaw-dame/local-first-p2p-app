@@ -186,7 +186,10 @@ function validateAggregatorSubjectScore(value: unknown, label: string): Aggregat
 /*                            top-level validator                             */
 /* -------------------------------------------------------------------------- */
 
-export function validateReputationEvent(value: unknown, label = 'ReputationEvent'): ReputationEvent {
+export function validateReputationEvent(
+  value: unknown,
+  label = 'ReputationEvent'
+): ReputationEvent {
   const record = assertPlainObject(value, label);
   const kind = record.kind;
   if (typeof kind !== 'string' || !(REPUTATION_EVENT_KINDS as readonly string[]).includes(kind)) {
@@ -263,8 +266,10 @@ export function validateReputationEvent(value: unknown, label = 'ReputationEvent
       );
       const strength = assertUnitInterval(record.strength, `${label}.strength`);
       const out: {
-        -readonly [K in keyof Extract<ReputationEvent, { kind: 'reputation.attestation.published' }>]:
-          Extract<ReputationEvent, { kind: 'reputation.attestation.published' }>[K];
+        -readonly [K in keyof Extract<
+          ReputationEvent,
+          { kind: 'reputation.attestation.published' }
+        >]: Extract<ReputationEvent, { kind: 'reputation.attestation.published' }>[K];
       } = {
         ...common,
         kind: 'reputation.attestation.published',
@@ -306,10 +311,7 @@ export function validateReputationEvent(value: unknown, label = 'ReputationEvent
       if (subjects.length === 0) {
         // Empty batches are meaningless and would silently inflate
         // the event log. Fail closed.
-        throw tsError(
-          'TS_INVALID_REPUTATION',
-          `${label}.subjects must contain at least one entry`
-        );
+        throw tsError('TS_INVALID_REPUTATION', `${label}.subjects must contain at least one entry`);
       }
       return Object.freeze({
         ...common,

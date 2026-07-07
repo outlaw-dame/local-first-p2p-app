@@ -25,7 +25,7 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/consistent-type-imports': ['error', { "prefer": 'type-imports' }],
+      '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }]
     }
   },
@@ -48,15 +48,22 @@ export default tseslint.config(
   // marker explaining why.
   {
     files: ['packages/*/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}'],
-    ignores: [
-      '**/*.test.{ts,tsx}',
-      '**/__tests__/**/*.{ts,tsx}',
-      '**/*.config.{ts,tsx}'
-    ],
+    ignores: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}', '**/*.config.{ts,tsx}'],
     rules: {
       'no-console': 'error',
       'no-debugger': 'error',
       'no-alert': 'error'
+    }
+  },
+  // Build/tooling scripts (e.g. bundle-budget gate) run under Node and
+  // legitimately use console/process. They are not production runtime
+  // source, so the privacy-safe-logging rule above does not apply.
+  {
+    files: ['packages/*/scripts/**/*.mjs', 'apps/*/scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      }
     }
   }
 );

@@ -208,11 +208,7 @@ export function buildContentCategoryRows(state: LocalControlState): ContentCateg
     const prefKey = labelPreferenceKey(CONTENT_CATEGORY_NAMESPACE, category.key);
     const prefEntry = state.labelPreferences[prefKey];
     const currentPreference = prefEntry?.preference;
-    const effectiveAction = decideContentCategoryAction(
-      category,
-      currentPreference,
-      gateEnabled
-    );
+    const effectiveAction = decideContentCategoryAction(category, currentPreference, gateEnabled);
     const lockedByGate = category.isAdult && !gateEnabled;
     return Object.freeze({
       category,
@@ -277,9 +273,7 @@ export function buildLabelerSubscriptionRows(
       );
       continue;
     }
-    const capabilitySummary = (profile.capabilities ?? []).map(
-      (c) => `${c.capabilityId}`
-    );
+    const capabilitySummary = (profile.capabilities ?? []).map((c) => `${c.capabilityId}`);
     rows.push(
       Object.freeze({
         subscriptionId: sub.subscription.subscriptionId,
@@ -323,10 +317,7 @@ export function assessSubscribeIntent(
       overlappingLabelKeys: r.overlappingLabelKeys
     });
   }
-  if (
-    r.overlappingCapabilityIds.length > 0 ||
-    r.overlappingLabelKeys.length > 0
-  ) {
+  if (r.overlappingCapabilityIds.length > 0 || r.overlappingLabelKeys.length > 0) {
     return Object.freeze({
       ok: false,
       message: `"${candidateLabelerId}" partially overlaps with an existing subscription. Capabilities in common: ${r.overlappingCapabilityIds.join(', ') || '(none)'}; label keys in common: ${r.overlappingLabelKeys.join(', ') || '(none)'}.`,

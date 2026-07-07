@@ -31,13 +31,21 @@ describe('bearcap metadata profile', () => {
   });
 
   it('rejects secret-bearing ids', () => {
-    expect(() => validateBearcapRef(baseRef({ bearcapId: 'https://example.test/token' }))).toThrow('CAP_PRIVATE_LEAK_RISK');
-    expect(() => validateBearcapRef(baseRef({ bearcapId: 'bearcap?id=secret' }))).toThrow('CAP_PRIVATE_LEAK_RISK');
+    expect(() => validateBearcapRef(baseRef({ bearcapId: 'https://example.test/token' }))).toThrow(
+      'CAP_PRIVATE_LEAK_RISK'
+    );
+    expect(() => validateBearcapRef(baseRef({ bearcapId: 'bearcap?id=secret' }))).toThrow(
+      'CAP_PRIVATE_LEAK_RISK'
+    );
   });
 
   it('rejects disallowed purposes and invalid windows', () => {
-    expect(() => validateBearcapRef({ ...baseRef(), purpose: 'identity-control' })).toThrow('CAP_INVALID_ENUM');
-    expect(() => validateBearcapRef(baseRef({ createdAt: FUTURE, expiresAt: NOW }))).toThrow('CAP_INVALID_TIMESTAMP');
+    expect(() => validateBearcapRef({ ...baseRef(), purpose: 'identity-control' })).toThrow(
+      'CAP_INVALID_ENUM'
+    );
+    expect(() => validateBearcapRef(baseRef({ createdAt: FUTURE, expiresAt: NOW }))).toThrow(
+      'CAP_INVALID_TIMESTAMP'
+    );
   });
 
   it('treats invalid evaluator time as expired', () => {
@@ -45,7 +53,9 @@ describe('bearcap metadata profile', () => {
   });
 
   it('enforces single-use and max-use constraints', () => {
-    expect(() => assertBearcapUsable(validateBearcapRef(baseRef()), NOW, 1)).toThrow('CAP_INVALID_NUMBER');
+    expect(() => assertBearcapUsable(validateBearcapRef(baseRef()), NOW, 1)).toThrow(
+      'CAP_INVALID_NUMBER'
+    );
     const multiUse = validateBearcapRef(baseRef({ singleUse: false, maxUses: 2 }));
     expect(assertBearcapUsable(multiUse, NOW, 1)).toEqual(multiUse);
     expect(() => assertBearcapUsable(multiUse, NOW, 2)).toThrow('CAP_INVALID_NUMBER');

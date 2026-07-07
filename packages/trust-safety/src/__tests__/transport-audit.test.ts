@@ -57,7 +57,9 @@ describe('audit redaction', () => {
       privacy: 'public' as const
     };
     const redacted = redactBlockRefForAudit(block);
-    expect(redacted.includes('bafkreih2akiscaiv2qtnfwa6vlsa3o5pwf3jmkcswxlha6m4q34cqyvcaa')).toBe(false);
+    expect(redacted.includes('bafkreih2akiscaiv2qtnfwa6vlsa3o5pwf3jmkcswxlha6m4q34cqyvcaa')).toBe(
+      false
+    );
     expect(redacted.includes('cid:raw:')).toBe(true);
   });
 });

@@ -61,9 +61,7 @@ export type CapabilityProofVerifier = (
  * resolver must be too. Callers with async storage should hydrate a
  * synchronous lookup map before invoking `verifyProof`.
  */
-export type SignedEventResolver = (
-  proofId: string
-) => SignedEventEnvelope | undefined;
+export type SignedEventResolver = (proofId: string) => SignedEventEnvelope | undefined;
 
 /**
  * Strategy for matching a `CapabilityProofRecord.issuer` against the
@@ -121,11 +119,10 @@ export function createNativeProofVerifier(
   if (typeof options.resolveSignedEvent !== 'function') {
     throw new TypeError('createNativeProofVerifier: resolveSignedEvent must be a function');
   }
-  if (
-    options.issuerMatches !== undefined &&
-    typeof options.issuerMatches !== 'function'
-  ) {
-    throw new TypeError('createNativeProofVerifier: issuerMatches must be a function when supplied');
+  if (options.issuerMatches !== undefined && typeof options.issuerMatches !== 'function') {
+    throw new TypeError(
+      'createNativeProofVerifier: issuerMatches must be a function when supplied'
+    );
   }
   const issuerMatches = options.issuerMatches ?? defaultIssuerMatches;
   const resolveSignedEvent = options.resolveSignedEvent;

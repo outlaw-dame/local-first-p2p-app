@@ -138,19 +138,19 @@ continue to pass unmodified.
 
 ## Acceptance criteria
 
-| Criterion | Status | Evidence |
-|---|:---:|---|
-| Body size cap enforced via Content-Length AND streaming | ✓ | 4 tests covering both paths |
-| Multi-token registry with per-token expiresAt | ✓ | 5 tests |
-| Backward compat with legacy single-token shape | ✓ | dedicated test |
-| Expired token indistinguishable from unknown in response | ✓ | body-equality test |
-| Constant-time comparison runs against every token per request | ✓ | implementation; full-loop construction in `authorizeRequest` |
-| WWW-Authenticate header on every 401 | ✓ | RFC 6750 |
-| Retry-After header on every 429 | ✓ | RFC 7231 |
-| Per-token rate limiter reuses engine primitives (no duplication) | ✓ | `BridgeHttpRateLimiter` wraps `tryConsume` |
-| Privacy-safe response bodies (no payload or token echo) | ✓ | 3 dedicated tests |
-| Doctrine documents the cheap-first ordering and response discipline | ✓ | new section |
-| `normalizeAuthConfig` rejects misconfiguration (4 cases) | ✓ | 4 tests |
+| Criterion                                                           | Status | Evidence                                                     |
+| ------------------------------------------------------------------- | :----: | ------------------------------------------------------------ |
+| Body size cap enforced via Content-Length AND streaming             |   ✓    | 4 tests covering both paths                                  |
+| Multi-token registry with per-token expiresAt                       |   ✓    | 5 tests                                                      |
+| Backward compat with legacy single-token shape                      |   ✓    | dedicated test                                               |
+| Expired token indistinguishable from unknown in response            |   ✓    | body-equality test                                           |
+| Constant-time comparison runs against every token per request       |   ✓    | implementation; full-loop construction in `authorizeRequest` |
+| WWW-Authenticate header on every 401                                |   ✓    | RFC 6750                                                     |
+| Retry-After header on every 429                                     |   ✓    | RFC 7231                                                     |
+| Per-token rate limiter reuses engine primitives (no duplication)    |   ✓    | `BridgeHttpRateLimiter` wraps `tryConsume`                   |
+| Privacy-safe response bodies (no payload or token echo)             |   ✓    | 3 dedicated tests                                            |
+| Doctrine documents the cheap-first ordering and response discipline |   ✓    | new section                                                  |
+| `normalizeAuthConfig` rejects misconfiguration (4 cases)            |   ✓    | 4 tests                                                      |
 
 ## Deferred work
 

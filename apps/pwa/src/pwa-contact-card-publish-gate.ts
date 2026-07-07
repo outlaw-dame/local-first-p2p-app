@@ -61,8 +61,7 @@ export async function gatedEmitContactCardPublished(
   input: GatedEmitContactCardInput
 ): Promise<GatedEmitContactCardResult> {
   if (input.capabilityGate !== undefined) {
-    const now =
-      input.capabilityGate.now ?? new Date().toISOString();
+    const now = input.capabilityGate.now ?? new Date().toISOString();
     const gateDecision = await evaluateContactCardPublishGate({
       store: input.store,
       identityId: input.identityId,
@@ -97,11 +96,7 @@ async function evaluateContactCardPublishGate(input: {
       message: `proof registry load failed (${err instanceof Error ? err.message : 'unknown'})`
     };
   }
-  if (
-    registry === null ||
-    typeof registry !== 'object' ||
-    !(registry.proofs instanceof Map)
-  ) {
+  if (registry === null || typeof registry !== 'object' || !(registry.proofs instanceof Map)) {
     return {
       status: 'deny',
       message: 'proof registry load returned an invalid shape — fail closed'
@@ -115,8 +110,7 @@ async function evaluateContactCardPublishGate(input: {
     if (record.subject.kind !== 'device') continue;
     if (record.subject.id !== input.localDeviceId) continue;
     const expMs = Date.parse(record.expiresAt);
-    const isExpired =
-      Number.isFinite(expMs) && Number.isFinite(nowMs) && nowMs >= expMs;
+    const isExpired = Number.isFinite(expMs) && Number.isFinite(nowMs) && nowMs >= expMs;
     candidateRecords.push({ proofId: record.proofId, expired: isExpired });
   }
 
@@ -132,8 +126,11 @@ async function evaluateContactCardPublishGate(input: {
   let anyExpired = false;
   let anyScopeMismatch = false;
 
-  const unexpiredCandidates = candidateRecords.filter(c => {
-    if (c.expired) { anyExpired = true; return false; }
+  const unexpiredCandidates = candidateRecords.filter((c) => {
+    if (c.expired) {
+      anyExpired = true;
+      return false;
+    }
     return true;
   });
 

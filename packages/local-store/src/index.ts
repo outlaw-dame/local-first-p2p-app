@@ -1,6 +1,11 @@
 import Dexie, { type Table } from 'dexie';
-import { type EncryptedKeyMaterial } from '@lfp2p/crypto';
-import { type SignedEventEnvelope, validateSignedEvent } from '@lfp2p/protocol';
+import { type EncryptedKeyMaterial, type SigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
+import {
+  type JsonValue,
+  type SignedEventEnvelope,
+  createUnsignedEvent,
+  validateSignedEvent
+} from '@lfp2p/protocol';
 import {
   type LabelerEvent,
   type LabelersState,
@@ -26,6 +31,32 @@ import {
   createEmptyMlsGroupProjectionState,
   projectMlsGroupControlEvent
 } from '@lfp2p/mls-group-projection';
+import {
+  type ApplyUdrEventMeta,
+  type UdrState,
+  type UdrStateSnapshot,
+  applyUdrEvent,
+  createEmptyUdrState,
+  deserializeUdrState,
+  isUdrEventKind,
+  serializeUdrState
+} from '@lfp2p/udr-projection';
+import {
+  type ApplyMailboxEventMeta,
+  type InboxEntry,
+  type MailboxCheckpoint,
+  type MailboxEventKind,
+  type OutboxEntry,
+  applyMailboxEvent,
+  hydrateMailboxState,
+  isMailboxEventKind
+} from '@lfp2p/mailbox-projection';
+import {
+  type PrivatePayloadAadContext,
+  buildPrivatePayloadAad,
+  decryptPrivatePayload,
+  encryptPrivatePayload
+} from '@lfp2p/private-payload';
 
 export type OutboxStatus = 'pending' | 'syncing' | 'confirmed' | 'failed' | 'conflicted';
 export type DeviceIdentityStatus = 'active' | 'revoked';
@@ -44,7 +75,12 @@ export type LocalFirstTableName =
   | 'capabilityProofRecords'
   | 'mlsGroupProjections'
   | 'chatThreads'
-  | 'chatEventLog';
+  | 'chatEventLog'
+  | 'userDataRoot'
+  | 'mailboxInbox'
+  | 'mailboxOutbox'
+  | 'mailboxEventLog'
+  | 'mailboxCheckpoints';
 
 /**
  * Stored local-control event. The full envelope is preserved as the
@@ -164,6 +200,21 @@ export type StoredDeviceIdentity = Readonly<{
   status: DeviceIdentityStatus;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Phase 5.12B — X25519 wrap keypair for dm/group content-key delivery.
+   * The wrap PUBLIC key is published so senders can wrap per-event content
+   * keys to this device; the wrap PRIVATE key is encrypted at rest under the
+   * same `protectionKeyId` as the signing key and never leaves the device.
+   * `wrapKeyRef` is the stable id senders record in `recipientWraps`.
+   *
+   * All three are present together or all absent: absent means a device
+   * record created before 5.12B, which the identity manager self-heals
+   * (generates + persists a wrap keypair) on next restore. Additive Dexie
+   * fields (not indexed), so no schema-version bump is required.
+   */
+  wrapPublicKey?: string;
+  wrapKeyRef?: string;
+  encryptedWrapPrivateKey?: EncryptedKeyMaterial;
 }>;
 
 export type StoredLocalProtectionKey = Readonly<{
@@ -304,10 +355,172 @@ export type AppendMlsGroupControlEventOptions = Readonly<{
   updatedAt?: string;
 }>;
 
+/**
+ * Phase 5.11 — persisted User Data Root projection row (Step 1).
+ *
+ * This is exactly a `UdrStateSnapshot` (from `@lfp2p/udr-projection`)
+ * keyed by `identityId`. It is a DERIVED, rebuildable cache: the
+ * authoritative source is the encrypted `udr.*` event log in
+ * `signedEvents`. `appliedEventIds` is persisted so incremental
+ * `appendUdrEvent` is idempotent AND self-healing — an event that could
+ * not be decrypted yet (key not present) is stored durably but left out
+ * of `appliedEventIds`, so a later append/load with the key projects it.
+ *
+ * Structural ids only (partition/feed/sync-interest/space, mailbox
+ * binding). The row is plaintext local IndexedDB (device-owned
+ * metadata); message-grade content is never stored here. The plan's
+ * reserved `contentRefs` field is deferred until a `udr.content.*`
+ * event kind exists to populate it — added with that kind, not now.
+ */
+export type StoredUserDataRoot = UdrStateSnapshot;
+
+export type AppendUdrEventOptions = Readonly<{
+  /** Symmetric key material for the `self`-scoped private payload envelope. */
+  keyMaterial: string;
+  /**
+   * When set, `event.author` MUST equal this identity or the append is
+   * rejected. Lets a caller pin the local identity and refuse events
+   * routed for a different identity (defence-in-depth alongside the
+   * decrypt-to-self gate).
+   */
+  expectedIdentityId?: string;
+}>;
+
+export type AppendUdrEventResult = Readonly<{
+  /**
+   * - `applied`: decrypted, validated, folded into the projection.
+   * - `skipped`: already projected (eventId in `appliedEventIds`).
+   * - `undecryptable`: could not decrypt (e.g. key not present yet); the
+   *   signed event is stored durably and will project on a later
+   *   append/load once the key is available (self-healing).
+   * - `rejected`: decrypted but the inner payload is invalid; not stored,
+   *   projection unchanged.
+   */
+  status: 'applied' | 'skipped' | 'undecryptable' | 'rejected';
+  state: UdrState;
+}>;
+
 export type AppendMlsGroupControlEventResult = Readonly<{
   status: 'stored' | 'skipped';
   outcome: 'accepted' | 'rejected' | 'fork-queued';
   state: MlsGroupProjectionState;
+}>;
+
+/* -------------------------------------------------------------------------- */
+/*                    Phase 5.11 — mailbox persistence (Step 4)               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Per-envelope inbox row (recipient view). Index columns
+ * (`recipientIdentityId`, `status`, `expiresAt`) are stored in the clear
+ * so the store can query by owner / status and sweep expired envelopes
+ * (Step 5) without deserializing every row; the projected `entry` holds
+ * the full lifecycle detail. This is a DERIVED, rebuildable cache — the
+ * authoritative source is the encrypted `mailboxEventLog`, so a corrupt
+ * or tampered row is corrected by `loadMailboxInboxState` (full replay).
+ * Mailboxes are high-cardinality, so per-envelope rows (not a single
+ * aggregate blob) keep each append O(1) and bound row growth.
+ */
+export type StoredMailboxInboxRow = Readonly<{
+  envelopeId: string;
+  recipientIdentityId: string;
+  status: string;
+  expiresAt: string;
+  entry: InboxEntry;
+}>;
+
+export type StoredMailboxOutboxRow = Readonly<{
+  envelopeId: string;
+  senderIdentityId: string;
+  status: string;
+  expiresAt: string;
+  entry: OutboxEntry;
+}>;
+
+/** Durable, dedup-authoritative log of mailbox events (source of truth). */
+export type StoredMailboxEventLogRow = Readonly<{
+  eventId: string;
+  kind: string;
+  /** envelopeId for envelope/receipt/ack kinds; mailboxId for checkpoint. */
+  envelopeId: string;
+  createdAt: string;
+  /**
+   * Whether the event was successfully decrypted AND folded into the
+   * projection. `false` for an event stored while undecryptable — the
+   * dedup gate skips only PROJECTED events, so an undecryptable event
+   * re-processes (self-heals) once its key is available.
+   */
+  projected: boolean;
+  event: SignedEventEnvelope;
+}>;
+
+export type StoredMailboxCheckpoint = MailboxCheckpoint;
+
+export type AppendMailboxEventOptions = Readonly<{
+  /** The local mailbox owner (recipient and/or sender). Projection key. */
+  ownerIdentityId: string;
+  /**
+   * Symmetric key material for this event's private-payload envelope. The
+   * caller resolves the right key for the event's scope (dm/group/self).
+   * A wrong key yields `undecryptable`. `undefined`/empty means "no key
+   * yet" — the signed event is still stored durably (`projected: false`)
+   * so it self-heals on a later append/`loadMailboxInboxState` once the
+   * key becomes available. This is the inbound-sync path: a `dm`/`group`
+   * envelope can arrive before its conversation key is resolvable.
+   */
+  keyMaterial?: string;
+}>;
+
+export type AppendMailboxEventResult = Readonly<{
+  /**
+   * - `applied`: decrypted, validated, folded into the inbox/outbox rows.
+   * - `skipped`: already in the mailbox event log (idempotent).
+   * - `undecryptable`: could not decrypt yet; the signed event is stored
+   *   durably and projects on a later append/`loadMailboxInboxState`.
+   * - `rejected`: decrypted but invalid, or the owner is not a party to
+   *   the envelope (recipient-mismatch) — not stored, no projection change.
+   */
+  status: 'applied' | 'skipped' | 'undecryptable' | 'rejected';
+}>;
+
+/**
+ * Conversation key for one envelope's `mailbox.envelope.expired` emit.
+ * The protocol pins expired events to `dm`/`group` privacy (delivery-
+ * plane, visible to both parties), so the sweep cannot use the owner's
+ * self key — the caller resolves the right conversation key and scope.
+ */
+export type MailboxEnvelopeKeyResolution = Readonly<{
+  keyMaterial: string;
+  /** Key id recorded on the envelope (references the key, not the key). */
+  keyId: string;
+  privacy: 'dm' | 'group';
+}>;
+
+export type SweepExpiredMailboxEnvelopesOptions = Readonly<{
+  /** The local mailbox owner whose inbox/outbox rows are swept. */
+  ownerIdentityId: string;
+  /** Authorised device id doing the signing; event `deviceId`. */
+  deviceId: string;
+  /** Signing keypair for the emitted `mailbox.envelope.expired` events. */
+  signingKeypair: SigningKeypair;
+  /**
+   * Per-envelope conversation-key resolver (mirrors the
+   * `loadMailboxInboxState` resolver). Return `undefined` to skip the
+   * envelope this sweep — it is reported in `skipped` and retried on
+   * the next sweep once the key is available.
+   */
+  resolveEnvelopeKey: (
+    row: StoredMailboxInboxRow | StoredMailboxOutboxRow
+  ) => MailboxEnvelopeKeyResolution | undefined;
+  /** Sweep instant (ISO-8601); defaults to `new Date().toISOString()`. */
+  now?: string;
+}>;
+
+export type SweepExpiredMailboxEnvelopesResult = Readonly<{
+  /** envelopeIds marked expired by this sweep, in emit order. */
+  expired: readonly string[];
+  /** envelopeIds past expiry but not swept (no key resolved); retried next sweep. */
+  skipped: readonly string[];
 }>;
 
 export type SyncCheckpointRejectedCode = 'stale-sequence' | 'cursor-mismatch';
@@ -421,6 +634,11 @@ class LocalFirstP2PDatabase extends Dexie {
   mlsGroupProjections!: Table<StoredMlsGroupProjection, string>;
   chatThreads!: Table<StoredChatThreadProjection, string>;
   chatEventLog!: Table<StoredChatEventLogRow, string>;
+  userDataRoot!: Table<StoredUserDataRoot, string>;
+  mailboxInbox!: Table<StoredMailboxInboxRow, string>;
+  mailboxOutbox!: Table<StoredMailboxOutboxRow, string>;
+  mailboxEventLog!: Table<StoredMailboxEventLogRow, string>;
+  mailboxCheckpoints!: Table<StoredMailboxCheckpoint, string>;
 
   constructor(name: string) {
     super(name);
@@ -438,14 +656,16 @@ class LocalFirstP2PDatabase extends Dexie {
     });
     this.version(3).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt'
     });
     this.version(4).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -453,7 +673,8 @@ class LocalFirstP2PDatabase extends Dexie {
     });
     this.version(5).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -462,7 +683,8 @@ class LocalFirstP2PDatabase extends Dexie {
     });
     this.version(6).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -472,7 +694,8 @@ class LocalFirstP2PDatabase extends Dexie {
     });
     this.version(7).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -490,7 +713,8 @@ class LocalFirstP2PDatabase extends Dexie {
     // additive: existing v7 rows roll forward unchanged.
     this.version(8).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -508,7 +732,8 @@ class LocalFirstP2PDatabase extends Dexie {
     // common admin / debug queries without forcing a full scan.
     this.version(9).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -525,7 +750,8 @@ class LocalFirstP2PDatabase extends Dexie {
     // existing v9 rows roll forward unchanged.
     this.version(10).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -548,7 +774,8 @@ class LocalFirstP2PDatabase extends Dexie {
     // instead of scanning the whole log by kind.
     this.version(11).stores({
       signedEvents: 'eventId, kind, author, createdAt',
-      mutationOutbox: 'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
       eventSummaries: 'eventId, createdAt',
       deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
       localProtectionKeys: 'keyId, algorithm, createdAt',
@@ -562,6 +789,59 @@ class LocalFirstP2PDatabase extends Dexie {
       mlsGroupProjections: 'groupId, updatedAt',
       chatThreads: 'threadId, lastActivityAt',
       chatEventLog: 'eventId, kind, threadIdHash, createdAt'
+    });
+    // Phase 5.11 — User Data Root projection cache. Additive over v11:
+    // existing rows roll forward untouched. `userDataRoot` is keyed by
+    // identityId; the projected id-sets live in the row (no separate
+    // index needed — one row per identity). The authoritative source is
+    // the encrypted `udr.*` event log in `signedEvents`.
+    this.version(12).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt',
+      trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence',
+      capabilityProofRecords: 'proofId, scheme, verificationState, expiresAt',
+      mlsGroupProjections: 'groupId, updatedAt',
+      chatThreads: 'threadId, lastActivityAt',
+      chatEventLog: 'eventId, kind, threadIdHash, createdAt',
+      userDataRoot: 'identityId, updatedAt'
+    });
+    // Phase 5.11 — mailbox delivery projection. Additive over v12:
+    // existing rows roll forward untouched. Per-envelope inbox/outbox
+    // rows (not an aggregate blob) keep each append O(1) and let the
+    // expiry sweep query by `expiresAt`. The `mailboxEventLog` is the
+    // durable, dedup-authoritative source; inbox/outbox are a derived,
+    // rebuildable cache.
+    this.version(13).stores({
+      signedEvents: 'eventId, kind, author, createdAt',
+      mutationOutbox:
+        'idempotencyKey, eventId, status, nextRetryAt, createdAt, [status+nextRetryAt]',
+      eventSummaries: 'eventId, createdAt',
+      deviceIdentities: 'identityId, deviceId, publicKey, status, createdAt',
+      localProtectionKeys: 'keyId, algorithm, createdAt',
+      syncCheckpoints: 'checkpointId',
+      identityControlProjections: 'identityId, updatedAt',
+      contactProfiles: 'identityId, petnameCanonical, updatedAt',
+      trustSafetyControlEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyLabelerEvents: 'eventId, kind, createdAt, sequence',
+      trustSafetyReputationEvents: 'eventId, kind, createdAt, sequence',
+      capabilityProofRecords: 'proofId, scheme, verificationState, expiresAt',
+      mlsGroupProjections: 'groupId, updatedAt',
+      chatThreads: 'threadId, lastActivityAt',
+      chatEventLog: 'eventId, kind, threadIdHash, createdAt',
+      userDataRoot: 'identityId, updatedAt',
+      mailboxInbox: 'envelopeId, recipientIdentityId, status, expiresAt',
+      mailboxOutbox: 'envelopeId, senderIdentityId, status, expiresAt',
+      mailboxEventLog: 'eventId, kind, envelopeId, createdAt',
+      mailboxCheckpoints: 'mailboxId'
     });
   }
 }
@@ -610,7 +890,10 @@ export class DexieLocalFirstStore {
       .toArray();
   }
 
-  async claimOutboxEntry(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<MutationOutboxEntry | undefined> {
+  async claimOutboxEntry(
+    idempotencyKey: string,
+    updatedAt = new Date().toISOString()
+  ): Promise<MutationOutboxEntry | undefined> {
     requireNonEmpty(idempotencyKey, 'idempotencyKey');
     requireIsoDate(updatedAt, 'updatedAt');
     return this.transaction('rw', ['mutationOutbox'], async () => {
@@ -626,7 +909,10 @@ export class DexieLocalFirstStore {
     });
   }
 
-  async markOutboxConfirmed(idempotencyKey: string, updatedAt = new Date().toISOString()): Promise<void> {
+  async markOutboxConfirmed(
+    idempotencyKey: string,
+    updatedAt = new Date().toISOString()
+  ): Promise<void> {
     requireNonEmpty(idempotencyKey, 'idempotencyKey');
     requireIsoDate(updatedAt, 'updatedAt');
     await this.transaction('rw', ['mutationOutbox'], async () => {
@@ -760,7 +1046,9 @@ export class DexieLocalFirstStore {
     return this.#db.syncCheckpoints.get(syncCheckpointId(normalized));
   }
 
-  async getIdentityControlProjection(identityId: string): Promise<StoredIdentityControlProjection | undefined> {
+  async getIdentityControlProjection(
+    identityId: string
+  ): Promise<StoredIdentityControlProjection | undefined> {
     requireNonEmpty(identityId, 'identityId');
     return this.#db.identityControlProjections.get(identityId);
   }
@@ -790,58 +1078,51 @@ export class DexieLocalFirstStore {
     validateSignedEvent(event);
     const updatedAt = options.updatedAt ?? new Date().toISOString();
     requireIsoDate(updatedAt, 'updatedAt');
-    return this.transaction(
-      'rw',
-      ['signedEvents', 'mlsGroupProjections'],
-      async () => {
-        const existing = await this.#db.signedEvents.get(event.eventId);
-        if (existing !== undefined) {
-          const payload = event.payload as Record<string, unknown> | null | undefined;
-          const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
-          const currentState = groupId
-            ? await this.#db.mlsGroupProjections.get(groupId)
-            : undefined;
-          const controlId = typeof payload?.controlId === 'string' ? payload.controlId : event.eventId;
-          let outcome: 'accepted' | 'rejected' | 'fork-queued' = 'accepted';
-          if (currentState) {
-            if (currentState.rejectedControls.some((r) => r.controlId === controlId)) {
-              outcome = 'rejected';
-            } else if (currentState.forkCandidates.some((c) => c.controlId === controlId)) {
-              outcome = 'fork-queued';
-            }
-          }
-          const fallback = groupId
-            ? createEmptyMlsGroupProjectionState(groupId, updatedAt)
-            : createEmptyMlsGroupProjectionState('unknown', updatedAt);
-          return {
-            status: 'skipped',
-            outcome,
-            state: currentState ?? fallback
-          } satisfies AppendMlsGroupControlEventResult;
-        }
-
+    return this.transaction('rw', ['signedEvents', 'mlsGroupProjections'], async () => {
+      const existing = await this.#db.signedEvents.get(event.eventId);
+      if (existing !== undefined) {
         const payload = event.payload as Record<string, unknown> | null | undefined;
         const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
-        const currentState = groupId
-          ? await this.#db.mlsGroupProjections.get(groupId)
-          : undefined;
-
-        const result = projectMlsGroupControlEvent({
-          state: currentState,
-          event,
-          localDeviceId: options.localDeviceId,
-          allowAutomatedForkRecovery: options.allowAutomatedForkRecovery
-        });
-
-        await this.#db.signedEvents.put(storedSignedEvent(event));
-        await this.#db.mlsGroupProjections.put(result.state);
+        const currentState = groupId ? await this.#db.mlsGroupProjections.get(groupId) : undefined;
+        const controlId =
+          typeof payload?.controlId === 'string' ? payload.controlId : event.eventId;
+        let outcome: 'accepted' | 'rejected' | 'fork-queued' = 'accepted';
+        if (currentState) {
+          if (currentState.rejectedControls.some((r) => r.controlId === controlId)) {
+            outcome = 'rejected';
+          } else if (currentState.forkCandidates.some((c) => c.controlId === controlId)) {
+            outcome = 'fork-queued';
+          }
+        }
+        const fallback = groupId
+          ? createEmptyMlsGroupProjectionState(groupId, updatedAt)
+          : createEmptyMlsGroupProjectionState('unknown', updatedAt);
         return {
-          status: 'stored',
-          outcome: result.outcome,
-          state: result.state
+          status: 'skipped',
+          outcome,
+          state: currentState ?? fallback
         } satisfies AppendMlsGroupControlEventResult;
       }
-    );
+
+      const payload = event.payload as Record<string, unknown> | null | undefined;
+      const groupId = typeof payload?.groupId === 'string' ? payload.groupId : '';
+      const currentState = groupId ? await this.#db.mlsGroupProjections.get(groupId) : undefined;
+
+      const result = projectMlsGroupControlEvent({
+        state: currentState,
+        event,
+        localDeviceId: options.localDeviceId,
+        allowAutomatedForkRecovery: options.allowAutomatedForkRecovery
+      });
+
+      await this.#db.signedEvents.put(storedSignedEvent(event));
+      await this.#db.mlsGroupProjections.put(result.state);
+      return {
+        status: 'stored',
+        outcome: result.outcome,
+        state: result.state
+      } satisfies AppendMlsGroupControlEventResult;
+    });
   }
 
   /**
@@ -877,7 +1158,9 @@ export class DexieLocalFirstStore {
       const controlId = typeof payload?.controlId === 'string' ? payload.controlId : '';
       if (controlId.length > 0 && currentState !== undefined) {
         const alreadyAccepted = currentState.acceptedControlIds.includes(controlId);
-        const alreadyRejected = currentState.rejectedControls.some((r) => r.controlId === controlId);
+        const alreadyRejected = currentState.rejectedControls.some(
+          (r) => r.controlId === controlId
+        );
         const alreadyQueued = currentState.forkCandidates.some((c) => c.controlId === controlId);
         if (alreadyAccepted || alreadyRejected || alreadyQueued) {
           let outcome: 'accepted' | 'rejected' | 'fork-queued' = 'accepted';
@@ -903,6 +1186,413 @@ export class DexieLocalFirstStore {
         state: result.state
       } satisfies AppendMlsGroupControlEventResult;
     });
+  }
+
+  // -------------------------------------------------------------------
+  // User Data Root persistence (Phase 5.11 Step 4)
+  //
+  // Delivery-path note: `udr.*` events are `self`-scoped. By Phase 1.64
+  // doctrine (`self`/`device-local` never traverse a bridge/relay/
+  // super-peer), UDR events are NOT bridge-admissible — so there is
+  // deliberately no `processInboundSyncBatch` routing for them yet.
+  // Their cross-device transport is the encrypted mailbox / account-
+  // local sync envelope (a separate deferred phase). Until then the
+  // live path is: local device emits a `udr.*` event → `appendUdrEvent`
+  // → projection. Do NOT "fix" this by adding `self` to the bridge
+  // allow-list; that would silently widen infrastructure scope and
+  // violate the admission doctrine.
+  // -------------------------------------------------------------------
+
+  async getUserDataRoot(identityId: string): Promise<StoredUserDataRoot | undefined> {
+    requireNonEmpty(identityId, 'identityId');
+    return this.#db.userDataRoot.get(identityId);
+  }
+
+  /**
+   * Decrypt-and-apply one `self`-scoped `udr.*` event into the identity's
+   * UDR projection. Idempotent on `eventId` (via the projection's
+   * `appliedEventIds`). Self-healing: an event whose payload cannot be
+   * decrypted yet (e.g. the content key is not present) is stored
+   * durably but left unprojected, so a later `appendUdrEvent` /
+   * `loadUdrState` with the key folds it in. A decrypted-but-invalid
+   * payload is rejected and NOT stored (permanent garbage).
+   *
+   * The decrypt-to-self gate is the projection-authorization boundary:
+   * only events the local key can decrypt advance the projection, so a
+   * forged event for another identity cannot corrupt state. (Authoritative
+   * envelope-layer signature verification remains a repo-wide deferred
+   * guard.)
+   */
+  async appendUdrEvent(
+    event: SignedEventEnvelope,
+    options: AppendUdrEventOptions
+  ): Promise<AppendUdrEventResult> {
+    validateSignedEvent(event);
+    if (!isUdrEventKind(event.kind)) {
+      throw new Error(`appendUdrEvent: ${event.kind} is not a udr.* event kind`);
+    }
+    requireNonEmpty(options.keyMaterial, 'keyMaterial');
+    const identityId = event.author;
+    requireNonEmpty(identityId, 'event.author');
+    if (options.expectedIdentityId !== undefined && options.expectedIdentityId !== identityId) {
+      throw new Error('appendUdrEvent: event.author does not match expectedIdentityId');
+    }
+
+    // Decrypt BEFORE opening a Dexie transaction: awaiting WebCrypto
+    // inside a transaction commits it prematurely. `applyUdrEvent`
+    // itself is synchronous and runs inside the transaction below.
+    const decrypted = await decryptUdrPayload(event, options.keyMaterial);
+
+    return this.transaction('rw', ['signedEvents', 'userDataRoot'], async () => {
+      const storedRow = await this.#db.userDataRoot.get(identityId);
+      const currentState = storedRow
+        ? deserializeUdrState(storedRow)
+        : createEmptyUdrState(identityId);
+      // Idempotency re-checked inside the transaction against the
+      // current row, so concurrent appends of the same event converge.
+      if (currentState.appliedEventIds.has(event.eventId)) {
+        return { status: 'skipped', state: currentState } satisfies AppendUdrEventResult;
+      }
+      if (decrypted === undefined) {
+        // Undecryptable (e.g. key not present yet): store durably for
+        // self-healing, leave the projection row untouched.
+        await this.#db.signedEvents.put(storedSignedEvent(event));
+        return { status: 'undecryptable', state: currentState } satisfies AppendUdrEventResult;
+      }
+      let nextState: UdrState;
+      try {
+        nextState = applyUdrEvent(currentState, decrypted, udrApplyMeta(event));
+      } catch {
+        // Decrypted but structurally invalid — do not persist, do not
+        // project (permanent garbage must not pollute the durable log).
+        return { status: 'rejected', state: currentState } satisfies AppendUdrEventResult;
+      }
+      await this.#db.signedEvents.put(storedSignedEvent(event));
+      await this.#db.userDataRoot.put(serializeUdrState(nextState));
+      return { status: 'applied', state: nextState } satisfies AppendUdrEventResult;
+    });
+  }
+
+  /**
+   * Every locally-stored `udr.*` event for `identityId`, filtered to
+   * events actually authored by that identity, in stable replay order
+   * (`createdAt`, then `eventId`).
+   */
+  async listLocalUdrEvents(identityId: string): Promise<SignedEventEnvelope[]> {
+    requireNonEmpty(identityId, 'identityId');
+    const rows = await this.#db.signedEvents.where('author').equals(identityId).toArray();
+    const events = rows.filter((row) => isUdrEventKind(row.kind)).map((row) => row.event);
+    events.sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+      if (a.eventId === b.eventId) return 0;
+      return a.eventId < b.eventId ? -1 : 1;
+    });
+    return events;
+  }
+
+  /**
+   * Rebuild the UDR projection for `identityId` from its encrypted event
+   * log (the authoritative source) and persist the refreshed row. This
+   * is the recovery / self-healing path: events that were previously
+   * undecryptable are folded in once `keyMaterial` can decrypt them.
+   * Undecryptable / invalid events are skipped rather than aborting the
+   * rebuild.
+   */
+  async loadUdrState(identityId: string, keyMaterial: string): Promise<UdrState> {
+    requireNonEmpty(identityId, 'identityId');
+    requireNonEmpty(keyMaterial, 'keyMaterial');
+    const events = await this.listLocalUdrEvents(identityId);
+    // Decrypt + fold the whole log in memory (all async crypto happens
+    // OUTSIDE any Dexie transaction), then persist the rebuilt row in a
+    // single short write transaction. Undecryptable / invalid events are
+    // skipped so one bad record cannot abort the rebuild.
+    let state = createEmptyUdrState(identityId);
+    for (const event of events) {
+      const decrypted = await decryptUdrPayload(event, keyMaterial);
+      if (decrypted === undefined) continue;
+      try {
+        state = applyUdrEvent(state, decrypted, udrApplyMeta(event));
+      } catch {
+        // Structurally invalid decrypted payload — skip.
+      }
+    }
+    await this.transaction('rw', ['userDataRoot'], async () => {
+      await this.#db.userDataRoot.put(serializeUdrState(state));
+    });
+    return state;
+  }
+
+  // -------------------------------------------------------------------
+  // Mailbox delivery persistence (Phase 5.11 Step 4)
+  //
+  // Delivery-path note: mailbox `dm`/`group` events DO traverse the
+  // bridge (unlike `self`-scoped UDR), so a future
+  // `processInboundSyncBatch` route can feed inbound events here — but
+  // that route needs per-event decrypt-key resolution at the sync layer,
+  // which does not exist yet. It is therefore deliberately deferred (not
+  // dead-coded). The live path is: local emit / caller-supplied event →
+  // `appendMailboxEvent`. `mailbox.checkpoint.advanced` is also routed
+  // here for the sync cursor.
+  //
+  // Storage model: per-envelope inbox/outbox rows (mailboxes are
+  // high-cardinality, so an aggregate blob would grow unbounded and cost
+  // O(n) per append). `mailboxEventLog` is the durable, dedup-
+  // authoritative source of truth; the inbox/outbox rows are a derived
+  // cache rebuilt by `loadMailboxInboxState`.
+  // -------------------------------------------------------------------
+
+  async getMailboxInbox(identityId: string): Promise<StoredMailboxInboxRow[]> {
+    requireNonEmpty(identityId, 'identityId');
+    return this.#db.mailboxInbox.where('recipientIdentityId').equals(identityId).toArray();
+  }
+
+  async getMailboxOutbox(identityId: string): Promise<StoredMailboxOutboxRow[]> {
+    requireNonEmpty(identityId, 'identityId');
+    return this.#db.mailboxOutbox.where('senderIdentityId').equals(identityId).toArray();
+  }
+
+  async getMailboxCheckpoint(mailboxId: string): Promise<StoredMailboxCheckpoint | undefined> {
+    requireNonEmpty(mailboxId, 'mailboxId');
+    return this.#db.mailboxCheckpoints.get(mailboxId);
+  }
+
+  /**
+   * Decrypt-and-apply one mailbox event into the per-envelope projection
+   * for `options.ownerIdentityId`. Idempotent on `eventId` via the
+   * mailbox event log. Self-healing: an event whose payload cannot be
+   * decrypted yet is stored durably but unprojected, and folds in on a
+   * later `appendMailboxEvent` / `loadMailboxInboxState` with the key. A
+   * decrypted-but-invalid payload, or one whose owner is not a party to
+   * the envelope (recipient-mismatch), is rejected and NOT stored.
+   *
+   * The decrypt-to-party gate is the projection-authorization boundary
+   * (mirrors the UDR decrypt-to-self gate): only events the owner can
+   * decrypt AND is a party to advance the projection.
+   */
+  async appendMailboxEvent(
+    event: SignedEventEnvelope,
+    options: AppendMailboxEventOptions
+  ): Promise<AppendMailboxEventResult> {
+    validateSignedEvent(event);
+    if (!isMailboxEventKind(event.kind)) {
+      throw new Error(`appendMailboxEvent: ${event.kind} is not a mailbox.* event kind`);
+    }
+    requireNonEmpty(options.ownerIdentityId, 'ownerIdentityId');
+
+    // Decrypt BEFORE the Dexie transaction (awaiting WebCrypto inside a
+    // transaction commits it prematurely). The projection apply is
+    // synchronous and runs inside the transaction below. With no key yet
+    // (inbound sync before the conversation key is resolvable) we skip
+    // decryption entirely and store the event undecryptable for
+    // self-heal — indistinguishable downstream from a wrong-key attempt.
+    const hasKey = typeof options.keyMaterial === 'string' && options.keyMaterial.length > 0;
+    const decrypted = hasKey
+      ? await decryptMailboxPayload(event, options.keyMaterial as string)
+      : undefined;
+    const owner = options.ownerIdentityId;
+
+    return this.transaction(
+      'rw',
+      ['mailboxEventLog', 'mailboxInbox', 'mailboxOutbox', 'mailboxCheckpoints'],
+      async () => {
+        // Idempotency: skip only if the event was already PROJECTED. An
+        // event stored while undecryptable (projected=false) re-processes
+        // so it can self-heal once its key is available.
+        const logged = await this.#db.mailboxEventLog.get(event.eventId);
+        if (logged?.projected === true) {
+          return { status: 'skipped' } satisfies AppendMailboxEventResult;
+        }
+        if (decrypted === undefined) {
+          // Undecryptable: store durably for self-healing; no projection.
+          await this.#db.mailboxEventLog.put(mailboxEventLogRow(event, undefined, false));
+          return { status: 'undecryptable' } satisfies AppendMailboxEventResult;
+        }
+
+        const targetId = mailboxTargetId(event.kind, decrypted);
+        if (targetId === undefined) {
+          // Payload lacks the id field the kind requires — invalid.
+          return { status: 'rejected' } satisfies AppendMailboxEventResult;
+        }
+
+        // Seed a minimal state with just this envelope's current entries
+        // (each envelope's lifecycle is independent), apply, extract.
+        const existingInbox = await this.#db.mailboxInbox.get(targetId);
+        const existingOutbox = await this.#db.mailboxOutbox.get(targetId);
+        const existingCheckpoint =
+          event.kind === 'mailbox.checkpoint.advanced'
+            ? await this.#db.mailboxCheckpoints.get(targetId)
+            : undefined;
+
+        const seeded = hydrateMailboxState({
+          identityId: owner,
+          inbox: existingInbox ? [[targetId, existingInbox.entry]] : [],
+          outbox: existingOutbox ? [[targetId, existingOutbox.entry]] : [],
+          checkpoints: existingCheckpoint ? [[targetId, existingCheckpoint]] : []
+        });
+
+        let next;
+        try {
+          next = applyMailboxEvent(seeded, decrypted, mailboxApplyMeta(event));
+        } catch {
+          // Invalid payload OR recipient-mismatch (owner not a party):
+          // do not persist, do not project. Privacy-safe: no detail.
+          return { status: 'rejected' } satisfies AppendMailboxEventResult;
+        }
+
+        // Upsert the affected rows from the projection result.
+        const inboxEntry = next.inbox.get(targetId);
+        if (inboxEntry !== undefined) {
+          await this.#db.mailboxInbox.put(inboxRow(targetId, inboxEntry));
+        }
+        const outboxEntry = next.outbox.get(targetId);
+        if (outboxEntry !== undefined) {
+          await this.#db.mailboxOutbox.put(outboxRow(targetId, outboxEntry));
+        }
+        const checkpoint = next.checkpoints.get(targetId);
+        if (checkpoint !== undefined) {
+          await this.#db.mailboxCheckpoints.put(checkpoint);
+        }
+        await this.#db.mailboxEventLog.put(mailboxEventLogRow(event, targetId, true));
+        return { status: 'applied' } satisfies AppendMailboxEventResult;
+      }
+    );
+  }
+
+  /** Every locally-stored mailbox event, in stable replay order. */
+  async listLocalMailboxEvents(): Promise<SignedEventEnvelope[]> {
+    const rows = await this.#db.mailboxEventLog.toArray();
+    rows.sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+      if (a.eventId === b.eventId) return 0;
+      return a.eventId < b.eventId ? -1 : 1;
+    });
+    return rows.map((r) => r.event);
+  }
+
+  /**
+   * Rebuild `identityId`'s mailbox projection from the durable event log
+   * (authoritative source) and reconcile the derived inbox/outbox/
+   * checkpoint rows. Recovery / self-healing path: previously
+   * undecryptable events fold in once `resolveKeyMaterial` can decrypt
+   * them. `resolveKeyMaterial(event)` returns the per-event key (or
+   * `undefined` to skip). Events for a different identity
+   * (recipient-mismatch) or with invalid payloads are skipped.
+   */
+  async loadMailboxInboxState(
+    identityId: string,
+    resolveKeyMaterial: (event: SignedEventEnvelope) => string | undefined
+  ): Promise<StoredMailboxInboxRow[]> {
+    requireNonEmpty(identityId, 'identityId');
+    const events = await this.listLocalMailboxEvents();
+    // Decrypt + fold the whole log in memory (all async crypto OUTSIDE a
+    // transaction), then reconcile rows in a single write transaction.
+    let state = hydrateMailboxState({ identityId });
+    for (const event of events) {
+      const keyMaterial = resolveKeyMaterial(event);
+      if (keyMaterial === undefined || keyMaterial.length === 0) continue;
+      const decrypted = await decryptMailboxPayload(event, keyMaterial);
+      if (decrypted === undefined) continue;
+      try {
+        state = applyMailboxEvent(state, decrypted, mailboxApplyMeta(event));
+      } catch {
+        // recipient-mismatch (other identity) or invalid payload — skip.
+      }
+    }
+    const rebuilt = state;
+    await this.transaction(
+      'rw',
+      ['mailboxInbox', 'mailboxOutbox', 'mailboxCheckpoints'],
+      async () => {
+        for (const [envelopeId, entry] of rebuilt.inbox) {
+          await this.#db.mailboxInbox.put(inboxRow(envelopeId, entry));
+        }
+        for (const [envelopeId, entry] of rebuilt.outbox) {
+          await this.#db.mailboxOutbox.put(outboxRow(envelopeId, entry));
+        }
+        for (const [, checkpoint] of rebuilt.checkpoints) {
+          await this.#db.mailboxCheckpoints.put(checkpoint);
+        }
+      }
+    );
+    return [...rebuilt.inbox.entries()].map(([envelopeId, entry]) => inboxRow(envelopeId, entry));
+  }
+
+  /**
+   * Phase 5.11 Step 5 — TTL expiry sweep. Marks every owner envelope
+   * whose `expiresAt` has passed (status still `queued`/`delivered`)
+   * expired by EMITTING a signed `mailbox.envelope.expired` event
+   * (reason `ttl`) through `appendMailboxEvent`, so the durable event
+   * log stays the source of truth and a replay reproduces the expired
+   * state. Rows are never deleted — expiry destroys availability at
+   * the mailbox actor, not local history. `fetched` envelopes are left
+   * alone: the content was already retrieved, and the state machine is
+   * `queued/delivered → expired`.
+   *
+   * Idempotent: a repeat sweep finds no non-expired rows past
+   * `expiresAt` and emits nothing. Concurrent sweeps on two devices
+   * emit distinct events; the projection no-ops the second. Intended
+   * callers: PWA foreground resume and sync batch completion.
+   */
+  async sweepExpiredMailboxEnvelopes(
+    options: SweepExpiredMailboxEnvelopesOptions
+  ): Promise<SweepExpiredMailboxEnvelopesResult> {
+    requireNonEmpty(options.ownerIdentityId, 'ownerIdentityId');
+    requireNonEmpty(options.deviceId, 'deviceId');
+    const owner = options.ownerIdentityId;
+    // Canonicalise `now` to UTC so the lexicographic index range query is
+    // sound: stored `expiresAt` values are canonicalised by the mailbox
+    // projection, and comparing them against a caller-supplied `now` that
+    // carried a non-UTC offset would otherwise mis-order the boundary.
+    const now = canonicalizeIsoTimestamp(options.now, 'now') ?? new Date().toISOString();
+
+    // `expiresAt <= now` counts as expired (the TTL instant itself is
+    // past availability). ISO-8601 strings order lexicographically, so
+    // the cleartext index column answers this without decrypting rows.
+    const sweepable = (status: string) => status === 'queued' || status === 'delivered';
+    const inboxRows = await this.#db.mailboxInbox
+      .where('expiresAt')
+      .belowOrEqual(now)
+      .filter((row) => row.recipientIdentityId === owner && sweepable(row.status))
+      .toArray();
+    const outboxRows = await this.#db.mailboxOutbox
+      .where('expiresAt')
+      .belowOrEqual(now)
+      .filter((row) => row.senderIdentityId === owner && sweepable(row.status))
+      .toArray();
+
+    // One event per envelope even when the owner is both sender and
+    // recipient — a single expired event updates both rows.
+    const candidates = new Map<string, StoredMailboxInboxRow | StoredMailboxOutboxRow>();
+    for (const row of [...inboxRows, ...outboxRows]) {
+      if (!candidates.has(row.envelopeId)) candidates.set(row.envelopeId, row);
+    }
+
+    const expired: string[] = [];
+    const skipped: string[] = [];
+    for (const envelopeId of [...candidates.keys()].sort()) {
+      const row = candidates.get(envelopeId);
+      if (row === undefined) continue;
+      const key = options.resolveEnvelopeKey(row);
+      if (key === undefined || key.keyMaterial.length === 0 || key.keyId.length === 0) {
+        skipped.push(envelopeId);
+        continue;
+      }
+      // Encrypt + sign OUTSIDE any transaction (WebCrypto await);
+      // `appendMailboxEvent` owns its own transaction.
+      const event = await buildExpiredMailboxEvent(envelopeId, now, options, key);
+      const result = await this.appendMailboxEvent(event, {
+        ownerIdentityId: owner,
+        keyMaterial: key.keyMaterial
+      });
+      if (result.status === 'applied') {
+        expired.push(envelopeId);
+      } else {
+        // Defensive — we encrypt and decrypt with the same key, so a
+        // non-applied result should not occur; report it for retry.
+        skipped.push(envelopeId);
+      }
+    }
+    return { expired, skipped };
   }
 
   // -------------------------------------------------------------------
@@ -947,37 +1637,26 @@ export class DexieLocalFirstStore {
     validateSignedEvent(event);
     const updatedAt = options.updatedAt ?? new Date().toISOString();
     requireIsoDate(updatedAt, 'updatedAt');
-    return this.transaction(
-      'rw',
-      ['signedEvents', 'identityControlProjections'],
-      async () => {
-        const existing = await this.#db.signedEvents.get(event.eventId);
-        const projection =
-          await this.#db.identityControlProjections.get(event.author);
-        if (existing !== undefined) {
-          if (projection === undefined) {
-            throw new Error(
-              `appendLocalIdentityEvent: signedEvent ${event.eventId} present but projection for ${event.author} is missing`
-            );
-          }
-          return projection;
-        }
-        const nextProjection = await projectionUpdate(
-          projection,
-          event,
-          updatedAt
-        );
-        validateIdentityControlProjection(nextProjection);
-        if (nextProjection.identityId !== event.author) {
+    return this.transaction('rw', ['signedEvents', 'identityControlProjections'], async () => {
+      const existing = await this.#db.signedEvents.get(event.eventId);
+      const projection = await this.#db.identityControlProjections.get(event.author);
+      if (existing !== undefined) {
+        if (projection === undefined) {
           throw new Error(
-            'identity control projection identityId must match event.author'
+            `appendLocalIdentityEvent: signedEvent ${event.eventId} present but projection for ${event.author} is missing`
           );
         }
-        await this.#db.signedEvents.put(storedSignedEvent(event));
-        await this.#db.identityControlProjections.put(nextProjection);
-        return nextProjection;
+        return projection;
       }
-    );
+      const nextProjection = await projectionUpdate(projection, event, updatedAt);
+      validateIdentityControlProjection(nextProjection);
+      if (nextProjection.identityId !== event.author) {
+        throw new Error('identity control projection identityId must match event.author');
+      }
+      await this.#db.signedEvents.put(storedSignedEvent(event));
+      await this.#db.identityControlProjections.put(nextProjection);
+      return nextProjection;
+    });
   }
 
   /**
@@ -989,17 +1668,10 @@ export class DexieLocalFirstStore {
    * This avoids a circular dependency: the store does not depend on
    * `@lfp2p/identity`.
    */
-  async listLocalIdentityEvents(
-    identityId: string
-  ): Promise<SignedEventEnvelope[]> {
+  async listLocalIdentityEvents(identityId: string): Promise<SignedEventEnvelope[]> {
     requireNonEmpty(identityId, 'identityId');
-    const rows = await this.#db.signedEvents
-      .where('author')
-      .equals(identityId)
-      .sortBy('createdAt');
-    return rows
-      .filter((row) => row.kind.startsWith('identity.'))
-      .map((row) => row.event);
+    const rows = await this.#db.signedEvents.where('author').equals(identityId).sortBy('createdAt');
+    return rows.filter((row) => row.kind.startsWith('identity.')).map((row) => row.event);
   }
 
   async getContactProfile(identityId: string): Promise<StoredContactProfile | undefined> {
@@ -1017,7 +1689,10 @@ export class DexieLocalFirstStore {
     return this.transaction('rw', ['contactProfiles'], async () => {
       const existing = await this.#db.contactProfiles.get(prepared.identityId);
       if (prepared.petnameCanonical !== undefined) {
-        const conflicting = await this.#db.contactProfiles.where('petnameCanonical').equals(prepared.petnameCanonical).first();
+        const conflicting = await this.#db.contactProfiles
+          .where('petnameCanonical')
+          .equals(prepared.petnameCanonical)
+          .first();
         if (conflicting !== undefined && conflicting.identityId !== prepared.identityId) {
           throw new Error(`petname already assigned to ${conflicting.identityId}`);
         }
@@ -1027,14 +1702,22 @@ export class DexieLocalFirstStore {
       const next: StoredContactProfile = {
         identityId: prepared.identityId,
         ...(prepared.petname === undefined ? {} : { petname: prepared.petname }),
-        ...(prepared.petnameCanonical === undefined ? {} : { petnameCanonical: prepared.petnameCanonical }),
+        ...(prepared.petnameCanonical === undefined
+          ? {}
+          : { petnameCanonical: prepared.petnameCanonical }),
         ...(prepared.displayName === undefined ? {} : { displayName: prepared.displayName }),
         ...(prepared.avatarUrl === undefined ? {} : { avatarUrl: prepared.avatarUrl }),
         ...(prepared.websiteUrl === undefined ? {} : { websiteUrl: prepared.websiteUrl }),
         ...(prepared.note === undefined ? {} : { note: prepared.note }),
-        ...(prepared.primaryDeviceId === undefined ? {} : { primaryDeviceId: prepared.primaryDeviceId }),
-        ...(prepared.controllerPublicKey === undefined ? {} : { controllerPublicKey: prepared.controllerPublicKey }),
-        ...(prepared.shortFingerprint === undefined ? {} : { shortFingerprint: prepared.shortFingerprint }),
+        ...(prepared.primaryDeviceId === undefined
+          ? {}
+          : { primaryDeviceId: prepared.primaryDeviceId }),
+        ...(prepared.controllerPublicKey === undefined
+          ? {}
+          : { controllerPublicKey: prepared.controllerPublicKey }),
+        ...(prepared.shortFingerprint === undefined
+          ? {}
+          : { shortFingerprint: prepared.shortFingerprint }),
         verificationStatus: prepared.verificationStatus,
         createdAt,
         updatedAt: prepared.updatedAt
@@ -1253,9 +1936,7 @@ export class DexieLocalFirstStore {
     await this.#db.capabilityProofRecords.put(validated);
   }
 
-  async getCapabilityProofRecord(
-    proofId: string
-  ): Promise<CapabilityProofRecord | undefined> {
+  async getCapabilityProofRecord(proofId: string): Promise<CapabilityProofRecord | undefined> {
     requireNonEmpty(proofId, 'proofId');
     return this.#db.capabilityProofRecords.get(proofId);
   }
@@ -1330,13 +2011,21 @@ export class DexieLocalFirstStore {
     }
     return this.transaction('rw', tables, async () => {
       const existing = await this.#db.syncCheckpoints.get(next.checkpointId);
-      const decision = checkpointAdvanceDecision(existing, next, input.checkpoint.allowRewind === true);
+      const decision = checkpointAdvanceDecision(
+        existing,
+        next,
+        input.checkpoint.allowRewind === true
+      );
       if (decision === 'skip' && existing) return { status: 'skipped', checkpoint: existing };
 
       validateSignedEvent(input.event);
       if (input.identityControlProjectionUpdate !== undefined) {
         const currentProjection = await this.#db.identityControlProjections.get(input.event.author);
-        const nextProjection = await input.identityControlProjectionUpdate(currentProjection, input.event, next.updatedAt);
+        const nextProjection = await input.identityControlProjectionUpdate(
+          currentProjection,
+          input.event,
+          next.updatedAt
+        );
         validateIdentityControlProjection(nextProjection);
         if (nextProjection.identityId !== input.event.author) {
           throw new Error('identity control projection identityId must match event.author');
@@ -1378,7 +2067,11 @@ export class DexieLocalFirstStore {
     }
   }
 
-  async updateOutboxStatus(idempotencyKey: string, status: OutboxStatus, patch: OutboxStatusPatch): Promise<void> {
+  async updateOutboxStatus(
+    idempotencyKey: string,
+    status: OutboxStatus,
+    patch: OutboxStatusPatch
+  ): Promise<void> {
     requireNonEmpty(idempotencyKey, 'idempotencyKey');
     if (patch.updatedAt !== undefined) requireIsoDate(patch.updatedAt, 'updatedAt');
     if (patch.lastError !== undefined) requireNonEmpty(patch.lastError, 'lastError');
@@ -1417,12 +2110,237 @@ export class DexieLocalFirstStore {
         return this.#db.chatThreads;
       case 'chatEventLog':
         return this.#db.chatEventLog;
+      case 'userDataRoot':
+        return this.#db.userDataRoot;
+      case 'mailboxInbox':
+        return this.#db.mailboxInbox;
+      case 'mailboxOutbox':
+        return this.#db.mailboxOutbox;
+      case 'mailboxEventLog':
+        return this.#db.mailboxEventLog;
+      case 'mailboxCheckpoints':
+        return this.#db.mailboxCheckpoints;
     }
   }
 }
 
 export function createLocalFirstStore(databaseName?: string): DexieLocalFirstStore {
   return new DexieLocalFirstStore(databaseName);
+}
+
+/**
+ * Build the AAD context that binds the private-payload ciphertext to
+ * this exact event envelope. Must match the fields the encrypt side
+ * used, or decryption fails closed. `udr.*` events are `self`-scoped.
+ */
+function buildUdrAadContext(event: SignedEventEnvelope): PrivatePayloadAadContext {
+  return {
+    eventId: event.eventId,
+    kind: event.kind,
+    author: event.author,
+    deviceId: event.deviceId,
+    createdAt: event.createdAt,
+    privacy: event.privacy as PrivatePayloadAadContext['privacy'],
+    schemaVersion: event.schemaVersion,
+    ...(event.lamport !== undefined ? { lamport: event.lamport } : {}),
+    ...(event.refs !== undefined ? { refs: event.refs } : {})
+  };
+}
+
+/**
+ * Decrypt a `self`-scoped `udr.*` envelope to plaintext. This is the
+ * only async (WebCrypto) step and MUST run OUTSIDE any Dexie
+ * transaction — awaiting a non-Dexie promise inside a transaction
+ * auto-commits it prematurely. The subsequent read-modify-write folds
+ * the plaintext in with the synchronous, pure `applyUdrEvent` INSIDE a
+ * transaction. Returns `undefined` on decrypt failure (privacy-safe: no
+ * error detail surfaced); the caller treats that as `undecryptable`.
+ */
+async function decryptUdrPayload(
+  event: SignedEventEnvelope,
+  keyMaterial: string
+): Promise<JsonValue | undefined> {
+  try {
+    return await decryptPrivatePayload({
+      envelope: event.payload as unknown as Parameters<typeof decryptPrivatePayload>[0]['envelope'],
+      context: buildUdrAadContext(event),
+      keyMaterial
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+/** Build the projection meta for a udr event (pure). */
+function udrApplyMeta(event: SignedEventEnvelope): ApplyUdrEventMeta {
+  return {
+    kind: event.kind as ApplyUdrEventMeta['kind'],
+    eventId: event.eventId,
+    createdAt: event.createdAt
+  };
+}
+
+// --- Phase 5.11 mailbox helpers (mirror the UDR decrypt seam) ---
+
+/**
+ * Decrypt a mailbox event's private-payload envelope to plaintext. Only
+ * async (WebCrypto) step; MUST run OUTSIDE any Dexie transaction.
+ * Returns `undefined` on decrypt failure (privacy-safe — no detail),
+ * which the caller treats as `undecryptable`.
+ */
+async function decryptMailboxPayload(
+  event: SignedEventEnvelope,
+  keyMaterial: string
+): Promise<JsonValue | undefined> {
+  try {
+    return await decryptPrivatePayload({
+      envelope: event.payload as unknown as Parameters<typeof decryptPrivatePayload>[0]['envelope'],
+      context: buildMailboxAadContext(event),
+      keyMaterial
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function buildMailboxAadContext(event: SignedEventEnvelope): PrivatePayloadAadContext {
+  return {
+    eventId: event.eventId,
+    kind: event.kind,
+    author: event.author,
+    deviceId: event.deviceId,
+    createdAt: event.createdAt,
+    privacy: event.privacy as PrivatePayloadAadContext['privacy'],
+    schemaVersion: event.schemaVersion,
+    ...(event.lamport !== undefined ? { lamport: event.lamport } : {}),
+    ...(event.refs !== undefined ? { refs: event.refs } : {})
+  };
+}
+
+/**
+ * Build the signed `mailbox.envelope.expired` event the sweep emits.
+ * The AAD context and `createUnsignedEvent` are built from the SAME
+ * fixed field values (`lamport: 0`, `schemaVersion: 1`, no refs) so
+ * the AAD recomputed on decrypt matches byte-for-byte, and `createdAt`
+ * equals the payload's `expiredAt` (the sweep instant).
+ */
+async function buildExpiredMailboxEvent(
+  envelopeId: string,
+  expiredAt: string,
+  options: SweepExpiredMailboxEnvelopesOptions,
+  key: MailboxEnvelopeKeyResolution
+): Promise<SignedEventEnvelope> {
+  const rand = globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  const eventId = `evt_mbx_${rand}`;
+  const lamport = 0;
+  const schemaVersion = 1;
+  const context: PrivatePayloadAadContext = {
+    eventId,
+    kind: 'mailbox.envelope.expired',
+    author: options.ownerIdentityId,
+    deviceId: options.deviceId,
+    createdAt: expiredAt,
+    privacy: key.privacy,
+    schemaVersion,
+    lamport
+  };
+  // Validate the AAD context up front (also guards field shapes).
+  buildPrivatePayloadAad(context);
+  const envelope = await encryptPrivatePayload({
+    plaintext: { envelopeId, expiredAt, reason: 'ttl' },
+    context,
+    keyMaterial: key.keyMaterial,
+    keyId: key.keyId
+  });
+  return signEventEnvelope(
+    createUnsignedEvent({
+      eventId,
+      kind: 'mailbox.envelope.expired',
+      author: options.ownerIdentityId,
+      deviceId: options.deviceId,
+      createdAt: expiredAt,
+      lamport,
+      schemaVersion,
+      privacy: key.privacy,
+      payload: envelope as unknown as JsonValue as SignedEventEnvelope['payload']
+    }),
+    options.signingKeypair
+  );
+}
+
+/**
+ * Validate and canonicalise an optional ISO-8601 timestamp to UTC.
+ * Returns `undefined` when the input is absent (caller falls back to a
+ * fresh timestamp). Throws on a present-but-unparseable value so a bad
+ * `now` cannot silently corrupt an expiry range query.
+ */
+function canonicalizeIsoTimestamp(value: string | undefined, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) {
+    throw new Error(`${field} must be a valid ISO-8601 timestamp`);
+  }
+  return new Date(ms).toISOString();
+}
+
+function mailboxApplyMeta(event: SignedEventEnvelope): ApplyMailboxEventMeta {
+  return {
+    kind: event.kind as MailboxEventKind,
+    eventId: event.eventId,
+    createdAt: event.createdAt
+  };
+}
+
+/**
+ * The projection key a decrypted mailbox payload targets: `envelopeId`
+ * for envelope/receipt/ack kinds, `mailboxId` for checkpoint. Returns
+ * `undefined` when the required id field is missing/invalid, so the
+ * caller can reject the event without throwing.
+ */
+function mailboxTargetId(kind: string, payload: JsonValue): string | undefined {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined;
+  const record = payload as Record<string, JsonValue>;
+  const field = kind === 'mailbox.checkpoint.advanced' ? 'mailboxId' : 'envelopeId';
+  const value = record[field];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function inboxRow(envelopeId: string, entry: InboxEntry): StoredMailboxInboxRow {
+  return {
+    envelopeId,
+    recipientIdentityId: entry.envelope.recipientIdentityId,
+    status: entry.status,
+    expiresAt: entry.envelope.expiresAt,
+    entry
+  };
+}
+
+function outboxRow(envelopeId: string, entry: OutboxEntry): StoredMailboxOutboxRow {
+  return {
+    envelopeId,
+    senderIdentityId: entry.envelope.senderIdentityId,
+    status: entry.status,
+    expiresAt: entry.envelope.expiresAt,
+    entry
+  };
+}
+
+function mailboxEventLogRow(
+  event: SignedEventEnvelope,
+  targetId: string | undefined,
+  projected: boolean
+): StoredMailboxEventLogRow {
+  return {
+    eventId: event.eventId,
+    kind: event.kind,
+    // For an undecryptable event we cannot read the envelopeId; use a
+    // placeholder so the row is still keyed/queryable. Replay recovers
+    // the true target once the key is available.
+    envelopeId: targetId ?? '',
+    createdAt: event.createdAt,
+    projected,
+    event
+  };
 }
 
 function storedSignedEvent(event: SignedEventEnvelope): StoredSignedEvent {
@@ -1442,12 +2360,18 @@ function checkpointAdvanceDecision(
 ): CheckpointAdvanceDecision {
   if (!existing) return 'advance';
   if (next.sequence < existing.sequence && !allowRewind) {
-    throw new SyncCheckpointRejectedError('stale-sequence', 'Sync checkpoint cannot move backwards without allowRewind');
+    throw new SyncCheckpointRejectedError(
+      'stale-sequence',
+      'Sync checkpoint cannot move backwards without allowRewind'
+    );
   }
   if (next.sequence === existing.sequence) {
     if (next.cursor === existing.cursor) return 'skip';
     if (!allowRewind) {
-      throw new SyncCheckpointRejectedError('cursor-mismatch', 'Sync checkpoint cursor mismatch at same sequence');
+      throw new SyncCheckpointRejectedError(
+        'cursor-mismatch',
+        'Sync checkpoint cursor mismatch at same sequence'
+      );
     }
   }
   return 'advance';
@@ -1472,6 +2396,20 @@ function validateDeviceIdentity(identity: StoredDeviceIdentity): void {
   if (identity.deviceId.trim().length === 0) throw new Error('deviceId is required');
   if (identity.publicKey.trim().length === 0) throw new Error('publicKey is required');
   if (identity.protectionKeyId.trim().length === 0) throw new Error('protectionKeyId is required');
+  // Wrap keypair (5.12B) is all-or-nothing: a half-populated record would let
+  // a device advertise a wrap public key it cannot decrypt to, or hold a
+  // private key nothing references.
+  const wrapParts = [identity.wrapPublicKey, identity.wrapKeyRef, identity.encryptedWrapPrivateKey];
+  const presentCount = wrapParts.filter((p) => p !== undefined).length;
+  if (presentCount !== 0 && presentCount !== wrapParts.length) {
+    throw new Error('wrap keypair fields must be all present or all absent');
+  }
+  if (identity.wrapPublicKey !== undefined && identity.wrapPublicKey.trim().length === 0) {
+    throw new Error('wrapPublicKey must be non-empty when present');
+  }
+  if (identity.wrapKeyRef !== undefined && identity.wrapKeyRef.trim().length === 0) {
+    throw new Error('wrapKeyRef must be non-empty when present');
+  }
 }
 
 function validateLocalProtectionKey(key: StoredLocalProtectionKey): void {
@@ -1479,7 +2417,9 @@ function validateLocalProtectionKey(key: StoredLocalProtectionKey): void {
   if (key.keyId.trim().length === 0) throw new Error('keyId is required');
 }
 
-function validateAdvanceSyncCheckpointInput(input: AdvanceSyncCheckpointInput): StoredSyncCheckpoint {
+function validateAdvanceSyncCheckpointInput(
+  input: AdvanceSyncCheckpointInput
+): StoredSyncCheckpoint {
   const key = normalizeSyncCheckpointKey(input);
   requireNonEmpty(input.cursor, 'cursor');
   requireNonNegativeInteger(input.sequence, 'sequence');
@@ -1562,9 +2502,16 @@ function validatePutContactProfileInput(input: PutContactProfileInput): Readonly
   const websiteUrl = normalizeOptionalExternalUrl(input.websiteUrl, 'websiteUrl');
   const note = normalizeOptionalText(input.note, 'note', 280);
   const primaryDeviceId = normalizeOptionalText(input.primaryDeviceId, 'primaryDeviceId', 128);
-  const controllerPublicKey = normalizeOptionalText(input.controllerPublicKey, 'controllerPublicKey', 2048);
+  const controllerPublicKey = normalizeOptionalText(
+    input.controllerPublicKey,
+    'controllerPublicKey',
+    2048
+  );
   const shortFingerprint = normalizeOptionalText(input.shortFingerprint, 'shortFingerprint', 64);
-  const verificationStatus = requireIdentityVerificationStatus(input.verificationStatus ?? 'unknown', 'verificationStatus');
+  const verificationStatus = requireIdentityVerificationStatus(
+    input.verificationStatus ?? 'unknown',
+    'verificationStatus'
+  );
   const updatedAt = input.updatedAt ?? new Date().toISOString();
   requireIsoDate(updatedAt, 'updatedAt');
   return {
@@ -1583,7 +2530,11 @@ function validatePutContactProfileInput(input: PutContactProfileInput): Readonly
   };
 }
 
-function normalizeOptionalText(value: string | undefined, label: string, maxLength: number): string | undefined {
+function normalizeOptionalText(
+  value: string | undefined,
+  label: string,
+  maxLength: number
+): string | undefined {
   if (value === undefined) return undefined;
   const normalized = value.trim();
   if (normalized.length === 0) return undefined;
@@ -1603,7 +2554,10 @@ function normalizeOptionalAvatarUrl(value: string | undefined): string | undefin
   return normalized;
 }
 
-function normalizeOptionalExternalUrl(value: string | undefined, label: string): string | undefined {
+function normalizeOptionalExternalUrl(
+  value: string | undefined,
+  label: string
+): string | undefined {
   if (value === undefined) return undefined;
   const normalized = value.trim();
   if (normalized.length === 0) return undefined;
@@ -1637,7 +2591,10 @@ function requireLengthBetween(value: string, label: string, min: number, max: nu
   return value;
 }
 
-function requireIdentityVerificationStatus(value: string, label: string): IdentityVerificationStatus {
+function requireIdentityVerificationStatus(
+  value: string,
+  label: string
+): IdentityVerificationStatus {
   switch (value) {
     case 'unknown':
     case 'controller-known':

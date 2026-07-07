@@ -210,16 +210,16 @@ This ADR does not apply to:
 
 ## Threat model
 
-| Threat | Mitigation |
-|---|---|
-| Single compromised trustee device leaks share | Shares encrypted to device keys; t-of-n means one share is insufficient |
-| Attacker forces threshold ceremony for ordinary events | Disallowed by doctrine and should be enforced at UX layer; protocol verifier is unchanged |
-| Malicious dealer at setup generates weak shares | Dealer model bounded to user's own controller device; DKG deferred for adversarial trustee sets |
-| Replay of completed threshold signature | No special handling needed; normal event `eventId` + `lamport` replay protection covers threshold-signed events |
-| Share enumeration via timing/metadata | Shares are `device-local` privacy scope only; never in bridge logs; audit redaction rules (Phase 3.1) apply |
-| Recovery ceremony with stale/revoked trustee | Trustee list tied to identity-control log; revoked device shares should be excluded and threshold re-evaluated |
+| Threat                                                     | Mitigation                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Single compromised trustee device leaks share              | Shares encrypted to device keys; t-of-n means one share is insufficient                                                                                                                                                                                                                                                                   |
+| Attacker forces threshold ceremony for ordinary events     | Disallowed by doctrine and should be enforced at UX layer; protocol verifier is unchanged                                                                                                                                                                                                                                                 |
+| Malicious dealer at setup generates weak shares            | Dealer model bounded to user's own controller device; DKG deferred for adversarial trustee sets                                                                                                                                                                                                                                           |
+| Replay of completed threshold signature                    | No special handling needed; normal event `eventId` + `lamport` replay protection covers threshold-signed events                                                                                                                                                                                                                           |
+| Share enumeration via timing/metadata                      | Shares are `device-local` privacy scope only; never in bridge logs; audit redaction rules (Phase 3.1) apply                                                                                                                                                                                                                               |
+| Recovery ceremony with stale/revoked trustee               | Trustee list tied to identity-control log; revoked device shares should be excluded and threshold re-evaluated                                                                                                                                                                                                                            |
 | Governance threshold bypass via admin compromise below `t` | High-consequence Space governance events MUST be signed by the Space's joint threshold public key; since FROST signatures are cryptographically indistinguishable at verification, bypass protection comes from requiring that key — which cannot be derived by fewer than `t` admins — not from counting signers at the projection layer |
-| Loss of all trustee devices below `t` | Protocol surfaces recovery-impaired state; no silent degradation to single-device fallback for threshold-declared events |
+| Loss of all trustee devices below `t`                      | Protocol surfaces recovery-impaired state; no silent degradation to single-device fallback for threshold-declared events                                                                                                                                                                                                                  |
 
 ## Security and privacy impact
 

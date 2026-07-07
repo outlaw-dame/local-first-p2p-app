@@ -2,14 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createUnsignedEvent, type PrivacyScope, type SignedEventEnvelope } from '@lfp2p/protocol';
 import { InMemoryBridgeService } from './service.js';
-import {
-  BridgeStreamBroker,
-  type BridgeStreamRecord
-} from './stream-broker.js';
-import {
-  attachBridgeStreamSocket,
-  type WebSocketLike
-} from './stream-socket.js';
+import { BridgeStreamBroker, type BridgeStreamRecord } from './stream-broker.js';
+import { attachBridgeStreamSocket, type WebSocketLike } from './stream-socket.js';
 
 /**
  * MockWebSocket — minimal Web-standard-shaped WebSocket the adapter
@@ -108,7 +102,14 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
       await bridge.acceptDelivery(makeDelivery('idem-1', 'stream:inbox', 'evt_1'), t(0));
       await bridge.acceptDelivery(makeDelivery('idem-2', 'stream:inbox', 'evt_2'), t(1_000));
 
-      socket.fireMessage(json({ type: 'subscribe', sourceId: 'src', streamId: 'stream:inbox', scope: 'identity:alice' }));
+      socket.fireMessage(
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice'
+        })
+      );
       await flushMicrotasks();
 
       const frames = socket.parsedFrames();
@@ -141,7 +142,13 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
       await bridge.acceptDelivery(makeDelivery('idem-3', 'stream:inbox', 'evt_3'), t(2_000));
 
       socket.fireMessage(
-        json({ type: 'subscribe', sourceId: 'src', streamId: 'stream:inbox', scope: 'identity:alice', cursor: String(seqTwo) })
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice',
+          cursor: String(seqTwo)
+        })
       );
       await flushMicrotasks();
 
@@ -187,13 +194,22 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
         clearIntervalFn: timers.clearInterval
       });
 
-      socket.fireMessage(json({ type: 'subscribe', sourceId: 'src', streamId: 'stream:inbox', scope: 'identity:alice' }));
+      socket.fireMessage(
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice'
+        })
+      );
       await flushMicrotasks();
 
       const frames = socket.parsedFrames();
       const backlog = frames.find((f) => f.type === 'backlog');
       const live = frames.filter((f) => f.type === 'live');
-      const backlogSequences = (backlog!.records as Array<{ sequence: number }>).map((r) => r.sequence);
+      const backlogSequences = (backlog!.records as Array<{ sequence: number }>).map(
+        (r) => r.sequence
+      );
       const liveSequences = live.map((f) => (f.record as { sequence: number }).sequence);
 
       // Backlog covers the first 2; the race record (3rd) is
@@ -208,7 +224,14 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
 
     it('subscribe with no records sends an empty backlog frame and stays live', async () => {
       const { socket } = await attach({});
-      socket.fireMessage(json({ type: 'subscribe', sourceId: 'src', streamId: 'stream:empty', scope: 'identity:alice' }));
+      socket.fireMessage(
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'stream:empty',
+          scope: 'identity:alice'
+        })
+      );
       await flushMicrotasks();
       const backlog = socket.parsedFrames().find((f) => f.type === 'backlog')!;
       expect(backlog.records).toEqual([]);
@@ -219,9 +242,23 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
   describe('subscribe validation — privacy-safe close + protocol-error frames', () => {
     it('rejects re-subscribe on the same socket with protocol-error close', async () => {
       const { socket } = await attach({});
-      socket.fireMessage(json({ type: 'subscribe', sourceId: 'src', streamId: 'stream:inbox', scope: 'identity:alice' }));
+      socket.fireMessage(
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice'
+        })
+      );
       await flushMicrotasks();
-      socket.fireMessage(json({ type: 'subscribe', sourceId: 'src', streamId: 'stream:other', scope: 'identity:alice' }));
+      socket.fireMessage(
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'stream:other',
+          scope: 'identity:alice'
+        })
+      );
       await flushMicrotasks();
       expect(socket.closed?.code).toBe(1002);
       expect(socket.closed?.reason).toBe('already-subscribed');
@@ -237,7 +274,13 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
     it('rejects invalid cursor (non-numeric)', async () => {
       const { socket } = await attach({});
       socket.fireMessage(
-        json({ type: 'subscribe', sourceId: 'src', streamId: 'x', scope: 's', cursor: 'not-a-number' })
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'x',
+          scope: 's',
+          cursor: 'not-a-number'
+        })
       );
       expect(socket.closed?.code).toBe(1002);
       expect(socket.closed?.reason).toBe('invalid-cursor');
@@ -246,7 +289,13 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
     it('rejects invalid backlogLimit (too large)', async () => {
       const { socket } = await attach({});
       socket.fireMessage(
-        json({ type: 'subscribe', sourceId: 'src', streamId: 'x', scope: 's', backlogLimit: 10_000 })
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'x',
+          scope: 's',
+          backlogLimit: 10_000
+        })
       );
       expect(socket.closed?.code).toBe(1002);
       expect(socket.closed?.reason).toBe('invalid-backlog-limit');
@@ -333,7 +382,14 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
   describe('backpressure', () => {
     it('closes with try-again-later when bufferedAmount exceeds cap', async () => {
       const { socket, bridge, nowMs } = await attach({ maxBufferedBytes: 100 });
-      socket.fireMessage(json({ type: 'subscribe', sourceId: 'src', streamId: 'stream:inbox', scope: 'identity:alice' }));
+      socket.fireMessage(
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice'
+        })
+      );
       await flushMicrotasks();
       // Simulate the runtime reporting a big buffered amount BEFORE
       // the next send happens.
@@ -377,7 +433,13 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
       // Hostile cursor with embedded "payload" — must not appear in
       // the close reason.
       socket.fireMessage(
-        json({ type: 'subscribe', sourceId: 'src', streamId: 'x', scope: 's', cursor: 'evil-payload-xyz' })
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'x',
+          scope: 's',
+          cursor: 'evil-payload-xyz'
+        })
       );
       expect(socket.closed?.reason).toBe('invalid-cursor');
       const closeReason = JSON.stringify(socket.closed);
@@ -415,7 +477,14 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
   describe('explicit close from handle', () => {
     it('close() is idempotent and unsubscribes from the broker', async () => {
       const { handle, broker, socket } = await attach({});
-      socket.fireMessage(json({ type: 'subscribe', sourceId: 'src', streamId: 'stream:inbox', scope: 'identity:alice' }));
+      socket.fireMessage(
+        json({
+          type: 'subscribe',
+          sourceId: 'src',
+          streamId: 'stream:inbox',
+          scope: 'identity:alice'
+        })
+      );
       await flushMicrotasks();
       expect(broker.totalSubscriptionCount()).toBe(1);
       handle.close(1000, 'test');
@@ -430,7 +499,12 @@ describe('attachBridgeStreamSocket — Phase 4.4 WebSocket adapter', () => {
       const broker = new BridgeStreamBroker();
       const bridge = new InMemoryBridgeService({ streamBroker: broker });
       expect(() =>
-        attachBridgeStreamSocket({ service: bridge, broker, socket: new MockWebSocket(), tokenId: '' })
+        attachBridgeStreamSocket({
+          service: bridge,
+          broker,
+          socket: new MockWebSocket(),
+          tokenId: ''
+        })
       ).toThrow();
     });
 
@@ -490,9 +564,15 @@ async function attach(opts: {
     clearIntervalFn: timers.clearInterval,
     ...(opts.maxFrameBytes === undefined ? {} : { maxFrameBytes: opts.maxFrameBytes }),
     ...(opts.maxBufferedBytes === undefined ? {} : { maxBufferedBytes: opts.maxBufferedBytes }),
-    ...(opts.maxInboundFramesPerMinute === undefined ? {} : { maxInboundFramesPerMinute: opts.maxInboundFramesPerMinute }),
-    ...(opts.heartbeatIntervalMs === undefined ? {} : { heartbeatIntervalMs: opts.heartbeatIntervalMs }),
-    ...(opts.heartbeatTimeoutMs === undefined ? {} : { heartbeatTimeoutMs: opts.heartbeatTimeoutMs })
+    ...(opts.maxInboundFramesPerMinute === undefined
+      ? {}
+      : { maxInboundFramesPerMinute: opts.maxInboundFramesPerMinute }),
+    ...(opts.heartbeatIntervalMs === undefined
+      ? {}
+      : { heartbeatIntervalMs: opts.heartbeatIntervalMs }),
+    ...(opts.heartbeatTimeoutMs === undefined
+      ? {}
+      : { heartbeatTimeoutMs: opts.heartbeatTimeoutMs })
   });
   return { bridge, broker, socket, handle, fire: timers.fire, nowMs: FIXED_NOW_MS };
 }

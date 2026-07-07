@@ -162,7 +162,9 @@ CapabilityDecision
 ### Implement API
 
 ```ts
-export function evaluateCapabilityInvocation(input: EvaluateCapabilityInvocationInput): CapabilityDecision;
+export function evaluateCapabilityInvocation(
+  input: EvaluateCapabilityInvocationInput
+): CapabilityDecision;
 ```
 
 Suggested input:
@@ -235,10 +237,10 @@ Decisions must not embed private evidence, bearcap secrets, VC bodies, decrypted
 ### Implement API
 
 ```ts
-createEmptyCapabilityProjection()
-applyCapabilityGrant(projection, grant)
-applyCapabilityRevocation(projection, revocation)
-applyCapabilityInvocationRecord(projection, invocation)
+createEmptyCapabilityProjection();
+applyCapabilityGrant(projection, grant);
+applyCapabilityRevocation(projection, revocation);
+applyCapabilityInvocationRecord(projection, invocation);
 ```
 
 ### Projection rules

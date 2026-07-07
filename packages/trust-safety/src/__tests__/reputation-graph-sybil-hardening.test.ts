@@ -75,15 +75,26 @@ describe('clique penalty — closed clique punished', () => {
     // anywhere outside the clique. Connect via a single weak edge
     // from alice (seed) → mallory_1 so the clique gets some seed
     // injection into the iteration.
-    const members = ['actor:mallory_1', 'actor:mallory_2', 'actor:mallory_3', 'actor:mallory_4', 'actor:mallory_5'] as const;
+    const members = [
+      'actor:mallory_1',
+      'actor:mallory_2',
+      'actor:mallory_3',
+      'actor:mallory_4',
+      'actor:mallory_5'
+    ] as const;
     const obs: ObservationRecord[] = [];
-    for (const o of members) for (const s of members) if (o !== s) {
-      obs.push(observation({ observer: o, subject: s, satCount: 100 }));
-    }
+    for (const o of members)
+      for (const s of members)
+        if (o !== s) {
+          obs.push(observation({ observer: o, subject: s, satCount: 100 }));
+        }
     const withPenalty = computeReputation(
       inputs({
         seedContacts: [seed({ subject: 'actor:alice' })],
-        observations: [observation({ observer: 'actor:alice', subject: 'actor:mallory_1', satCount: 1 }), ...obs],
+        observations: [
+          observation({ observer: 'actor:alice', subject: 'actor:mallory_1', satCount: 1 }),
+          ...obs
+        ],
         nowIso: FIXED_NOW_ISO
       })
     );
@@ -181,7 +192,13 @@ describe('applyCliquePenalty — closed vs open clique discrimination', () => {
     const C = new Map<string, ReadonlyMap<string, number>>([
       ['x:a', new Map([['x:b', 1]])],
       ['x:b', new Map([['x:c', 1]])],
-      ['x:c', new Map([['x:a', 1], ['x:outside', 0.5]])]
+      [
+        'x:c',
+        new Map([
+          ['x:a', 1],
+          ['x:outside', 0.5]
+        ])
+      ]
     ]);
     const scores = new Map([
       ['x:a', { score: 0.3 }],
@@ -198,9 +215,7 @@ describe('applyCliquePenalty — closed vs open clique discrimination', () => {
 
   it('SCC of size 1 (a single node) is never penalized', () => {
     const nodes = ['x:a'];
-    const C = new Map<string, ReadonlyMap<string, number>>([
-      ['x:a', new Map([])]
-    ]);
+    const C = new Map<string, ReadonlyMap<string, number>>([['x:a', new Map([])]]);
     const scores = new Map([['x:a', { score: 0.5 }]]);
     const config = resolveReputationGraphConfig({});
     const out = applyCliquePenalty(scores, C, nodes, config);
@@ -280,9 +295,7 @@ describe('path-quality damping — mixed row favors attested edges', () => {
 
 describe('applyEdgeMultipliers — pure function', () => {
   it('produces a new map (does not mutate input)', () => {
-    const raw = new Map<string, Map<string, number>>([
-      ['x:a', new Map([['x:b', 5]])]
-    ]);
+    const raw = new Map<string, Map<string, number>>([['x:a', new Map([['x:b', 5]])]]);
     const config = resolveReputationGraphConfig({});
     const out = applyEdgeMultipliers(raw, [], config);
     expect(out).not.toBe(raw);
@@ -291,18 +304,14 @@ describe('applyEdgeMultipliers — pure function', () => {
   });
 
   it('non-attested edges multiplied by pathQualityDamping', () => {
-    const raw = new Map<string, Map<string, number>>([
-      ['x:a', new Map([['x:b', 5]])]
-    ]);
+    const raw = new Map<string, Map<string, number>>([['x:a', new Map([['x:b', 5]])]]);
     const config = resolveReputationGraphConfig({});
     const out = applyEdgeMultipliers(raw, [], config);
     expect(out.get('x:a')!.get('x:b')).toBeCloseTo(5 * config.pathQualityDamping);
   });
 
   it('attested non-fingerprint edges left alone (full weight)', () => {
-    const raw = new Map<string, Map<string, number>>([
-      ['x:a', new Map([['x:b', 5]])]
-    ]);
+    const raw = new Map<string, Map<string, number>>([['x:a', new Map([['x:b', 5]])]]);
     const att: AttestationRecord = attestation({
       observer: 'x:a',
       subject: 'x:b',
@@ -314,9 +323,7 @@ describe('applyEdgeMultipliers — pure function', () => {
   });
 
   it('fingerprint-verified attested edges get the amplifier', () => {
-    const raw = new Map<string, Map<string, number>>([
-      ['x:a', new Map([['x:b', 5]])]
-    ]);
+    const raw = new Map<string, Map<string, number>>([['x:a', new Map([['x:b', 5]])]]);
     const att: AttestationRecord = attestation({
       observer: 'x:a',
       subject: 'x:b',
@@ -330,9 +337,7 @@ describe('applyEdgeMultipliers — pure function', () => {
   it('negative-valence attestations do NOT shield non-attestation damping', () => {
     // A negative attestation should NOT count as an "attested edge"
     // for the path-damping purposes — only positive valence counts.
-    const raw = new Map<string, Map<string, number>>([
-      ['x:a', new Map([['x:b', 5]])]
-    ]);
+    const raw = new Map<string, Map<string, number>>([['x:a', new Map([['x:b', 5]])]]);
     const att: AttestationRecord = attestation({
       observer: 'x:a',
       subject: 'x:b',
@@ -462,8 +467,18 @@ describe('compressByTimeBucket — burst vs spread', () => {
   it('determinism: same input twice produces byte-identical output', () => {
     const config = resolveReputationGraphConfig({});
     const sample = [
-      observation({ observer: 'actor:a', subject: 'actor:b', satCount: 3, windowEnd: '2026-06-01T00:00:00Z' }),
-      observation({ observer: 'actor:c', subject: 'actor:d', satCount: 5, windowEnd: '2026-06-01T00:00:00Z' })
+      observation({
+        observer: 'actor:a',
+        subject: 'actor:b',
+        satCount: 3,
+        windowEnd: '2026-06-01T00:00:00Z'
+      }),
+      observation({
+        observer: 'actor:c',
+        subject: 'actor:d',
+        satCount: 5,
+        windowEnd: '2026-06-01T00:00:00Z'
+      })
     ];
     const a = compressByTimeBucket(sample, config);
     const b = compressByTimeBucket(sample, config);
@@ -522,10 +537,14 @@ describe('fingerprint amplifier — out-of-band verification wins', () => {
 
 describe('Phase 1.8.5 config range checks', () => {
   it('fingerprintAmplifier < 1 is rejected', () => {
-    expect(() => resolveReputationGraphConfig({ fingerprintAmplifier: 0.5 })).toThrow(TrustSafetyError);
+    expect(() => resolveReputationGraphConfig({ fingerprintAmplifier: 0.5 })).toThrow(
+      TrustSafetyError
+    );
   });
   it('fingerprintAmplifier > 10 is rejected', () => {
-    expect(() => resolveReputationGraphConfig({ fingerprintAmplifier: 11 })).toThrow(TrustSafetyError);
+    expect(() => resolveReputationGraphConfig({ fingerprintAmplifier: 11 })).toThrow(
+      TrustSafetyError
+    );
   });
   it('observationBucketMs > observationWindowMs is rejected', () => {
     expect(() =>
@@ -536,7 +555,9 @@ describe('Phase 1.8.5 config range checks', () => {
     ).toThrow(TrustSafetyError);
   });
   it('observationBucketMs < 1_000ms is rejected', () => {
-    expect(() => resolveReputationGraphConfig({ observationBucketMs: 500 })).toThrow(TrustSafetyError);
+    expect(() => resolveReputationGraphConfig({ observationBucketMs: 500 })).toThrow(
+      TrustSafetyError
+    );
   });
 });
 

@@ -2,14 +2,24 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import type { CapabilityProofRecord } from '@lfp2p/capabilities';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
-import { createLocalFirstStore, type DexieLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
+import {
+  createLocalFirstStore,
+  type DexieLocalFirstStore,
+  type MutationOutboxEntry
+} from '@lfp2p/local-store';
 import { createUnsignedEvent, placeholderPrivatePayloadEnvelope } from '@lfp2p/protocol';
 import type { OutboxTransport } from '@lfp2p/sync-client';
-import { manualOutboxDeliveryActionEnabled, runManualOutboxDelivery } from './pwa-outbox-manual-gate.js';
+import {
+  manualOutboxDeliveryActionEnabled,
+  runManualOutboxDelivery
+} from './pwa-outbox-manual-gate.js';
 import { createPwaSendBudget } from './pwa-send-budget.js';
 
 const DEV_ENV = { DEV: true } as const;
-const MANUAL_ENABLED_ENV = { ...DEV_ENV, VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' } as const;
+const MANUAL_ENABLED_ENV = {
+  ...DEV_ENV,
+  VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true'
+} as const;
 const BRIDGE_ENABLED_ENV = {
   VITE_LFP2P_BRIDGE_SYNC_ENABLED: 'true',
   VITE_LFP2P_BRIDGE_ENDPOINT: 'https://bridge.example.test/events'
@@ -18,8 +28,18 @@ const BRIDGE_ENABLED_ENV = {
 describe('manualOutboxDeliveryActionEnabled', () => {
   it('requires true DEV and the explicit flag', () => {
     expect(manualOutboxDeliveryActionEnabled({ ...MANUAL_ENABLED_ENV })).toBe(true);
-    expect(manualOutboxDeliveryActionEnabled({ MODE: 'development', VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' })).toBe(false);
-    expect(manualOutboxDeliveryActionEnabled({ DEV: false, VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true' })).toBe(false);
+    expect(
+      manualOutboxDeliveryActionEnabled({
+        MODE: 'development',
+        VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true'
+      })
+    ).toBe(false);
+    expect(
+      manualOutboxDeliveryActionEnabled({
+        DEV: false,
+        VITE_LFP2P_MANUAL_OUTBOX_DELIVERY_ENABLED: 'true'
+      })
+    ).toBe(false);
     expect(manualOutboxDeliveryActionEnabled(DEV_ENV)).toBe(false);
   });
 });
@@ -56,7 +76,10 @@ describe('runManualOutboxDelivery', () => {
   });
 
   it('blocks unavailable bridge states using the resolved env', async () => {
-    const disabledBridge = await runManualOutboxDelivery({ store: fakeStore(), env: MANUAL_ENABLED_ENV });
+    const disabledBridge = await runManualOutboxDelivery({
+      store: fakeStore(),
+      env: MANUAL_ENABLED_ENV
+    });
     const invalidBridge = await runManualOutboxDelivery({
       store: fakeStore(),
       env: { ...MANUAL_ENABLED_ENV, VITE_LFP2P_BRIDGE_SYNC_ENABLED: 'true' }
@@ -97,10 +120,14 @@ describe('runManualOutboxDelivery', () => {
   });
 
   it('rejects unsafe batch sizes', async () => {
-    await expect(runManualOutboxDelivery({ store: fakeStore(), env: MANUAL_ENABLED_ENV, batchSize: 0 })).rejects.toThrow(
+    await expect(
+      runManualOutboxDelivery({ store: fakeStore(), env: MANUAL_ENABLED_ENV, batchSize: 0 })
+    ).rejects.toThrow(
       'manual outbox delivery batchSize must be a positive safe integer no greater than 5.'
     );
-    await expect(runManualOutboxDelivery({ store: fakeStore(), env: MANUAL_ENABLED_ENV, batchSize: 6 })).rejects.toThrow(
+    await expect(
+      runManualOutboxDelivery({ store: fakeStore(), env: MANUAL_ENABLED_ENV, batchSize: 6 })
+    ).rejects.toThrow(
       'manual outbox delivery batchSize must be a positive safe integer no greater than 5.'
     );
   });
@@ -129,7 +156,14 @@ describe('runManualOutboxDelivery', () => {
 
       expect(result).toMatchObject({ status: 'delivered', batchSize: 1 });
       if (result.status !== 'delivered') throw new Error('Expected delivered result');
-      expect(result.result).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(result.result).toEqual({
+        attempted: 1,
+        confirmed: 1,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(sent).toEqual([entry.idempotencyKey]);
       expect((await store.getOutboxEntry(entry.idempotencyKey))?.status).toBe('confirmed');
     } finally {
@@ -138,7 +172,9 @@ describe('runManualOutboxDelivery', () => {
   });
 
   it('refunds send budget reservations when no outbox attempts are made', async () => {
-    const store = createLocalFirstStore(`manual-outbox-delivery-refund-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `manual-outbox-delivery-refund-${globalThis.crypto.randomUUID()}`
+    );
     const sendBudget = createPwaSendBudget({ maxRuns: 1, maxEntries: 1, minIntervalMs: 0 });
 
     try {
@@ -157,7 +193,14 @@ describe('runManualOutboxDelivery', () => {
 
       expect(first).toMatchObject({ status: 'delivered', batchSize: 1 });
       if (first.status !== 'delivered') throw new Error('Expected delivered result');
-      expect(first.result).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(first.result).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
 
       const second = await runManualOutboxDelivery({
         store,
@@ -174,7 +217,14 @@ describe('runManualOutboxDelivery', () => {
 
       expect(second).toMatchObject({ status: 'delivered', batchSize: 1 });
       if (second.status !== 'delivered') throw new Error('Expected delivered result');
-      expect(second.result).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(second.result).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
     } finally {
       await store.delete();
     }
@@ -410,7 +460,9 @@ describe('runManualOutboxDelivery — capability-proof gate (first enforcement c
     // explicitly grant.
     const store = freshStore('scope-mismatch');
     try {
-      await seedGrantedEvent(store, 'evt_grant_wrong_scope', { scope: 'identity.contact-card.publish' });
+      await seedGrantedEvent(store, 'evt_grant_wrong_scope', {
+        scope: 'identity.contact-card.publish'
+      });
       await store.putCapabilityProofRecord(
         capabilityProofRecord('evt_grant_wrong_scope', { verificationState: 'verified' })
       );
@@ -541,7 +593,10 @@ describe('runManualOutboxDelivery — capability-proof gate (first enforcement c
   });
 });
 
-async function seedOutboxEntry(store: DexieLocalFirstStore, eventId: string): Promise<MutationOutboxEntry> {
+async function seedOutboxEntry(
+  store: DexieLocalFirstStore,
+  eventId: string
+): Promise<MutationOutboxEntry> {
   const event = makeSignedEvent(eventId);
   await store.putSignedEvent(event);
   const now = '2026-05-25T00:00:00.000Z';

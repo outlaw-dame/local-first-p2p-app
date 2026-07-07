@@ -112,10 +112,12 @@ describe('DexieLocalFirstStore', () => {
         status: 'failed',
         lastError: 'terminal'
       });
-      expect(await store.recoverStaleOutboxClaims({
-        staleBefore: '2026-05-22T00:05:00.000Z',
-        nextRetryAt: '2026-05-22T00:06:00.000Z'
-      })).toBe(0);
+      expect(
+        await store.recoverStaleOutboxClaims({
+          staleBefore: '2026-05-22T00:05:00.000Z',
+          nextRetryAt: '2026-05-22T00:06:00.000Z'
+        })
+      ).toBe(0);
     } finally {
       await store.delete();
     }
@@ -135,7 +137,11 @@ describe('DexieLocalFirstStore', () => {
     expect(await store.listDueOutbox('2026-05-22T00:04:59.000Z')).toHaveLength(0);
     expect(await store.listDueOutbox('2026-05-22T00:05:00.000Z')).toHaveLength(1);
 
-    await store.markOutboxFailed('idem-retry', 'retry budget exhausted', '2026-05-22T00:05:01.000Z');
+    await store.markOutboxFailed(
+      'idem-retry',
+      'retry budget exhausted',
+      '2026-05-22T00:05:01.000Z'
+    );
     expect(await store.listDueOutbox('2026-05-22T00:10:00.000Z')).toHaveLength(0);
     expect((await store.countOutboxByStatus()).failed).toBe(1);
     await store.delete();
@@ -169,14 +175,24 @@ describe('DexieLocalFirstStore', () => {
         updatedAt: '2026-05-22T00:02:00.000Z'
       });
 
-      expect(first).toMatchObject({ cursor: 'cursor-10', sequence: 10, updatedAt: '2026-05-22T00:00:00.000Z' });
+      expect(first).toMatchObject({
+        cursor: 'cursor-10',
+        sequence: 10,
+        updatedAt: '2026-05-22T00:00:00.000Z'
+      });
       expect(same).toEqual(first);
-      expect(advanced).toMatchObject({ cursor: 'cursor-11', sequence: 11, updatedAt: '2026-05-22T00:02:00.000Z' });
-      expect(await store.getSyncCheckpoint({
-        sourceId: 'bridge:primary',
-        streamId: 'durable-stream:inbox',
-        scope: 'identity:alice'
-      })).toEqual(advanced);
+      expect(advanced).toMatchObject({
+        cursor: 'cursor-11',
+        sequence: 11,
+        updatedAt: '2026-05-22T00:02:00.000Z'
+      });
+      expect(
+        await store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
+      ).toEqual(advanced);
     } finally {
       await store.delete();
     }
@@ -258,16 +274,32 @@ describe('DexieLocalFirstStore', () => {
       });
 
       await expect(
-        store.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'durable-stream:inbox', scope: 'identity:alice' })
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
       ).resolves.toMatchObject({ cursor: 'alice-primary-10', sequence: 10 });
       await expect(
-        store.getSyncCheckpoint({ sourceId: 'bridge:secondary', streamId: 'durable-stream:inbox', scope: 'identity:alice' })
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:secondary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:alice'
+        })
       ).resolves.toMatchObject({ cursor: 'alice-secondary-3', sequence: 3 });
       await expect(
-        store.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'durable-stream:public', scope: 'identity:alice' })
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:public',
+          scope: 'identity:alice'
+        })
       ).resolves.toMatchObject({ cursor: 'alice-public-7', sequence: 7 });
       await expect(
-        store.getSyncCheckpoint({ sourceId: 'bridge:primary', streamId: 'durable-stream:inbox', scope: 'identity:bob' })
+        store.getSyncCheckpoint({
+          sourceId: 'bridge:primary',
+          streamId: 'durable-stream:inbox',
+          scope: 'identity:bob'
+        })
       ).resolves.toMatchObject({ cursor: 'bob-primary-2', sequence: 2 });
     } finally {
       await store.delete();
@@ -372,7 +404,9 @@ describe('DexieLocalFirstStore', () => {
         websiteUrl: 'https://alice.example.test',
         verificationStatus: 'controller-known'
       });
-      await expect(store.getContactProfile('identity:alice')).resolves.toMatchObject({ petname: 'Alice' });
+      await expect(store.getContactProfile('identity:alice')).resolves.toMatchObject({
+        petname: 'Alice'
+      });
       await expect(store.listContactProfiles()).resolves.toMatchObject([
         { identityId: 'identity:bob' },
         { identityId: 'identity:alice' }

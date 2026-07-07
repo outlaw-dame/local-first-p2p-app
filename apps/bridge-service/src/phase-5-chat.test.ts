@@ -97,8 +97,7 @@ describe('Phase 5 — bridge is ciphertext-blind: garbage bytes still admitted',
     // than the one used to produce it would fail AEAD authentication.
     // The bridge accepting this event proves it never attempted decryption
     // — it treated the payload as an opaque blob exactly as Phase 1.63 requires.
-    const wrongKeyCiphertext =
-      'aGVsbG9fY2lwaGVydGV4dF9nb2VzX2hlcmVfaW5fYmFzZTY0dXJs'; // 42-byte garbage in base64url
+    const wrongKeyCiphertext = 'aGVsbG9fY2lwaGVydGV4dF9nb2VzX2hlcmVfaW5fYmFzZTY0dXJs'; // 42-byte garbage in base64url
     const service = new InMemoryBridgeService('chat-blind-edge');
     const event = chatEvent('evt_chat_blind_1', 'chat.message.sent', wrongKeyCiphertext);
     const response = await service.acceptDelivery(req(event, 'idem_chat_blind_1'));

@@ -21,7 +21,9 @@ export function createDevBridgeService(options: DevBridgeOptions = {}): BridgeSe
       filePath: options.storeFilePath ?? DEFAULT_STORE_FILE,
       ...(options.maxRecords === undefined ? {} : { maxRecords: options.maxRecords }),
       ...(options.ttlMs === undefined ? {} : { ttlMs: options.ttlMs }),
-      ...(options.initialSequence === undefined ? {} : { initialSequence: options.initialSequence }),
+      ...(options.initialSequence === undefined
+        ? {}
+        : { initialSequence: options.initialSequence }),
       ...(options.tempFileSuffix === undefined ? {} : { tempFileSuffix: options.tempFileSuffix })
     })
   });

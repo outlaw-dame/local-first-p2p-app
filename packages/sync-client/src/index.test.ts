@@ -2,10 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { generateSigningKeypair, signEventEnvelope } from '@lfp2p/crypto';
 import { createLocalFirstStore, type MutationOutboxEntry } from '@lfp2p/local-store';
-import {
-  createUnsignedEvent,
-  placeholderPrivatePayloadEnvelope
-} from '@lfp2p/protocol';
+import { createUnsignedEvent, placeholderPrivatePayloadEnvelope } from '@lfp2p/protocol';
 import {
   acceptSyncCheckpoint,
   computeBackoffDelayMs,
@@ -19,10 +16,22 @@ import {
 describe('sync retry and staleness helpers', () => {
   it('computes bounded exponential backoff with deterministic jitter', () => {
     expect(
-      computeBackoffDelayMs({ attempt: 3, baseDelayMs: 100, maxDelayMs: 1_000, jitterRatio: 0.25, random: () => 0.5 })
+      computeBackoffDelayMs({
+        attempt: 3,
+        baseDelayMs: 100,
+        maxDelayMs: 1_000,
+        jitterRatio: 0.25,
+        random: () => 0.5
+      })
     ).toBe(800);
     expect(
-      computeBackoffDelayMs({ attempt: 10, baseDelayMs: 100, maxDelayMs: 1_000, jitterRatio: 0, random: () => 0 })
+      computeBackoffDelayMs({
+        attempt: 10,
+        baseDelayMs: 100,
+        maxDelayMs: 1_000,
+        jitterRatio: 0,
+        random: () => 0
+      })
     ).toBe(1_000);
   });
 
@@ -90,7 +99,9 @@ describe('sync retry and staleness helpers', () => {
   });
 
   it('allows explicit checkpoint rewinds for controlled resync', async () => {
-    const store = createLocalFirstStore(`sync-checkpoint-rewind-helper-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `sync-checkpoint-rewind-helper-${globalThis.crypto.randomUUID()}`
+    );
     try {
       await expect(
         acceptSyncCheckpoint({
@@ -130,7 +141,10 @@ describe('sync retry and staleness helpers', () => {
 
 describe('createHttpBridgeTransport', () => {
   it('posts signed events with an idempotency header and maps confirmations', async () => {
-    const entry = makeOutboxEntry({ idempotencyKey: 'idem-http-confirm', eventId: 'evt_http_confirm' });
+    const entry = makeOutboxEntry({
+      idempotencyKey: 'idem-http-confirm',
+      eventId: 'evt_http_confirm'
+    });
     const event = makeSignedEvent('evt_http_confirm');
     const requests: Request[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
@@ -142,7 +156,11 @@ describe('createHttpBridgeTransport', () => {
       });
     };
 
-    const transport = createHttpBridgeTransport({ endpoint: 'https://bridge.test/events', fetch: fetchImpl, timeoutMs: 5_000 });
+    const transport = createHttpBridgeTransport({
+      endpoint: 'https://bridge.test/events',
+      fetch: fetchImpl,
+      timeoutMs: 5_000
+    });
     const result = await transport.send({ entry, event });
     const body = JSON.parse(await requests[0]!.text()) as Record<string, unknown>;
 
@@ -157,10 +175,16 @@ describe('createHttpBridgeTransport', () => {
   it('maps bridge conflicts without retrying transport', async () => {
     const transport = createHttpBridgeTransport({
       endpoint: 'https://bridge.test/events',
-      fetch: async () => new Response(JSON.stringify({ status: 'conflicted', reason: 'duplicate idempotency key' }), { status: 409 })
+      fetch: async () =>
+        new Response(
+          JSON.stringify({ status: 'conflicted', reason: 'duplicate idempotency key' }),
+          { status: 409 }
+        )
     });
 
-    await expect(transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_conflict_http') })).resolves.toEqual({
+    await expect(
+      transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_conflict_http') })
+    ).resolves.toEqual({
       status: 'conflicted',
       reason: 'duplicate idempotency key'
     });
@@ -169,18 +193,25 @@ describe('createHttpBridgeTransport', () => {
   it('treats bridge JSON rejections as non-retryable errors', async () => {
     const transport = createHttpBridgeTransport({
       endpoint: 'https://bridge.test/events',
-      fetch: async () => new Response(JSON.stringify({ status: 'rejected', reason: 'local-only scope' }), { status: 422 })
+      fetch: async () =>
+        new Response(JSON.stringify({ status: 'rejected', reason: 'local-only scope' }), {
+          status: 422
+        })
     });
 
-    await expect(transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_rejected_http') })).rejects.toBeInstanceOf(
-      NonRetryableOutboxError
-    );
+    await expect(
+      transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_rejected_http') })
+    ).rejects.toBeInstanceOf(NonRetryableOutboxError);
   });
 
   it('treats non-json permanent 4xx responses as non-retryable errors', async () => {
     const transport = createHttpBridgeTransport({
       endpoint: 'https://bridge.test/events',
-      fetch: async () => new Response('<html>unprocessable</html>', { status: 422, statusText: 'Unprocessable Content' })
+      fetch: async () =>
+        new Response('<html>unprocessable</html>', {
+          status: 422,
+          statusText: 'Unprocessable Content'
+        })
     });
 
     await expect(
@@ -195,12 +226,17 @@ describe('createHttpBridgeTransport', () => {
     });
 
     await expect(
-      transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent('evt_malformed_success_response') })
+      transport.send({
+        entry: makeOutboxEntry(),
+        event: makeSignedEvent('evt_malformed_success_response')
+      })
     ).rejects.toThrow('Bridge returned malformed JSON response');
   });
 
   it('rejects invalid successful bridge response shapes without coercion', async () => {
-    const invalidResponses: ReadonlyArray<Readonly<{ body: unknown; error: string; eventId: string }>> = [
+    const invalidResponses: ReadonlyArray<
+      Readonly<{ body: unknown; error: string; eventId: string }>
+    > = [
       {
         body: { status: 'confirmed', sequence: '7' },
         error: 'Bridge response sequence must be a non-negative integer',
@@ -224,16 +260,16 @@ describe('createHttpBridgeTransport', () => {
         fetch: async () => new Response(JSON.stringify(invalid.body), { status: 202 })
       });
 
-      await expect(transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent(invalid.eventId) })).rejects.toThrow(
-        invalid.error
-      );
+      await expect(
+        transport.send({ entry: makeOutboxEntry(), event: makeSignedEvent(invalid.eventId) })
+      ).rejects.toThrow(invalid.error);
     }
   });
 
   it('rejects endpoints with embedded credentials', () => {
-    expect(() => createHttpBridgeTransport({ endpoint: 'https://user:pass@bridge.test/events' })).toThrow(
-      'Bridge endpoint must not include credentials'
-    );
+    expect(() =>
+      createHttpBridgeTransport({ endpoint: 'https://user:pass@bridge.test/events' })
+    ).toThrow('Bridge endpoint must not include credentials');
   });
 });
 
@@ -256,14 +292,23 @@ describe('processOutboxBatch', () => {
       now: new Date('2026-05-22T00:00:00.000Z')
     });
 
-    expect(result).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+    expect(result).toEqual({
+      attempted: 1,
+      confirmed: 1,
+      conflicted: 0,
+      retried: 0,
+      failed: 0,
+      skipped: 0
+    });
     expect(sent).toEqual([entry.idempotencyKey]);
     expect((await store.getOutboxEntry(entry.idempotencyKey))?.status).toBe('confirmed');
     await store.delete();
   });
 
   it('does not retry an event when local confirmation persistence fails after transport success', async () => {
-    const store = createLocalFirstStore(`outbox-local-confirm-fail-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-local-confirm-fail-${globalThis.crypto.randomUUID()}`
+    );
     await seedOutboxEntry(store, 'evt_confirm_local_failure');
     let sent = 0;
     const transport: OutboxTransport = {
@@ -304,7 +349,14 @@ describe('processOutboxBatch', () => {
     });
 
     const updated = await store.getOutboxEntry(entry.idempotencyKey);
-    expect(result).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 1, failed: 0, skipped: 0 });
+    expect(result).toEqual({
+      attempted: 1,
+      confirmed: 0,
+      conflicted: 0,
+      retried: 1,
+      failed: 0,
+      skipped: 0
+    });
     expect(updated?.status).toBe('pending');
     expect(updated?.retryCount).toBe(1);
     expect(updated?.nextRetryAt).toBe('2026-05-22T00:00:02.000Z');
@@ -313,7 +365,9 @@ describe('processOutboxBatch', () => {
   });
 
   it('schedules retry for malformed successful HTTP bridge responses without confirming locally', async () => {
-    const store = createLocalFirstStore(`outbox-malformed-bridge-response-${globalThis.crypto.randomUUID()}`);
+    const store = createLocalFirstStore(
+      `outbox-malformed-bridge-response-${globalThis.crypto.randomUUID()}`
+    );
     try {
       const entry = await seedOutboxEntry(store, 'evt_malformed_bridge_response');
       let requestCount = 0;
@@ -321,8 +375,11 @@ describe('processOutboxBatch', () => {
         endpoint: 'https://bridge.test/events',
         fetch: async () => {
           requestCount += 1;
-          if (requestCount === 1) return new Response('{"status":', { status: 202, statusText: 'Accepted' });
-          return new Response(JSON.stringify({ status: 'confirmed', sequence: 4 }), { status: 202 });
+          if (requestCount === 1)
+            return new Response('{"status":', { status: 202, statusText: 'Accepted' });
+          return new Response(JSON.stringify({ status: 'confirmed', sequence: 4 }), {
+            status: 202
+          });
         }
       });
 
@@ -350,15 +407,36 @@ describe('processOutboxBatch', () => {
       });
       const confirmed = await store.getOutboxEntry(entry.idempotencyKey);
 
-      expect(first).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 1, failed: 0, skipped: 0 });
+      expect(first).toEqual({
+        attempted: 1,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 1,
+        failed: 0,
+        skipped: 0
+      });
       expect(afterFailure).toMatchObject({
         status: 'pending',
         retryCount: 1,
         nextRetryAt: '2026-05-22T00:00:02.000Z',
         lastError: 'Bridge returned malformed JSON response'
       });
-      expect(beforeDue).toEqual({ attempted: 0, confirmed: 0, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
-      expect(afterRetry).toEqual({ attempted: 1, confirmed: 1, conflicted: 0, retried: 0, failed: 0, skipped: 0 });
+      expect(beforeDue).toEqual({
+        attempted: 0,
+        confirmed: 0,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
+      expect(afterRetry).toEqual({
+        attempted: 1,
+        confirmed: 1,
+        conflicted: 0,
+        retried: 0,
+        failed: 0,
+        skipped: 0
+      });
       expect(requestCount).toBe(2);
       expect(confirmed).toMatchObject({
         status: 'confirmed',
@@ -385,7 +463,14 @@ describe('processOutboxBatch', () => {
     });
 
     const updated = await store.getOutboxEntry(entry.idempotencyKey);
-    expect(result).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 0, failed: 1, skipped: 0 });
+    expect(result).toEqual({
+      attempted: 1,
+      confirmed: 0,
+      conflicted: 0,
+      retried: 0,
+      failed: 1,
+      skipped: 0
+    });
     expect(updated?.status).toBe('failed');
     expect(updated?.lastError).toBe('rejected by bridge policy');
     await store.delete();
@@ -407,7 +492,14 @@ describe('processOutboxBatch', () => {
     });
 
     const updated = await store.getOutboxEntry(entry.idempotencyKey);
-    expect(result).toEqual({ attempted: 1, confirmed: 0, conflicted: 1, retried: 0, failed: 0, skipped: 0 });
+    expect(result).toEqual({
+      attempted: 1,
+      confirmed: 0,
+      conflicted: 1,
+      retried: 0,
+      failed: 0,
+      skipped: 0
+    });
     expect(updated?.status).toBe('conflicted');
     expect(updated?.lastError).toBe('duplicate idempotency key');
     await store.delete();
@@ -430,19 +522,33 @@ describe('processOutboxBatch', () => {
 
     const result = await processOutboxBatch({
       store,
-      transport: { async send() { return { status: 'confirmed' }; } },
+      transport: {
+        async send() {
+          return { status: 'confirmed' };
+        }
+      },
       now: new Date(now)
     });
 
     const updated = await store.getOutboxEntry(entry.idempotencyKey);
-    expect(result).toEqual({ attempted: 1, confirmed: 0, conflicted: 0, retried: 0, failed: 1, skipped: 0 });
+    expect(result).toEqual({
+      attempted: 1,
+      confirmed: 0,
+      conflicted: 0,
+      retried: 0,
+      failed: 1,
+      skipped: 0
+    });
     expect(updated?.status).toBe('failed');
     expect(updated?.lastError).toContain('Missing signed event');
     await store.delete();
   });
 });
 
-async function seedOutboxEntry(store: ReturnType<typeof createLocalFirstStore>, eventId: string): Promise<MutationOutboxEntry> {
+async function seedOutboxEntry(
+  store: ReturnType<typeof createLocalFirstStore>,
+  eventId: string
+): Promise<MutationOutboxEntry> {
   const event = makeSignedEvent(eventId);
   await store.putSignedEvent(event);
   const entry = makeOutboxEntry({

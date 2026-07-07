@@ -13,22 +13,22 @@ The protocol authority remains identity, capabilities, content references, trust
 
 ## Placement summary
 
-| Technology / pattern | Placement | Decision |
-| --- | --- | --- |
-| Holepunch / Pear | Phase 20A | Primary candidate for native/full-peer runtime adapter. |
-| Hypercore / Corestore | Phase 20B | Candidate replication/storage substrate. Feed keys are not object IDs. |
-| Syncthing | Phase 15A influence | Emulate trusted-device UX, layered discovery, and recovery discipline. Do not embed. |
-| Willow | Phase 15A + Phase 15/20 | Emulate capability-scoped selective replication. |
-| MLS | Phase 3/4/12 | Required group key management. Not transport. |
-| Noise | Phase 20A runtime concern | Use where provided by selected runtime. Do not add a custom layer yet. |
-| Tox | Phase 15A influence | Study friend-first discovery and fallback ideas only. |
-| Kademlia | Phase 20C influence | Conceptual model; HyperDHT likely covers the native DHT role. |
-| mDNS / LSD | Phase 6/15A/20C | Local discovery descriptors for same-network sync. |
-| ICE/STUN/TURN | Phase 9-11 | Browser/WebRTC path. |
-| PeX | Phase 6/20C | Privacy-scoped peer hints. |
-| Magnet-style references | Phase 16 / Later phases | Local-first `lfp2p://` / `web+lfp2p://` refs over ObjectRef/BundleRef. |
-| µTP / LEDBAT ideas | Phase 20D / Later phases | Background transfer scheduling inspiration. |
-| Peer-assisted delivery | Phase 20D / Later phases | Public/cacheable and encrypted capability-scoped bundles only. |
+| Technology / pattern    | Placement                 | Decision                                                                             |
+| ----------------------- | ------------------------- | ------------------------------------------------------------------------------------ |
+| Holepunch / Pear        | Phase 20A                 | Primary candidate for native/full-peer runtime adapter.                              |
+| Hypercore / Corestore   | Phase 20B                 | Candidate replication/storage substrate. Feed keys are not object IDs.               |
+| Syncthing               | Phase 15A influence       | Emulate trusted-device UX, layered discovery, and recovery discipline. Do not embed. |
+| Willow                  | Phase 15A + Phase 15/20   | Emulate capability-scoped selective replication.                                     |
+| MLS                     | Phase 3/4/12              | Required group key management. Not transport.                                        |
+| Noise                   | Phase 20A runtime concern | Use where provided by selected runtime. Do not add a custom layer yet.               |
+| Tox                     | Phase 15A influence       | Study friend-first discovery and fallback ideas only.                                |
+| Kademlia                | Phase 20C influence       | Conceptual model; HyperDHT likely covers the native DHT role.                        |
+| mDNS / LSD              | Phase 6/15A/20C           | Local discovery descriptors for same-network sync.                                   |
+| ICE/STUN/TURN           | Phase 9-11                | Browser/WebRTC path.                                                                 |
+| PeX                     | Phase 6/20C               | Privacy-scoped peer hints.                                                           |
+| Magnet-style references | Phase 16 / Later phases   | Local-first `lfp2p://` / `web+lfp2p://` refs over ObjectRef/BundleRef.               |
+| µTP / LEDBAT ideas      | Phase 20D / Later phases  | Background transfer scheduling inspiration.                                          |
+| Peer-assisted delivery  | Phase 20D / Later phases  | Public/cacheable and encrypted capability-scoped bundles only.                       |
 
 ## Phase 15A — P2P runtime adapter doctrine
 

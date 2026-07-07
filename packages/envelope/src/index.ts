@@ -1,7 +1,9 @@
 import {
   encryptPayloadEnvelope,
+  fromBase64Url,
   signEventEnvelope,
   toBase64Url,
+  unwrapPayloadKeyWithX25519,
   wrapPayloadKeyWithX25519,
   type SigningKeypair
 } from '@lfp2p/crypto';
@@ -13,6 +15,7 @@ import {
   type JsonValue,
   type PayloadKeyRecipientWrap,
   type PrivacyScope,
+  type PrivatePayloadEnvelopeV1,
   type SignedEventEnvelope,
   type SourceRef,
   type UnsignedEventEnvelope
@@ -25,6 +28,14 @@ export type RecipientDeviceStatus = 'active' | 'revoked';
 
 const AES_256_KEY_BYTES = 32;
 const WRAP_PUBLIC_KEY_BASE64URL_LENGTH = 43;
+/**
+ * Upper bound on the number of recipient wraps the resolver will scan for
+ * an inbound envelope. Bounds work against an adversarial envelope carrying
+ * a pathologically large `recipientWraps` array; a legitimate dm/group fans
+ * out to a member's devices, far below this. Over the cap → treated as
+ * malformed (`unwrap-failed`), never scanned.
+ */
+const MAX_RECIPIENT_WRAPS = 4096;
 
 export type RecipientDevice = Readonly<{
   deviceId: string;
@@ -80,7 +91,9 @@ export type EnvelopeEventBuildResult = Readonly<{
 export type SignedEnvelopeEventBuildResult = Omit<EnvelopeEventBuildResult, 'event'> &
   Readonly<{ event: SignedEventEnvelope }>;
 
-export function resolveRecipients(identities: readonly RecipientIdentity[]): readonly ResolvedRecipient[] {
+export function resolveRecipients(
+  identities: readonly RecipientIdentity[]
+): readonly ResolvedRecipient[] {
   const out: ResolvedRecipient[] = [];
   const seen = new Set<string>();
   for (const identity of identities) {
@@ -91,20 +104,24 @@ export function resolveRecipients(identities: readonly RecipientIdentity[]): rea
       const deviceId = requireText(device.deviceId, 'deviceId');
       if (seen.has(deviceId)) throw new Error(`Duplicate recipient device id: ${deviceId}`);
       seen.add(deviceId);
-      out.push(Object.freeze({
-        recipientIdentityId: identityId,
-        recipientDeviceId: deviceId,
-        wrapPublicKey: requireWrapPublicKey(device.wrapPublicKey, 'wrapPublicKey'),
-        wrapKeyRef: requireText(device.wrapKeyRef, 'wrapKeyRef')
-      }));
+      out.push(
+        Object.freeze({
+          recipientIdentityId: identityId,
+          recipientDeviceId: deviceId,
+          wrapPublicKey: requireWrapPublicKey(device.wrapPublicKey, 'wrapPublicKey'),
+          wrapKeyRef: requireText(device.wrapKeyRef, 'wrapKeyRef')
+        })
+      );
     }
   }
   if (out.length === 0) throw new Error('No active recipient devices resolved');
-  return Object.freeze(out.sort((left, right) => {
-    const identityOrder = left.recipientIdentityId.localeCompare(right.recipientIdentityId);
-    if (identityOrder !== 0) return identityOrder;
-    return left.recipientDeviceId.localeCompare(right.recipientDeviceId);
-  }));
+  return Object.freeze(
+    out.sort((left, right) => {
+      const identityOrder = left.recipientIdentityId.localeCompare(right.recipientIdentityId);
+      if (identityOrder !== 0) return identityOrder;
+      return left.recipientDeviceId.localeCompare(right.recipientDeviceId);
+    })
+  );
 }
 
 export function buildPrivatePayloadAad(input: PrivatePayloadAadInput): string {
@@ -129,7 +146,9 @@ export function buildPrivatePayloadAad(input: PrivatePayloadAadInput): string {
   });
 }
 
-export async function createEnvelopeEvent(input: CreateEnvelopeEventInput): Promise<EnvelopeEventBuildResult> {
+export async function createEnvelopeEvent(
+  input: CreateEnvelopeEventInput
+): Promise<EnvelopeEventBuildResult> {
   const privacy = requireEnvelopeScope(input.privacy);
   const recipients = normalizeRecipients(input.recipients);
   const lamport = input.lamport ?? 0;
@@ -191,7 +210,208 @@ export async function createSignedEnvelopeEvent(
   });
 }
 
-export function summarizeEnvelopeEventForLog(event: UnsignedEventEnvelope | SignedEventEnvelope): JsonObject {
+// ---------------------------------------------------------------------------
+// Recipient side — resolve the per-event content key from an inbound envelope
+// ---------------------------------------------------------------------------
+
+/**
+ * A local device wrap key usable to unwrap content keys addressed to it.
+ * The `wrapPrivateKey` is device-owned secret material and MUST never leave
+ * the device; callers load it from encrypted local storage.
+ */
+export type LocalDeviceWrapKey = Readonly<{
+  /** This device's id; a wrap is only tried when its `recipientDeviceId` matches. */
+  deviceId: string;
+  /** Stable ref naming this wrap key; matched against a wrap's `wrappingKeyRef`. */
+  wrapKeyRef: string;
+  /** X25519 wrap private key (base64url). Device-owned secret. */
+  wrapPrivateKey: string;
+  /**
+   * Optional identity binding. When set, a wrap that names this `deviceId`
+   * under a DIFFERENT `recipientIdentityId` is NOT honoured — defence against
+   * a misattributed wrap trying to borrow this device's id.
+   */
+  identityId?: string;
+}>;
+
+/**
+ * Outcome of resolving an inbound envelope's content key for this device.
+ * The status is intentionally coarse so callers can self-heal without
+ * learning why decryption failed:
+ *  - `resolved`      — the content key was recovered (`keyMaterial`).
+ *  - `no-wrap`       — no wrap is addressed to this device (not a recipient).
+ *  - `no-key`        — a wrap targets this device but names a `wrappingKeyRef`
+ *                      this device does not hold (rotated out / not yet synced).
+ *  - `unwrap-failed` — a wrap targets this device but could not be unwrapped
+ *                      (tampered, wrong key, unsupported agreement, or the
+ *                      recovered key was not a valid 32-byte AES key).
+ */
+export type ResolvePayloadKeyResult =
+  | Readonly<{ status: 'resolved'; keyMaterial: string }>
+  | Readonly<{ status: 'no-wrap' }>
+  | Readonly<{ status: 'no-key' }>
+  | Readonly<{ status: 'unwrap-failed' }>;
+
+type MaybeWrap = Readonly<{
+  recipientIdentityId?: unknown;
+  recipientDeviceId?: unknown;
+  keyAgreement?: unknown;
+  wrappedKey?: unknown;
+  wrappingKeyRef?: unknown;
+}>;
+
+/**
+ * Recover the per-event content key from an inbound `PrivatePayloadEnvelopeV1`
+ * for the local device. Pure and side-effect-free: no store, no network.
+ *
+ * Only the wrap addressed to one of `localWrapKeys` (by `recipientDeviceId`,
+ * and `recipientIdentityId` when `identityId` is bound) is ever attempted;
+ * there is no path that tries another device's wrap. The recovered key is
+ * length-validated (exactly 32 bytes) before it is returned, so a malformed
+ * or key-confusion wrap surfaces as `unwrap-failed`, never as a partial key.
+ *
+ * The returned `keyMaterial` is the base64url AES-256 content key that
+ * `@lfp2p/private-payload`'s `decryptPrivatePayload` consumes directly — i.e.
+ * exactly the value a mailbox/chat `resolveKeyMaterial` returns.
+ */
+export function resolvePayloadKeyForDevice(
+  envelope: PrivatePayloadEnvelopeV1,
+  localWrapKeys: readonly LocalDeviceWrapKey[]
+): ResolvePayloadKeyResult {
+  const keys = normalizeLocalWrapKeys(localWrapKeys);
+
+  if (envelope === null || typeof envelope !== 'object' || Array.isArray(envelope)) {
+    throw new Error('envelope must be an object');
+  }
+  const wraps = (envelope as { recipientWraps?: unknown }).recipientWraps;
+  if (wraps === undefined) return Object.freeze({ status: 'no-wrap' });
+  if (!Array.isArray(wraps) || wraps.length === 0) {
+    // A present-but-malformed wraps field is adversarial, not "no recipient".
+    return Object.freeze({ status: 'unwrap-failed' });
+  }
+  if (wraps.length > MAX_RECIPIENT_WRAPS) return Object.freeze({ status: 'unwrap-failed' });
+
+  // Track weaker outcomes seen for THIS device so the coarsest correct status
+  // is returned only after the whole (bounded) scan finds no usable wrap.
+  let sawMyDeviceButNoKey = false;
+  let sawMyDeviceButUnusable = false;
+
+  for (const raw of wraps as readonly MaybeWrap[]) {
+    // A malformed / unattributable entry is skipped silently: we cannot tell
+    // whose device it targets, so it is NOT evidence that we are a recipient
+    // and must not poison the result to `unwrap-failed`.
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const recipientDeviceId = raw.recipientDeviceId;
+    const recipientIdentityId = raw.recipientIdentityId;
+    if (typeof recipientDeviceId !== 'string' || recipientDeviceId.length === 0) continue;
+
+    const candidates = keys.filter(
+      (k) =>
+        k.deviceId === recipientDeviceId &&
+        (k.identityId === undefined || k.identityId === recipientIdentityId)
+    );
+    if (candidates.length === 0) continue; // not this device (or identity mismatch)
+
+    // From here the wrap is provably addressed to THIS device: an unusable
+    // field or a failed unwrap is now attributable and sets a weaker status.
+    if (raw.keyAgreement !== 'x25519-v1') {
+      sawMyDeviceButUnusable = true; // addressed to us but unsupported agreement
+      continue;
+    }
+    const wrappedKey = raw.wrappedKey;
+    const wrappingKeyRef = raw.wrappingKeyRef;
+    if (
+      typeof wrappedKey !== 'string' ||
+      wrappedKey.length === 0 ||
+      typeof wrappingKeyRef !== 'string' ||
+      wrappingKeyRef.length === 0
+    ) {
+      sawMyDeviceButUnusable = true;
+      continue;
+    }
+    const key = candidates.find((k) => k.wrapKeyRef === wrappingKeyRef);
+    if (key === undefined) {
+      sawMyDeviceButNoKey = true; // rotated out / not yet synced
+      continue;
+    }
+
+    const keyMaterial = tryUnwrapContentKey(wrappedKey, key.wrapPrivateKey);
+    if (keyMaterial === undefined) {
+      // Do NOT short-circuit: a sender rotating keys may include more than
+      // one wrap for this device (e.g. old + new). Keep scanning so a later
+      // usable wrap can still resolve; only fall through to `unwrap-failed`
+      // if none succeeds.
+      sawMyDeviceButUnusable = true;
+      continue;
+    }
+    return Object.freeze({ status: 'resolved', keyMaterial });
+  }
+
+  if (sawMyDeviceButUnusable) return Object.freeze({ status: 'unwrap-failed' });
+  if (sawMyDeviceButNoKey) return Object.freeze({ status: 'no-key' });
+  return Object.freeze({ status: 'no-wrap' });
+}
+
+/**
+ * Convenience wrapper for the common resolver wiring (mailbox/chat
+ * `resolveKeyMaterial`): returns the base64url content key when it resolves,
+ * or `undefined` for every self-healing outcome (`no-wrap` / `no-key` /
+ * `unwrap-failed`) so the caller stores the event durably and retries later.
+ */
+export function resolvePayloadKeyMaterialForDevice(
+  envelope: PrivatePayloadEnvelopeV1,
+  localWrapKeys: readonly LocalDeviceWrapKey[]
+): string | undefined {
+  const result = resolvePayloadKeyForDevice(envelope, localWrapKeys);
+  return result.status === 'resolved' ? result.keyMaterial : undefined;
+}
+
+function normalizeLocalWrapKeys(
+  localWrapKeys: readonly LocalDeviceWrapKey[]
+): readonly LocalDeviceWrapKey[] {
+  if (!Array.isArray(localWrapKeys) || localWrapKeys.length === 0) {
+    throw new Error('localWrapKeys must be a non-empty array');
+  }
+  return localWrapKeys.map((k, index) => {
+    if (k === null || typeof k !== 'object') {
+      throw new Error(`localWrapKeys[${index}] must be an object`);
+    }
+    requireText(k.deviceId, `localWrapKeys[${index}].deviceId`);
+    requireText(k.wrapKeyRef, `localWrapKeys[${index}].wrapKeyRef`);
+    requireText(k.wrapPrivateKey, `localWrapKeys[${index}].wrapPrivateKey`);
+    if (
+      k.identityId !== undefined &&
+      (typeof k.identityId !== 'string' || k.identityId.trim().length === 0)
+    ) {
+      throw new Error(`localWrapKeys[${index}].identityId must be a non-empty string when set`);
+    }
+    return k;
+  });
+}
+
+/** Unwrap + validate the content key; `undefined` on any failure (no detail). */
+function tryUnwrapContentKey(wrappedKey: string, wrapPrivateKey: string): string | undefined {
+  let recovered: string;
+  try {
+    recovered = unwrapPayloadKeyWithX25519(wrappedKey, wrapPrivateKey);
+  } catch {
+    return undefined;
+  }
+  // A recovered content key MUST be exactly a 32-byte AES-256 key. Anything
+  // else (short-key injection, key confusion) is rejected before use.
+  let decoded: Uint8Array;
+  try {
+    decoded = fromBase64Url(recovered);
+  } catch {
+    return undefined;
+  }
+  if (decoded.byteLength !== AES_256_KEY_BYTES) return undefined;
+  return recovered;
+}
+
+export function summarizeEnvelopeEventForLog(
+  event: UnsignedEventEnvelope | SignedEventEnvelope
+): JsonObject {
   const payload = event.payload as Record<string, unknown>;
   const summary: Record<string, JsonValue> = {
     version: event.version,
@@ -221,7 +441,9 @@ type ContentKey = Readonly<{
   cryptoKey: CryptoKey;
 }>;
 
-async function generateContentKey(keyId = `payload-key:${globalThis.crypto.randomUUID()}`): Promise<ContentKey> {
+async function generateContentKey(
+  keyId = `payload-key:${globalThis.crypto.randomUUID()}`
+): Promise<ContentKey> {
   const rawKeyBytes = globalThis.crypto.getRandomValues(new Uint8Array(AES_256_KEY_BYTES));
   const rawKey = toBase64Url(rawKeyBytes);
   const cryptoKey = await requireSubtleCrypto().importKey(
@@ -238,28 +460,44 @@ async function generateContentKey(keyId = `payload-key:${globalThis.crypto.rando
   });
 }
 
-function normalizeRecipients(recipients: readonly ResolvedRecipient[]): readonly ResolvedRecipient[] {
+function normalizeRecipients(
+  recipients: readonly ResolvedRecipient[]
+): readonly ResolvedRecipient[] {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw new Error('Envelope recipients must not be empty');
   }
   const seen = new Set<string>();
-  return Object.freeze(recipients.map((recipient, index) => {
-    const recipientIdentityId = requireText(recipient.recipientIdentityId, `recipients[${index}].recipientIdentityId`);
-    const recipientDeviceId = requireText(recipient.recipientDeviceId, `recipients[${index}].recipientDeviceId`);
-    if (seen.has(recipientDeviceId)) throw new Error(`Duplicate recipient device id: ${recipientDeviceId}`);
-    seen.add(recipientDeviceId);
-    return Object.freeze({
-      recipientIdentityId,
-      recipientDeviceId,
-      wrapPublicKey: requireWrapPublicKey(recipient.wrapPublicKey, `recipients[${index}].wrapPublicKey`),
-      wrapKeyRef: requireText(recipient.wrapKeyRef, `recipients[${index}].wrapKeyRef`)
-    });
-  }));
+  return Object.freeze(
+    recipients.map((recipient, index) => {
+      const recipientIdentityId = requireText(
+        recipient.recipientIdentityId,
+        `recipients[${index}].recipientIdentityId`
+      );
+      const recipientDeviceId = requireText(
+        recipient.recipientDeviceId,
+        `recipients[${index}].recipientDeviceId`
+      );
+      if (seen.has(recipientDeviceId))
+        throw new Error(`Duplicate recipient device id: ${recipientDeviceId}`);
+      seen.add(recipientDeviceId);
+      return Object.freeze({
+        recipientIdentityId,
+        recipientDeviceId,
+        wrapPublicKey: requireWrapPublicKey(
+          recipient.wrapPublicKey,
+          `recipients[${index}].wrapPublicKey`
+        ),
+        wrapKeyRef: requireText(recipient.wrapKeyRef, `recipients[${index}].wrapKeyRef`)
+      });
+    })
+  );
 }
 
 function requireEnvelopeScope(value: PrivacyScope): EnvelopeScope {
   if (value !== 'self' && value !== 'dm' && value !== 'group') {
-    throw new Error(`Envelope payload builder requires self, dm, or group privacy; got ${String(value)}`);
+    throw new Error(
+      `Envelope payload builder requires self, dm, or group privacy; got ${String(value)}`
+    );
   }
   return value;
 }
@@ -311,12 +549,14 @@ function requireIsoDate(value: string, label: string): string {
 }
 
 function requireSafeNonNegativeInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be a safe non-negative integer`);
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new Error(`${label} must be a safe non-negative integer`);
   return value;
 }
 
 function requireSafePositiveInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a safe positive integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${label} must be a safe positive integer`);
   return value;
 }
 

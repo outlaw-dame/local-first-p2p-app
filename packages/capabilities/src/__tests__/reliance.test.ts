@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateCapabilityReliance, isBearcapForbiddenAction, type CapabilityDecision } from '../index.js';
+import {
+  evaluateCapabilityReliance,
+  isBearcapForbiddenAction,
+  type CapabilityDecision
+} from '../index.js';
 
 const NOW = '2026-06-08T12:00:00.000Z';
 
