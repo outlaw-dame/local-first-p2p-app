@@ -21,6 +21,13 @@ export type IdentityControlDevice = Readonly<{
   status: IdentityDeviceStatus;
   authorizedAt: string;
   revokedAt?: string;
+  /**
+   * Phase 5.12C — public X25519 wrap metadata for sender-side recipient
+   * resolution. The private wrap key never appears in identity-control events
+   * or projections; senders only need this public key and stable ref.
+   */
+  wrapPublicKey?: string;
+  wrapKeyRef?: string;
 }>;
 
 export type IdentityCapabilityStatus = 'granted' | 'revoked';
@@ -197,6 +204,11 @@ function applyDeviceAuthorized(
   const deviceId = requireString(payload.authorizedDeviceId, 'authorizedDeviceId');
   const publicKey = requireString(payload.authorizedPublicKey, 'authorizedPublicKey');
   const epoch = requirePositiveInteger(payload.epoch, 'epoch');
+  const wrapPublicKey = optionalString(payload.wrapPublicKey, 'wrapPublicKey');
+  const wrapKeyRef = optionalString(payload.wrapKeyRef, 'wrapKeyRef');
+  if ((wrapPublicKey === undefined) !== (wrapKeyRef === undefined)) {
+    throw new Error('identity.device.authorized wrapPublicKey and wrapKeyRef must be present together');
+  }
   requireMonotonicEpoch(state.epoch, epoch, event.kind);
 
   return freezeIdentityControlState({
@@ -208,7 +220,9 @@ function applyDeviceAuthorized(
         deviceId,
         publicKey,
         status: 'active',
-        authorizedAt: event.createdAt
+        authorizedAt: event.createdAt,
+        ...(wrapPublicKey === undefined ? {} : { wrapPublicKey }),
+        ...(wrapKeyRef === undefined ? {} : { wrapKeyRef })
       }
     },
     lastEventId: event.eventId
@@ -415,6 +429,11 @@ function requireString(value: unknown, field: string): string {
     throw new Error(`${field} must be a non-empty string`);
   }
   return value;
+}
+
+function optionalString(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  return requireString(value, field).trim();
 }
 
 function requirePositiveInteger(value: unknown, field: string): number {
