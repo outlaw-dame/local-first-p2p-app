@@ -22,7 +22,11 @@
  *    contact card is a `sha-256:<base64url>` ref, never the bytes.
  */
 import { sha256Base64Url, type SigningKeypair } from '@lfp2p/crypto';
-import { applyIdentityControlEvent, createEmptyIdentityControlState } from '@lfp2p/identity';
+import {
+  applyIdentityControlEvent,
+  createEmptyIdentityControlState,
+  type LocalDeviceSession
+} from '@lfp2p/identity';
 import {
   type IdentityControlProjectionUpdate,
   type StoredIdentityControlProjection,
@@ -201,6 +205,82 @@ export async function emitDeviceAuthorizedEvent(
     input.controllerKeypair
   );
   return input.store.appendLocalIdentityEvent(signed, identityProjectionUpdate);
+}
+
+export type EnsureLocalDeviceWrapMetadataInput = Readonly<{
+  store: Store;
+  session: LocalDeviceSession;
+  /** Defaults to the local session keypair; must match the projection controller. */
+  controllerKeypair?: SigningKeypair;
+  eventId?: string;
+  createdAt?: string;
+}>;
+
+export type EnsureLocalDeviceWrapMetadataResult = Readonly<{
+  status: 'already-published' | 'published';
+  projection: StoredIdentityControlProjection;
+}>;
+
+/**
+ * Publish or repair this local device's public wrap metadata in the identity
+ * projection.
+ *
+ * This bridges Phase 5.12B device-session wrap keys and Phase 5.12C projection
+ * publication. It is safe to call during app/bootstrap foreground paths: if the
+ * current active device already advertises the session's wrap metadata, it is a
+ * no-op. If the projection predates wrap metadata, it emits a fresh
+ * controller-signed `identity.device.authorized` event at `epoch + 1`.
+ */
+export async function ensureLocalDeviceWrapMetadataPublished(
+  input: EnsureLocalDeviceWrapMetadataInput
+): Promise<EnsureLocalDeviceWrapMetadataResult> {
+  const session = input.session;
+  const identityId = requireId(session?.identity?.identityId, 'session.identity.identityId');
+  const deviceId = requireId(session?.identity?.deviceId, 'session.identity.deviceId');
+  const publicKey = requirePublicKey(session?.identity?.publicKey, 'session.identity.publicKey');
+  const wrapPublicKey = requirePublicKey(
+    session?.wrap?.keypair?.publicKey,
+    'session.wrap.keypair.publicKey'
+  );
+  const wrapKeyRef = requireId(session?.wrap?.keyRef, 'session.wrap.keyRef');
+  const projection = await input.store.getIdentityControlProjection(identityId);
+
+  if (projection === undefined || projection.controllerPublicKey === undefined) {
+    throw new Error('identity control projection with controller is required before wrap publication');
+  }
+  const controllerKeypair = input.controllerKeypair ?? session.keypair;
+  if (controllerKeypair.publicKey !== projection.controllerPublicKey) {
+    throw new Error('controllerKeypair does not match identity controller public key');
+  }
+
+  const device = projection.devices[deviceId];
+  if (device === undefined) {
+    throw new Error('local device is missing from identity control projection');
+  }
+  if (device.status !== 'active') {
+    throw new Error('local device is not active in identity control projection');
+  }
+  if (device.publicKey !== publicKey) {
+    throw new Error('local device public key does not match identity control projection');
+  }
+  if (device.wrapPublicKey === wrapPublicKey && device.wrapKeyRef === wrapKeyRef) {
+    return Object.freeze({ status: 'already-published', projection });
+  }
+
+  const updated = await emitDeviceAuthorizedEvent({
+    store: input.store,
+    identityId,
+    authorizedDeviceId: deviceId,
+    authorizedPublicKey: publicKey,
+    wrapPublicKey,
+    wrapKeyRef,
+    epoch: projection.epoch + 1,
+    controllerKeypair,
+    signingDeviceId: deviceId,
+    ...(input.eventId === undefined ? {} : { eventId: input.eventId }),
+    ...(input.createdAt === undefined ? {} : { createdAt: input.createdAt })
+  });
+  return Object.freeze({ status: 'published', projection: updated });
 }
 
 export type EmitDeviceRotatedInput = Readonly<{
