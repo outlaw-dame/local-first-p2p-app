@@ -165,7 +165,7 @@ function signedIdentityEvent(
     kind,
     author: "identity:test-account",
     deviceId: "device:test-primary",
-    createdAt: `2026-05-26T00:00:0${lamport}.000Z`,
+    createdAt: new Date(Date.UTC(2026, 4, 26, 0, 0, lamport)).toISOString(),
     lamport,
     privacy: "self",
     payload,
