@@ -246,7 +246,9 @@ export async function ensureLocalDeviceWrapMetadataPublished(
   const projection = await input.store.getIdentityControlProjection(identityId);
 
   if (projection === undefined || projection.controllerPublicKey === undefined) {
-    throw new Error('identity control projection with controller is required before wrap publication');
+    throw new Error(
+      'identity control projection with controller is required before wrap publication'
+    );
   }
   const controllerKeypair = input.controllerKeypair ?? session.keypair;
   if (controllerKeypair.publicKey !== projection.controllerPublicKey) {

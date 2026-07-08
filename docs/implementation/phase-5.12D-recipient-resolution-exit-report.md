@@ -6,9 +6,12 @@ Branch: `agent/recipient-resolution`
 
 ## Scope
 
-This slice adds the app-facing sender-side helper that turns local identity-control projections into deterministic `@lfp2p/envelope` recipients for `createEnvelopeEvent`.
+This slice adds the app-facing sender-side helper that turns local identity-control projections
+into deterministic `@lfp2p/envelope` recipients for `createEnvelopeEvent`.
 
-It does not enable mailbox/chat sending yet. Sender enablement still depends on Phase 5.12C publishing wrap-key metadata into identity/contact-card projections and Phase 5.12E wiring mailbox/chat emit paths to the envelope builder.
+It does not enable mailbox/chat sending yet. Sender enablement still depends on Phase 5.12C
+publishing wrap-key metadata into identity/contact-card projections and Phase 5.12E wiring
+mailbox/chat emit paths to the envelope builder.
 
 ## Implemented
 
@@ -19,7 +22,8 @@ It does not enable mailbox/chat sending yet. Sender enablement still depends on 
   - Rejects duplicate identity projections.
   - Supports an exact identity allow-list chosen by caller/UI.
   - Requires controller-known projections by default.
-  - Delegates final recipient validation and deterministic sort order to `@lfp2p/envelope.resolveRecipients`.
+  - Delegates final recipient validation and deterministic sort order to
+    `@lfp2p/envelope.resolveRecipients`.
 
 - `apps/pwa/src/pwa-recipient-resolution.test.ts`
   - Covers deterministic ordering.
@@ -38,10 +42,16 @@ It does not enable mailbox/chat sending yet. Sender enablement still depends on 
 
 ## Remaining work
 
-- Phase 5.12C: publish `wrapPublicKey` and `wrapKeyRef` in the identity/contact-card projection so peer devices can be resolved from real synced data.
-- Phase 5.12E-sender: call this resolver from mailbox/chat sending and pass the resolved recipients into `createEnvelopeEvent` / `createSignedEnvelopeEvent`.
-- Enable app-shell mailbox routing and foreground sweep only after sender/recipient key resolution is fully wired.
+- Phase 5.12C: publish `wrapPublicKey` and `wrapKeyRef` in the identity/contact-card projection
+  so peer devices can be resolved from real synced data.
+- Phase 5.12E-sender: call this resolver from mailbox/chat sending and pass the resolved
+  recipients into `createEnvelopeEvent` / `createSignedEnvelopeEvent`.
+- Enable app-shell mailbox routing and foreground sweep only after sender/recipient key
+  resolution is fully wired.
 
 ## Validation
 
-Connector-only edit. I inspected the branch diff against `master`; before adding this exit report the branch was ahead by two commits with only the new helper and test files. Full local `pnpm test` / `pnpm build` was not run in this environment because the container cannot resolve GitHub to clone/install dependencies.
+Connector-only edit. I inspected the branch diff against `master`; before adding this exit report
+the branch was ahead by two commits with only the new helper and test files. Full local
+`pnpm test` / `pnpm build` was not run in this environment because the container cannot resolve
+GitHub to clone/install dependencies.
