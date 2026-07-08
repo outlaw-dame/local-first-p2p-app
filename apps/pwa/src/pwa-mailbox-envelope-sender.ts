@@ -1,4 +1,8 @@
-import { signEventEnvelope, wrapPayloadKeyWithX25519, type SigningKeypair } from '@lfp2p/crypto';
+import {
+  signEventEnvelope,
+  wrapPayloadKeyWithX25519,
+  type SigningKeypair
+} from '@lfp2p/crypto';
 import {
   encryptPrivatePayload,
   generatePrivatePayloadKeyMaterial,
@@ -43,7 +47,10 @@ export type QueueMailboxEnvelopeToRecipientsInput = MailboxSenderEnvelopeContext
     envelope: Readonly<{
       envelopeId: string;
       recipientIdentityId: string;
-      /** Present = sealed to one recipient device; absent = visible to any authorised recipient device. */
+      /**
+       * Present = sealed to one recipient device; absent = visible to any
+       * authorised recipient device.
+       */
       recipientDeviceId?: string;
       /** ObjectRef key of the actual message content. */
       contentRef: string;
