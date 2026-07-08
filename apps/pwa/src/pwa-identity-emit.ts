@@ -31,6 +31,8 @@ import {
 import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
 import { signEventEnvelope } from '@lfp2p/crypto';
 
+const MAX_ID_LENGTH = 512;
+
 type Store = ReturnType<typeof createLocalFirstStore>;
 
 /**
@@ -139,6 +141,66 @@ export async function emitContactCardPublishedEvent(
   return input.store.appendLocalIdentityEvent(signed, identityProjectionUpdate);
 }
 
+export type EmitDeviceAuthorizedInput = Readonly<{
+  store: Store;
+  identityId: string;
+  authorizedDeviceId: string;
+  authorizedPublicKey: string;
+  /**
+   * Optional Phase 5.12C sender-visible public wrap metadata. If one field is
+   * supplied, the other must also be supplied. Private wrap keys never appear
+   * in this event.
+   */
+  wrapPublicKey?: string;
+  wrapKeyRef?: string;
+  /** Caller must pass `currentEpoch + 1`. */
+  epoch: number;
+  controllerKeypair: SigningKeypair;
+  signingDeviceId: string;
+  eventId?: string;
+  createdAt?: string;
+}>;
+
+/**
+ * Build, sign, and append an `identity.device.authorized` event.
+ *
+ * Phase 5.12C uses this path to publish the local device session's public
+ * wrap metadata (`wrapPublicKey` / `wrapKeyRef`) into the identity-control
+ * projection so later sender-side mailbox/chat code can resolve real peer
+ * recipient devices. The private wrap key remains local-only.
+ */
+export async function emitDeviceAuthorizedEvent(
+  input: EmitDeviceAuthorizedInput
+): Promise<StoredIdentityControlProjection> {
+  const wrapPublicKey = optionalId(input.wrapPublicKey, 'wrapPublicKey');
+  const wrapKeyRef = optionalId(input.wrapKeyRef, 'wrapKeyRef');
+  if ((wrapPublicKey === undefined) !== (wrapKeyRef === undefined)) {
+    throw new Error('wrapPublicKey and wrapKeyRef must be supplied together');
+  }
+
+  const eventId = input.eventId ?? newEventId('dev_auth');
+  const createdAt = input.createdAt ?? new Date().toISOString();
+  const signed: SignedEventEnvelope = signEventEnvelope(
+    createUnsignedEvent({
+      eventId,
+      kind: 'identity.device.authorized',
+      author: input.identityId,
+      deviceId: input.signingDeviceId,
+      createdAt,
+      privacy: 'self',
+      payload: {
+        authorizedDeviceId: requireId(input.authorizedDeviceId, 'authorizedDeviceId'),
+        authorizedPublicKey: requireId(input.authorizedPublicKey, 'authorizedPublicKey'),
+        epoch: input.epoch,
+        ...(wrapPublicKey === undefined ? {} : { wrapPublicKey }),
+        ...(wrapKeyRef === undefined ? {} : { wrapKeyRef })
+      }
+    }),
+    input.controllerKeypair
+  );
+  return input.store.appendLocalIdentityEvent(signed, identityProjectionUpdate);
+}
+
 export type EmitDeviceRotatedInput = Readonly<{
   store: Store;
   identityId: string;
@@ -184,6 +246,18 @@ export async function emitDeviceRotatedEvent(
     input.controllerKeypair
   );
   return input.store.appendLocalIdentityEvent(signed, identityProjectionUpdate);
+}
+
+function requireId(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0 || value.length > MAX_ID_LENGTH) {
+    throw new Error(`${field} must be a non-empty string of at most ${MAX_ID_LENGTH} characters`);
+  }
+  return value.trim();
+}
+
+function optionalId(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  return requireId(value, field);
 }
 
 function newEventId(prefix: string): string {
