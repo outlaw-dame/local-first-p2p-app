@@ -2,19 +2,23 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { signingKeypairFromSeed } from '@lfp2p/crypto';
 import { createLocalFirstStore } from '@lfp2p/local-store';
+import type { LocalDeviceSession } from '@lfp2p/identity';
 import {
   contactCardDigestRef,
   emitContactCardPublishedEvent,
   emitDeviceAuthorizedEvent,
   emitDeviceRotatedEvent,
+  ensureLocalDeviceWrapMetadataPublished,
   identityProjectionUpdate
 } from './pwa-identity-emit.js';
 
 const CONTROLLER = signingKeypairFromSeed(new Uint8Array(32).fill(41));
 const NEW_KEY = signingKeypairFromSeed(new Uint8Array(32).fill(42));
+const OTHER_CONTROLLER = signingKeypairFromSeed(new Uint8Array(32).fill(43));
 const ACTOR = 'identity:alice';
 const DEVICE = 'device:alice-phone';
 const WRAP_PUBLIC_KEY = 'A'.repeat(43);
+const WRAP_PRIVATE_KEY = 'B'.repeat(43);
 const WRAP_KEY_REF = 'wrap-key:device:alice-tablet:abc123';
 
 /**
@@ -60,6 +64,25 @@ async function bootstrap(): Promise<{
     store,
     cleanup: async () => {
       await store.delete();
+    }
+  };
+}
+
+function localSession(): LocalDeviceSession {
+  return {
+    identity: {
+      identityId: ACTOR,
+      deviceId: DEVICE,
+      publicKey: CONTROLLER.publicKey,
+      createdAt: '2026-06-03T00:00:00.000Z'
+    },
+    keypair: CONTROLLER,
+    wrap: {
+      keyRef: WRAP_KEY_REF,
+      keypair: {
+        publicKey: WRAP_PUBLIC_KEY,
+        privateKey: WRAP_PRIVATE_KEY
+      }
     }
   };
 }
@@ -267,6 +290,74 @@ describe('Phase 5.12C — emitDeviceAuthorizedEvent', () => {
           createdAt: '2026-06-03T00:01:00.000Z'
         })
       ).rejects.toThrow(/wrapPublicKey and wrapKeyRef must be supplied together/);
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('Phase 5.12C — ensureLocalDeviceWrapMetadataPublished', () => {
+  it('publishes the current local session wrap metadata when projection is missing it', async () => {
+    const { store, cleanup } = await bootstrap();
+    try {
+      const result = await ensureLocalDeviceWrapMetadataPublished({
+        store,
+        session: localSession(),
+        eventId: 'evt_emit_ensure_wrap_1',
+        createdAt: '2026-06-03T00:01:00.000Z'
+      });
+
+      expect(result.status).toBe('published');
+      expect(result.projection.epoch).toBe(1);
+      expect(result.projection.devices[DEVICE]).toMatchObject({
+        deviceId: DEVICE,
+        publicKey: CONTROLLER.publicKey,
+        status: 'active',
+        wrapPublicKey: WRAP_PUBLIC_KEY,
+        wrapKeyRef: WRAP_KEY_REF
+      });
+      await expect(store.getSignedEvent('evt_emit_ensure_wrap_1')).resolves.toBeDefined();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('does not emit a duplicate event when current wrap metadata is already published', async () => {
+    const { store, cleanup } = await bootstrap();
+    try {
+      await ensureLocalDeviceWrapMetadataPublished({
+        store,
+        session: localSession(),
+        eventId: 'evt_emit_ensure_wrap_1',
+        createdAt: '2026-06-03T00:01:00.000Z'
+      });
+      const result = await ensureLocalDeviceWrapMetadataPublished({
+        store,
+        session: localSession(),
+        eventId: 'evt_emit_ensure_wrap_2',
+        createdAt: '2026-06-03T00:02:00.000Z'
+      });
+
+      expect(result.status).toBe('already-published');
+      expect(result.projection.epoch).toBe(1);
+      await expect(store.getSignedEvent('evt_emit_ensure_wrap_2')).resolves.toBeUndefined();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('fails closed when the provided signer is not the identity controller', async () => {
+    const { store, cleanup } = await bootstrap();
+    try {
+      await expect(
+        ensureLocalDeviceWrapMetadataPublished({
+          store,
+          session: localSession(),
+          controllerKeypair: OTHER_CONTROLLER,
+          eventId: 'evt_emit_ensure_wrap_bad_signer',
+          createdAt: '2026-06-03T00:01:00.000Z'
+        })
+      ).rejects.toThrow(/controllerKeypair does not match identity controller public key/);
     } finally {
       await cleanup();
     }
