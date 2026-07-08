@@ -31,7 +31,9 @@ import {
 import { createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
 import { signEventEnvelope } from '@lfp2p/crypto';
 
-const MAX_ID_LENGTH = 512;
+const MAX_ID_LENGTH = 256;
+const MAX_PUBLIC_KEY_LENGTH = 2048;
+const PUBLIC_KEY_PATTERN = /^[A-Za-z0-9_-]{1,2048}$/;
 
 type Store = ReturnType<typeof createLocalFirstStore>;
 
@@ -172,7 +174,7 @@ export type EmitDeviceAuthorizedInput = Readonly<{
 export async function emitDeviceAuthorizedEvent(
   input: EmitDeviceAuthorizedInput
 ): Promise<StoredIdentityControlProjection> {
-  const wrapPublicKey = optionalId(input.wrapPublicKey, 'wrapPublicKey');
+  const wrapPublicKey = optionalPublicKey(input.wrapPublicKey, 'wrapPublicKey');
   const wrapKeyRef = optionalId(input.wrapKeyRef, 'wrapKeyRef');
   if ((wrapPublicKey === undefined) !== (wrapKeyRef === undefined)) {
     throw new Error('wrapPublicKey and wrapKeyRef must be supplied together');
@@ -190,7 +192,7 @@ export async function emitDeviceAuthorizedEvent(
       privacy: 'self',
       payload: {
         authorizedDeviceId: requireId(input.authorizedDeviceId, 'authorizedDeviceId'),
-        authorizedPublicKey: requireId(input.authorizedPublicKey, 'authorizedPublicKey'),
+        authorizedPublicKey: requirePublicKey(input.authorizedPublicKey, 'authorizedPublicKey'),
         epoch: input.epoch,
         ...(wrapPublicKey === undefined ? {} : { wrapPublicKey }),
         ...(wrapKeyRef === undefined ? {} : { wrapKeyRef })
@@ -249,15 +251,40 @@ export async function emitDeviceRotatedEvent(
 }
 
 function requireId(value: unknown, field: string): string {
-  if (typeof value !== 'string' || value.trim().length === 0 || value.length > MAX_ID_LENGTH) {
+  if (typeof value !== 'string') {
+    throw new Error(`${field} must be a string`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_ID_LENGTH) {
     throw new Error(`${field} must be a non-empty string of at most ${MAX_ID_LENGTH} characters`);
   }
-  return value.trim();
+  return trimmed;
 }
 
 function optionalId(value: unknown, field: string): string | undefined {
   if (value === undefined) return undefined;
   return requireId(value, field);
+}
+
+function requirePublicKey(value: unknown, field: string): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${field} must be a string`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_PUBLIC_KEY_LENGTH) {
+    throw new Error(
+      `${field} must be a non-empty base64url public key of at most ${MAX_PUBLIC_KEY_LENGTH} characters`
+    );
+  }
+  if (!PUBLIC_KEY_PATTERN.test(trimmed)) {
+    throw new Error(`${field} must be a base64url-encoded public key`);
+  }
+  return trimmed;
+}
+
+function optionalPublicKey(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  return requirePublicKey(value, field);
 }
 
 function newEventId(prefix: string): string {
