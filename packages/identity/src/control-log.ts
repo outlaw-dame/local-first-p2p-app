@@ -468,6 +468,6 @@ function sameSignedEvent(left: SignedEventEnvelope, right: SignedEventEnvelope):
     left.signature.value === right.signature.value &&
     left.signature.publicKey === right.signature.publicKey &&
     left.signature.algorithm === right.signature.algorithm &&
-    canonicalizeJson(unsignedProjection(left)) === canonicalizeJson(right)
+    canonicalizeJson(unsignedProjection(left)) === canonicalizeJson(unsignedProjection(right))
   );
 }
