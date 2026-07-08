@@ -182,19 +182,24 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
   });
 }
 
-function buildRecipientWraps(input: Readonly<{
-  keyMaterial: string;
-  senderIdentityId: string;
-  senderDeviceId: string;
-  senderDeviceWrap: SenderDeviceWrap;
-  recipients: readonly ResolvedRecipient[];
-}>): readonly PayloadKeyRecipientWrap[] {
+function buildRecipientWraps(
+  input: Readonly<{
+    keyMaterial: string;
+    senderIdentityId: string;
+    senderDeviceId: string;
+    senderDeviceWrap: SenderDeviceWrap;
+    recipients: readonly ResolvedRecipient[];
+  }>
+): readonly PayloadKeyRecipientWrap[] {
   const wraps: PayloadKeyRecipientWrap[] = [
     Object.freeze({
       recipientIdentityId: input.senderIdentityId,
       recipientDeviceId: input.senderDeviceId,
       keyAgreement: 'x25519-v1',
-      wrappedKey: wrapPayloadKeyWithX25519(input.keyMaterial, input.senderDeviceWrap.wrapPublicKey),
+      wrappedKey: wrapPayloadKeyWithX25519(
+        input.keyMaterial,
+        input.senderDeviceWrap.wrapPublicKey
+      ),
       wrappingKeyRef: input.senderDeviceWrap.wrapKeyRef
     })
   ];
