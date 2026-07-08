@@ -4,7 +4,11 @@ import { ensureLocalDeviceWrapMetadataPublished } from './pwa-identity-emit.js';
 
 type Store = ReturnType<typeof createLocalFirstStore>;
 
-export type PwaWrapMetadataBootstrapStatus = 'not-ready' | 'already-published' | 'published' | 'failed';
+export type PwaWrapMetadataBootstrapStatus =
+  | 'not-ready'
+  | 'already-published'
+  | 'published'
+  | 'failed';
 
 export type PwaWrapMetadataBootstrapResult = Readonly<{
   status: PwaWrapMetadataBootstrapStatus;
