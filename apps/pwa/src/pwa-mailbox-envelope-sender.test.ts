@@ -1,7 +1,14 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
-import { generateX25519Keypair, signingKeypairFromSeed, type SigningKeypair } from '@lfp2p/crypto';
-import { resolvePayloadKeyMaterialForDevice, type ResolvedRecipient } from '@lfp2p/envelope';
+import {
+  generateX25519Keypair,
+  signingKeypairFromSeed,
+  type SigningKeypair
+} from '@lfp2p/crypto';
+import {
+  resolvePayloadKeyMaterialForDevice,
+  type ResolvedRecipient
+} from '@lfp2p/envelope';
 import { createLocalFirstStore } from '@lfp2p/local-store';
 import type { PrivatePayloadEnvelopeV1, SignedEventEnvelope } from '@lfp2p/protocol';
 import { buildMailboxInboxViewModel } from './pwa-mailbox-state.js';
