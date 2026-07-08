@@ -55,33 +55,34 @@ export type MailboxSenderEnvelopeContext = Readonly<{
   signingKeypair: SigningKeypair;
 }>;
 
-export type QueueMailboxEnvelopeToRecipientsInput = MailboxSenderEnvelopeContext &
-  Readonly<{
-    envelope: Readonly<{
-      envelopeId: string;
-      recipientIdentityId: string;
-      /**
-       * Present = sealed to one recipient device; absent = visible to any
-       * authorised recipient device.
-       */
-      recipientDeviceId?: string;
-      /** ObjectRef key of the actual message content. */
-      contentRef: string;
-      expiresAt: string;
-      /** envelopeId of the original, when this is a forward. */
-      forwardedFrom?: string;
+export type QueueMailboxEnvelopeToRecipientsInput =
+  MailboxSenderEnvelopeContext &
+    Readonly<{
+      envelope: Readonly<{
+        envelopeId: string;
+        recipientIdentityId: string;
+        /**
+         * Present = sealed to one recipient device; absent = visible to any
+         * authorised recipient device.
+         */
+        recipientDeviceId?: string;
+        /** ObjectRef key of the actual message content. */
+        contentRef: string;
+        expiresAt: string;
+        /** envelopeId of the original, when this is a forward. */
+        forwardedFrom?: string;
+      }>;
+      /** `dm` for one peer; `group` for a future group mailbox recipient identity. */
+      privacy: "dm" | "group";
+      /** Resolved through Phase 5.12D from synced identity-control projections. */
+      recipients: readonly ResolvedRecipient[];
+      /** Optional deterministic test/key id. Defaults to a fresh payload-key id. */
+      keyId?: string;
+      /** Defaults to a fresh `new Date().toISOString()`. */
+      createdAt?: string;
+      /** Defaults to a `crypto.randomUUID()`-derived id. */
+      eventId?: string;
     }>;
-    /** `dm` for one peer; `group` for a future group mailbox recipient identity. */
-    privacy: "dm" | "group";
-    /** Resolved through Phase 5.12D from synced identity-control projections. */
-    recipients: readonly ResolvedRecipient[];
-    /** Optional deterministic test/key id. Defaults to a fresh payload-key id. */
-    keyId?: string;
-    /** Defaults to a fresh `new Date().toISOString()`. */
-    createdAt?: string;
-    /** Defaults to a `crypto.randomUUID()`-derived id. */
-    eventId?: string;
-  }>;
 
 export type QueueMailboxEnvelopeToRecipientsResult = Readonly<{
   append: AppendMailboxEventResult;
@@ -148,7 +149,12 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
       : { recipientDeviceId: targetDeviceId }),
     ...(envelope.forwardedFrom === undefined
       ? {}
-      : { forwardedFrom: requireId(envelope.forwardedFrom, "envelope.forwardedFrom") }),
+      : {
+          forwardedFrom: requireId(
+            envelope.forwardedFrom,
+            "envelope.forwardedFrom",
+          ),
+        }),
   };
 
   const context: PrivatePayloadAadContext = {
@@ -276,7 +282,9 @@ function normalizeMailboxRecipients(
   const selected =
     targetDeviceId === undefined
       ? recipients
-      : recipients.filter((recipient) => recipient?.recipientDeviceId === targetDeviceId);
+      : recipients.filter(
+          (recipient) => recipient?.recipientDeviceId === targetDeviceId,
+        );
   if (selected.length === 0) {
     throw new Error(
       `recipientDeviceId ${String(targetDeviceId)} not found in resolved recipients`,
@@ -308,7 +316,10 @@ function normalizeMailboxRecipients(
         recipient.wrapPublicKey,
         `recipients[${index}].wrapPublicKey`,
       ),
-      wrapKeyRef: requireId(recipient.wrapKeyRef, `recipients[${index}].wrapKeyRef`),
+      wrapKeyRef: requireId(
+        recipient.wrapKeyRef,
+        `recipients[${index}].wrapKeyRef`,
+      ),
     });
   });
   normalized.sort((left, right) =>
@@ -320,7 +331,10 @@ function normalizeMailboxRecipients(
 function normalizeSenderDeviceWrap(value: SenderDeviceWrap): SenderDeviceWrap {
   requireObject(value, "senderDeviceWrap");
   return Object.freeze({
-    wrapPublicKey: requireId(value.wrapPublicKey, "senderDeviceWrap.wrapPublicKey"),
+    wrapPublicKey: requireId(
+      value.wrapPublicKey,
+      "senderDeviceWrap.wrapPublicKey",
+    ),
     wrapKeyRef: requireId(value.wrapKeyRef, "senderDeviceWrap.wrapKeyRef"),
   });
 }
@@ -343,7 +357,11 @@ function requireObject<T>(value: T, field: string): T {
 }
 
 function requireId(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.length === 0 || value.length > MAX_ID_LENGTH) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > MAX_ID_LENGTH
+  ) {
     throw new Error(
       `${field} must be a non-empty string of at most ${MAX_ID_LENGTH} characters`,
     );
@@ -357,7 +375,11 @@ function optionalId(value: unknown, field: string): string | undefined {
 }
 
 function requireRef(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.length === 0 || value.length > MAX_REF_LENGTH) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > MAX_REF_LENGTH
+  ) {
     throw new Error(
       `${field} must be a non-empty string of at most ${MAX_REF_LENGTH} characters`,
     );
@@ -373,7 +395,11 @@ function requireMailboxPrivacy(value: unknown): "dm" | "group" {
 }
 
 function requireIsoTimestamp(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.length === 0 || value.length > MAX_ID_LENGTH) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > MAX_ID_LENGTH
+  ) {
     throw new Error(`${field} must be a non-empty ISO-8601 timestamp`);
   }
   const ms = Date.parse(value);
