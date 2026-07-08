@@ -225,22 +225,11 @@ function buildRecipientWraps(
       wrappingKeyRef: input.senderDeviceWrap.wrapKeyRef
     })
   ];
-  const seen = new Set<string>([
-    wrapDedupeKey(
-      input.senderIdentityId,
-      input.senderDeviceId,
-      input.senderDeviceWrap.wrapKeyRef
-    )
-  ]);
+  const seenDeviceIds = new Set<string>([input.senderDeviceId]);
 
   for (const recipient of input.recipients) {
-    const dedupeKey = wrapDedupeKey(
-      recipient.recipientIdentityId,
-      recipient.recipientDeviceId,
-      recipient.wrapKeyRef
-    );
-    if (seen.has(dedupeKey)) continue;
-    seen.add(dedupeKey);
+    if (seenDeviceIds.has(recipient.recipientDeviceId)) continue;
+    seenDeviceIds.add(recipient.recipientDeviceId);
     wraps.push(
       Object.freeze({
         recipientIdentityId: recipient.recipientIdentityId,
@@ -253,14 +242,6 @@ function buildRecipientWraps(
   }
 
   return Object.freeze(wraps);
-}
-
-function wrapDedupeKey(
-  identityId: string,
-  deviceId: string,
-  wrapKeyRef: string
-): string {
-  return JSON.stringify([identityId, deviceId, wrapKeyRef]);
 }
 
 function normalizeMailboxRecipients(
