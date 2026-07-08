@@ -433,7 +433,7 @@ function requireString(value: unknown, field: string): string {
 
 function optionalString(value: unknown, field: string): string | undefined {
   if (value === undefined) return undefined;
-  return requireString(value, field);
+  return requireString(value, field).trim();
 }
 
 function requirePositiveInteger(value: unknown, field: string): number {
@@ -468,6 +468,6 @@ function sameSignedEvent(left: SignedEventEnvelope, right: SignedEventEnvelope):
     left.signature.value === right.signature.value &&
     left.signature.publicKey === right.signature.publicKey &&
     left.signature.algorithm === right.signature.algorithm &&
-    canonicalizeJson(unsignedProjection(left)) === canonicalizeJson(unsignedProjection(right))
+    canonicalizeJson(unsignedProjection(left)) === canonicalizeJson(right)
   );
 }
