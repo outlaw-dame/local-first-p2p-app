@@ -88,8 +88,13 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
   const deviceId = requireId(input.deviceId, 'deviceId');
   const envelope = requireObject(input.envelope, 'input.envelope');
   const recipientIdentityId = requireId(envelope.recipientIdentityId, 'envelope.recipientIdentityId');
+  const targetDeviceId = optionalId(envelope.recipientDeviceId, 'envelope.recipientDeviceId');
   const privacy = requireMailboxPrivacy(input.privacy);
-  const recipients = normalizeMailboxRecipients(input.recipients, recipientIdentityId);
+  const recipients = normalizeMailboxRecipients(
+    input.recipients,
+    recipientIdentityId,
+    targetDeviceId
+  );
   const createdAt = requireIsoTimestamp(input.createdAt ?? new Date().toISOString(), 'createdAt');
   const eventId = input.eventId ?? newEventId();
   const keyMaterial = generatePrivatePayloadKeyMaterial();
@@ -102,9 +107,7 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
     senderIdentityId: identityId,
     contentRef: requireRef(envelope.contentRef, 'envelope.contentRef'),
     expiresAt: requireIsoTimestamp(envelope.expiresAt, 'envelope.expiresAt'),
-    ...(envelope.recipientDeviceId === undefined
-      ? {}
-      : { recipientDeviceId: requireId(envelope.recipientDeviceId, 'envelope.recipientDeviceId') }),
+    ...(targetDeviceId === undefined ? {} : { recipientDeviceId: targetDeviceId }),
     ...(envelope.forwardedFrom === undefined
       ? {}
       : { forwardedFrom: requireId(envelope.forwardedFrom, 'envelope.forwardedFrom') })
@@ -167,13 +170,22 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
 
 function normalizeMailboxRecipients(
   recipients: readonly ResolvedRecipient[],
-  recipientIdentityId: string
+  recipientIdentityId: string,
+  targetDeviceId?: string
 ): readonly ResolvedRecipient[] {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw new Error('recipients must be a non-empty array');
   }
+  const selected =
+    targetDeviceId === undefined
+      ? recipients
+      : recipients.filter((recipient) => recipient?.recipientDeviceId === targetDeviceId);
+  if (selected.length === 0) {
+    throw new Error(`recipientDeviceId ${String(targetDeviceId)} not found in resolved recipients`);
+  }
+
   const seenDeviceIds = new Set<string>();
-  const normalized = recipients.map((recipient, index) => {
+  const normalized = selected.map((recipient, index) => {
     requireObject(recipient, `recipients[${index}]`);
     const resolvedIdentityId = requireId(
       recipient.recipientIdentityId,
@@ -219,6 +231,11 @@ function requireId(value: unknown, field: string): string {
     throw new Error(`${field} must be a non-empty string of at most ${MAX_ID_LENGTH} characters`);
   }
   return value;
+}
+
+function optionalId(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  return requireId(value, field);
 }
 
 function requireRef(value: unknown, field: string): string {
