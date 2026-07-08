@@ -257,6 +257,68 @@ describe('emitMailboxEnvelopeQueuedToRecipients', () => {
     await senderStore.delete();
   });
 
+  it('deduplicates sender self-recipient wraps by device during publish lag', async () => {
+    const senderStore = store();
+    const currentAliceWrap = generateX25519Keypair();
+    const staleAliceWrap = generateX25519Keypair();
+    const staleSelfRecipient: ResolvedRecipient = {
+      recipientIdentityId: ALICE,
+      recipientDeviceId: ALICE_DEVICE,
+      wrapPublicKey: staleAliceWrap.publicKey,
+      wrapKeyRef: 'wrap:alice:stale'
+    };
+
+    const result = await emitMailboxEnvelopeQueuedToRecipients({
+      store: senderStore,
+      identityId: ALICE,
+      deviceId: ALICE_DEVICE,
+      senderDeviceWrap: {
+        wrapPublicKey: currentAliceWrap.publicKey,
+        wrapKeyRef: 'wrap:alice:current'
+      },
+      signingKeypair: KEYPAIR,
+      privacy: 'dm',
+      eventId: 'evt-mbx-self-wrap-1',
+      createdAt: NOW,
+      keyId: 'payload-key:self-1',
+      envelope: {
+        envelopeId: 'env-self-1',
+        recipientIdentityId: ALICE,
+        contentRef: 'sha-256:self-message-1',
+        expiresAt: FUTURE
+      },
+      recipients: [staleSelfRecipient]
+    });
+
+    expect(result.append.status).toBe('applied');
+    const payload = result.event.payload as unknown as PrivatePayloadEnvelopeV1;
+    expect(payload.recipientWraps).toHaveLength(1);
+    expect(payload.recipientWraps?.[0]?.recipientDeviceId).toBe(ALICE_DEVICE);
+    expect(payload.recipientWraps?.[0]?.wrappingKeyRef).toBe('wrap:alice:current');
+    expect(
+      resolvePayloadKeyMaterialForDevice(payload, [
+        {
+          identityId: ALICE,
+          deviceId: ALICE_DEVICE,
+          wrapKeyRef: 'wrap:alice:current',
+          wrapPrivateKey: currentAliceWrap.privateKey
+        }
+      ])
+    ).toEqual(expect.any(String));
+    expect(
+      resolvePayloadKeyMaterialForDevice(payload, [
+        {
+          identityId: ALICE,
+          deviceId: ALICE_DEVICE,
+          wrapKeyRef: 'wrap:alice:stale',
+          wrapPrivateKey: staleAliceWrap.privateKey
+        }
+      ])
+    ).toBeUndefined();
+
+    await senderStore.delete();
+  });
+
   it('rejects recipient wraps for a different identity before encrypting', async () => {
     const senderStore = store();
     const aliceWrap = generateX25519Keypair();
