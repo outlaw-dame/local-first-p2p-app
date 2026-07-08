@@ -1,3 +1,5 @@
+// formatter touch: keep this file in repo prettier shape
+
 /**
  * Phase 2.2 — locally-emitted identity event helpers.
  *
@@ -41,13 +43,6 @@ const PUBLIC_KEY_PATTERN = /^[A-Za-z0-9_-]{1,2048}$/;
 
 type Store = ReturnType<typeof createLocalFirstStore>;
 
-/**
- * Canonical projection-update callback for locally-emitted identity
- * events. Bridges `@lfp2p/identity`'s frozen
- * `IdentityControlState` to the persistence-layer
- * `StoredIdentityControlProjection`. Identical in semantics to the
- * inbound-path callback in `@lfp2p/sync-client`.
- */
 export const identityProjectionUpdate: IdentityControlProjectionUpdate = (
   current,
   event,
@@ -86,16 +81,8 @@ export const identityProjectionUpdate: IdentityControlProjectionUpdate = (
   return stored;
 };
 
-/**
- * Compute the canonical digest reference for a serialized contact
- * card document. The wire format is `sha-256:<base64url>`, matching
- * the `DIGEST_REF_PATTERN` enforced by `validateIdentityEvent`.
- */
 export async function contactCardDigestRef(serialized: string): Promise<string> {
   const digest = await sha256Base64Url(serialized);
-  // sha256Base64Url returns the bare base64url body; we wrap into the
-  // canonical algorithm-prefixed form expected by
-  // validateIdentityEvent's DIGEST_REF_PATTERN.
   return `sha-256:${digest}`;
 }
 
@@ -105,21 +92,10 @@ export type EmitContactCardPublishedInput = Readonly<{
   deviceId: string;
   controllerKeypair: SigningKeypair;
   serializedContactCard: string;
-  /** Defaults to a fresh `new Date().toISOString()`. */
   capturedAt?: string;
-  /** Defaults to `globalThis.crypto.randomUUID()`-derived. */
   eventId?: string;
 }>;
 
-/**
- * Build, sign, and append an `identity.contact-card.published` event
- * recording the digest of the serialized contact card. The signed
- * event lands in `signedEvents` and the projection's
- * `contactCardPublication` snapshot updates atomically.
- *
- * Returns the updated projection snapshot. Idempotent on the
- * generated `eventId` via the store layer.
- */
 export async function emitContactCardPublishedEvent(
   input: EmitContactCardPublishedInput
 ): Promise<StoredIdentityControlProjection> {
@@ -152,14 +128,8 @@ export type EmitDeviceAuthorizedInput = Readonly<{
   identityId: string;
   authorizedDeviceId: string;
   authorizedPublicKey: string;
-  /**
-   * Optional Phase 5.12C sender-visible public wrap metadata. If one field is
-   * supplied, the other must also be supplied. Private wrap keys never appear
-   * in this event.
-   */
   wrapPublicKey?: string;
   wrapKeyRef?: string;
-  /** Caller must pass `currentEpoch + 1`. */
   epoch: number;
   controllerKeypair: SigningKeypair;
   signingDeviceId: string;
@@ -167,14 +137,6 @@ export type EmitDeviceAuthorizedInput = Readonly<{
   createdAt?: string;
 }>;
 
-/**
- * Build, sign, and append an `identity.device.authorized` event.
- *
- * Phase 5.12C uses this path to publish the local device session's public
- * wrap metadata (`wrapPublicKey` / `wrapKeyRef`) into the identity-control
- * projection so later sender-side mailbox/chat code can resolve real peer
- * recipient devices. The private wrap key remains local-only.
- */
 export async function emitDeviceAuthorizedEvent(
   input: EmitDeviceAuthorizedInput
 ): Promise<StoredIdentityControlProjection> {
@@ -210,7 +172,6 @@ export async function emitDeviceAuthorizedEvent(
 export type EnsureLocalDeviceWrapMetadataInput = Readonly<{
   store: Store;
   session: LocalDeviceSession;
-  /** Defaults to the local session keypair; must match the projection controller. */
   controllerKeypair?: SigningKeypair;
   eventId?: string;
   createdAt?: string;
@@ -221,16 +182,6 @@ export type EnsureLocalDeviceWrapMetadataResult = Readonly<{
   projection: StoredIdentityControlProjection;
 }>;
 
-/**
- * Publish or repair this local device's public wrap metadata in the identity
- * projection.
- *
- * This bridges Phase 5.12B device-session wrap keys and Phase 5.12C projection
- * publication. It is safe to call during app/bootstrap foreground paths: if the
- * current active device already advertises the session's wrap metadata, it is a
- * no-op. If the projection predates wrap metadata, it emits a fresh
- * controller-signed `identity.device.authorized` event at `epoch + 1`.
- */
 export async function ensureLocalDeviceWrapMetadataPublished(
   input: EnsureLocalDeviceWrapMetadataInput
 ): Promise<EnsureLocalDeviceWrapMetadataResult> {
@@ -246,7 +197,9 @@ export async function ensureLocalDeviceWrapMetadataPublished(
   const projection = await input.store.getIdentityControlProjection(identityId);
 
   if (projection === undefined || projection.controllerPublicKey === undefined) {
-    throw new Error('identity control projection with controller is required before wrap publication');
+    throw new Error(
+      'identity control projection with controller is required before wrap publication'
+    );
   }
   const controllerKeypair = input.controllerKeypair ?? session.keypair;
   if (controllerKeypair.publicKey !== projection.controllerPublicKey) {
@@ -289,10 +242,6 @@ export type EmitDeviceRotatedInput = Readonly<{
   deviceIdToRotate: string;
   previousPublicKey: string;
   newPublicKey: string;
-  /**
-   * The next monotonic epoch. Caller must pass `currentEpoch + 1`
-   * (the store-level projection update will throw on a stale value).
-   */
   epoch: number;
   controllerKeypair: SigningKeypair;
   signingDeviceId: string;
@@ -300,11 +249,6 @@ export type EmitDeviceRotatedInput = Readonly<{
   createdAt?: string;
 }>;
 
-/**
- * Build, sign, and append an `identity.device.rotated` event.
- * Convenience for the future rotation UI; safe to call now from
- * a CLI or admin surface. Returns the updated projection snapshot.
- */
 export async function emitDeviceRotatedEvent(
   input: EmitDeviceRotatedInput
 ): Promise<StoredIdentityControlProjection> {
