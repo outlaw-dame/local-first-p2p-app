@@ -97,6 +97,8 @@ export type ValidatedIdentityEvent =
           authorizedDeviceId: string;
           authorizedPublicKey: string;
           epoch: number;
+          wrapPublicKey?: string;
+          wrapKeyRef?: string;
         }>;
       }>)
   | (ValidatedIdentityEventCommon &
@@ -164,7 +166,15 @@ export function validateIdentityEvent(value: unknown): ValidatedIdentityEvent {
           initialDeviceId: assertId(payload.initialDeviceId, 'payload.initialDeviceId')
         })
       }) as ValidatedIdentityEvent;
-    case 'identity.device.authorized':
+    case 'identity.device.authorized': {
+      const wrapPublicKey = assertOptionalPublicKey(payload.wrapPublicKey, 'payload.wrapPublicKey');
+      const wrapKeyRef = assertOptionalId(payload.wrapKeyRef, 'payload.wrapKeyRef');
+      if ((wrapPublicKey === undefined) !== (wrapKeyRef === undefined)) {
+        throw identityError(
+          'IDENTITY_INVALID_INPUT',
+          'identity.device.authorized payload.wrapPublicKey and payload.wrapKeyRef must be present together'
+        );
+      }
       return Object.freeze({
         version: IDENTITY_EVENT_VERSION,
         kind,
@@ -174,9 +184,12 @@ export function validateIdentityEvent(value: unknown): ValidatedIdentityEvent {
             payload.authorizedPublicKey,
             'payload.authorizedPublicKey'
           ),
-          epoch: assertPositiveInteger(payload.epoch, 'payload.epoch')
+          epoch: assertPositiveInteger(payload.epoch, 'payload.epoch'),
+          ...(wrapPublicKey === undefined ? {} : { wrapPublicKey }),
+          ...(wrapKeyRef === undefined ? {} : { wrapKeyRef })
         })
       }) as ValidatedIdentityEvent;
+    }
     case 'identity.device.revoked':
       return Object.freeze({
         version: IDENTITY_EVENT_VERSION,
@@ -315,6 +328,11 @@ function assertId(value: unknown, label: string): string {
   return trimmed;
 }
 
+function assertOptionalId(value: unknown, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  return assertId(value, label);
+}
+
 function assertPublicKey(value: unknown, label: string): string {
   if (typeof value !== 'string') {
     throw identityError('IDENTITY_INVALID_PUBLIC_KEY', `${label} must be a string`);
@@ -326,6 +344,11 @@ function assertPublicKey(value: unknown, label: string): string {
     );
   }
   return value;
+}
+
+function assertOptionalPublicKey(value: unknown, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  return assertPublicKey(value, label);
 }
 
 function assertPositiveInteger(value: unknown, label: string): number {
