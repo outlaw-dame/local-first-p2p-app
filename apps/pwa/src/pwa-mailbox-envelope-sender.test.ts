@@ -5,7 +5,10 @@ import {
   signingKeypairFromSeed,
   type SigningKeypair
 } from '@lfp2p/crypto';
-import { resolvePayloadKeyMaterialForDevice, type ResolvedRecipient } from '@lfp2p/envelope';
+import {
+  resolvePayloadKeyMaterialForDevice,
+  type ResolvedRecipient
+} from '@lfp2p/envelope';
 import { createLocalFirstStore } from '@lfp2p/local-store';
 import type { PrivatePayloadEnvelopeV1 } from '@lfp2p/protocol';
 import { buildMailboxInboxViewModel } from './pwa-mailbox-state.js';
@@ -27,7 +30,7 @@ function store() {
 }
 
 describe('emitMailboxEnvelopeQueuedToRecipients', () => {
-  it('wraps a fresh per-envelope key to recipient devices and projects sender/recipient mailboxes', async () => {
+  it('wraps a fresh key to recipient devices and projects both mailboxes', async () => {
     const senderStore = store();
     const recipientStore = store();
     const bobWrap = generateX25519Keypair();
