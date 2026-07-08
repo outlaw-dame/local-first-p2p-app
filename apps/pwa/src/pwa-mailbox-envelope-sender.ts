@@ -241,10 +241,7 @@ function buildRecipientWraps(input: BuildRecipientWrapsInput): readonly PayloadK
         recipientIdentityId: recipient.recipientIdentityId,
         recipientDeviceId: recipient.recipientDeviceId,
         keyAgreement: 'x25519-v1',
-        wrappedKey: wrapPayloadKeyWithX25519(
-          input.keyMaterial,
-          recipient.wrapPublicKey
-        ),
+        wrappedKey: wrapPayloadKeyWithX25519(input.keyMaterial, recipient.wrapPublicKey),
         wrappingKeyRef: recipient.wrapKeyRef
       })
     );
@@ -253,8 +250,12 @@ function buildRecipientWraps(input: BuildRecipientWrapsInput): readonly PayloadK
   return Object.freeze(wraps);
 }
 
-function wrapDedupeKey(identityId: string, deviceId: string, wrapKeyRef: string): string {
-  return `${identityId}\u0000${deviceId}\u0000${wrapKeyRef}`;
+function wrapDedupeKey(
+  identityId: string,
+  deviceId: string,
+  wrapKeyRef: string
+): string {
+  return JSON.stringify([identityId, deviceId, wrapKeyRef]);
 }
 
 function normalizeMailboxRecipients(
@@ -270,7 +271,9 @@ function normalizeMailboxRecipients(
       ? recipients
       : recipients.filter((recipient) => recipient?.recipientDeviceId === targetDeviceId);
   if (selected.length === 0) {
-    throw new Error(`recipientDeviceId ${String(targetDeviceId)} not found in resolved recipients`);
+    throw new Error(
+      `recipientDeviceId ${String(targetDeviceId)} not found in resolved recipients`
+    );
   }
 
   const seenDeviceIds = new Set<string>();
@@ -294,11 +297,16 @@ function normalizeMailboxRecipients(
     return Object.freeze({
       recipientIdentityId: resolvedIdentityId,
       recipientDeviceId,
-      wrapPublicKey: requireId(recipient.wrapPublicKey, `recipients[${index}].wrapPublicKey`),
+      wrapPublicKey: requireId(
+        recipient.wrapPublicKey,
+        `recipients[${index}].wrapPublicKey`
+      ),
       wrapKeyRef: requireId(recipient.wrapKeyRef, `recipients[${index}].wrapKeyRef`)
     });
   });
-  normalized.sort((left, right) => left.recipientDeviceId.localeCompare(right.recipientDeviceId));
+  normalized.sort((left, right) =>
+    left.recipientDeviceId.localeCompare(right.recipientDeviceId)
+  );
   return Object.freeze(normalized);
 }
 
@@ -311,7 +319,11 @@ function normalizeSenderDeviceWrap(value: SenderDeviceWrap): SenderDeviceWrap {
 }
 
 function requireStore(value: Store): void {
-  if (value === null || typeof value !== 'object' || typeof value.appendMailboxEvent !== 'function') {
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    typeof value.appendMailboxEvent !== 'function'
+  ) {
     throw new Error('store must be a valid Store instance');
   }
 }
@@ -325,7 +337,9 @@ function requireObject<T>(value: T, field: string): T {
 
 function requireId(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_ID_LENGTH) {
-    throw new Error(`${field} must be a non-empty string of at most ${MAX_ID_LENGTH} characters`);
+    throw new Error(
+      `${field} must be a non-empty string of at most ${MAX_ID_LENGTH} characters`
+    );
   }
   return value;
 }
@@ -337,7 +351,9 @@ function optionalId(value: unknown, field: string): string | undefined {
 
 function requireRef(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_REF_LENGTH) {
-    throw new Error(`${field} must be a non-empty string of at most ${MAX_REF_LENGTH} characters`);
+    throw new Error(
+      `${field} must be a non-empty string of at most ${MAX_REF_LENGTH} characters`
+    );
   }
   return value;
 }
