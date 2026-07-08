@@ -10,7 +10,10 @@ import {
   type ResolvedRecipient
 } from '@lfp2p/envelope';
 import { createLocalFirstStore } from '@lfp2p/local-store';
-import type { PrivatePayloadEnvelopeV1, SignedEventEnvelope } from '@lfp2p/protocol';
+import type {
+  PrivatePayloadEnvelopeV1,
+  SignedEventEnvelope
+} from '@lfp2p/protocol';
 import { buildMailboxInboxViewModel } from './pwa-mailbox-state.js';
 import { emitMailboxEnvelopeQueuedToRecipients } from './pwa-mailbox-envelope-sender.js';
 
@@ -168,7 +171,7 @@ describe('emitMailboxEnvelopeQueuedToRecipients', () => {
       deviceId: ALICE_DEVICE,
       signingKeypair: KEYPAIR,
       now: EXPIRED_NOW,
-      resolveEnvelopeKey: (row) => {
+      resolveEnvelopeKey: () => {
         const keyMaterial = resolveForSender(result.event);
         return keyMaterial === undefined
           ? undefined
