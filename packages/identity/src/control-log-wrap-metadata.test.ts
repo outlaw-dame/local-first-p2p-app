@@ -42,6 +42,34 @@ describe('identity control device wrap metadata', () => {
     });
   });
 
+  it('normalizes optional wrap key refs in the projection', () => {
+    const state = seedIdentityControlProjection([
+      signedIdentityEvent(
+        'identity.controller.created',
+        {
+          controllerPublicKey: CONTROLLER_KEY,
+          initialDeviceId: 'device:primary'
+        },
+        1,
+        'evt_controller_created'
+      ),
+      signedIdentityEvent(
+        'identity.device.authorized',
+        {
+          authorizedDeviceId: 'device:laptop',
+          authorizedPublicKey: 'device-laptop-public-key',
+          wrapPublicKey: WRAP_PUBLIC_KEY,
+          wrapKeyRef: `  ${WRAP_KEY_REF}  `,
+          epoch: 1
+        },
+        2,
+        'evt_device_authorized_wrap'
+      )
+    ]);
+
+    expect(state.devices['device:laptop']?.wrapKeyRef).toBe(WRAP_KEY_REF);
+  });
+
   it('keeps wrap metadata when a device is revoked', () => {
     const initial = seedIdentityControlProjection([
       signedIdentityEvent(
