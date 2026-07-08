@@ -18,6 +18,7 @@ const ALICE = 'identity:alice';
 const BOB = 'identity:bob';
 const ALICE_DEVICE = 'device:alice-1';
 const BOB_DEVICE = 'device:bob-1';
+const BOB_DEVICE_2 = 'device:bob-2';
 const FUTURE = '2026-08-01T00:00:00.000Z';
 const NOW = '2026-07-04T12:00:00.000Z';
 const KEYPAIR: SigningKeypair = signingKeypairFromSeed(new Uint8Array(32).fill(17));
@@ -91,6 +92,70 @@ describe('emitMailboxEnvelopeQueuedToRecipients', () => {
 
     await senderStore.delete();
     await recipientStore.delete();
+  });
+
+  it('seals to the requested recipient device when recipientDeviceId is set', async () => {
+    const senderStore = store();
+    const primaryWrap = generateX25519Keypair();
+    const secondaryWrap = generateX25519Keypair();
+    const primary: ResolvedRecipient = {
+      recipientIdentityId: BOB,
+      recipientDeviceId: BOB_DEVICE,
+      wrapPublicKey: primaryWrap.publicKey,
+      wrapKeyRef: 'wrap:bob:primary'
+    };
+    const secondary: ResolvedRecipient = {
+      recipientIdentityId: BOB,
+      recipientDeviceId: BOB_DEVICE_2,
+      wrapPublicKey: secondaryWrap.publicKey,
+      wrapKeyRef: 'wrap:bob:secondary'
+    };
+
+    const result = await emitMailboxEnvelopeQueuedToRecipients({
+      store: senderStore,
+      identityId: ALICE,
+      deviceId: ALICE_DEVICE,
+      signingKeypair: KEYPAIR,
+      privacy: 'dm',
+      eventId: 'evt-mbx-sealed-wrap-1',
+      createdAt: NOW,
+      keyId: 'payload-key:sealed-1',
+      envelope: {
+        envelopeId: 'env-sealed-1',
+        recipientIdentityId: BOB,
+        recipientDeviceId: BOB_DEVICE_2,
+        contentRef: 'sha-256:sealed-message-1',
+        expiresAt: FUTURE
+      },
+      recipients: [primary, secondary]
+    });
+
+    expect(result.append.status).toBe('applied');
+    expect(result.recipientDeviceIds).toEqual([BOB_DEVICE_2]);
+    const payload = result.event.payload as unknown as PrivatePayloadEnvelopeV1;
+    expect(payload.recipientWraps?.map((wrap) => wrap.recipientDeviceId)).toEqual([BOB_DEVICE_2]);
+    expect(
+      resolvePayloadKeyMaterialForDevice(payload, [
+        {
+          identityId: BOB,
+          deviceId: BOB_DEVICE,
+          wrapKeyRef: 'wrap:bob:primary',
+          wrapPrivateKey: primaryWrap.privateKey
+        }
+      ])
+    ).toBeUndefined();
+    expect(
+      resolvePayloadKeyMaterialForDevice(payload, [
+        {
+          identityId: BOB,
+          deviceId: BOB_DEVICE_2,
+          wrapKeyRef: 'wrap:bob:secondary',
+          wrapPrivateKey: secondaryWrap.privateKey
+        }
+      ])
+    ).toEqual(expect.any(String));
+
+    await senderStore.delete();
   });
 
   it('rejects recipient wraps for a different identity before encrypting', async () => {
