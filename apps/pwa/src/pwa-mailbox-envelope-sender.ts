@@ -16,7 +16,10 @@ import {
   type SignedEventEnvelope
 } from '@lfp2p/protocol';
 import type { ResolvedRecipient } from '@lfp2p/envelope';
-import type { AppendMailboxEventResult, createLocalFirstStore } from '@lfp2p/local-store';
+import type {
+  AppendMailboxEventResult,
+  createLocalFirstStore
+} from '@lfp2p/local-store';
 
 /**
  * Phase 5.12E sender-side mailbox envelope wiring.
@@ -91,6 +94,14 @@ export type QueueMailboxEnvelopeToRecipientsResult = Readonly<{
   senderDeviceId: string;
 }>;
 
+type BuildRecipientWrapsInput = Readonly<{
+  keyMaterial: string;
+  senderIdentityId: string;
+  senderDeviceId: string;
+  senderDeviceWrap: SenderDeviceWrap;
+  recipients: readonly ResolvedRecipient[];
+}>;
+
 export async function emitMailboxEnvelopeQueuedToRecipients(
   input: QueueMailboxEnvelopeToRecipientsInput
 ): Promise<QueueMailboxEnvelopeToRecipientsResult> {
@@ -100,18 +111,30 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
   const deviceId = requireId(input.deviceId, 'deviceId');
   const senderDeviceWrap = normalizeSenderDeviceWrap(input.senderDeviceWrap);
   const envelope = requireObject(input.envelope, 'input.envelope');
-  const recipientIdentityId = requireId(envelope.recipientIdentityId, 'envelope.recipientIdentityId');
-  const targetDeviceId = optionalId(envelope.recipientDeviceId, 'envelope.recipientDeviceId');
+  const recipientIdentityId = requireId(
+    envelope.recipientIdentityId,
+    'envelope.recipientIdentityId'
+  );
+  const targetDeviceId = optionalId(
+    envelope.recipientDeviceId,
+    'envelope.recipientDeviceId'
+  );
   const privacy = requireMailboxPrivacy(input.privacy);
   const recipients = normalizeMailboxRecipients(
     input.recipients,
     recipientIdentityId,
     targetDeviceId
   );
-  const createdAt = requireIsoTimestamp(input.createdAt ?? new Date().toISOString(), 'createdAt');
+  const createdAt = requireIsoTimestamp(
+    input.createdAt ?? new Date().toISOString(),
+    'createdAt'
+  );
   const eventId = input.eventId ?? newEventId();
   const keyMaterial = generatePrivatePayloadKeyMaterial();
-  const keyId = requireId(input.keyId ?? `payload-key:${globalThis.crypto.randomUUID()}`, 'keyId');
+  const keyId = requireId(
+    input.keyId ?? `payload-key:${globalThis.crypto.randomUUID()}`,
+    'keyId'
+  );
 
   const payload: JsonValue = {
     envelopeId: requireId(envelope.envelopeId, 'envelope.envelopeId'),
@@ -177,20 +200,14 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
     append,
     event: signed,
     keyId,
-    recipientDeviceIds: Object.freeze(recipients.map((recipient) => recipient.recipientDeviceId)),
+    recipientDeviceIds: Object.freeze(
+      recipients.map((recipient) => recipient.recipientDeviceId)
+    ),
     senderDeviceId: deviceId
   });
 }
 
-function buildRecipientWraps(
-  input: Readonly<{
-    keyMaterial: string;
-    senderIdentityId: string;
-    senderDeviceId: string;
-    senderDeviceWrap: SenderDeviceWrap;
-    recipients: readonly ResolvedRecipient[];
-  }>
-): readonly PayloadKeyRecipientWrap[] {
+function buildRecipientWraps(input: BuildRecipientWrapsInput): readonly PayloadKeyRecipientWrap[] {
   const wraps: PayloadKeyRecipientWrap[] = [
     Object.freeze({
       recipientIdentityId: input.senderIdentityId,
@@ -204,7 +221,11 @@ function buildRecipientWraps(
     })
   ];
   const seen = new Set<string>([
-    wrapDedupeKey(input.senderIdentityId, input.senderDeviceId, input.senderDeviceWrap.wrapKeyRef)
+    wrapDedupeKey(
+      input.senderIdentityId,
+      input.senderDeviceId,
+      input.senderDeviceWrap.wrapKeyRef
+    )
   ]);
 
   for (const recipient of input.recipients) {
@@ -220,7 +241,10 @@ function buildRecipientWraps(
         recipientIdentityId: recipient.recipientIdentityId,
         recipientDeviceId: recipient.recipientDeviceId,
         keyAgreement: 'x25519-v1',
-        wrappedKey: wrapPayloadKeyWithX25519(input.keyMaterial, recipient.wrapPublicKey),
+        wrappedKey: wrapPayloadKeyWithX25519(
+          input.keyMaterial,
+          recipient.wrapPublicKey
+        ),
         wrappingKeyRef: recipient.wrapKeyRef
       })
     );
