@@ -235,14 +235,14 @@ export async function ensureLocalDeviceWrapMetadataPublished(
   input: EnsureLocalDeviceWrapMetadataInput
 ): Promise<EnsureLocalDeviceWrapMetadataResult> {
   const session = input.session;
-  const identityId = requireId(session.identity.identityId, 'session.identity.identityId');
-  const deviceId = requireId(session.identity.deviceId, 'session.identity.deviceId');
-  const publicKey = requirePublicKey(session.identity.publicKey, 'session.identity.publicKey');
+  const identityId = requireId(session?.identity?.identityId, 'session.identity.identityId');
+  const deviceId = requireId(session?.identity?.deviceId, 'session.identity.deviceId');
+  const publicKey = requirePublicKey(session?.identity?.publicKey, 'session.identity.publicKey');
   const wrapPublicKey = requirePublicKey(
-    session.wrap.keypair.publicKey,
+    session?.wrap?.keypair?.publicKey,
     'session.wrap.keypair.publicKey'
   );
-  const wrapKeyRef = requireId(session.wrap.keyRef, 'session.wrap.keyRef');
+  const wrapKeyRef = requireId(session?.wrap?.keyRef, 'session.wrap.keyRef');
   const projection = await input.store.getIdentityControlProjection(identityId);
 
   if (projection === undefined || projection.controllerPublicKey === undefined) {
