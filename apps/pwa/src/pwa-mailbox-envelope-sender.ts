@@ -23,9 +23,10 @@ import type { AppendMailboxEventResult, createLocalFirstStore } from '@lfp2p/loc
  *
  * This helper is intentionally additive to the older `conversationKey` emit path:
  * it uses Phase 5.12D resolved peer device wrap metadata to generate a fresh
- * per-envelope AES content key, wraps that key once per recipient device, signs
- * the mailbox event, and appends it locally with the one-time key so the sender's
- * outbox projection advances. The raw key is never returned to the caller.
+ * per-envelope AES content key, wraps that key once per recipient device and
+ * once for the local sender device, signs the mailbox event, and appends it
+ * locally with the one-time key so the sender's outbox projection advances.
+ * The raw key is never returned to the caller.
  */
 
 type Store = ReturnType<typeof createLocalFirstStore>;
@@ -33,12 +34,21 @@ type Store = ReturnType<typeof createLocalFirstStore>;
 const MAX_ID_LENGTH = 512;
 const MAX_REF_LENGTH = 4096;
 
+export type SenderDeviceWrap = Readonly<{
+  /** Local sender device X25519 public wrap key. */
+  wrapPublicKey: string;
+  /** Stable local sender wrap-key reference. */
+  wrapKeyRef: string;
+}>;
+
 export type MailboxSenderEnvelopeContext = Readonly<{
   store: Store;
   /** The emitting identity — event author and local outbox owner. */
   identityId: string;
   /** Authorised local device doing the signing. */
   deviceId: string;
+  /** Local sender device wrap metadata so outbound events survive replay/reload. */
+  senderDeviceWrap: SenderDeviceWrap;
   signingKeypair: SigningKeypair;
 }>;
 
@@ -75,8 +85,10 @@ export type QueueMailboxEnvelopeToRecipientsResult = Readonly<{
   /** Signed event suitable for the normal bridge/sync publication path. */
   event: SignedEventEnvelope;
   keyId: string;
-  /** Device ids that received a wrapped copy of the per-event content key. */
+  /** Remote recipient device ids that received a wrapped copy of the content key. */
   recipientDeviceIds: readonly string[];
+  /** Local sender device id that received a replay/sweep wrap. */
+  senderDeviceId: string;
 }>;
 
 export async function emitMailboxEnvelopeQueuedToRecipients(
@@ -86,6 +98,7 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
   requireStore(input.store);
   const identityId = requireId(input.identityId, 'identityId');
   const deviceId = requireId(input.deviceId, 'deviceId');
+  const senderDeviceWrap = normalizeSenderDeviceWrap(input.senderDeviceWrap);
   const envelope = requireObject(input.envelope, 'input.envelope');
   const recipientIdentityId = requireId(envelope.recipientIdentityId, 'envelope.recipientIdentityId');
   const targetDeviceId = optionalId(envelope.recipientDeviceId, 'envelope.recipientDeviceId');
@@ -124,13 +137,13 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
     lamport: 0
   };
 
-  const recipientWraps = recipients.map<PayloadKeyRecipientWrap>((recipient) => ({
-    recipientIdentityId: recipient.recipientIdentityId,
-    recipientDeviceId: recipient.recipientDeviceId,
-    keyAgreement: 'x25519-v1',
-    wrappedKey: wrapPayloadKeyWithX25519(keyMaterial, recipient.wrapPublicKey),
-    wrappingKeyRef: recipient.wrapKeyRef
-  }));
+  const recipientWraps = buildRecipientWraps({
+    keyMaterial,
+    senderIdentityId: identityId,
+    senderDeviceId: deviceId,
+    senderDeviceWrap,
+    recipients
+  });
 
   const encrypted = await encryptPrivatePayload({
     plaintext: payload,
@@ -164,8 +177,55 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
     append,
     event: signed,
     keyId,
-    recipientDeviceIds: Object.freeze(recipients.map((recipient) => recipient.recipientDeviceId))
+    recipientDeviceIds: Object.freeze(recipients.map((recipient) => recipient.recipientDeviceId)),
+    senderDeviceId: deviceId
   });
+}
+
+function buildRecipientWraps(input: Readonly<{
+  keyMaterial: string;
+  senderIdentityId: string;
+  senderDeviceId: string;
+  senderDeviceWrap: SenderDeviceWrap;
+  recipients: readonly ResolvedRecipient[];
+}>): readonly PayloadKeyRecipientWrap[] {
+  const wraps: PayloadKeyRecipientWrap[] = [
+    Object.freeze({
+      recipientIdentityId: input.senderIdentityId,
+      recipientDeviceId: input.senderDeviceId,
+      keyAgreement: 'x25519-v1',
+      wrappedKey: wrapPayloadKeyWithX25519(input.keyMaterial, input.senderDeviceWrap.wrapPublicKey),
+      wrappingKeyRef: input.senderDeviceWrap.wrapKeyRef
+    })
+  ];
+  const seen = new Set<string>([
+    wrapDedupeKey(input.senderIdentityId, input.senderDeviceId, input.senderDeviceWrap.wrapKeyRef)
+  ]);
+
+  for (const recipient of input.recipients) {
+    const dedupeKey = wrapDedupeKey(
+      recipient.recipientIdentityId,
+      recipient.recipientDeviceId,
+      recipient.wrapKeyRef
+    );
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    wraps.push(
+      Object.freeze({
+        recipientIdentityId: recipient.recipientIdentityId,
+        recipientDeviceId: recipient.recipientDeviceId,
+        keyAgreement: 'x25519-v1',
+        wrappedKey: wrapPayloadKeyWithX25519(input.keyMaterial, recipient.wrapPublicKey),
+        wrappingKeyRef: recipient.wrapKeyRef
+      })
+    );
+  }
+
+  return Object.freeze(wraps);
+}
+
+function wrapDedupeKey(identityId: string, deviceId: string, wrapKeyRef: string): string {
+  return `${identityId}\u0000${deviceId}\u0000${wrapKeyRef}`;
 }
 
 function normalizeMailboxRecipients(
@@ -211,6 +271,14 @@ function normalizeMailboxRecipients(
   });
   normalized.sort((left, right) => left.recipientDeviceId.localeCompare(right.recipientDeviceId));
   return Object.freeze(normalized);
+}
+
+function normalizeSenderDeviceWrap(value: SenderDeviceWrap): SenderDeviceWrap {
+  requireObject(value, 'senderDeviceWrap');
+  return Object.freeze({
+    wrapPublicKey: requireId(value.wrapPublicKey, 'senderDeviceWrap.wrapPublicKey'),
+    wrapKeyRef: requireId(value.wrapKeyRef, 'senderDeviceWrap.wrapKeyRef')
+  });
 }
 
 function requireStore(value: Store): void {
