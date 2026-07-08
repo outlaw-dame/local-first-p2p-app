@@ -5,6 +5,7 @@ import { createLocalFirstStore } from '@lfp2p/local-store';
 import {
   contactCardDigestRef,
   emitContactCardPublishedEvent,
+  emitDeviceAuthorizedEvent,
   emitDeviceRotatedEvent,
   identityProjectionUpdate
 } from './pwa-identity-emit.js';
@@ -13,6 +14,8 @@ const CONTROLLER = signingKeypairFromSeed(new Uint8Array(32).fill(41));
 const NEW_KEY = signingKeypairFromSeed(new Uint8Array(32).fill(42));
 const ACTOR = 'identity:alice';
 const DEVICE = 'device:alice-phone';
+const WRAP_PUBLIC_KEY = 'A'.repeat(43);
+const WRAP_KEY_REF = 'wrap-key:device:alice-tablet:abc123';
 
 /**
  * Phase 2.2 — PWA emit-helper tests.
@@ -132,6 +135,138 @@ describe('Phase 2.2 — emitContactCardPublishedEvent', () => {
       const first = await emitContactCardPublishedEvent(args);
       const second = await emitContactCardPublishedEvent(args);
       expect(second).toEqual(first);
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('Phase 5.12C — emitDeviceAuthorizedEvent', () => {
+  it('publishes wrap metadata onto an authorized device projection', async () => {
+    const { store, cleanup } = await bootstrap();
+    try {
+      const result = await emitDeviceAuthorizedEvent({
+        store,
+        identityId: ACTOR,
+        authorizedDeviceId: 'device:alice-tablet',
+        authorizedPublicKey: NEW_KEY.publicKey,
+        wrapPublicKey: WRAP_PUBLIC_KEY,
+        wrapKeyRef: WRAP_KEY_REF,
+        epoch: 1,
+        controllerKeypair: CONTROLLER,
+        signingDeviceId: DEVICE,
+        eventId: 'evt_emit_auth_wrap_1',
+        createdAt: '2026-06-03T00:01:00.000Z'
+      });
+
+      expect(result.epoch).toBe(1);
+      expect(result.devices['device:alice-tablet']).toMatchObject({
+        deviceId: 'device:alice-tablet',
+        publicKey: NEW_KEY.publicKey,
+        status: 'active',
+        wrapPublicKey: WRAP_PUBLIC_KEY,
+        wrapKeyRef: WRAP_KEY_REF
+      });
+      await expect(store.getSignedEvent('evt_emit_auth_wrap_1')).resolves.toBeDefined();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('trims ids and public keys before emitting', async () => {
+    const { store, cleanup } = await bootstrap();
+    try {
+      const result = await emitDeviceAuthorizedEvent({
+        store,
+        identityId: ACTOR,
+        authorizedDeviceId: '  device:alice-tablet  ',
+        authorizedPublicKey: `  ${NEW_KEY.publicKey}  `,
+        wrapPublicKey: `  ${WRAP_PUBLIC_KEY}  `,
+        wrapKeyRef: `  ${WRAP_KEY_REF}  `,
+        epoch: 1,
+        controllerKeypair: CONTROLLER,
+        signingDeviceId: DEVICE,
+        eventId: 'evt_emit_auth_trimmed',
+        createdAt: '2026-06-03T00:01:00.000Z'
+      });
+
+      expect(result.devices['device:alice-tablet']).toMatchObject({
+        publicKey: NEW_KEY.publicKey,
+        wrapPublicKey: WRAP_PUBLIC_KEY,
+        wrapKeyRef: WRAP_KEY_REF
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('allows public keys longer than the id limit', async () => {
+    const { store, cleanup } = await bootstrap();
+    try {
+      const longPublicKey = 'B'.repeat(300);
+      const result = await emitDeviceAuthorizedEvent({
+        store,
+        identityId: ACTOR,
+        authorizedDeviceId: 'device:alice-tablet',
+        authorizedPublicKey: longPublicKey,
+        wrapPublicKey: longPublicKey,
+        wrapKeyRef: WRAP_KEY_REF,
+        epoch: 1,
+        controllerKeypair: CONTROLLER,
+        signingDeviceId: DEVICE,
+        eventId: 'evt_emit_auth_long_public_key',
+        createdAt: '2026-06-03T00:01:00.000Z'
+      });
+
+      expect(result.devices['device:alice-tablet']).toMatchObject({
+        publicKey: longPublicKey,
+        wrapPublicKey: longPublicKey
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('rejects ids longer than the core identity limit', async () => {
+    const { store, cleanup } = await bootstrap();
+    try {
+      await expect(
+        emitDeviceAuthorizedEvent({
+          store,
+          identityId: ACTOR,
+          authorizedDeviceId: 'd'.repeat(257),
+          authorizedPublicKey: NEW_KEY.publicKey,
+          wrapPublicKey: WRAP_PUBLIC_KEY,
+          wrapKeyRef: WRAP_KEY_REF,
+          epoch: 1,
+          controllerKeypair: CONTROLLER,
+          signingDeviceId: DEVICE,
+          eventId: 'evt_emit_auth_long_id',
+          createdAt: '2026-06-03T00:01:00.000Z'
+        })
+      ).rejects.toThrow(/authorizedDeviceId must be a non-empty string of at most 256 characters/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('rejects half-published wrap metadata at the PWA boundary', async () => {
+    const { store, cleanup } = await bootstrap();
+    try {
+      await expect(
+        emitDeviceAuthorizedEvent({
+          store,
+          identityId: ACTOR,
+          authorizedDeviceId: 'device:alice-tablet',
+          authorizedPublicKey: NEW_KEY.publicKey,
+          wrapPublicKey: WRAP_PUBLIC_KEY,
+          epoch: 1,
+          controllerKeypair: CONTROLLER,
+          signingDeviceId: DEVICE,
+          eventId: 'evt_emit_auth_half',
+          createdAt: '2026-06-03T00:01:00.000Z'
+        })
+      ).rejects.toThrow(/wrapPublicKey and wrapKeyRef must be supplied together/);
     } finally {
       await cleanup();
     }
