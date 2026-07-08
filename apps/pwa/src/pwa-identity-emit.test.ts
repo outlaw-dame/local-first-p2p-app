@@ -267,7 +267,9 @@ describe('Phase 5.12C — emitDeviceAuthorizedEvent', () => {
           eventId: 'evt_emit_auth_long_id',
           createdAt: '2026-06-03T00:01:00.000Z'
         })
-      ).rejects.toThrow(/authorizedDeviceId must be a non-empty string of at most 256 characters/);
+      ).rejects.toThrow(
+        /authorizedDeviceId must be a non-empty string of at most 256 characters/
+      );
     } finally {
       await cleanup();
     }
