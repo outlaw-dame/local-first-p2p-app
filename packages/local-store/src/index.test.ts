@@ -559,7 +559,11 @@ function makeSignedEvent(eventId: string) {
       deviceId: 'device:alice-phone',
       createdAt: '2026-05-22T00:00:00.000Z',
       privacy: 'self',
-      payload: { authorizedDeviceId: 'device:alice-phone' }
+      payload: {
+        authorizedDeviceId: 'device:alice-phone',
+        authorizedPublicKey: keypair.publicKey,
+        epoch: 1
+      }
     }),
     keypair
   );
