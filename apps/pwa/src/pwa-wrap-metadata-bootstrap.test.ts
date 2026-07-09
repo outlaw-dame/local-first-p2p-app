@@ -21,9 +21,7 @@ let dbSeq = 0;
 
 function store() {
   dbSeq += 1;
-  return createLocalFirstStore(
-    `pwa-wrap-bootstrap-${dbSeq}-${globalThis.crypto.randomUUID()}`
-  );
+  return createLocalFirstStore(`pwa-wrap-bootstrap-${dbSeq}-${globalThis.crypto.randomUUID()}`);
 }
 
 function localSession(keypair: SigningKeypair = CONTROLLER): LocalDeviceSession {

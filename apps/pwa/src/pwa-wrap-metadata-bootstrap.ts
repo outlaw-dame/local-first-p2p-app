@@ -1,8 +1,5 @@
 import type { LocalDeviceSession } from '@lfp2p/identity';
-import type {
-  StoredIdentityControlProjection,
-  createLocalFirstStore,
-} from '@lfp2p/local-store';
+import type { StoredIdentityControlProjection, createLocalFirstStore } from '@lfp2p/local-store';
 import { ensureLocalDeviceWrapMetadataPublished } from './pwa-identity-emit.js';
 
 type Store = ReturnType<typeof createLocalFirstStore>;
@@ -43,14 +40,14 @@ export async function ensurePwaLocalWrapMetadataPublished(
       status: 'not-ready',
       projection,
       message:
-        'Identity projection is not controller-known yet; wrap metadata publication deferred.',
+        'Identity projection is not controller-known yet; wrap metadata publication deferred.'
     });
   }
 
   try {
     const result = await ensureLocalDeviceWrapMetadataPublished({
       store: input.store,
-      session: input.session,
+      session: input.session
     });
     return Object.freeze({
       status: result.status,
@@ -58,22 +55,19 @@ export async function ensurePwaLocalWrapMetadataPublished(
       message:
         result.status === 'published'
           ? 'Local device wrap metadata published to the identity projection.'
-          : 'Local device wrap metadata is already published.',
+          : 'Local device wrap metadata is already published.'
     });
   } catch (error: unknown) {
     return Object.freeze({
       status: 'failed',
       projection,
-      message: `Local device wrap metadata publication failed: ${
-        formatBootstrapError(error)
-      }`,
+      message: `Local device wrap metadata publication failed: ${formatBootstrapError(error)}`
     });
   }
 }
 
 function formatBootstrapError(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0)
-    return error.message;
+  if (error instanceof Error && error.message.trim().length > 0) return error.message;
   if (typeof error === 'string' && error.trim().length > 0) return error;
   return 'Unknown error';
 }

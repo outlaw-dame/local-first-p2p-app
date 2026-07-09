@@ -531,6 +531,8 @@ export type StoredIdentityControlDevice = Readonly<{
   status: 'active' | 'revoked';
   authorizedAt: string;
   revokedAt?: string;
+  wrapPublicKey?: string;
+  wrapKeyRef?: string;
 }>;
 
 export type StoredIdentityControlCapability = Readonly<{
@@ -2442,6 +2444,26 @@ function validateIdentityControlProjection(projection: StoredIdentityControlProj
   }
   if (projection.lastEventId !== undefined) {
     requireNonEmpty(projection.lastEventId, 'lastEventId');
+  }
+  for (const [deviceKey, device] of Object.entries(projection.devices)) {
+    requireNonEmpty(deviceKey, 'device key');
+    requireNonEmpty(device.deviceId, 'device.deviceId');
+    requireNonEmpty(device.publicKey, 'device.publicKey');
+    if (device.status !== 'active' && device.status !== 'revoked') {
+      throw new Error('device.status must be active or revoked');
+    }
+    requireIsoDate(device.authorizedAt, 'device.authorizedAt');
+    if (device.revokedAt !== undefined) requireIsoDate(device.revokedAt, 'device.revokedAt');
+    const wrapPresent = device.wrapPublicKey !== undefined || device.wrapKeyRef !== undefined;
+    if (wrapPresent && (device.wrapPublicKey === undefined || device.wrapKeyRef === undefined)) {
+      throw new Error('device wrapPublicKey and wrapKeyRef must be present together');
+    }
+    if (device.wrapPublicKey !== undefined) {
+      requireNonEmpty(device.wrapPublicKey, 'device.wrapPublicKey');
+    }
+    if (device.wrapKeyRef !== undefined) {
+      requireNonEmpty(device.wrapKeyRef, 'device.wrapKeyRef');
+    }
   }
   requireIsoDate(projection.updatedAt, 'updatedAt');
 }

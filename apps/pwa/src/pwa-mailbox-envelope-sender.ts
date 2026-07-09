@@ -1,8 +1,4 @@
-import {
-  signEventEnvelope,
-  wrapPayloadKeyWithX25519,
-  type SigningKeypair
-} from '@lfp2p/crypto';
+import { signEventEnvelope, wrapPayloadKeyWithX25519, type SigningKeypair } from '@lfp2p/crypto';
 import {
   encryptPrivatePayload,
   generatePrivatePayloadKeyMaterial,
@@ -87,7 +83,10 @@ export async function emitMailboxEnvelopeQueuedToRecipients(
   const identityId = requireId(input.identityId, 'identityId');
   const deviceId = requireId(input.deviceId, 'deviceId');
   const envelope = requireObject(input.envelope, 'input.envelope');
-  const recipientIdentityId = requireId(envelope.recipientIdentityId, 'envelope.recipientIdentityId');
+  const recipientIdentityId = requireId(
+    envelope.recipientIdentityId,
+    'envelope.recipientIdentityId'
+  );
   const targetDeviceId = optionalId(envelope.recipientDeviceId, 'envelope.recipientDeviceId');
   const privacy = requireMailboxPrivacy(input.privacy);
   const recipients = normalizeMailboxRecipients(
@@ -214,7 +213,11 @@ function normalizeMailboxRecipients(
 }
 
 function requireStore(value: Store): void {
-  if (value === null || typeof value !== 'object' || typeof value.appendMailboxEvent !== 'function') {
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    typeof value.appendMailboxEvent !== 'function'
+  ) {
     throw new Error('store must be a valid Store instance');
   }
 }

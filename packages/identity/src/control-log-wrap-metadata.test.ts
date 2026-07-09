@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  type EventKind,
-  createUnsignedEvent,
-  type SignedEventEnvelope,
-} from '@lfp2p/protocol';
-import {
-  applyIdentityControlEvent,
-  seedIdentityControlProjection,
-} from './control-log.js';
+import { type EventKind, createUnsignedEvent, type SignedEventEnvelope } from '@lfp2p/protocol';
+import { applyIdentityControlEvent, seedIdentityControlProjection } from './control-log.js';
 import { validateIdentityEvent } from './validation.js';
 
 const CONTROLLER_KEY = 'controller-public-key';
@@ -21,7 +14,7 @@ describe('identity control device wrap metadata', () => {
         'identity.controller.created',
         {
           controllerPublicKey: CONTROLLER_KEY,
-          initialDeviceId: 'device:primary',
+          initialDeviceId: 'device:primary'
         },
         1,
         'evt_controller_created'
@@ -33,11 +26,11 @@ describe('identity control device wrap metadata', () => {
           authorizedPublicKey: 'device-laptop-public-key',
           wrapPublicKey: WRAP_PUBLIC_KEY,
           wrapKeyRef: WRAP_KEY_REF,
-          epoch: 1,
+          epoch: 1
         },
         2,
         'evt_device_authorized_wrap'
-      ),
+      )
     ]);
 
     expect(state.devices['device:laptop']).toMatchObject({
@@ -45,7 +38,7 @@ describe('identity control device wrap metadata', () => {
       publicKey: 'device-laptop-public-key',
       status: 'active',
       wrapPublicKey: WRAP_PUBLIC_KEY,
-      wrapKeyRef: WRAP_KEY_REF,
+      wrapKeyRef: WRAP_KEY_REF
     });
   });
 
@@ -55,7 +48,7 @@ describe('identity control device wrap metadata', () => {
         'identity.controller.created',
         {
           controllerPublicKey: CONTROLLER_KEY,
-          initialDeviceId: 'device:primary',
+          initialDeviceId: 'device:primary'
         },
         1,
         'evt_controller_created'
@@ -67,11 +60,11 @@ describe('identity control device wrap metadata', () => {
           authorizedPublicKey: 'device-laptop-public-key',
           wrapPublicKey: WRAP_PUBLIC_KEY,
           wrapKeyRef: `  ${WRAP_KEY_REF}  `,
-          epoch: 1,
+          epoch: 1
         },
         2,
         'evt_device_authorized_wrap'
-      ),
+      )
     ]);
 
     expect(state.devices['device:laptop']?.wrapKeyRef).toBe(WRAP_KEY_REF);
@@ -83,7 +76,7 @@ describe('identity control device wrap metadata', () => {
         'identity.controller.created',
         {
           controllerPublicKey: CONTROLLER_KEY,
-          initialDeviceId: 'device:primary',
+          initialDeviceId: 'device:primary'
         },
         1,
         'evt_controller_created'
@@ -95,11 +88,11 @@ describe('identity control device wrap metadata', () => {
           authorizedPublicKey: 'device-laptop-public-key',
           wrapPublicKey: WRAP_PUBLIC_KEY,
           wrapKeyRef: WRAP_KEY_REF,
-          epoch: 1,
+          epoch: 1
         },
         2,
         'evt_device_authorized_wrap'
-      ),
+      )
     ]);
 
     const revoked = applyIdentityControlEvent(
@@ -108,7 +101,7 @@ describe('identity control device wrap metadata', () => {
         'identity.device.revoked',
         {
           revokedDeviceId: 'device:laptop',
-          epoch: 2,
+          epoch: 2
         },
         3,
         'evt_device_revoked'
@@ -118,7 +111,7 @@ describe('identity control device wrap metadata', () => {
     expect(revoked.devices['device:laptop']).toMatchObject({
       status: 'revoked',
       wrapPublicKey: WRAP_PUBLIC_KEY,
-      wrapKeyRef: WRAP_KEY_REF,
+      wrapKeyRef: WRAP_KEY_REF
     });
   });
 
@@ -131,8 +124,8 @@ describe('identity control device wrap metadata', () => {
           authorizedDeviceId: 'device:laptop',
           authorizedPublicKey: 'device-laptop-public-key',
           wrapPublicKey: WRAP_PUBLIC_KEY,
-          epoch: 1,
-        },
+          epoch: 1
+        }
       })
     ).toThrow(/wrapPublicKey and payload\.wrapKeyRef must be present together/);
   });
@@ -147,8 +140,8 @@ describe('identity control device wrap metadata', () => {
           authorizedPublicKey: 'device-laptop-public-key',
           wrapPublicKey: 'not valid base64url!',
           wrapKeyRef: WRAP_KEY_REF,
-          epoch: 1,
-        },
+          epoch: 1
+        }
       })
     ).toThrow(/payload\.wrapPublicKey must be a base64url-encoded public key/);
   });
@@ -165,12 +158,10 @@ function signedIdentityEvent(
     kind,
     author: 'identity:test-account',
     deviceId: 'device:test-primary',
-    createdAt: new Date(
-      Date.UTC(2026, 4, 26, 0, 0, lamport)
-    ).toISOString(),
+    createdAt: new Date(Date.UTC(2026, 4, 26, 0, 0, lamport)).toISOString(),
     lamport,
     privacy: 'self',
-    payload,
+    payload
   });
 
   return {
@@ -178,18 +169,14 @@ function signedIdentityEvent(
     signature: {
       algorithm: 'ed25519',
       publicKey: defaultSignerFor(kind, payload),
-      value: 'test-signature',
-    },
+      value: 'test-signature'
+    }
   };
 }
 
-function defaultSignerFor(
-  kind: EventKind,
-  payload: Record<string, unknown>
-): string {
+function defaultSignerFor(kind: EventKind, payload: Record<string, unknown>): string {
   if (kind === 'identity.controller.created') {
-    return typeof payload.controllerPublicKey === 'string' &&
-      payload.controllerPublicKey.length > 0
+    return typeof payload.controllerPublicKey === 'string' && payload.controllerPublicKey.length > 0
       ? payload.controllerPublicKey
       : CONTROLLER_KEY;
   }
