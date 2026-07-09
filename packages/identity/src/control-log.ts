@@ -2,7 +2,7 @@ import {
   canonicalizeJson,
   type SignedEventEnvelope,
   unsignedProjection,
-  validateSignedEvent
+  validateSignedEvent,
 } from '@lfp2p/protocol';
 import { identityError } from './errors.js';
 import { validateIdentityEvent } from './validation.js';
@@ -61,7 +61,7 @@ export function createEmptyIdentityControlState(): IdentityControlState {
   return Object.freeze({
     epoch: 0,
     devices: Object.freeze({}),
-    capabilities: Object.freeze({})
+    capabilities: Object.freeze({}),
   });
 }
 
@@ -80,7 +80,9 @@ export function createEmptyIdentityControlState(): IdentityControlState {
  * reallocate, and the function does not produce an unbounded
  * allocation cascade — each level is touched exactly once.
  */
-function freezeIdentityControlState(state: IdentityControlState): IdentityControlState {
+function freezeIdentityControlState(
+  state: IdentityControlState
+): IdentityControlState {
   const devices: Record<string, IdentityControlDevice> = {};
   for (const k of Object.keys(state.devices)) {
     const v = state.devices[k];
@@ -96,7 +98,7 @@ function freezeIdentityControlState(state: IdentityControlState): IdentityContro
   return Object.freeze({
     ...state,
     devices: Object.freeze(devices),
-    capabilities: Object.freeze(capabilities)
+    capabilities: Object.freeze(capabilities),
   });
 }
 
@@ -114,7 +116,7 @@ export function applyIdentityControlEvent(
     validateIdentityEvent({
       version: 'lfp2p.identity-event.v1',
       kind: event.kind,
-      payload: event.payload
+      payload: event.payload,
     });
   }
 
@@ -147,7 +149,8 @@ export function seedIdentityControlProjection(
 
   const sorted = [...events].sort((left, right) => {
     if (left.lamport !== right.lamport) return left.lamport - right.lamport;
-    const createdAtOrder = Date.parse(left.createdAt) - Date.parse(right.createdAt);
+    const createdAtOrder =
+      Date.parse(left.createdAt) - Date.parse(right.createdAt);
     if (createdAtOrder !== 0) return createdAtOrder;
     return left.eventId.localeCompare(right.eventId);
   });
@@ -165,8 +168,14 @@ function applyControllerCreated(
   event: SignedEventEnvelope
 ): IdentityControlState {
   const payload = event.payload as Record<string, unknown>;
-  const controllerPublicKey = requireString(payload.controllerPublicKey, 'controllerPublicKey');
-  const initialDeviceId = requireString(payload.initialDeviceId, 'initialDeviceId');
+  const controllerPublicKey = requireString(
+    payload.controllerPublicKey,
+    'controllerPublicKey'
+  );
+  const initialDeviceId = requireString(
+    payload.initialDeviceId,
+    'initialDeviceId'
+  );
 
   if (state.controllerPublicKey !== undefined) {
     throw new Error(
@@ -188,10 +197,10 @@ function applyControllerCreated(
         deviceId: initialDeviceId,
         publicKey: event.signature.publicKey,
         status: 'active',
-        authorizedAt: event.createdAt
-      }
+        authorizedAt: event.createdAt,
+      },
     },
-    lastEventId: event.eventId
+    lastEventId: event.eventId,
   });
 }
 
@@ -201,13 +210,24 @@ function applyDeviceAuthorized(
 ): IdentityControlState {
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
-  const deviceId = requireString(payload.authorizedDeviceId, 'authorizedDeviceId');
-  const publicKey = requireString(payload.authorizedPublicKey, 'authorizedPublicKey');
+  const deviceId = requireString(
+    payload.authorizedDeviceId,
+    'authorizedDeviceId'
+  );
+  const publicKey = requireString(
+    payload.authorizedPublicKey,
+    'authorizedPublicKey'
+  );
   const epoch = requirePositiveInteger(payload.epoch, 'epoch');
-  const wrapPublicKey = optionalString(payload.wrapPublicKey, 'wrapPublicKey');
+  const wrapPublicKey = optionalString(
+    payload.wrapPublicKey,
+    'wrapPublicKey'
+  );
   const wrapKeyRef = optionalString(payload.wrapKeyRef, 'wrapKeyRef');
   if ((wrapPublicKey === undefined) !== (wrapKeyRef === undefined)) {
-    throw new Error('identity.device.authorized wrapPublicKey and wrapKeyRef must be present together');
+    throw new Error(
+      'identity.device.authorized wrapPublicKey and wrapKeyRef must be present together'
+    );
   }
   requireMonotonicEpoch(state.epoch, epoch, event.kind);
 
@@ -222,10 +242,10 @@ function applyDeviceAuthorized(
         status: 'active',
         authorizedAt: event.createdAt,
         ...(wrapPublicKey === undefined ? {} : { wrapPublicKey }),
-        ...(wrapKeyRef === undefined ? {} : { wrapKeyRef })
-      }
+        ...(wrapKeyRef === undefined ? {} : { wrapKeyRef }),
+      },
     },
-    lastEventId: event.eventId
+    lastEventId: event.eventId,
   });
 }
 
@@ -239,11 +259,13 @@ function applyDeviceRevoked(
   const epoch = requirePositiveInteger(payload.epoch, 'epoch');
   const existing = state.devices[deviceId];
   if (existing === undefined)
-    throw new Error(`identity.device.revoked references unknown device ${deviceId}`);
+    throw new Error(
+      `identity.device.revoked references unknown device ${deviceId}`
+    );
   if (existing.status === 'revoked') {
     return freezeIdentityControlState({
       ...state,
-      lastEventId: event.eventId
+      lastEventId: event.eventId,
     });
   }
   requireMonotonicEpoch(state.epoch, epoch, event.kind);
@@ -256,10 +278,10 @@ function applyDeviceRevoked(
       [deviceId]: {
         ...existing,
         status: 'revoked',
-        revokedAt: event.createdAt
-      }
+        revokedAt: event.createdAt,
+      },
     },
-    lastEventId: event.eventId
+    lastEventId: event.eventId,
   });
 }
 
@@ -270,11 +292,16 @@ function applyCapabilityGranted(
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const capabilityId = requireString(payload.capabilityId, 'capabilityId');
-  const delegateDeviceId = requireString(payload.delegateDeviceId, 'delegateDeviceId');
+  const delegateDeviceId = requireString(
+    payload.delegateDeviceId,
+    'delegateDeviceId'
+  );
   const scope = requireString(payload.scope, 'scope');
   const expiresAt = requireString(payload.expiresAt, 'expiresAt');
   if (!Number.isFinite(Date.parse(expiresAt)))
-    throw new Error('identity.capability.granted payload.expiresAt must be an ISO date string');
+    throw new Error(
+      'identity.capability.granted payload.expiresAt must be an ISO date string'
+    );
 
   return freezeIdentityControlState({
     ...state,
@@ -286,10 +313,10 @@ function applyCapabilityGranted(
         scope,
         expiresAt,
         status: 'granted',
-        grantedAt: event.createdAt
-      }
+        grantedAt: event.createdAt,
+      },
     },
-    lastEventId: event.eventId
+    lastEventId: event.eventId,
   });
 }
 
@@ -300,10 +327,15 @@ function applyCapabilityRevoked(
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const capabilityId = requireString(payload.capabilityId, 'capabilityId');
-  const delegateDeviceId = requireString(payload.delegateDeviceId, 'delegateDeviceId');
+  const delegateDeviceId = requireString(
+    payload.delegateDeviceId,
+    'delegateDeviceId'
+  );
   const existing = state.capabilities[capabilityId];
   if (existing === undefined)
-    throw new Error(`identity.capability.revoked references unknown capability ${capabilityId}`);
+    throw new Error(
+      `identity.capability.revoked references unknown capability ${capabilityId}`
+    );
   if (existing.delegateDeviceId !== delegateDeviceId) {
     throw new Error(
       'identity.capability.revoked payload.delegateDeviceId does not match granted capability delegate'
@@ -312,7 +344,7 @@ function applyCapabilityRevoked(
   if (existing.status === 'revoked') {
     return freezeIdentityControlState({
       ...state,
-      lastEventId: event.eventId
+      lastEventId: event.eventId,
     });
   }
 
@@ -323,10 +355,10 @@ function applyCapabilityRevoked(
       [capabilityId]: {
         ...existing,
         status: 'revoked',
-        revokedAt: event.createdAt
-      }
+        revokedAt: event.createdAt,
+      },
     },
-    lastEventId: event.eventId
+    lastEventId: event.eventId,
   });
 }
 
@@ -337,7 +369,10 @@ function applyDeviceRotated(
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
   const deviceId = requireString(payload.deviceId, 'deviceId');
-  const previousPublicKey = requireString(payload.previousPublicKey, 'previousPublicKey');
+  const previousPublicKey = requireString(
+    payload.previousPublicKey,
+    'previousPublicKey'
+  );
   const newPublicKey = requireString(payload.newPublicKey, 'newPublicKey');
   const epoch = requirePositiveInteger(payload.epoch, 'epoch');
   const existing = state.devices[deviceId];
@@ -375,10 +410,10 @@ function applyDeviceRotated(
       [deviceId]: {
         ...existing,
         publicKey: newPublicKey,
-        authorizedAt: event.createdAt
-      }
+        authorizedAt: event.createdAt,
+      },
     },
-    lastEventId: event.eventId
+    lastEventId: event.eventId,
   });
 }
 
@@ -388,7 +423,10 @@ function applyContactCardPublished(
 ): IdentityControlState {
   requireControllerSigner(state, event);
   const payload = event.payload as Record<string, unknown>;
-  const contactCardDigest = requireString(payload.contactCardDigest, 'contactCardDigest');
+  const contactCardDigest = requireString(
+    payload.contactCardDigest,
+    'contactCardDigest'
+  );
   const capturedAt = requireString(payload.capturedAt, 'capturedAt');
   if (!Number.isFinite(Date.parse(capturedAt))) {
     throw identityError(
@@ -402,25 +440,36 @@ function applyContactCardPublished(
     contactCardPublication: Object.freeze({
       contactCardDigest,
       capturedAt,
-      publishedAt: event.createdAt
+      publishedAt: event.createdAt,
     }),
-    lastEventId: event.eventId
+    lastEventId: event.eventId,
   });
 }
 
-function requireControllerSigner(state: IdentityControlState, event: SignedEventEnvelope): void {
+function requireControllerSigner(
+  state: IdentityControlState,
+  event: SignedEventEnvelope
+): void {
   const kind = event.kind;
   if (state.controllerPublicKey === undefined) {
     throw new Error(`${kind} requires identity.controller.created`);
   }
   if (event.signature.publicKey !== state.controllerPublicKey) {
-    throw new Error(`${kind} must be signed by the controller public key`);
+    throw new Error(
+      `${kind} must be signed by the controller public key`
+    );
   }
 }
 
-function requireMonotonicEpoch(currentEpoch: number, nextEpoch: number, kind: string): void {
+function requireMonotonicEpoch(
+  currentEpoch: number,
+  nextEpoch: number,
+  kind: string
+): void {
   if (nextEpoch <= currentEpoch) {
-    throw new Error(`${kind} payload.epoch must be greater than current epoch`);
+    throw new Error(
+      `${kind} payload.epoch must be greater than current epoch`
+    );
   }
 }
 
@@ -437,13 +486,19 @@ function optionalString(value: unknown, field: string): string | undefined {
 }
 
 function requirePositiveInteger(value: unknown, field: string): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+  if (
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    value <= 0
+  ) {
     throw new Error(`${field} must be a safe positive integer`);
   }
   return value;
 }
 
-function dedupeSortedEvents(events: readonly SignedEventEnvelope[]): SignedEventEnvelope[] {
+function dedupeSortedEvents(
+  events: readonly SignedEventEnvelope[]
+): SignedEventEnvelope[] {
   const deduped: SignedEventEnvelope[] = [];
   const seenByEventId = new Map<string, SignedEventEnvelope>();
 
@@ -455,19 +510,25 @@ function dedupeSortedEvents(events: readonly SignedEventEnvelope[]): SignedEvent
       continue;
     }
     if (!sameSignedEvent(existing, event)) {
-      throw new Error(`duplicate eventId ${event.eventId} has conflicting signed event content`);
+      throw new Error(
+        `duplicate eventId ${event.eventId} has conflicting signed event content`
+      );
     }
   }
 
   return deduped;
 }
 
-function sameSignedEvent(left: SignedEventEnvelope, right: SignedEventEnvelope): boolean {
+function sameSignedEvent(
+  left: SignedEventEnvelope,
+  right: SignedEventEnvelope
+): boolean {
   if (left === right) return true;
   return (
     left.signature.value === right.signature.value &&
     left.signature.publicKey === right.signature.publicKey &&
     left.signature.algorithm === right.signature.algorithm &&
-    canonicalizeJson(unsignedProjection(left)) === canonicalizeJson(unsignedProjection(right))
+    canonicalizeJson(unsignedProjection(left)) ===
+      canonicalizeJson(unsignedProjection(right))
   );
 }
