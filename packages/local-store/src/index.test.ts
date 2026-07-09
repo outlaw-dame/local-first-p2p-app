@@ -378,6 +378,76 @@ describe('DexieLocalFirstStore', () => {
     }
   });
 
+  it('persists identity-control device wrap metadata', async () => {
+    const store = createLocalFirstStore(`identity-wrap-${globalThis.crypto.randomUUID()}`);
+    const event = makeSignedEvent('evt-identity-wrap');
+    try {
+      const projection = await store.appendLocalIdentityEvent(
+        event,
+        (_current, signedEvent, updatedAt) => ({
+          identityId: signedEvent.author,
+          controllerPublicKey: signedEvent.signature.publicKey,
+          epoch: 1,
+          devices: {
+            'device:alice-phone': {
+              deviceId: 'device:alice-phone',
+              publicKey: signedEvent.signature.publicKey,
+              status: 'active',
+              authorizedAt: signedEvent.createdAt,
+              wrapPublicKey: 'A'.repeat(43),
+              wrapKeyRef: 'wrap-key:device:alice-phone'
+            }
+          },
+          capabilities: {},
+          lastEventId: signedEvent.eventId,
+          updatedAt
+        }),
+        { updatedAt: '2026-05-22T00:00:01.000Z' }
+      );
+
+      expect(projection.devices['device:alice-phone']).toMatchObject({
+        wrapPublicKey: 'A'.repeat(43),
+        wrapKeyRef: 'wrap-key:device:alice-phone'
+      });
+      await expect(store.getIdentityControlProjection('identity:alice')).resolves.toEqual(
+        projection
+      );
+    } finally {
+      await store.delete();
+    }
+  });
+
+  it('rejects half-published identity-control wrap metadata', async () => {
+    const store = createLocalFirstStore(`identity-wrap-invalid-${globalThis.crypto.randomUUID()}`);
+    try {
+      await expect(
+        store.appendLocalIdentityEvent(
+          makeSignedEvent('evt-identity-wrap-invalid'),
+          (_current, signedEvent, updatedAt) => ({
+            identityId: signedEvent.author,
+            controllerPublicKey: signedEvent.signature.publicKey,
+            epoch: 1,
+            devices: {
+              'device:alice-phone': {
+                deviceId: 'device:alice-phone',
+                publicKey: signedEvent.signature.publicKey,
+                status: 'active',
+                authorizedAt: signedEvent.createdAt,
+                wrapPublicKey: 'A'.repeat(43)
+              }
+            },
+            capabilities: {},
+            lastEventId: signedEvent.eventId,
+            updatedAt
+          })
+        )
+      ).rejects.toThrow(/wrapPublicKey and wrapKeyRef must be present together/);
+      await expect(store.getSignedEvent('evt-identity-wrap-invalid')).resolves.toBeUndefined();
+    } finally {
+      await store.delete();
+    }
+  });
+
   it('stores contact profiles with normalized petnames and lists by updated time', async () => {
     const store = createLocalFirstStore(`contact-profile-${globalThis.crypto.randomUUID()}`);
     try {
@@ -477,4 +547,24 @@ function makeOutboxEntry(overrides: Partial<MutationOutboxEntry> = {}): Mutation
     updatedAt: now,
     ...overrides
   };
+}
+
+function makeSignedEvent(eventId: string) {
+  const keypair = signingKeypairFromSeed(new Uint8Array(32).fill(7));
+  return signEventEnvelope(
+    createUnsignedEvent({
+      eventId,
+      kind: 'identity.device.authorized',
+      author: 'identity:alice',
+      deviceId: 'device:alice-phone',
+      createdAt: '2026-05-22T00:00:00.000Z',
+      privacy: 'self',
+      payload: {
+        authorizedDeviceId: 'device:alice-phone',
+        authorizedPublicKey: keypair.publicKey,
+        epoch: 1
+      }
+    }),
+    keypair
+  );
 }

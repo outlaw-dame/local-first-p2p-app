@@ -85,7 +85,10 @@ export function resolveEnvelopeRecipientsFromIdentityProjections(
     }
 
     const devices: Record<string, RecipientDevice> = {};
-    for (const device of Object.values(projection.devices)) {
+    const projectionDevices = projection.devices as Readonly<
+      Record<string, RecipientDeviceProjection>
+    >;
+    for (const device of Object.values(projectionDevices)) {
       if (device === null || typeof device !== 'object') continue;
       if (device.status !== 'active') continue;
       if (device.wrapPublicKey === undefined || device.wrapKeyRef === undefined) continue;

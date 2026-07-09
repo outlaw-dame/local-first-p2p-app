@@ -207,7 +207,9 @@ function applyDeviceAuthorized(
   const wrapPublicKey = optionalString(payload.wrapPublicKey, 'wrapPublicKey');
   const wrapKeyRef = optionalString(payload.wrapKeyRef, 'wrapKeyRef');
   if ((wrapPublicKey === undefined) !== (wrapKeyRef === undefined)) {
-    throw new Error('identity.device.authorized wrapPublicKey and wrapKeyRef must be present together');
+    throw new Error(
+      'identity.device.authorized wrapPublicKey and wrapKeyRef must be present together'
+    );
   }
   requireMonotonicEpoch(state.epoch, epoch, event.kind);
 
